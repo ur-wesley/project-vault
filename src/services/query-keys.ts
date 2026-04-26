@@ -1,0 +1,17 @@
+export const queryKeys = {
+  locations: ["locations"] as const,
+  locationDiskSpace: (pathFingerprint: string) => ["locations", "disk", pathFingerprint] as const,
+  discoveredIdes: ["discoveredIdes"] as const,
+  availableShells: ["availableShells"] as const,
+  projects: ["projects"] as const,
+  project: (id: string) => ["projects", id] as const,
+  projectLanguages: (id: string) => ["projects", id, "languages"] as const,
+  projectMiseTools: (id: string) => ["projects", id, "mise", "tools"] as const,
+  sessions: (projectId: string) => ["sessions", projectId] as const,
+  scan: (locationId: string) => ["scan", locationId] as const,
+  githubViewer: () => ["github", "viewer"] as const,
+  githubRepo: (projectId: string) => ["github", "repo", projectId] as const,
+  gitStatus: (projectId: string) => ["git", "status", projectId] as const,
+  projectReadme: (projectId: string) => ["github", "readme", "fs", projectId] as const,
+  githubProjectIssues: (projectId: string) => ["github", "issues", "project", projectId] as const,
+};
