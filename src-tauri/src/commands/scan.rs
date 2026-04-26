@@ -1,0 +1,94 @@
+use std::collections::HashSet;
+use std::path::Path;
+
+use tauri::State;
+use tauri_plugin_sql::DbInstances;
+
+use crate::db;
+use crate::discovery::{
+    collect_projects_under_root, filter_outermost_projects, path_key, DetectorRegistry,
+    ProjectDraft,
+};
+use crate::error::{codes, StableError};
+use crate::models::{ProjectDto, ScanResultDto};
+
+fn registry() -> DetectorRegistry {
+    DetectorRegistry::standard()
+}
+
+#[tauri::command]
+pub fn debug_detect_project(path: String) -> Result<Option<ProjectDraft>, StableError> {
+    let reg = registry();
+    let root = Path::new(&path);
+    if !root.is_dir() {
+        return Err(StableError::new(codes::INVALID_PATH, "not a directory"));
+    }
+    let res = reg.detect(root);
+    Ok(res)
+}
+
+#[tauri::command]
+pub async fn scan_library_location(
+    db: State<'_, DbInstances>,
+    location_id: String,
+) -> Result<ScanResultDto, StableError> {
+    let pool = db::sqlite_pool(&*db).await?;
+    let loc = db::get_location(&pool, &location_id).await?;
+    if !loc.enabled {
+        return Err(StableError::new(
+            codes::INVALID_PATH,
+            "location is disabled",
+        ));
+    }
+    let root = Path::new(&loc.path);
+    if !root.is_dir() {
+        return Err(StableError::new(
+            codes::INVALID_PATH,
+            "location path is not a directory",
+        ));
+    }
+    let reg = registry();
+    let mut dirs_skipped = 0u64;
+    let raw = collect_projects_under_root(&reg, root, &mut dirs_skipped);
+    let drafts = filter_outermost_projects(raw);
+    let discovered = drafts.len() as u64;
+    let mut keep = HashSet::new();
+    let mut upserted = 0u64;
+    for d in drafts {
+        let key = path_key(&d.root);
+        keep.insert(key.clone());
+
+        let stats = crate::project_move::count_filtered_dir(&d.root).ok();
+        let file_count = stats.map(|s| s.file_count).unwrap_or(0);
+        let last_edited_at_ms = stats.and_then(|s| if s.last_edited_at_ms > 0 { Some(s.last_edited_at_ms) } else { None });
+
+        let dto = ProjectDto {
+            id: String::new(),
+            location_id: location_id.clone(),
+            name: d.name,
+            path: key,
+            stack: d.stack,
+            runtime_hint: d.runtime_hint,
+            favorite: false,
+            last_opened_at_ms: None,
+            total_playtime_ms: 0,
+            tasks: d.tasks,
+            tags: d.tags,
+            github_owner: d.github_owner,
+            github_repo: d.github_repo,
+            file_count,
+            last_edited_at_ms,
+        };
+        db::upsert_project(&pool, &dto).await?;
+        upserted += 1;
+    }
+    let pruned = db::delete_projects_for_location_not_in_paths(&pool, &location_id, &keep).await?;
+    Ok(ScanResultDto {
+        projects_discovered: discovered,
+        projects_upserted: upserted,
+        projects_pruned: pruned,
+        dirs_skipped_errors: dirs_skipped,
+        monorepos_expanded: 0,
+        workspace_warnings: 0,
+    })
+}
