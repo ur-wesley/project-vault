@@ -208,6 +208,8 @@ pub fn run() {
             commands::search::delete_index,
             commands::search::delete_all_indices,
             commands::search::update_index_for_file,
+            commands::updater::check_for_updates,
+            commands::updater::install_update,
         ])
         .run(tauri::generate_context!())
         .expect("error while running tauri application");

@@ -11,6 +11,8 @@ import {
   listAvailableShells,
   listDiscoveredTools,
   deleteAllIndices,
+  checkForUpdates,
+  installUpdate,
 } from "~/services/tauri";
 import { GITHUB_TOKEN_SETTING_KEY, fetchGitHubViewer } from "~/services/github";
 import { runGithubDeviceSignIn } from "~/services/github-device-signin";
@@ -26,6 +28,7 @@ const DEFAULT_IDE_KEY = "default_ide_path";
 const DEFAULT_SHELL_KEY = "default_shell_path";
 const LOCALE_KEY = "ui_locale";
 const AUTO_INDEX_KEY = "auto_index_projects";
+const AUTO_CHECK_UPDATES_KEY = "auto_check_updates";
 
 export type UseSettingsModelProps = Readonly<{
   t: (key: string, args?: any) => string;
@@ -41,6 +44,7 @@ export function useSettingsModel(props: UseSettingsModelProps) {
   const [defaultShell, setDefaultShell] = createSignal("");
   const [selectedLocale, setSelectedLocale] = createSignal<Locale>("en");
   const [autoIndex, setAutoIndex] = createSignal(true);
+  const [autoCheckUpdates, setAutoCheckUpdates] = createSignal(true);
   const [githubToken, setGithubToken] = createSignal("");
   const [githubUserCode, setGithubUserCode] = createSignal("");
   const [busy, setBusy] = createSignal(false);
@@ -48,7 +52,7 @@ export function useSettingsModel(props: UseSettingsModelProps) {
   const settingsQ = createQuery(() => ({
     queryKey: ["settings", "view"] as const,
     queryFn: async () => {
-      const [sh, scan, gh, di, ds, loc, ai] = await Promise.all([
+      const [sh, scan, gh, di, ds, loc, ai, au] = await Promise.all([
         getSetting(SHELL_KEY),
         getSetting(SCAN_KEY),
         getSetting(GITHUB_TOKEN_SETTING_KEY),
@@ -56,6 +60,7 @@ export function useSettingsModel(props: UseSettingsModelProps) {
         getSetting(DEFAULT_SHELL_KEY),
         getSetting(LOCALE_KEY),
         getSetting(AUTO_INDEX_KEY),
+        getSetting(AUTO_CHECK_UPDATES_KEY),
       ]);
       if (sh.isErr()) throw new Error(sh.error.message);
       if (scan.isErr()) throw new Error(scan.error.message);
@@ -64,6 +69,7 @@ export function useSettingsModel(props: UseSettingsModelProps) {
       if (ds.isErr()) throw new Error(ds.error.message);
       if (loc.isErr()) throw new Error(loc.error.message);
       if (ai.isErr()) throw new Error(ai.error.message);
+      if (au.isErr()) throw new Error(au.error.message);
 
       return {
         shell: sh.value ?? "",
@@ -73,6 +79,7 @@ export function useSettingsModel(props: UseSettingsModelProps) {
         defaultShell: ds.value ?? "",
         locale: loc.value ?? "en",
         autoIndex: ai.value !== "false",
+        autoCheckUpdates: au.value !== "false",
       };
     },
   }));
@@ -135,6 +142,7 @@ export function useSettingsModel(props: UseSettingsModelProps) {
       setDefaultShell(d.defaultShell);
       setSelectedLocale((d.locale as Locale) || props.locale());
       setAutoIndex(d.autoIndex);
+      setAutoCheckUpdates(d.autoCheckUpdates);
     }
   });
 
@@ -150,6 +158,7 @@ export function useSettingsModel(props: UseSettingsModelProps) {
         [DEFAULT_SHELL_KEY, defaultShell()],
         [LOCALE_KEY, selectedLocale()],
         [AUTO_INDEX_KEY, autoIndex() ? "true" : "false"],
+        [AUTO_CHECK_UPDATES_KEY, autoCheckUpdates() ? "true" : "false"],
       ] as const) {
         const r = await setSetting(key, val);
         if (r.isErr()) {
@@ -274,6 +283,8 @@ export function useSettingsModel(props: UseSettingsModelProps) {
     setSelectedLocale,
     autoIndex,
     setAutoIndex,
+    autoCheckUpdates,
+    setAutoCheckUpdates,
     githubToken,
     setGithubToken,
     githubUserCode,
@@ -283,5 +294,7 @@ export function useSettingsModel(props: UseSettingsModelProps) {
     onExport,
     onSignOut,
     onRebuildDatabase,
+    onCheckForUpdates,
+    onInstallUpdate,
   };
 }

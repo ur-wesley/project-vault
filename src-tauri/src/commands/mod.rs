@@ -13,4 +13,5 @@ pub mod settings;
 pub mod task_config;
 pub mod task_runner;
 pub mod tools;
+pub mod updater;
 pub mod volumes;

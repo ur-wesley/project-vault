@@ -16,10 +16,13 @@ export type GeneralSettingsTabProps = Readonly<{
   setScanMinutes: (v: string) => void;
   autoIndex: boolean;
   setAutoIndex: (v: boolean) => void;
+  autoCheckUpdates: boolean;
+  setAutoCheckUpdates: (v: boolean) => void;
   busy: boolean;
   onExport: () => void;
   onOpenAppDataDir?: () => void;
   onRebuildDatabase?: () => void;
+  onCheckForUpdates?: () => void;
 }>;
 
 type LocaleOption = { value: Locale; label: string; textValue: string };
@@ -146,6 +149,43 @@ export const GeneralSettingsTab: Component<GeneralSettingsTabProps> = (props) =>
                 </Label>
               </div>
             </div>
+          </div>
+
+          <div class="grid gap-2">
+            <label class="text-[10px] font-bold text-muted-foreground uppercase tracking-widest">
+              {props.t("settings.updatesTitle")}
+            </label>
+            <p class="text-xs text-muted-foreground">
+              {props.t("settings.updatesDescription")}
+            </p>
+            <div class="flex items-start space-x-3 pt-1">
+              <Checkbox
+                id="auto-check-updates"
+                checked={props.autoCheckUpdates}
+                onChange={(checked) => props.setAutoCheckUpdates(checked)}
+              />
+              <div class="grid gap-1.5 leading-none pt-0.5">
+                <Label
+                  for="auto-check-updates"
+                  class="text-sm font-medium leading-none cursor-pointer"
+                >
+                  {props.t("settings.autoCheckUpdatesToggle")}
+                </Label>
+              </div>
+            </div>
+            <Show when={props.onCheckForUpdates}>
+              <div class="pt-1">
+                <Button
+                  variant="outline"
+                  size="sm"
+                  class="h-8 text-xs"
+                  disabled={props.busy}
+                  onClick={() => props.onCheckForUpdates?.()}
+                >
+                  {props.t("settings.checkForUpdates")}
+                </Button>
+              </div>
+            </Show>
           </div>
         </div>
       </section>

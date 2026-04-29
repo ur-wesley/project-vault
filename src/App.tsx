@@ -26,7 +26,7 @@ import { rescanAllLibraryFolders } from "~/lib/rescan-library";
 import { stableErrorMessage } from "~/lib/invoke-error";
 import { GITHUB_TOKEN_SETTING_KEY, fetchGitHubViewer } from "~/services/github";
 import { runGithubDeviceSignIn } from "~/services/github-device-signin";
-import { getProject, getSetting, isGithubDeviceConfigured, setSetting, listAllProcesses, listLocations, listProjects } from "~/services/tauri";
+import { getProject, getSetting, isGithubDeviceConfigured, setSetting, listAllProcesses, listLocations, listProjects, checkForUpdates } from "~/services/tauri";
 import { queryKeys } from "~/services/query-keys";
 import { isTauri } from "@tauri-apps/api/core";
 import { getCurrentWindow } from "@tauri-apps/api/window";
@@ -381,6 +381,31 @@ function App() {
     window.addEventListener("popstate", onPopState);
     window.addEventListener("keydown", preventDefaultShortcuts);
     window.addEventListener("contextmenu", preventContextMenu);
+
+    // Auto-check for updates on startup if enabled
+    void (async () => {
+      if (!isTauri()) return;
+      const r = await getSetting("auto_check_updates");
+      if (r.isOk() && r.value !== "false") {
+        const updateR = await checkForUpdates();
+        if (updateR.isOk() && updateR.value) {
+          toast.info(`Update available: v${updateR.value.version}`, {
+            action: {
+              label: "Install",
+              onClick: () => {
+                void (async () => {
+                  const installR = await import("~/services/tauri").then((m) => m.installUpdate());
+                  if (installR.isErr()) {
+                    toast.error(String(installR.error));
+                  }
+                })();
+              },
+            },
+            duration: 30000,
+          });
+        }
+      }
+    })();
 
     onCleanup(() => {
       window.removeEventListener("popstate", onPopState);

@@ -598,3 +598,23 @@ export function deleteAllIndices(): ResultAsync<void, StableError> {
     mapInvokeError,
   );
 }
+
+export type UpdateInfoDto = {
+  version: string;
+  currentVersion: string;
+  notes: string;
+};
+
+export function checkForUpdates(): ResultAsync<UpdateInfoDto | null, StableError> {
+  return ResultAsync.fromPromise(
+    invoke<UpdateInfoDto | null>("check_for_updates"),
+    mapInvokeError,
+  );
+}
+
+export function installUpdate(): ResultAsync<void, StableError> {
+  return ResultAsync.fromPromise(
+    invoke<void>("install_update"),
+    mapInvokeError,
+  );
+}

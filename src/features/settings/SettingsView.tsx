@@ -112,10 +112,13 @@ export const SettingsView: Component<SettingsViewProps> = (props) => {
                 setScanMinutes={model.setScanMinutes}
                 autoIndex={model.autoIndex()}
                 setAutoIndex={model.setAutoIndex}
+                autoCheckUpdates={model.autoCheckUpdates()}
+                setAutoCheckUpdates={model.setAutoCheckUpdates}
                 busy={model.busy()}
                 onExport={model.onExport}
                 onOpenAppDataDir={onOpenAppDataDir}
                 onRebuildDatabase={() => void model.onRebuildDatabase(safeConfirm)}
+                onCheckForUpdates={() => void model.onCheckForUpdates()}
               />
 
               <TabsContent value="locations" class="outline-none animate-in fade-in duration-300">
