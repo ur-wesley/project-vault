@@ -144,7 +144,7 @@ pub struct MoveProjectPayload {
 
 use std::collections::HashMap;
 
-const MEDIA_EXTENSIONS: &[&str] = &[
+const IGNORED_EXTENSIONS: &[&str] = &[
     // Images
     "png", "jpg", "jpeg", "gif", "bmp", "tiff", "webp", "svg", "ico", "raw", "psd", "ai",
     // Videos
@@ -157,6 +157,8 @@ const MEDIA_EXTENSIONS: &[&str] = &[
     "zip", "tar", "gz", "rar", "7z", "exe", "dll", "so", "dylib", "bin",
     // Documents
     "pdf", "doc", "docx", "xls", "xlsx", "ppt", "pptx", "odt", "ods", "odp",
+    // Config / data
+    "json", "toml", "yaml", "yml", "xml", "ini", "cfg", "conf", "lock", "env", "properties",
 ];
 
 #[tauri::command]
@@ -172,7 +174,7 @@ pub async fn get_project_languages(
         return Ok(HashMap::new());
     }
 
-    let media_set: std::collections::HashSet<&str> = MEDIA_EXTENSIONS.iter().copied().collect();
+    let ignored_set: std::collections::HashSet<&str> = IGNORED_EXTENSIONS.iter().copied().collect();
     let mut stats = HashMap::new();
     let mut files_processed = 0;
     const MAX_FILES: usize = 10_000;
@@ -198,7 +200,7 @@ pub async fn get_project_languages(
             continue;
         };
         let ext_lower = ext.to_lowercase();
-        if media_set.contains(ext_lower.as_str()) {
+        if ignored_set.contains(ext_lower.as_str()) {
             continue;
         }
 
