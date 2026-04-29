@@ -8,6 +8,7 @@ import type {
   SelectItemProps,
   SelectListboxProps,
   SelectTriggerProps,
+  SelectValueProps,
 } from "@kobalte/core/select";
 
 import { cn } from "~/lib/utils";
@@ -17,6 +18,7 @@ const KContent = KobalteSelect.Content;
 const KPortal = KobalteSelect.Portal;
 const KListbox = KobalteSelect.Listbox;
 const KItem = KobalteSelect.Item;
+const KValue = KobalteSelect.Value;
 
 type AppSelectTriggerProps<T extends ValidComponent = "button"> = SelectTriggerProps<T> & {
   class?: string | undefined;
@@ -53,7 +55,7 @@ const SelectContent = <T extends ValidComponent = "div">(
     <KPortal>
       <KContent
         class={cn(
-          "relative z-[100] min-w-32 overflow-hidden rounded-md border bg-popover text-popover-foreground shadow-md animate-in fade-in-80",
+          "relative z-[9999] min-w-32 overflow-hidden rounded-md border bg-popover text-popover-foreground shadow-md animate-in fade-in-80",
           local.class,
         )}
         {...others}
@@ -103,11 +105,30 @@ const SelectItem = <T extends ValidComponent = "li">(
   );
 };
 
+type AppSelectValueProps<Option, T extends ValidComponent = "span"> = SelectValueProps<Option, T> & {
+  class?: string | undefined;
+};
+
+const SelectValue = <Option, T extends ValidComponent = "span">(
+  props: PolymorphicProps<T, AppSelectValueProps<Option, T>>,
+) => {
+  const [local, others] = splitProps(props as AppSelectValueProps<Option>, ["class"]);
+  return (
+    <KValue
+      class={cn("min-w-0 flex-1 truncate", local.class)}
+      {...others}
+    />
+  );
+};
+
 export const Select = Object.assign(KobalteSelect, {
   Trigger: SelectTrigger,
   Content: SelectContent,
   Listbox: SelectListbox,
   Item: SelectItem,
+  Value: SelectValue,
 });
+
+export { SelectTrigger, SelectContent, SelectItem, SelectListbox, SelectValue };
 
 export type { SelectRootProps } from "@kobalte/core/select";

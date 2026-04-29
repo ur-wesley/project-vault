@@ -6,9 +6,17 @@ import { render } from "solid-js/web";
 import App from "./App";
 import { EventHubProvider } from "./lib/event-hub-context";
 import { I18nProvider } from "./lib/i18n-context";
+import { ShortcutProvider } from "./lib/shortcut-context";
 import { queryKeys } from "./services/query-keys";
 
-const queryClient = new QueryClient();
+const queryClient = new QueryClient({
+  defaultOptions: {
+    queries: {
+      staleTime: 1000 * 60, // 1 minute
+      gcTime: 1000 * 60 * 5, // 5 minutes
+    },
+  },
+});
 
 const Root: ParentComponent = (props) => {
   onMount(() => {
@@ -30,9 +38,11 @@ render(
     <QueryClientProvider client={queryClient}>
       <Root>
         <EventHubProvider>
-          <I18nProvider>
-            <App />
-          </I18nProvider>
+          <ShortcutProvider>
+            <I18nProvider>
+              <App />
+            </I18nProvider>
+          </ShortcutProvider>
         </EventHubProvider>
       </Root>
     </QueryClientProvider>

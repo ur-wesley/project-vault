@@ -36,7 +36,7 @@ export const RiskConfirmDialog: Component<RiskConfirmDialogProps> = (props) => {
             onClick={() => {
               const ctx = m().risk();
               m().setRisk(null);
-              if (ctx) void m().runArgv(ctx.project, ctx.argv, true);
+              if (ctx) void m().runArgv(ctx.project, ctx.argv, true, ctx.cwd);
             }}
           >
             {t("library.riskConfirm") as string}

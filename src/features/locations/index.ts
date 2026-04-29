@@ -1,1 +1,2 @@
-export { LocationManagerDialog, LocationManager } from "./LocationManager";
+export { LocationManager } from "./LocationManager";
+export { LocationManagerDialog } from "./components/LocationManagerDialog";

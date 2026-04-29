@@ -2,8 +2,9 @@ const TAB_VALUES = new Set(["readme", "issues", "files", "tasks", "terminal", "h
 
 export const PROJECTS_PATH_PREFIX = "/projects";
 export const SETTINGS_PATH = "/settings";
+export const PROCESSES_PATH = "/processes";
 
-const SETTINGS_TABS = new Set(["general", "locations", "tools", "accounts"]);
+const SETTINGS_TABS = new Set(["general", "locations", "tools", "shortcuts", "templates", "accounts"]);
 
 function normalizeTab(tab: string | null): string {
   if (tab != null && tab.length > 0 && TAB_VALUES.has(tab)) {
@@ -24,7 +25,7 @@ export function readAppUrl(): {
   tab: string;
   subDetail: string | null;
   settingsTab: string;
-  view: "library" | "project" | "settings";
+  view: "library" | "project" | "processes" | "settings";
 } {
   if (typeof window === "undefined") {
     return {
@@ -36,6 +37,10 @@ export function readAppUrl(): {
     };
   }
   const path = window.location.pathname;
+
+  if (path === PROCESSES_PATH) {
+    return { projectId: null, tab: "readme", subDetail: null, settingsTab: "general", view: "processes" };
+  }
 
   if (path === SETTINGS_PATH || path.startsWith(`${SETTINGS_PATH}/`)) {
     const parts = path.split("/");
@@ -104,12 +109,19 @@ export function replaceUrlToSettings(tab: string): void {
   window.history.replaceState({ view: "settings", tab }, "", want);
 }
 
+export function replaceUrlToProcesses(): void {
+  if (typeof window === "undefined") return;
+  if (window.location.pathname === PROCESSES_PATH) return;
+  window.history.replaceState({ view: "processes" }, "", PROCESSES_PATH);
+}
+
 export function replaceUrlToLibrary(): void {
   if (typeof window === "undefined") return;
   if (window.location.pathname === "/") return;
   if (
     window.location.pathname.startsWith(`${PROJECTS_PATH_PREFIX}/`) ||
-    window.location.pathname.startsWith(SETTINGS_PATH)
+    window.location.pathname.startsWith(SETTINGS_PATH) ||
+    window.location.pathname === PROCESSES_PATH
   ) {
     window.history.replaceState({}, "", "/");
   }

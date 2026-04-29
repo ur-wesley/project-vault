@@ -29,8 +29,18 @@ import {
   AlertDialogHeader,
   AlertDialogTitle,
 } from "~/components/ui/alert-dialog";
+import {
+  Dialog,
+  DialogContent,
+  DialogDescription,
+  DialogFooter,
+  DialogHeader,
+  DialogTitle,
+} from "~/components/ui/dialog";
+import { Checkbox } from "~/components/ui/checkbox";
 import { useI18n } from "~/lib/i18n-context";
 import { formatRelativeTime } from "~/lib/format-date";
+import { formatBytes } from "~/lib/format-bytes";
 import { cn } from "~/lib/utils";
 import { queryKeys } from "~/services/query-keys";
 import { getProjectLanguages } from "~/services/tauri";
@@ -60,6 +70,7 @@ const LANG_NAME_MAP: Record<string, string> = {
 };
 
 function LanguageBar(props: { projectId: string }) {
+  const { t } = useI18n();
   const q = createQuery(() => ({
     queryKey: queryKeys.projectLanguages(props.projectId),
     queryFn: async () => {
@@ -89,7 +100,7 @@ function LanguageBar(props: { projectId: string }) {
     const major = list.filter((s) => s.percent >= threshold);
     const minor = list.filter((s) => s.percent < threshold);
     if (minor.length > 0) {
-      major.push({ ext: "other", name: "Other", percent: minor.reduce((sum, s) => sum + s.percent, 0), color: "#666666" });
+      major.push({ ext: "other", name: t('projectDetail.languageOther') as string, percent: minor.reduce((sum, s) => sum + s.percent, 0), color: "#666666" });
     }
     return major;
   });
@@ -119,6 +130,8 @@ export const ProjectDetailHeader: Component<ProjectDetailHeaderProps> = (props) 
   const { t } = useI18n();
   const m = () => props.model;
   const [deleteConfirmOpen, setDeleteConfirmOpen] = createSignal(false);
+  const [deleteFromDisk, setDeleteFromDisk] = createSignal(false);
+  const [tagDialogOpen, setTagDialogOpen] = createSignal(false);
 
   const openExternal = (href: string) => isTauri() ? void openUrl(href) : window.open(href, "_blank", "noopener,noreferrer");
 
@@ -130,7 +143,7 @@ export const ProjectDetailHeader: Component<ProjectDetailHeaderProps> = (props) 
             <div class="flex min-w-0 flex-1 flex-col gap-2">
               <div class="flex items-center gap-3 min-w-0">
                 <div class="flex items-center gap-2 shrink-0">
-                  <Button type="button" variant="ghost" size="sm" class="h-7 px-1.5" onClick={() => m().props.onBack()} title="Back to Library">
+                  <Button type="button" variant="ghost" size="sm" class="h-7 px-1.5" onClick={() => m().props.onBack()} title={t('projectDetail.backToLibrary') as string}>
                     <span class="iconify mdi--arrow-left size-4" />
                   </Button>
                   <Separator orientation="vertical" class="h-4" />
@@ -144,37 +157,22 @@ export const ProjectDetailHeader: Component<ProjectDetailHeaderProps> = (props) 
                       <div class="flex min-w-0 items-center gap-2">
                         <Show when={m().ghQ.data} fallback={<h1 class="truncate text-sm font-bold tracking-tight text-foreground">{p().name}</h1>}>
                           {(g) => {
-                            const u = `https://github.com/${g().owner}/${g().repo}`;
+                            const u = createMemo(() => g().owner && g().repo ? `https://github.com/${g().owner}/${g().repo}` : null);
                             return (
-                              <button type="button" class="group/gh flex min-w-0 items-center gap-1.5 text-sm font-bold tracking-tight hover:text-primary transition-colors" onClick={() => openExternal(u)} title={`Open ${g().owner}/${g().repo} on GitHub`}>
-                                <span class="iconify mdi--github size-4 shrink-0 text-muted-foreground group-hover/gh:text-primary" />
-                                <h1 class="truncate">{p().name}</h1>
-                              </button>
+                              <Show when={u()} fallback={<h1 class="truncate text-sm font-bold tracking-tight text-foreground">{p().name}</h1>}>
+                                {(href) => (
+                                  <button type="button" class="group/gh flex min-w-0 items-center gap-1.5 text-sm font-bold tracking-tight hover:text-primary transition-colors" onClick={() => openExternal(href())} title={t('projectDetail.openOnGithub', { owner: g().owner, repo: g().repo }) as string}>
+                                    <span class="iconify mdi--github size-4 shrink-0 text-muted-foreground group-hover/gh:text-primary" />
+                                    <h1 class="truncate">{p().name}</h1>
+                                  </button>
+                                )}
+                              </Show>
                             );
                           }}
                         </Show>
                       </div>
-                      <Show when={m().miseToolsQ.data && m().miseToolsQ.data.length > 0}>
-                        <div class="flex items-center gap-1">
-                          <Separator orientation="vertical" class="h-3 mx-1 opacity-40" />
-                          <div class="flex flex-wrap gap-1">
-                            <For each={m().miseToolsQ.data}>
-                              {(tool) => (
-                                <Tooltip openDelay={400}>
-                                  <TooltipTrigger as="div">
-                                    <Badge variant="outline" class="h-4.5 px-1.5 text-[9px] font-bold border-primary/20 bg-primary/5 text-primary/80">
-                                      {tool.name}@{tool.version}
-                                    </Badge>
-                                  </TooltipTrigger>
-                                  <TooltipContent>Mise tool: {tool.name} v{tool.version} from {tool.source}</TooltipContent>
-                                </Tooltip>
-                              )}
-                            </For>
-                          </div>
-                        </div>
-                      </Show>
                     </div>
-                    <Show when={m().ghQ.data?.repo && m().ghQ.data?.repo.toLowerCase() !== p().name.toLowerCase()}>
+                    <Show when={m().ghQ.data?.owner && m().ghQ.data?.repo && (m().ghQ.data?.repo.toLowerCase() !== p().name.toLowerCase() || m().ghQ.data?.owner)}>
                        <p class="mt-0.5 truncate text-[10px] font-medium leading-tight text-muted-foreground/70">
                          {m().ghQ.data?.owner}/{m().ghQ.data?.repo}
                        </p>
@@ -183,9 +181,16 @@ export const ProjectDetailHeader: Component<ProjectDetailHeaderProps> = (props) 
                 </div>
               </div>
               <div class="ml-1 flex min-w-0 items-center gap-4">
-                <div class="group/path flex min-w-0 flex-1 cursor-pointer items-center gap-2" onClick={() => void m().onOpenProjectInFileManager(p().path)} title={t("library.openInFileManager") as string}>
-                  <span class="iconify mdi--folder size-3.5 shrink-0 text-muted-foreground/60 transition-colors group-hover/path:text-primary" />
-                  <p class="truncate font-mono text-[10px] text-muted-foreground/80 transition-colors group-hover/path:text-foreground" title={p().path}>{p().path}</p>
+                <div class="flex min-w-0">
+                  <div class="group/path flex min-w-0 cursor-pointer items-center gap-2" onClick={() => void m().onOpenProjectInFileManager(p().path)} title={t("library.openInFileManager") as string}>
+                    <span class="iconify mdi--folder size-3.5 shrink-0 text-muted-foreground/60 transition-colors group-hover/path:text-primary" />
+                    <p class="truncate font-mono text-[10px] text-muted-foreground/80 transition-colors group-hover/path:text-foreground" title={p().path}>{p().path}</p>
+                    <Show when={p().sizeBytes > 0}>
+                      <span class="shrink-0 text-[10px] text-muted-foreground/40 transition-colors group-hover/path:text-muted-foreground/60">
+                        · {formatBytes(p().sizeBytes)}
+                      </span>
+                    </Show>
+                  </div>
                 </div>
               </div>
             </div>
@@ -202,7 +207,7 @@ export const ProjectDetailHeader: Component<ProjectDetailHeaderProps> = (props) 
                   }>
                     <button type="button" class="flex h-8 animate-in fade-in slide-in-from-right-0.5 items-center gap-2 rounded-l-full pl-5 pr-4 text-[11px] font-black uppercase tracking-widest text-destructive transition-colors duration-300 hover:bg-destructive/10 active:scale-95" onClick={() => void m().onStopIde(p().id)}>
                       <span class="iconify mdi--stop size-4.5" />
-                      <span>Stop IDE</span>
+                      <span>{t('library.stopIde') as string}</span>
                     </button>
                   </Show>
                   <div class="mx-0.5 h-5 w-px bg-primary/20" />
@@ -225,14 +230,14 @@ export const ProjectDetailHeader: Component<ProjectDetailHeaderProps> = (props) 
                 </div>
               </Show>
               <div class="flex items-center gap-2 px-3">
-                <div class="flex items-center gap-1.5 text-[10px] font-bold uppercase tracking-tight text-muted-foreground/80" title="Total worktime">
+                <div class="flex items-center gap-1.5 text-[10px] font-bold uppercase tracking-tight text-muted-foreground/80" title={t('projectDetail.totalWorktime') as string}>
                   <span class="iconify mdi--clock-outline size-3" />
                   {formatWorktime(p().totalPlaytimeMs)}
                 </div>
                 <Show when={p().lastOpenedAtMs}>
                   <Separator orientation="vertical" class="h-2.5 opacity-40" />
                   <div class="text-[10px] font-bold uppercase tracking-tight text-muted-foreground/60">
-                    Started {formatRelativeTime(p().lastOpenedAtMs)}
+                    {t('projectDetail.lastStartedRelative', { time: formatRelativeTime(p().lastOpenedAtMs) }) as string}
                   </div>
                 </Show>
               </div>
@@ -248,16 +253,16 @@ export const ProjectDetailHeader: Component<ProjectDetailHeaderProps> = (props) 
                     <TooltipTrigger as={Button} type="button" variant="ghost" size="icon" class={cn("h-full w-8 rounded-none px-0 text-muted-foreground/60 hover:bg-muted/80 hover:text-foreground", p().favorite && "text-yellow-500 hover:text-yellow-600")} onClick={() => m().favMutate({ id: p().id, favorite: !p().favorite })}>
                       <span class={cn("iconify size-4", p().favorite ? "mdi--star" : "mdi--star-outline")} />
                     </TooltipTrigger>
-                    <TooltipContent>{p().favorite ? "Remove from Favorites" : "Mark as Favorite"}</TooltipContent>
+                    <TooltipContent>{p().favorite ? (t('projectDetail.favRemove') as string) : (t('projectDetail.favMark') as string)}</TooltipContent>
                   </Tooltip>
                   <Show when={m().gitStatusQ.data}>
                     {(s) => (
                       <Popover gutter={8}>
                         <Tooltip openDelay={400}>
-                          <TooltipTrigger as={PopoverTrigger} variant="ghost" size="icon" class="h-full w-8 rounded-none px-0 text-muted-foreground/60 hover:bg-muted/80 hover:text-foreground">
+                          <TooltipTrigger as={PopoverTrigger} variant="ghost" size="icon" class="inline-flex h-full w-8 items-center justify-center rounded-none px-0 text-muted-foreground/60 hover:bg-muted/80 hover:text-foreground">
                             <span class="iconify mdi--git size-4" />
                           </TooltipTrigger>
-                          <TooltipContent>Git Status: {s().branch}</TooltipContent>
+                          <TooltipContent>{t('projectDetail.gitStatusTooltip', { branch: s().branch }) as string}</TooltipContent>
                         </Tooltip>
                         <PopoverContent class="w-64 p-3 text-foreground shadow-xl border-border/40">
                           <div class="space-y-3">
@@ -266,34 +271,50 @@ export const ProjectDetailHeader: Component<ProjectDetailHeaderProps> = (props) 
                                    <span class="iconify mdi--git size-4 text-primary/80" />
                                    <span class="max-w-[140px] truncate font-mono text-xs font-bold">{s().branch}</span>
                                 </div>
-                                <Show when={s().isDirty}><Badge variant="outline" class="h-5 bg-yellow-500/5 px-1.5 text-[9px] border-yellow-500/50 text-yellow-600">Modified</Badge></Show>
+                                <Show when={s().isDirty}><Badge variant="outline" class="h-5 bg-yellow-500/5 px-1.5 text-[9px] border-yellow-500/50 text-yellow-600">{t('projectDetail.gitModified') as string}</Badge></Show>
                              </div>
                              <div class="grid grid-cols-2 gap-2 border-t border-border/40 pt-1">
                                 <div class="space-y-1">
-                                   <p class="text-[10px] font-black uppercase tracking-widest text-muted-foreground">Ahead</p>
+                                   <p class="text-[10px] font-black uppercase tracking-widest text-muted-foreground">{t('projectDetail.gitAhead') as string}</p>
                                    <div class="flex items-center gap-1.5"><span class="iconify mdi--arrow-up size-3.5 text-green-500" /><span class="font-mono text-sm font-bold tabular-nums">{s().ahead}</span></div>
                                 </div>
                                 <div class="space-y-1">
-                                   <p class="text-[10px] font-black uppercase tracking-widest text-muted-foreground">Behind</p>
+                                   <p class="text-[10px] font-black uppercase tracking-widest text-muted-foreground">{t('projectDetail.gitBehind') as string}</p>
                                    <div class="flex items-center gap-1.5"><span class="iconify mdi--arrow-down size-3.5 text-blue-500" /><span class="font-mono text-sm font-bold tabular-nums">{s().behind}</span></div>
                                 </div>
                              </div>
-                             <Show when={s().hasUpstream}>
-                                <div class="flex gap-2 pt-2">
-                                   <Button size="sm" class="h-8 flex-1 gap-1.5 text-xs font-bold" variant={s().behind > 0 ? "default" : "secondary"} disabled={m().isPulling() || m().isPushing()} onClick={() => m().pullMutate()}>
-                                      <Show when={m().isPulling()} fallback={<span class="iconify mdi--download size-3.5" />}><span class="iconify mdi--loading animate-spin size-3.5" /></Show>
-                                      Pull
-                                   </Button>
-                                   <Button size="sm" class="h-8 flex-1 gap-1.5 text-xs font-bold" variant={s().ahead > 0 ? "default" : "secondary"} disabled={m().isPushing() || m().isPulling()} onClick={() => m().pushMutate()}>
-                                      <Show when={m().isPushing()} fallback={<span class="iconify mdi--upload size-3.5" />}><span class="iconify mdi--loading animate-spin size-3.5" /></Show>
-                                      Push
-                                   </Button>
-                                </div>
-                              </Show>
+                               <Show when={s().hasUpstream}>
+                                  <div class="flex gap-2 pt-2">
+                                     <Button size="sm" class="h-8 flex-1 gap-1.5 text-xs font-bold" variant={s().behind > 0 ? "default" : "secondary"} disabled={m().isPulling() || m().isPushing()} onClick={() => m().pullMutate()}>
+                                        <Show when={m().isPulling()} fallback={<span class="iconify mdi--download size-3.5" />}><span class="iconify mdi--loading animate-spin size-3.5" /></Show>
+                                        {t('projectDetail.gitPull') as string}
+                                     </Button>
+                                     <Button size="sm" class="h-8 flex-1 gap-1.5 text-xs font-bold" variant={s().ahead > 0 ? "default" : "secondary"} disabled={m().isPushing() || m().isPulling()} onClick={() => m().pushMutate()}>
+                                        <Show when={m().isPushing()} fallback={<span class="iconify mdi--upload size-3.5" />}><span class="iconify mdi--loading animate-spin size-3.5" /></Show>
+                                        {t('projectDetail.gitPush') as string}
+                                     </Button>
+                                  </div>
+                                  <div class="border-t border-border/40 pt-2">
+                                    <Button size="sm" class="h-8 w-full gap-1.5 text-xs font-bold" variant="outline" disabled={m().isTagging()} onClick={() => setTagDialogOpen(true)}>
+                                      <Show when={m().isTagging()} fallback={<span class="iconify mdi--tag-plus size-3.5" />}><span class="iconify mdi--loading animate-spin size-3.5" /></Show>
+                                      {t('projectDetail.gitPushTag') as string}
+                                    </Button>
+                                  </div>
+                                </Show>
                           </div>
                         </PopoverContent>
                       </Popover>
                     )}
+                  </Show>
+                  <Show when={m().gitStatusQ.data == null && !m().gitStatusQ.isPending}>
+                    <Tooltip openDelay={400}>
+                      <TooltipTrigger as={Button} type="button" variant="ghost" size="icon" class="h-full w-8 rounded-none px-0 text-muted-foreground/60 hover:bg-muted/80 hover:text-foreground" disabled={m().isIniting()} onClick={() => m().initMutate()}>
+                        <Show when={m().isIniting()} fallback={<span class="iconify mdi--git size-4" />}>
+                          <span class="iconify mdi--loading animate-spin size-4" />
+                        </Show>
+                      </TooltipTrigger>
+                      <TooltipContent>{t('projectDetail.gitInit') as string}</TooltipContent>
+                    </Tooltip>
                   </Show>
                   <Tooltip openDelay={400}>
                     <TooltipTrigger as={Button} type="button" variant="ghost" size="icon" class="h-full w-8 rounded-none px-0 text-muted-foreground/60 hover:bg-muted/80 hover:text-foreground" onClick={() => void m().onOpenProjectInFileManager(p().path)}>
@@ -311,7 +332,7 @@ export const ProjectDetailHeader: Component<ProjectDetailHeaderProps> = (props) 
                     <TooltipTrigger as={Button} type="button" variant="ghost" size="icon" class="h-full w-8 rounded-none px-0 text-muted-foreground/60 hover:bg-destructive/10 hover:text-destructive" onClick={() => setDeleteConfirmOpen(true)}>
                       <span class="iconify mdi--trash-can-outline size-4" />
                     </TooltipTrigger>
-                    <TooltipContent>{t("projectDetail.deleteProject") as string || "Delete Project"}</TooltipContent>
+                    <TooltipContent>{t("projectDetail.deleteProject") as string}</TooltipContent>
                   </Tooltip>
                 </div>
 
@@ -335,36 +356,49 @@ export const ProjectDetailHeader: Component<ProjectDetailHeaderProps> = (props) 
                                 <span class="flex items-center gap-0.5 text-[10px] font-bold tabular-nums"><span class="iconify mdi--arrow-down size-3 text-blue-500" />{s().behind}</span>
                               </div>
                             </div>
-                            <Show when={s().hasUpstream}>
-                              <DropdownMenuItem disabled={m().isPulling() || m().isPushing()} onClick={() => m().pullMutate()}>
-                                <Show when={m().isPulling()} fallback={<span class="iconify mdi--download size-4" />}><span class="iconify mdi--loading animate-spin size-4" /></Show>
-                                <span>Pull from Upstream</span>
-                              </DropdownMenuItem>
-                              <DropdownMenuItem disabled={m().isPushing() || m().isPulling()} onClick={() => m().pushMutate()}>
-                                <Show when={m().isPushing()} fallback={<span class="iconify mdi--upload size-4" />}><span class="iconify mdi--loading animate-spin size-4" /></Show>
-                                <span>Push to Upstream</span>
-                              </DropdownMenuItem>
-                              <DropdownMenuSeparator />
-                            </Show>
+                             <Show when={s().hasUpstream}>
+                               <DropdownMenuItem disabled={m().isPulling() || m().isPushing()} onClick={() => m().pullMutate()}>
+                                 <Show when={m().isPulling()} fallback={<span class="iconify mdi--download size-4" />}><span class="iconify mdi--loading animate-spin size-4" /></Show>
+                                 <span>{t('projectDetail.gitPullTooltip') as string}</span>
+                               </DropdownMenuItem>
+                               <DropdownMenuItem disabled={m().isPushing() || m().isPulling()} onClick={() => m().pushMutate()}>
+                                 <Show when={m().isPushing()} fallback={<span class="iconify mdi--upload size-4" />}><span class="iconify mdi--loading animate-spin size-4" /></Show>
+                                 <span>{t('projectDetail.gitPushTooltip') as string}</span>
+                               </DropdownMenuItem>
+                               <DropdownMenuItem disabled={m().isTagging()} onClick={() => setTagDialogOpen(true)}>
+                                 <Show when={m().isTagging()} fallback={<span class="iconify mdi--tag-plus size-4" />}><span class="iconify mdi--loading animate-spin size-4" /></Show>
+                                 <span>{t('projectDetail.gitPushTag') as string}</span>
+                               </DropdownMenuItem>
+                               <DropdownMenuSeparator />
+                             </Show>
                           </>
                         )}
                       </Show>
+                      <Show when={m().gitStatusQ.data == null && !m().gitStatusQ.isPending}>
+                        <DropdownMenuItem disabled={m().isIniting()} onClick={() => m().initMutate()}>
+                          <Show when={m().isIniting()} fallback={<span class="iconify mdi--git size-4" />}>
+                            <span class="iconify mdi--loading animate-spin size-4" />
+                          </Show>
+                          <span>{t('projectDetail.gitInit') as string}</span>
+                        </DropdownMenuItem>
+                        <DropdownMenuSeparator />
+                      </Show>
                       <DropdownMenuItem onClick={() => m().favMutate({ id: p().id, favorite: !p().favorite })}>
                         <span class={cn("iconify size-4", p().favorite ? "mdi--star text-yellow-500" : "mdi--star-outline")} />
-                        <span>{p().favorite ? "Unstar" : "Star"} Project</span>
+                        <span>{p().favorite ? (t('projectDetail.gitUnstar') as string) : (t('projectDetail.gitStar') as string)}</span>
                       </DropdownMenuItem>
                       <DropdownMenuItem onClick={() => void m().onOpenProjectInFileManager(p().path)}>
                         <span class="iconify mdi--folder-open size-4" />
-                        <span>Show in Explorer</span>
+                        <span>{t('projectDetail.openInSystemExplorer') as string}</span>
                       </DropdownMenuItem>
                       <DropdownMenuItem onClick={() => { m().setMoveTargetLocationId(null); m().setMoveOpen(true); }}>
                         <span class="iconify mdi--file-move size-4" />
-                        <span>Move Project</span>
+                        <span>{t('projectDetail.moveProject') as string}</span>
                       </DropdownMenuItem>
                       <DropdownMenuSeparator />
                       <DropdownMenuItem class="text-destructive focus:bg-destructive/10 focus:text-destructive" onClick={() => setDeleteConfirmOpen(true)}>
                         <span class="iconify mdi--trash-can-outline size-4" />
-                        <span>Remove Project</span>
+                        <span>{t('projectDetail.deleteProject') as string}</span>
                       </DropdownMenuItem>
                     </DropdownMenuContent>
                   </DropdownMenu>
@@ -377,15 +411,51 @@ export const ProjectDetailHeader: Component<ProjectDetailHeaderProps> = (props) 
 
       <LanguageBar projectId={m().props.projectId} />
 
-      <AlertDialog open={deleteConfirmOpen()} onOpenChange={setDeleteConfirmOpen}>
+      <Dialog open={tagDialogOpen()} onOpenChange={setTagDialogOpen}>
+        <DialogContent class="sm:max-w-md">
+          <DialogHeader>
+            <DialogTitle>{t("projectDetail.gitPushTagTitle") as string}</DialogTitle>
+            <DialogDescription>{t("projectDetail.gitPushTagDescription") as string}</DialogDescription>
+          </DialogHeader>
+          <div class="grid grid-cols-3 gap-3 py-2">
+            <Button variant="outline" class="flex flex-col gap-1 h-auto py-3" disabled={m().isTagging()} onClick={() => { m().tagAndPushMutate("patch"); setTagDialogOpen(false); }}>
+              <span class="text-lg font-bold">patch</span>
+              <span class="text-[10px] text-muted-foreground">0.0.1 → 0.0.2</span>
+            </Button>
+            <Button variant="outline" class="flex flex-col gap-1 h-auto py-3" disabled={m().isTagging()} onClick={() => { m().tagAndPushMutate("minor"); setTagDialogOpen(false); }}>
+              <span class="text-lg font-bold">minor</span>
+              <span class="text-[10px] text-muted-foreground">0.0.1 → 0.1.0</span>
+            </Button>
+            <Button variant="outline" class="flex flex-col gap-1 h-auto py-3" disabled={m().isTagging()} onClick={() => { m().tagAndPushMutate("major"); setTagDialogOpen(false); }}>
+              <span class="text-lg font-bold">major</span>
+              <span class="text-[10px] text-muted-foreground">0.0.1 → 1.0.0</span>
+            </Button>
+          </div>
+          <DialogFooter>
+            <Button variant="outline" onClick={() => setTagDialogOpen(false)}>{t("common.cancel") as string}</Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
+      <AlertDialog open={deleteConfirmOpen()} onOpenChange={(v) => { setDeleteConfirmOpen(v); if (!v) setDeleteFromDisk(false); }}>
         <AlertDialogContent>
           <AlertDialogHeader>
-            <AlertDialogTitle>{t("projectDetail.deleteProjectTitle") as string || "Remove project?"}</AlertDialogTitle>
-            <AlertDialogDescription>{t("projectDetail.deleteProjectDescription") as string || "This will remove the project from your Project Vault library. The files on your disk will NOT be deleted."}</AlertDialogDescription>
+            <AlertDialogTitle>{t("projectDetail.deleteProjectTitle") as string}</AlertDialogTitle>
+            <AlertDialogDescription>{t("projectDetail.deleteProjectDescription") as string}</AlertDialogDescription>
           </AlertDialogHeader>
+          <div class="flex items-center gap-2 py-2">
+            <Checkbox
+              id="delete-from-disk"
+              checked={deleteFromDisk()}
+              onChange={setDeleteFromDisk}
+            />
+            <label for="delete-from-disk" class="cursor-pointer text-xs text-muted-foreground">
+              {t("projectDetail.deleteFromDisk") as string}
+            </label>
+          </div>
           <AlertDialogFooter>
             <Button variant="outline" onClick={() => setDeleteConfirmOpen(false)}>{t("wizard.cancel") as string}</Button>
-            <Button variant="destructive" onClick={() => { setDeleteConfirmOpen(false); m().deleteProject(m().props.projectId); }}>{t("projectDetail.deleteConfirm") as string || "Remove Project"}</Button>
+            <Button variant="destructive" onClick={() => { setDeleteConfirmOpen(false); m().deleteProject(m().props.projectId, deleteFromDisk()); }}>{t("projectDetail.deleteConfirm") as string}</Button>
           </AlertDialogFooter>
         </AlertDialogContent>
       </AlertDialog>

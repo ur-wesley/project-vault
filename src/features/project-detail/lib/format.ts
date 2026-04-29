@@ -26,9 +26,14 @@ export function formatSessionRange(
   ended: number | null,
   t: (k: string) => unknown,
 ): string {
-  const s = new Date(started).toLocaleString();
+  const locale = document.documentElement.lang || "en";
+  const dtf = new Intl.DateTimeFormat(locale, {
+    dateStyle: "medium",
+    timeStyle: "short",
+  });
+  const s = dtf.format(new Date(started));
   if (ended == null) return `${s} · ${t("library.sessionOpen") as string}`;
-  const e = new Date(ended).toLocaleString();
+  const e = dtf.format(new Date(ended));
   const dur = formatDuration(ended - started);
   return `${s} → ${e} (${dur})`;
 }

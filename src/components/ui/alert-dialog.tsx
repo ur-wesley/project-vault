@@ -5,6 +5,8 @@ import * as AlertDialogPrimitive from "@kobalte/core/alert-dialog";
 import type { PolymorphicProps } from "@kobalte/core/polymorphic";
 
 import { cn } from "~/lib/utils";
+import { useI18n } from "~/lib/i18n-context";
+import { buttonVariants } from "~/components/ui/button";
 
 const AlertDialog = AlertDialogPrimitive.Root;
 const AlertDialogTrigger = AlertDialogPrimitive.Trigger;
@@ -40,12 +42,13 @@ const AlertDialogContent = <T extends ValidComponent = "div">(
   props: PolymorphicProps<T, AlertDialogContentProps<T>>,
 ) => {
   const [local, others] = splitProps(props as AlertDialogContentProps, ["class", "children"]);
+  const { t } = useI18n();
   return (
     <AlertDialogPortal>
       <AlertDialogOverlay />
       <AlertDialogPrimitive.Content
         class={cn(
-          "fixed left-1/2 top-1/2 z-50 grid w-full max-w-lg -translate-x-1/2 -translate-y-1/2 gap-4 border bg-background p-6 shadow-lg duration-200 data-[expanded]:animate-in data-[closed]:animate-out data-[closed]:fade-out-0 data-[expanded]:fade-in-0 data-[closed]:zoom-out-95 data-[expanded]:zoom-in-95 data-[closed]:slide-out-to-left-1/2 data-[closed]:slide-out-to-top-[48%] data-[expanded]:slide-in-from-left-1/2 data-[expanded]:slide-in-from-top-[48%] sm:rounded-lg md:w-full",
+          "fixed left-1/2 top-1/2 z-50 grid w-full max-w-lg -translate-x-1/2 -translate-y-1/2 gap-4 border bg-background p-6 shadow-lg duration-200 data-[expanded]:animate-in data-[closed]:animate-out data-[closed]:fade-out-0 data-[expanded]:fade-in-0 data-[closed]:zoom-out-95 data-[expanded]:zoom-in-95 sm:rounded-lg md:w-full",
           local.class,
         )}
         {...others}
@@ -65,7 +68,7 @@ const AlertDialogContent = <T extends ValidComponent = "div">(
             <path d="M18 6l-12 12" />
             <path d="M6 6l12 12" />
           </svg>
-          <span class="sr-only">Close</span>
+          <span class="sr-only">{t("common.close")}</span>
         </AlertDialogPrimitive.CloseButton>
       </AlertDialogPrimitive.Content>
     </AlertDialogPortal>
@@ -123,6 +126,26 @@ const AlertDialogFooter = (props: JSX.HTMLAttributes<HTMLDivElement>) => {
   );
 };
 
+const AlertDialogAction = (props: JSX.ButtonHTMLAttributes<HTMLButtonElement>) => {
+  const [local, others] = splitProps(props, ["class"]);
+  return (
+    <AlertDialogPrimitive.CloseButton
+      class={cn(buttonVariants(), local.class)}
+      {...others}
+    />
+  );
+};
+
+const AlertDialogCancel = (props: JSX.ButtonHTMLAttributes<HTMLButtonElement>) => {
+  const [local, others] = splitProps(props, ["class"]);
+  return (
+    <AlertDialogPrimitive.CloseButton
+      class={cn(buttonVariants({ variant: "outline" }), "mt-2 sm:mt-0", local.class)}
+      {...others}
+    />
+  );
+};
+
 export {
   AlertDialog,
   AlertDialogPortal,
@@ -133,4 +156,6 @@ export {
   AlertDialogFooter,
   AlertDialogTitle,
   AlertDialogDescription,
+  AlertDialogAction,
+  AlertDialogCancel,
 };

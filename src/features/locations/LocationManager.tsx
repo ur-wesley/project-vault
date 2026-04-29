@@ -1,28 +1,25 @@
 import { useQueryClient, createQuery } from "@tanstack/solid-query";
 import { openPath } from "@tauri-apps/plugin-opener";
-import { For, Show, createSignal, type Component } from "solid-js";
+import { For, Show, createSignal, createMemo, type Component } from "solid-js";
 import { listen } from "@tauri-apps/api/event";
 
 import { Button } from "~/components/ui/button";
 import { ButtonGroup } from "~/components/ui/button-group";
-import { Checkbox } from "~/components/ui/checkbox";
-import { Label } from "~/components/ui/label";
 import {
   Dialog,
   DialogContent,
-  DialogDescription,
-  DialogFooter,
   DialogHeader,
   DialogTitle,
 } from "~/components/ui/dialog";
-import { TextField, TextFieldInput, TextFieldLabel } from "~/components/ui/text-field";
-import { formatBytes } from "~/lib/format-bytes";
 import { useEventHub } from "~/lib/event-hub-context";
 import { useI18n } from "~/lib/i18n-context";
+import { formatBytes } from "~/lib/format-bytes";
+import { rescanAllLibraryFolders } from "~/lib/rescan-library";
 import {
   addLocation,
   diskSpaceForPaths,
   listLocations,
+  listProjects,
   pickLibraryFolder,
   removeLocation,
   scanLibraryLocation,
@@ -30,7 +27,12 @@ import {
   importProject,
 } from "~/services/tauri";
 import { queryKeys } from "~/services/query-keys";
-import type { LocationDto, PathDiskSpaceDto, MoveProjectProgress } from "~/types/dto";
+import type { LocationDto, MoveProjectProgress } from "~/types/dto";
+
+import { LocationWorkProgress } from "./components/LocationWorkProgress";
+import { LibraryLocationDiskBlock } from "./components/LibraryLocationDiskBlock";
+import { LocationRenameDialog } from "./components/LocationRenameDialog";
+import { LocationImportDialog } from "./components/LocationImportDialog";
 
 type LocationWorkState =
   | { kind: "rescan"; locationId: string; locationName: string }
@@ -38,116 +40,6 @@ type LocationWorkState =
   | { kind: "remove" }
   | { kind: "rename" }
   | { kind: "import"; source: string; destName: string };
-
-function LocationWorkProgress(props: { label: string; progress?: MoveProjectProgress | null }) {
-  return (
-    <div
-      class="mb-1 flex flex-col gap-2.5 rounded-md border border-border/60 bg-muted/35 px-3 py-2.5"
-      role="status"
-      aria-live="polite"
-    >
-      <div class="flex items-center gap-2.5 text-sm text-foreground/90">
-        <span
-          class="iconify mdi--loading h-4 w-4 shrink-0 animate-spin text-primary"
-          aria-hidden="true"
-        />
-        <span class="min-w-0 flex-1 leading-snug">{props.label}</span>
-        <Show when={props.progress}>
-            <span class="text-[10px] font-mono tabular-nums opacity-60">
-                {Math.round((100 * props.progress!.filesDone) / props.progress!.filesTotal)}%
-            </span>
-        </Show>
-      </div>
-      <div
-        class="h-1.5 w-full overflow-hidden rounded-full bg-muted/80 ring-1 ring-inset ring-border/30"
-        aria-hidden="true"
-      >
-        <Show when={props.progress} fallback={
-             <div class="pv-location-scan-indeterminate h-full w-1/3 max-w-[45%] rounded-full bg-primary/80" />
-        }>
-            <div 
-                class="h-full bg-primary/80 transition-[width] duration-300" 
-                style={{ width: `${Math.round((100 * props.progress!.filesDone) / props.progress!.filesTotal)}%` }} 
-            />
-        </Show>
-      </div>
-    </div>
-  );
-}
-
-function LibraryLocationDiskBlock(props: {
-  t: (key: string) => unknown;
-  isPending: boolean;
-  isError: boolean;
-  row: PathDiskSpaceDto | undefined;
-}) {
-  const t = (k: string) => props.t(k) as string;
-  if (props.isPending) {
-    return <p class="text-xs text-muted-foreground">{t("library.loading")}</p>;
-  }
-  if (props.isError) {
-    return <p class="text-xs text-destructive/90">{t("library.error")}</p>;
-  }
-  const row = props.row;
-  if (row == null) {
-    return <p class="text-xs text-muted-foreground">—</p>;
-  }
-  if (row.totalBytes === 0) {
-    return <p class="text-xs text-muted-foreground">{t("locations.diskSpaceUnknown")}</p>;
-  }
-  const used = row.totalBytes - row.availableBytes;
-  const usedPct = Math.max(0, Math.min(100, Math.round((100 * used) / row.totalBytes)));
-  const barLabel = t("locations.diskVisBarDesc")
-    .replace("{usedPercent}", `${usedPct}%`)
-    .replace("{free}", formatBytes(row.availableBytes))
-    .replace("{total}", formatBytes(row.totalBytes));
-  return (
-    <div class="space-y-2">
-      <div
-        class="h-2.5 w-full overflow-hidden rounded-full bg-muted/90 ring-1 ring-inset ring-border/40"
-        role="img"
-        aria-label={barLabel}
-      >
-        <div
-          class="h-full min-w-0 rounded-full bg-primary/90 transition-[width]"
-          style={{ width: `${usedPct}%` }}
-        />
-      </div>
-      <div class="grid grid-cols-3 gap-2 text-[11px] leading-snug sm:text-xs">
-        <div>
-          <p class="flex items-center gap-1 font-medium text-muted-foreground">
-            <span
-              class="iconify mdi--thermometer-low h-3.5 w-3.5 shrink-0 opacity-80"
-              aria-hidden="true"
-            />
-            {t("locations.diskVisFree")}
-          </p>
-          <p class="tabular-nums text-foreground/95">{formatBytes(row.availableBytes)}</p>
-        </div>
-        <div>
-          <p class="flex items-center gap-1 font-medium text-muted-foreground">
-            <span
-              class="iconify mdi--chart-box-outline h-3.5 w-3.5 shrink-0 opacity-80"
-              aria-hidden="true"
-            />
-            {t("locations.diskVisUsed")}
-          </p>
-          <p class="tabular-nums text-foreground/95">{formatBytes(used)}</p>
-        </div>
-        <div>
-          <p class="flex items-center gap-1 font-medium text-muted-foreground">
-            <span
-              class="iconify mdi--harddisk h-3.5 w-3.5 shrink-0 opacity-80"
-              aria-hidden="true"
-            />
-            {t("locations.diskVisTotal")}
-          </p>
-          <p class="tabular-nums text-foreground/95">{formatBytes(row.totalBytes)}</p>
-        </div>
-      </div>
-    </div>
-  );
-}
 
 export const LocationManager: Component = () => {
   const { t } = useI18n();
@@ -191,6 +83,23 @@ export const LocationManager: Component = () => {
     };
   });
 
+  const projectsQ = createQuery(() => ({
+    queryKey: queryKeys.projects,
+    queryFn: async () => {
+      const r = await listProjects();
+      if (r.isErr()) throw new Error(r.error.message);
+      return r.value;
+    },
+  }));
+
+  const locationProjectSize = createMemo(() => {
+    const map = new Map<string, number>();
+    for (const p of projectsQ.data ?? []) {
+      map.set(p.locationId, (map.get(p.locationId) ?? 0) + p.sizeBytes);
+    }
+    return map;
+  });
+
   const invalidateAll = () => {
     void qc.invalidateQueries({ queryKey: queryKeys.locations });
     void qc.invalidateQueries({ queryKey: ["locations", "disk"] });
@@ -204,7 +113,7 @@ export const LocationManager: Component = () => {
 
   const workLabel = (w: LocationWorkState): string => {
     if (w.kind === "rescan") {
-      return (t("locations.rescanInProgress") as string).replace("{name}", w.locationName);
+      return (t("locations.rescanInProgress", { name: w.locationName }) as string);
     }
     if (w.kind === "add") {
       return t("locations.addInProgress") as string;
@@ -213,7 +122,7 @@ export const LocationManager: Component = () => {
       return t("locations.removeInProgress") as string;
     }
     if (w.kind === "import") {
-        return `Importing ${w.destName}...`;
+        return (t('locations.importInProgress', { name: w.destName }) as string);
     }
     return t("locations.renameInProgress") as string;
   };
@@ -275,7 +184,7 @@ export const LocationManager: Component = () => {
           if (r.isOk()) {
               invalidateAll();
           } else {
-              window.alert(`Import failed: ${r.error.message}`);
+              window.alert(t('locations.importFailed', { message: r.error.message }) as string);
           }
       } finally {
           unlisten();
@@ -301,7 +210,7 @@ export const LocationManager: Component = () => {
   };
 
   const onRemove = async (id: string) => {
-    if (!confirm(t("locations.removeConfirm") as string || "Remove this location? Your projects will stay on disk but won't be visible in the library.")) return;
+    if (!confirm(t("locations.removeConfirm") as string)) return;
     setWork({ kind: "remove" });
     try {
       const r = await removeLocation(id);
@@ -352,7 +261,7 @@ export const LocationManager: Component = () => {
     <div class="flex flex-col gap-4">
       <div class="space-y-1">
         <h3 class="text-sm font-bold uppercase tracking-wider text-primary/80">
-          Library Locations
+          {t('locations.title') as string}
         </h3>
         <p class="text-xs text-muted-foreground">
           {t("locations.description") as string}
@@ -361,16 +270,37 @@ export const LocationManager: Component = () => {
 
       <div class="flex flex-col gap-4">
         <Show when={work()}>{(w) => <LocationWorkProgress label={workLabel(w())} progress={workProgress()} />}</Show>
-        <Button
-          type="button"
-          variant="outline"
-          class="w-full sm:w-auto bg-muted/20 border-border/60"
-          disabled={busy()}
-          onClick={() => void onAdd()}
-        >
-          <span class="iconify mdi--folder-plus me-1.5 h-4 w-4" aria-hidden="true" />
-          {t("locations.add") as string}
-        </Button>
+        <div class="flex flex-wrap gap-2">
+          <Button
+            type="button"
+            variant="outline"
+            class="w-full sm:w-auto bg-muted/20 border-border/60"
+            disabled={busy()}
+            onClick={() => void onAdd()}
+          >
+            <span class="iconify mdi--folder-plus me-1.5 h-4 w-4" aria-hidden="true" />
+            {t("locations.add") as string}
+          </Button>
+          <Button
+            type="button"
+            variant="outline"
+            class="w-full sm:w-auto bg-muted/20 border-border/60"
+            disabled={busy()}
+            onClick={async () => {
+              setWork({ kind: "rescan", locationId: "all", locationName: t("locations.rescanAll") as string });
+              try {
+                const count = await rescanAllLibraryFolders();
+                hub.emit("scan:complete", { projectCount: count });
+                invalidateAll();
+              } finally {
+                setWork(null);
+              }
+            }}
+          >
+            <span class="iconify mdi--refresh me-1.5 h-4 w-4" aria-hidden="true" />
+            {t("locations.rescanAll") as string}
+          </Button>
+        </div>
         
         <Show when={locQ.isPending}>
           <p class="text-sm text-muted-foreground">{t("library.loading") as string}</p>
@@ -414,9 +344,16 @@ export const LocationManager: Component = () => {
                   />
                   <span class="line-clamp-2 min-w-0">{loc.path}</span>
                 </p>
+                <div class="mb-2 flex items-center gap-1.5 text-[11px] text-muted-foreground/80">
+                  <span class="iconify mdi--package-variant-closed h-3.5 w-3.5 shrink-0 opacity-60" aria-hidden="true" />
+                  <span class="font-medium">{t("locations.projectsSize") as string}:</span>
+                  <span class="tabular-nums text-foreground/90">
+                    {formatBytes(locationProjectSize().get(loc.id) ?? 0)}
+                  </span>
+                </div>
                 <div class="mb-4">
                   <LibraryLocationDiskBlock
-                    t={t}
+                    t={(k, a) => t(k, a) as string}
                     isPending={diskQ.isPending}
                     isError={diskQ.isError}
                     row={diskRowForPath(loc.path)}
@@ -431,7 +368,7 @@ export const LocationManager: Component = () => {
                     onClick={() => void onOpenInFileManager(loc.path)}
                   >
                     <span class="iconify mdi--folder-open h-3.5 w-3.5 mr-1.5 shrink-0" aria-hidden="true" />
-                    Open
+                    {t('common.open') as string}
                   </Button>
                   <Button
                     type="button"
@@ -448,7 +385,7 @@ export const LocationManager: Component = () => {
                     >
                       <span class="iconify mdi--loading h-3.5 w-3.5 mr-1.5 shrink-0 animate-spin" aria-hidden="true" />
                     </Show>
-                    Rescan
+                    {t('locations.rescan') as string}
                   </Button>
                   <Button
                     type="button"
@@ -458,7 +395,7 @@ export const LocationManager: Component = () => {
                     onClick={() => void openImport(loc.id)}
                   >
                     <span class="iconify mdi--import h-3.5 w-3.5 mr-1.5 shrink-0" aria-hidden="true" />
-                    Import
+                    {t('common.import') as string}
                   </Button>
                   <Button
                     type="button"
@@ -468,7 +405,7 @@ export const LocationManager: Component = () => {
                     onClick={() => void onRemove(loc.id)}
                   >
                     <span class="iconify mdi--delete-outline h-3.5 w-3.5 mr-1.5 shrink-0" aria-hidden="true" />
-                    Remove
+                    {t('common.remove') as string}
                   </Button>
                 </ButtonGroup>
               </li>
@@ -477,157 +414,25 @@ export const LocationManager: Component = () => {
         </ul>
       </div>
 
-      <Dialog
+      <LocationRenameDialog
         open={renameOpen()}
-        onOpenChange={(o) => {
-          if (!o) setRenameOpen(false);
-        }}
-      >
-        <DialogContent class="sm:max-w-md">
-          <DialogHeader>
-            <DialogTitle class="flex items-center gap-2">
-              <span
-                class="iconify mdi--pencil-outline h-5 w-5 shrink-0 text-primary"
-                aria-hidden="true"
-              />
-              {t("locations.renameDialogTitle") as string}
-            </DialogTitle>
-            <DialogDescription>
-              {t("locations.renameDialogDescription") as string}
-            </DialogDescription>
-          </DialogHeader>
-          <TextField>
-            <TextFieldLabel for="location-rename-name">
-              {t("locations.renameNameLabel") as string}
-            </TextFieldLabel>
-            <TextFieldInput
-              id="location-rename-name"
-              type="text"
-              value={renameDraft()}
-              onInput={(e) => setRenameDraft(e.currentTarget.value)}
-              onKeyDown={(e) => {
-                if (e.key === "Enter") {
-                  e.preventDefault();
-                  void commitRename();
-                }
-              }}
-              disabled={busy()}
-              class="h-9"
-              autofocus
-              autocomplete="off"
-            />
-          </TextField>
-          <DialogFooter class="gap-2 sm:gap-0">
-            <Button
-              type="button"
-              variant="outline"
-              disabled={busy()}
-              onClick={() => setRenameOpen(false)}
-            >
-              {t("wizard.cancel") as string}
-            </Button>
-            <Button
-              type="button"
-              disabled={busy() || renameDraft().trim().length === 0}
-              onClick={() => void commitRename()}
-            >
-              {t("locations.renameSave") as string}
-            </Button>
-          </DialogFooter>
-        </DialogContent>
-      </Dialog>
+        onOpenChange={setRenameOpen}
+        draft={renameDraft()}
+        setDraft={setRenameDraft}
+        onConfirm={commitRename}
+        busy={busy()}
+        t={(k) => t(k) as string}
+      />
 
-      <Dialog
+      <LocationImportDialog
         open={importOpen()}
-        onOpenChange={(o) => {
-          if (!o) setImportOpen(false);
-        }}
-      >
-        <DialogContent class="sm:max-w-md">
-          <DialogHeader>
-            <DialogTitle class="flex items-center gap-2">
-              <span
-                class="iconify mdi--import h-5 w-5 shrink-0 text-primary"
-                aria-hidden="true"
-              />
-              Import Project
-            </DialogTitle>
-            <DialogDescription>
-              This will copy the project into the selected library location.
-            </DialogDescription>
-          </DialogHeader>
-          
-          <div class="space-y-4 py-4">
-             <div class="space-y-1.5">
-                <p class="text-[10px] uppercase font-black text-muted-foreground tracking-widest">Source Path</p>
-                <div class="rounded-md bg-muted/40 border border-border/40 p-2 text-xs font-mono break-all">
-                    {importSource()}
-                </div>
-             </div>
-
-             <div class="flex items-start space-x-3">
-                <Checkbox 
-                  id="import-delete-source" 
-                  checked={importDeleteSource()} 
-                  onChange={(checked) => {
-                    setImportDeleteSource(checked);
-                  }}
-                />
-                <div class="grid gap-1.5 leading-none pt-0.5">
-                  <Label
-                    for="import-delete-source"
-                    class="text-sm font-medium leading-none cursor-pointer"
-                  >
-                    Delete source folder after successful import
-                  </Label>
-                  <p class="text-xs text-muted-foreground">
-                    Only recommended if you want to permanently move the project.
-                  </p>
-                </div>
-              </div>
-          </div>
-
-          <DialogFooter class="gap-2 sm:gap-0">
-            <Button
-              type="button"
-              variant="outline"
-              onClick={() => setImportOpen(false)}
-            >
-              {t("wizard.cancel") as string}
-            </Button>
-            <Button
-              type="button"
-              onClick={() => void commitImport()}
-            >
-              Start Import
-            </Button>
-          </DialogFooter>
-        </DialogContent>
-      </Dialog>
+        onOpenChange={setImportOpen}
+        source={importSource()}
+        deleteSource={importDeleteSource()}
+        setDeleteSource={setImportDeleteSource}
+        onConfirm={commitImport}
+        t={(k) => t(k) as string}
+      />
     </div>
   );
-}
-
-export function LocationManagerDialog(props: {
-  open: boolean;
-  onOpenChange: (open: boolean) => void;
-}) {
-  return (
-    <Dialog open={props.open} onOpenChange={props.onOpenChange}>
-      <DialogContent class="max-h-[85vh] overflow-y-auto sm:max-w-lg">
-        <DialogHeader>
-          <DialogTitle class="flex items-center gap-2">
-            <span
-              class="iconify mdi--folder-multiple-outline h-5 w-5 shrink-0 text-primary"
-              aria-hidden="true"
-            />
-            Locations
-          </DialogTitle>
-        </DialogHeader>
-        <div class="py-2">
-            <LocationManager />
-        </div>
-      </DialogContent>
-    </Dialog>
-  );
-}
+};

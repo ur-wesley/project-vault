@@ -1,60 +1,52 @@
 import { listen } from "@tauri-apps/api/event";
 import { openPath } from "@tauri-apps/plugin-opener";
 import { createMutation, createQuery, useQueryClient } from "@tanstack/solid-query";
-import { createEffect, createMemo, createSignal, onCleanup } from "solid-js";
+import { createEffect, createMemo, createSignal, onCleanup, untrack } from "solid-js";
+import { toast } from "solid-sonner";
 
-import { formatBytes } from "~/lib/format-bytes";
 import { useI18n } from "~/lib/i18n-context";
 import { stableErrorMessage } from "~/lib/invoke-error";
-import { argvNeedsUserConfirmation } from "~/lib/task-risk";
 import {
   getGitHubRepoForProject,
   getProject,
   getProjectMiseTools,
-  getGitStatus,
-  gitPull,
-  gitPush,
-  deleteProject as deleteProjectTauri,
+  suggestMiseTools,
+  pinMiseTools,
   getSetting,
   listDiscoveredIdes,
-  listLocations,
-  listSessionsForProject,
-  listActiveSessions,
-  moveProject,
   openProjectInIde,
   stopProjectIde,
   isProjectIdeRunning,
   openProjectShell,
-  embeddedTerminalKill,
   setProjectFavorite,
-  spawnProjectTask,
+  deleteProject as deleteProjectTauri,
 } from "~/services/tauri";
 import { queryKeys } from "~/services/query-keys";
-import type { ProjectDto, LocationDto, MoveProjectProgress, GitStatusDto } from "~/types/dto";
+import type { ProjectDto, MiseToolSuggestionDto } from "~/types/dto";
 import type { StableError } from "~/types/error";
 import { projectIdeStorageKey } from "../lib/ide-storage";
-import { isSameProjectDestination, joinParentName, pathBasename } from "../lib/paths";
-import type { IdeSelectOption, MoveLocationOption, ProjectDetailViewProps } from "../types";
+import { dismissedMiseSuggestionsKey } from "../lib/mise-suggestions-storage";
+import type { IdeSelectOption, ProjectDetailViewProps } from "../types";
+
+import { useProjectGit } from "./useProjectGit";
+import { useProjectTasks } from "./useProjectTasks";
+import { useProjectTerminal } from "./useProjectTerminal";
+import { useProjectMove } from "./useProjectMove";
 
 export function createProjectDetailModel(props: ProjectDetailViewProps) {
   const { t } = useI18n();
   const qc = useQueryClient();
-  const [banner, setBanner] = createSignal<string | null>(null);
-  const [infoBanner, setInfoBanner] = createSignal<string | null>(null);
-  const [risk, setRisk] = createSignal<{
-    project: ProjectDto;
-    argv: string[];
-  } | null>(null);
-  const [moveOpen, setMoveOpen] = createSignal(false);
-  const [moveTargetLocationId, setMoveTargetLocationId] = createSignal<string | null>(null);
-  const [moveBusy, setMoveBusy] = createSignal(false);
-  const [moveProgress, setMoveProgress] = createSignal<MoveProjectProgress | null>(null);
   const [selectedIdeExecutable, setSelectedIdeExecutable] = createSignal<string | null>(null);
-  const [terminalAttachRequest, setTerminalAttachRequest] = createSignal<{
-    sessionId: string;
-    label: string;
-  } | null>(null);
+  const [sessionPorts, setSessionPorts] = createSignal<Record<string, number[]>>({});
   const lastIdeInitProjectId = { current: "" as string };
+
+  const showBanner = (msg: string) => {
+    toast.error(msg);
+  };
+
+  const showInfoBanner = (msg: string) => {
+    toast.success(msg);
+  };
 
   const projectQ = createQuery(() => ({
     queryKey: queryKeys.project(props.projectId),
@@ -74,62 +66,34 @@ export function createProjectDetailModel(props: ProjectDetailViewProps) {
     refetchInterval: 5000,
   }));
 
-  const gitStatusQ = createQuery(() => ({
-    queryKey: queryKeys.gitStatus(props.projectId),
-    queryFn: async () => {
-        const r = await getGitStatus(props.projectId);
-        if (r.isErr()) throw new Error(r.error.message);
-        return r.value;
-    },
-    refetchInterval: 1000 * 60,
-  }));
+  const git = useProjectGit({
+    projectId: () => props.projectId,
+    t: (k, a) => t(k, a) as string,
+    showBanner,
+    showInfoBanner,
+  });
 
-  const pullMu = createMutation(() => ({
-    mutationFn: async () => {
-        const r = await gitPull(props.projectId);
-        if (r.isErr()) throw r.error;
-    },
-    onSuccess: () => {
-        void qc.invalidateQueries({ queryKey: queryKeys.gitStatus(props.projectId) });
-        showInfoBanner("Git pull successful.");
-    },
-    onError: (err: unknown) => {
-        showBanner(stableErrorMessage(t, err as any));
-    }
-  }));
+  const terminal = useProjectTerminal({
+    projectId: () => props.projectId,
+    t: (k, a) => t(k, a) as string,
+    showBanner,
+    onDetailTabChange: props.onDetailTabChange,
+  });
 
-  const pushMu = createMutation(() => ({
-    mutationFn: async () => {
-        const r = await gitPush(props.projectId);
-        if (r.isErr()) throw r.error;
-    },
-    onSuccess: () => {
-        void qc.invalidateQueries({ queryKey: queryKeys.gitStatus(props.projectId) });
-        showInfoBanner("Git push successful.");
-    },
-    onError: (err: unknown) => {
-        showBanner(stableErrorMessage(t, err as any));
-    }
-  }));
+  const tasks = useProjectTasks({
+    projectId: () => props.projectId,
+    t: (k, a) => t(k, a) as string,
+    showBanner,
+    attachToTask: terminal.attachToTask,
+  });
 
-  const sessionsQ = createQuery(() => ({
-    queryKey: queryKeys.sessions(props.projectId),
-    queryFn: async () => {
-      const r = await listSessionsForProject(props.projectId, 80);
-      if (r.isErr()) throw new Error(r.error.message);
-      return r.value;
-    },
-  }));
-
-  const activeSessionsQ = createQuery(() => ({
-    queryKey: ["projects", props.projectId, "active-sessions"] as const,
-    queryFn: async () => {
-      const r = await listActiveSessions(props.projectId);
-      if (r.isErr()) throw new Error(r.error.message);
-      return r.value;
-    },
-    refetchInterval: 3000,
-  }));
+  const move = useProjectMove({
+    projectId: () => props.projectId,
+    t: (k, a) => t(k, a) as string,
+    showBanner,
+    showInfoBanner,
+    project: () => projectQ.data,
+  });
 
   const idesQ = createQuery(() => ({
     queryKey: queryKeys.discoveredIdes,
@@ -203,7 +167,17 @@ export function createProjectDetailModel(props: ProjectDetailViewProps) {
   // Listen for IDE state changes
   createEffect(() => {
     let unIde: (() => void) | undefined;
+    let unTaskStarted: (() => void) | undefined;
+    let unTaskState: (() => void) | undefined;
+    let unTaskTree: (() => void) | undefined;
     let unSession: (() => void) | undefined;
+    let unTaskPorts: (() => void) | undefined;
+
+    const refreshTaskQueries = () => {
+      void qc.invalidateQueries({ queryKey: ["projects", props.projectId, "active-sessions"] });
+      void qc.invalidateQueries({ queryKey: queryKeys.sessions(props.projectId) });
+      void qc.invalidateQueries({ queryKey: queryKeys.project(props.projectId) });
+    };
 
     void (async () => {
       unIde = await listen<{ projectId: string; running: boolean }>(
@@ -219,15 +193,49 @@ export function createProjectDetailModel(props: ProjectDetailViewProps) {
           }
         },
       );
+      unTaskStarted = await listen<{ projectId: string; sessionId: string }>(
+        "session:started",
+        (ev) => {
+          if (ev.payload.projectId === props.projectId) {
+            refreshTaskQueries();
+          }
+        },
+      );
+      unTaskState = await listen<{ projectId: string; sessionId: string; state: string }>(
+        "task-state-changed",
+        (ev) => {
+          if (ev.payload.projectId === props.projectId) {
+            refreshTaskQueries();
+          }
+        },
+      );
+      unTaskTree = await listen<{ projectId: string; sessionId: string }>(
+        "task-tree-changed",
+        (ev) => {
+          if (ev.payload.projectId === props.projectId) {
+            refreshTaskQueries();
+          }
+        },
+      );
       unSession = await listen<{ projectId: string; sessionId: string }>(
         "session:ended",
         (ev) => {
           if (ev.payload.projectId === props.projectId) {
-            void qc.invalidateQueries({
-              queryKey: ["projects", props.projectId, "active-sessions"],
+            refreshTaskQueries();
+          }
+        },
+      );
+      unTaskPorts = await listen<{ sessionId: string; projectId: string; ports: number[] }>(
+        "task-ports-changed",
+        (ev) => {
+          console.log("[frontend] task-ports-changed raw", ev.payload);
+          console.log("[frontend] projectId check", ev.payload.projectId, "===", props.projectId, "=", ev.payload.projectId === props.projectId);
+          if (ev.payload.projectId === props.projectId) {
+            setSessionPorts((prev) => {
+              const next = { ...prev, [ev.payload.sessionId]: ev.payload.ports };
+              console.log("[frontend] setSessionPorts", next);
+              return next;
             });
-            void qc.invalidateQueries({ queryKey: queryKeys.sessions(props.projectId) });
-            void qc.invalidateQueries({ queryKey: queryKeys.project(props.projectId) });
           }
         },
       );
@@ -235,8 +243,27 @@ export function createProjectDetailModel(props: ProjectDetailViewProps) {
 
     onCleanup(() => {
       unIde?.();
+      unTaskStarted?.();
+      unTaskState?.();
+      unTaskTree?.();
       unSession?.();
+      unTaskPorts?.();
     });
+  });
+
+  // Auto-attach active sessions to terminal tabs whenever the query updates
+  createEffect(() => {
+    const sessions = tasks.activeSessionsQ.data;
+    if (!sessions) return;
+    const instances = untrack(terminal.terminalInstances);
+    for (const session of sessions) {
+      const alreadyAttached = instances.some(
+        (inst) => inst.attachSessionId === session.id || inst.sessionId === session.id,
+      );
+      if (!alreadyAttached) {
+        terminal.attachToTask(session.id, session.command ?? "Task", false);
+      }
+    }
   });
 
   const ghQ = createQuery(() => ({
@@ -257,108 +284,39 @@ export function createProjectDetailModel(props: ProjectDetailViewProps) {
     },
   }));
 
-  const locsQ = createQuery(() => ({
-    queryKey: queryKeys.locations,
+  const miseSuggestionsQ = createQuery(() => ({
+    queryKey: queryKeys.projectMiseSuggestions(props.projectId),
     queryFn: async () => {
-      const r = await listLocations();
+      const r = await suggestMiseTools(props.projectId);
       if (r.isErr()) throw new Error(r.error.message);
       return r.value;
     },
   }));
 
-  const moveLocationRows = createMemo(
-    (): readonly (LocationDto & { destWouldBe: string; sameAsProject: boolean })[] | null => {
-      const p = projectQ.data;
-      const locs = locsQ.data;
-      if (p == null || locs == null) return null;
-      const name = pathBasename(p.path);
-      return [...locs]
-        .filter((l) => l.enabled)
-        .sort((a, b) => a.sortIndex - b.sortIndex)
-        .map((l) => {
-          const destWouldBe = joinParentName(l.path, name);
-          return {
-            ...l,
-            destWouldBe,
-            sameAsProject: isSameProjectDestination(l.path, p.path, name),
-          };
-        });
+  const pinMiseToolsMu = createMutation(() => ({
+    mutationFn: async (tools: MiseToolSuggestionDto[]) => {
+      const r = await pinMiseTools(props.projectId, tools);
+      if (r.isErr()) throw r.error;
     },
+    onSuccess: () => {
+      void qc.invalidateQueries({ queryKey: queryKeys.projectMiseSuggestions(props.projectId) });
+      void qc.invalidateQueries({ queryKey: queryKeys.projectMiseTools(props.projectId) });
+    },
+    onError: (err: unknown) => {
+      if (err && typeof err === "object" && "code" in err) {
+        showBanner(stableErrorMessage(t, err as StableError));
+      }
+    },
+  }));
+
+  const [miseSuggestionsDismissed, setMiseSuggestionsDismissed] = createSignal(
+    localStorage.getItem(dismissedMiseSuggestionsKey(props.projectId)) === "1",
   );
 
-  const hasMovableTarget = createMemo((): boolean => {
-    const rows = moveLocationRows();
-    return rows != null && rows.some((r) => !r.sameAsProject);
-  });
-
-  const moveSelectOptions = createMemo((): readonly MoveLocationOption[] => {
-    const rows = moveLocationRows();
-    if (rows == null) return [];
-    return rows.map((row) => ({
-      value: row.id,
-      label: `${row.name}${
-        row.sameAsProject
-          ? ` — ${t("projectDetail.moveProjectCurrentLocation") as string}`
-          : ` (${row.path})`
-      }`,
-      textValue: `${row.name} ${row.path}`,
-      disabled: row.sameAsProject,
-    }));
-  });
-
-  const selectedMoveLocation = createMemo((): MoveLocationOption | null => {
-    const id = moveTargetLocationId();
-    if (id == null) return null;
-    return moveSelectOptions().find((o) => o.value === id) ?? null;
-  });
-
-  const moveDestinationPreview = createMemo((): string | null => {
-    const p = projectQ.data;
-    const id = moveTargetLocationId();
-    if (p == null || id == null) return null;
-    const row = moveLocationRows()?.find((l) => l.id === id);
-    if (row == null) return null;
-    return joinParentName(row.path, pathBasename(p.path));
-  });
-
-  const moveDialogDescription = createMemo(
-    (): string =>
-      (moveBusy()
-        ? t("projectDetail.moveProjectProgressDescription")
-        : t("projectDetail.moveProjectDescription")) as string,
-  );
-
-  const moveProgressPhaseLabel = createMemo((): string => {
-    const p = moveProgress();
-    if (p == null) return t("projectDetail.moveProjectStarting") as string;
-    switch (p.phase) {
-      case "preparing":
-        return t("projectDetail.movePhasePreparing") as string;
-      case "copying":
-        return t("projectDetail.movePhaseCopying") as string;
-      case "verifying":
-        return t("projectDetail.movePhaseVerifying") as string;
-      case "finalizing":
-        return t("projectDetail.movePhaseFinalizing") as string;
-      default:
-        return p.phase;
-    }
-  });
-
-  const moveProgressBarPercent = createMemo((): number => {
-    const p = moveProgress();
-    if (p == null) return 0;
-    if (p.phase === "verifying" || p.phase === "finalizing") return 100;
-    if (p.filesTotal > 0) return Math.min(100, Math.round((100 * p.filesDone) / p.filesTotal));
-    if (p.bytesTotal > 0) return Math.min(100, Math.round((100 * p.bytesDone) / p.bytesTotal));
-    return 0;
-  });
-
-  const moveProgressFilesBytesLine = createMemo((): string | null => {
-    const p = moveProgress();
-    if (p == null) return null;
-    return `${p.filesDone} / ${p.filesTotal} ${t("projectDetail.moveProjectProgressFiles") as string} · ${formatBytes(p.bytesDone)} / ${formatBytes(p.bytesTotal)}`;
-  });
+  const dismissMiseSuggestions = () => {
+    localStorage.setItem(dismissedMiseSuggestionsKey(props.projectId), "1");
+    setMiseSuggestionsDismissed(true);
+  };
 
   createEffect(() => {
     if (ghQ.isPending) return;
@@ -376,36 +334,52 @@ export function createProjectDetailModel(props: ProjectDetailViewProps) {
     return choice;
   });
 
-  const showBanner = (msg: string) => {
-    setBanner(msg);
-    window.setTimeout(() => setBanner(null), 6000);
-  };
-
-  const showInfoBanner = (msg: string) => {
-    setInfoBanner(msg);
-    window.setTimeout(() => setInfoBanner(null), 12000);
-  };
-
   const favMu = createMutation(() => ({
     mutationFn: async (p: { id: string; favorite: boolean }) => {
       const r = await setProjectFavorite({ id: p.id, favorite: p.favorite });
       if (r.isErr()) throw r.error;
       return r.value;
     },
-    onError: (err: unknown) => {
+    onMutate: async (variables) => {
+      const projectKey = queryKeys.project(variables.id);
+      await qc.cancelQueries({ queryKey: projectKey });
+      await qc.cancelQueries({ queryKey: queryKeys.projects });
+      
+      const previousProject = qc.getQueryData<ProjectDto>(projectKey);
+      const previousProjects = qc.getQueryData<ProjectDto[]>(queryKeys.projects);
+
+      if (previousProject) {
+        qc.setQueryData(projectKey, { ...previousProject, favorite: variables.favorite });
+      }
+      if (previousProjects) {
+        qc.setQueryData(
+          queryKeys.projects,
+          previousProjects.map((p) => (p.id === variables.id ? { ...p, favorite: variables.favorite } : p)),
+        );
+      }
+
+      return { previousProject, previousProjects };
+    },
+    onError: (err: unknown, variables, context) => {
+      if (context?.previousProject) {
+        qc.setQueryData(queryKeys.project(variables.id), context.previousProject);
+      }
+      if (context?.previousProjects) {
+        qc.setQueryData(queryKeys.projects, context.previousProjects);
+      }
       if (err && typeof err === "object" && "code" in err) {
         showBanner(stableErrorMessage(t, err as StableError));
       }
     },
-    onSettled: () => {
-      void qc.invalidateQueries({ queryKey: queryKeys.project(props.projectId) });
+    onSettled: (_data, _error, variables) => {
+      void qc.invalidateQueries({ queryKey: queryKeys.project(variables.id) });
       void qc.invalidateQueries({ queryKey: queryKeys.projects });
     },
   }));
 
   const deleteMu = createMutation(() => ({
-    mutationFn: async (id: string) => {
-      const r = await deleteProjectTauri(id);
+    mutationFn: async (p: { id: string; deleteFromDisk: boolean }) => {
+      const r = await deleteProjectTauri(p.id, p.deleteFromDisk);
       if (r.isErr()) throw r.error;
     },
     onSuccess: () => {
@@ -418,39 +392,6 @@ export function createProjectDetailModel(props: ProjectDetailViewProps) {
       }
     },
   }));
-
-  const runArgv = async (project: ProjectDto, argv: string[], confirmed: boolean) => {
-    if (argvNeedsUserConfirmation(argv) && !confirmed) {
-      setRisk({ project, argv });
-      return;
-    }
-    const sessionId = crypto.randomUUID();
-    const cmd = argv.join(" ");
-    
-    // Auto-attach to the terminal *immediately* so we start listening
-    attachToTask(sessionId, cmd);
-
-    const r = await spawnProjectTask({
-      projectId: project.id,
-      argv,
-      acknowledgeRisk: confirmed,
-      sessionId,
-    });
-    if (r.isErr()) {
-      const err = r.error;
-      if (err.code === "CONFIRM_REQUIRED") {
-        setRisk({ project, argv });
-        // Note: we already attached, but the dialog will show up and we can retry
-        return;
-      }
-      showBanner(stableErrorMessage(t, err));
-      return;
-    }
-
-    void qc.invalidateQueries({ queryKey: ["projects", props.projectId, "active-sessions"] });
-    void qc.invalidateQueries({ queryKey: queryKeys.projects });
-    void qc.invalidateQueries({ queryKey: queryKeys.project(props.projectId) });
-  };
 
   const onShell = async (projectId: string) => {
     const r = await openProjectShell(projectId);
@@ -471,14 +412,6 @@ export function createProjectDetailModel(props: ProjectDetailViewProps) {
     if (r.isErr()) showBanner(stableErrorMessage(t, r.error));
   };
 
-  const onStopTask = async (sessionId: string) => {
-    const r = await embeddedTerminalKill(sessionId);
-    if (r.isErr()) showBanner(stableErrorMessage(t, r.error));
-    void qc.invalidateQueries({ queryKey: ["projects", props.projectId, "active-sessions"] });
-    void qc.invalidateQueries({ queryKey: queryKeys.projects });
-    void qc.invalidateQueries({ queryKey: queryKeys.project(props.projectId) });
-  };
-
   const onOpenProjectInFileManager = async (path: string) => {
     try {
       await openPath(path);
@@ -487,143 +420,85 @@ export function createProjectDetailModel(props: ProjectDetailViewProps) {
     }
   };
 
-  const onConfirmMove = async (project: ProjectDto) => {
-    const id = moveTargetLocationId();
-    if (id == null) {
-      showBanner(t("projectDetail.moveProjectSelectLocation") as string);
-      return;
-    }
-    const rows = moveLocationRows();
-    const target = rows?.find((l) => l.id === id);
-    if (target == null) {
-      showBanner(t("projectDetail.moveProjectSelectLocation") as string);
-      return;
-    }
-    if (target.sameAsProject) {
-      showBanner(t("projectDetail.moveProjectSameLocation") as string);
-      return;
-    }
-    if (import.meta.env.DEV) {
-      console.debug("[project-vault][move] start", {
-        projectId: project.id,
-        projectName: project.name,
-        projectPath: project.path,
-        destinationLocationId: target.id,
-        destinationLocationName: target.name,
-        destinationParent: target.path,
-        destPreview: moveDestinationPreview(),
-      });
-    }
-    setMoveBusy(true);
-    setMoveProgress(null);
-    setBanner(null);
-    const unlisten = await listen<MoveProjectProgress>("move-project-progress", (e) => {
-      if (e.payload.projectId !== project.id) return;
-      if (import.meta.env.DEV) {
-        console.debug("[project-vault][move] progress", e.payload);
-      }
-      setMoveProgress(e.payload);
-    });
-    try {
-      const r = await moveProject({ projectId: project.id, destinationParent: target.path });
-      if (import.meta.env.DEV) {
-        console.debug("[project-vault][move] done", {
-          newPath: r.isOk() ? r.value.project.path : undefined,
-          error: r.isErr() ? r.error : undefined,
-        });
-      }
-      if (r.isErr()) {
-        showBanner(stableErrorMessage(t, r.error));
-        return;
-      }
-      setMoveOpen(false);
-      setMoveTargetLocationId(null);
-      void qc.setQueryData(queryKeys.project(props.projectId), r.value.project);
-      void qc.invalidateQueries({ queryKey: queryKeys.projects });
-      void qc.invalidateQueries({ queryKey: queryKeys.sessions(props.projectId) });
-      void qc.invalidateQueries({ queryKey: queryKeys.githubRepo(props.projectId) });
-      void qc.invalidateQueries({ queryKey: queryKeys.projectReadme(props.projectId) });
-      if (r.value.cleanupWarning != null && r.value.cleanupWarning.length > 0) {
-        showInfoBanner(r.value.cleanupWarning);
-      }
-    } finally {
-      unlisten();
-      setMoveProgress(null);
-      setMoveBusy(false);
-    }
-  };
-
   const onIdeSelected = (projectId: string, executable: string) => {
     setSelectedIdeExecutable(executable);
     localStorage.setItem(projectIdeStorageKey(projectId), executable);
   };
 
-  const resetMoveDialog = () => {
-    setMoveOpen(false);
-    setMoveTargetLocationId(null);
-    setMoveBusy(false);
-    setMoveProgress(null);
-  };
-
-  const attachToTask = (sessionId: string, label: string) => {
-    setTerminalAttachRequest({ sessionId, label });
-    props.onDetailTabChange("terminal");
-  };
-
   return {
     props,
     projectQ,
-    gitStatusQ,
-    pullMutate: () => pullMu.mutate(),
-    pushMutate: () => pushMu.mutate(),
-    isPulling: () => pullMu.isPending,
-    isPushing: () => pushMu.isPending,
-    sessionsQ,
-    activeSessionsQ,
+    gitStatusQ: git.gitStatusQ,
+    pullMutate: git.pullMutate,
+    pushMutate: git.pushMutate,
+    initMutate: git.initMutate,
+    tagAndPushMutate: git.tagAndPushMutate,
+    isPulling: git.isPulling,
+    isPushing: git.isPushing,
+    isIniting: git.isIniting,
+    isTagging: git.isTagging,
+    sessionsQ: tasks.sessionsQ,
+    activeSessionsQ: tasks.activeSessionsQ,
+    filteredSessions: tasks.filteredSessions,
+    totalCountQ: tasks.totalCountQ,
+    filteredCountQ: tasks.filteredCountQ,
+    totalCount: tasks.totalCount,
+    filteredCount: tasks.filteredCount,
+    page: tasks.page,
+    setPage: tasks.setPage,
+    statusFilter: tasks.statusFilter,
+    setStatusFilter: tasks.setStatusFilter,
+    clearSessionsMu: tasks.clearSessionsMu,
+    sessionPorts,
     idesQ,
     ghQ,
     miseToolsQ,
-    locsQ,
+    miseSuggestionsQ,
+    pinMiseToolsMu,
+    miseSuggestionsDismissed,
+    dismissMiseSuggestions,
+    locsQ: move.locsQ,
     ideRunningQ,
     ideSelectOptions,
     selectedIdeOption,
     selectedIdeExecutable,
     setSelectedIdeExecutable,
     onIdeSelected,
-    showBanner,
-    showInfoBanner,
-    banner,
-    infoBanner,
-    risk,
-    setRisk,
+    risk: tasks.risk,
+    setRisk: tasks.setRisk,
     favMutate: (p: { id: string; favorite: boolean }) => favMu.mutate(p),
-    deleteProject: (id: string) => deleteMu.mutate(id),
-    runArgv,
-    onStopTask,
+    deleteProject: (id: string, deleteFromDisk: boolean) => deleteMu.mutate({ id, deleteFromDisk }),
+    runArgv: tasks.runArgv,
+    onStopTask: tasks.onStopTask,
     onShell,
-    attachToTask,
-    terminalAttachRequest,
+    attachToTask: terminal.attachToTask,
+    terminalInstances: terminal.terminalInstances,
+    activeTerminalId: terminal.activeTerminalId,
+    openTerminal: terminal.openTerminal,
+    closeTerminal: terminal.closeTerminal,
+    selectTerminal: terminal.selectTerminal,
+    updateTerminalSessionId: terminal.updateTerminalSessionId,
     onOpenIde,
     onStopIde,
     onOpenProjectInFileManager,
     activeDetailTab,
-    moveOpen,
-    setMoveOpen,
-    setMoveTargetLocationId,
-    moveTargetLocationId,
-    moveBusy,
-    moveProgress,
-    moveLocationRows,
-    hasMovableTarget,
-    moveSelectOptions,
-    selectedMoveLocation,
-    moveDestinationPreview,
-    moveDialogDescription,
-    moveProgressPhaseLabel,
-    moveProgressBarPercent,
-    moveProgressFilesBytesLine,
-    onConfirmMove,
-    resetMoveDialog,
+    moveOpen: move.moveOpen,
+    setMoveOpen: move.setMoveOpen,
+    setMoveTargetLocationId: move.setMoveTargetLocationId,
+    moveTargetLocationId: move.moveTargetLocationId,
+    moveBusy: move.moveBusy,
+    moveProgress: move.moveProgress,
+    moveLocationRows: move.moveLocationRows,
+    hasMovableTarget: move.hasMovableTarget,
+    moveSelectOptions: move.moveSelectOptions,
+    selectedMoveLocation: move.selectedMoveLocation,
+    moveDestinationPreview: move.moveDestinationPreview,
+    moveDialogDescription: move.moveDialogDescription,
+    moveProgressPhaseLabel: move.moveProgressPhaseLabel,
+    moveProgressBarPercent: move.moveProgressBarPercent,
+    moveProgressFilesBytesLine: move.moveProgressFilesBytesLine,
+    onConfirmMove: move.onConfirmMove,
+    resetMoveDialog: move.resetMoveDialog,
     qc,
   };
 }

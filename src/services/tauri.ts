@@ -10,6 +10,7 @@ import type {
   GitHubDeviceWaitPayload,
   GitHubRepoRefDto,
   GitStatusDto,
+  GitTagResultDto,
   ImportProjectPayload,
   IdeCandidateDto,
   LocationDto,
@@ -19,6 +20,8 @@ import type {
   OpenProjectIdePayload,
   PathDiskSpaceDto,
   ProjectDto,
+  RunTemplateCommandPayload,
+  RunTemplateCommandResultDto,
   ScanResultDto,
   SessionDto,
   SetFavoritePayload,
@@ -30,6 +33,7 @@ import type {
   TemplateSummaryDto,
   UpdateLocationPayload,
   MiseToolDto,
+  MiseToolSuggestionDto,
 } from "~/types/dto";
 import type { StableError } from "~/types/error";
 
@@ -111,6 +115,21 @@ export function getProjectMiseTools(projectId: string): ResultAsync<MiseToolDto[
     mapInvokeError,
   );
 }
+
+export function suggestMiseTools(projectId: string): ResultAsync<MiseToolSuggestionDto[], StableError> {
+  return ResultAsync.fromPromise(
+    invoke<MiseToolSuggestionDto[]>("suggest_mise_tools", { projectId }),
+    mapInvokeError,
+  );
+}
+
+export function pinMiseTools(projectId: string, tools: MiseToolSuggestionDto[]): ResultAsync<void, StableError> {
+  return ResultAsync.fromPromise(
+    invoke<void>("pin_mise_tools", { payload: { projectId, tools } }),
+    mapInvokeError,
+  );
+}
+
 export function isGithubDeviceConfigured(clientId?: string): ResultAsync<boolean, StableError> {
   return ResultAsync.fromPromise(
     invoke<boolean>("is_github_device_configured", { clientId: clientId ?? null }),
@@ -144,8 +163,11 @@ export function upsertProject(project: ProjectDto): ResultAsync<ProjectDto, Stab
   return ResultAsync.fromPromise(invoke<ProjectDto>("upsert_project", { project }), mapInvokeError);
 }
 
-export function deleteProject(id: string): ResultAsync<void, StableError> {
-  return ResultAsync.fromPromise(invoke<void>("delete_project", { id }), mapInvokeError);
+export function deleteProject(id: string, deleteFromDisk = false): ResultAsync<void, StableError> {
+  return ResultAsync.fromPromise(
+    invoke<void>("delete_project", { payload: { id, deleteFromDisk } }),
+    mapInvokeError,
+  );
 }
 
 export function setProjectFavorite(
@@ -176,9 +198,10 @@ export function endSession(sessionId: string): ResultAsync<SessionDto, StableErr
 export function listSessionsForProject(
   projectId: string,
   limit: number,
+  offset: number,
 ): ResultAsync<SessionDto[], StableError> {
   return ResultAsync.fromPromise(
-    invoke<SessionDto[]>("list_sessions_for_project", { projectId, limit }),
+    invoke<SessionDto[]>("list_sessions_for_project", { projectId, limit, offset }),
     mapInvokeError,
   );
 }
@@ -190,6 +213,40 @@ export function listActiveSessions(projectId: string): ResultAsync<SessionDto[],
   );
 }
 
+export type ProcessDto = {
+  sessionId: string;
+  projectId: string;
+  projectName: string;
+  command: string | null;
+  state: string;
+  rootPid: number | null;
+  ports: number[];
+  startedAtMs: number;
+  lastEventAtMs: number;
+  kind: string;
+};
+
+export function listAllProcesses(): ResultAsync<ProcessDto[], StableError> {
+  return ResultAsync.fromPromise(invoke<ProcessDto[]>("list_all_processes"), mapInvokeError);
+}
+
+export function clearSessionsForProject(projectId: string): ResultAsync<number, StableError> {
+  return ResultAsync.fromPromise(
+    invoke<number>("clear_sessions_for_project", { projectId }),
+    mapInvokeError,
+  );
+}
+
+export function getSessionCountForProject(
+  projectId: string,
+  stateFilter?: string,
+): ResultAsync<number, StableError> {
+  return ResultAsync.fromPromise(
+    invoke<number>("get_session_count_for_project", { projectId, stateFilter }),
+    mapInvokeError,
+  );
+}
+
 export function recoverOrphanSessions(): ResultAsync<number, StableError> {
   return ResultAsync.fromPromise(invoke<number>("recover_orphan_sessions"), mapInvokeError);
 }
@@ -197,6 +254,20 @@ export function recoverOrphanSessions(): ResultAsync<number, StableError> {
 export function scanLibraryLocation(locationId: string): ResultAsync<ScanResultDto, StableError> {
   return ResultAsync.fromPromise(
     invoke<ScanResultDto>("scan_library_location", { locationId }),
+    mapInvokeError,
+  );
+}
+
+export type DebugScanResultDto = {
+  raw: ProjectDraft[];
+  filtered: ProjectDraft[];
+  monoreposExpanded: number;
+  workspaceWarnings: number;
+};
+
+export function debugScanLocation(path: string): ResultAsync<DebugScanResultDto, StableError> {
+  return ResultAsync.fromPromise(
+    invoke<DebugScanResultDto>("debug_scan_location", { path }),
     mapInvokeError,
   );
 }
@@ -237,11 +308,41 @@ export function createProjectFromTemplate(
   );
 }
 
+export function saveProjectTemplates(templatesJson: string): ResultAsync<void, StableError> {
+  return ResultAsync.fromPromise(
+    invoke<void>("save_project_templates", { templatesJson }),
+    mapInvokeError,
+  );
+}
+
+export function runTemplateCommand(
+  payload: RunTemplateCommandPayload,
+): ResultAsync<RunTemplateCommandResultDto, StableError> {
+  return ResultAsync.fromPromise(
+    invoke<RunTemplateCommandResultDto>("run_template_command", { payload }),
+    mapInvokeError,
+  );
+}
+
+export function openShellAtPath(path: string): ResultAsync<void, StableError> {
+  return ResultAsync.fromPromise(
+    invoke<void>("open_shell_at_path", { payload: { path } }),
+    mapInvokeError,
+  );
+}
+
 export function spawnProjectTask(
   payload: SpawnProjectTaskPayload,
 ): ResultAsync<SpawnProjectTaskResponse, StableError> {
   return ResultAsync.fromPromise(
     invoke<SpawnProjectTaskResponse>("spawn_project_task", { payload }),
+    mapInvokeError,
+  );
+}
+
+export function stopProjectTask(sessionId: string): ResultAsync<void, StableError> {
+  return ResultAsync.fromPromise(
+    invoke<void>("stop_project_task", { sessionId }),
     mapInvokeError,
   );
 }
@@ -273,6 +374,20 @@ export function gitPush(projectId: string): ResultAsync<void, StableError> {
   return ResultAsync.fromPromise(invoke<void>("git_push", { projectId }), mapInvokeError);
 }
 
+export function gitInit(projectId: string): ResultAsync<void, StableError> {
+  return ResultAsync.fromPromise(invoke<void>("git_init", { projectId }), mapInvokeError);
+}
+
+export function gitTagAndPush(
+  projectId: string,
+  bump: "patch" | "minor" | "major",
+): ResultAsync<GitTagResultDto, StableError> {
+  return ResultAsync.fromPromise(
+    invoke<GitTagResultDto>("git_tag_and_push", { projectId, bump }),
+    mapInvokeError,
+  );
+}
+
 export function importProject(payload: ImportProjectPayload): ResultAsync<void, StableError> {
   return ResultAsync.fromPromise(invoke<void>("import_project", { payload }), mapInvokeError);
 }
@@ -282,7 +397,17 @@ export function openProjectInIde(payload: OpenProjectIdePayload): ResultAsync<vo
 }
 
 export function stopProjectIde(projectId: string): ResultAsync<void, StableError> {
-  return ResultAsync.fromPromise(invoke<void>("stop_project_ide", { projectId }), mapInvokeError);
+  return ResultAsync.fromPromise(
+    invoke<void>("stop_project_ide", { projectId }),
+    mapInvokeError,
+  );
+}
+
+export function stopAllProjectProcesses(projectId: string): ResultAsync<void, StableError> {
+  return ResultAsync.fromPromise(
+    invoke<void>("stop_all_project_processes", { projectId }),
+    mapInvokeError,
+  );
 }
 
 export function isProjectIdeRunning(projectId: string): ResultAsync<boolean, StableError> {
@@ -302,6 +427,13 @@ export function embeddedTerminalSpawn(
 export function listAvailableShells(): ResultAsync<ShellCandidateDto[], StableError> {
   return ResultAsync.fromPromise(
     invoke<ShellCandidateDto[]>("list_available_shells"),
+    mapInvokeError,
+  );
+}
+
+export function listDiscoveredTools(): ResultAsync<ToolCandidateDto[], StableError> {
+  return ResultAsync.fromPromise(
+    invoke<ToolCandidateDto[]>("list_discovered_tools"),
     mapInvokeError,
   );
 }
@@ -349,6 +481,39 @@ export function listSettings(): ResultAsync<SettingEntryDto[], StableError> {
 export function exportLibrarySnapshot(): ResultAsync<ExportSnapshotDto, StableError> {
   return ResultAsync.fromPromise(
     invoke<ExportSnapshotDto>("export_library_snapshot"),
+    mapInvokeError,
+  );
+}
+
+export function getAppDataDir(): ResultAsync<string, StableError> {
+  return ResultAsync.fromPromise(invoke<string>("get_app_data_dir"), mapInvokeError);
+}
+
+export function readProjectTaskConfig(
+  projectId: string,
+): ResultAsync<ProjectTaskConfig, StableError> {
+  return ResultAsync.fromPromise(
+    invoke<ProjectTaskConfig>("read_project_task_config", { projectId }),
+    mapInvokeError,
+  );
+}
+
+export function writeProjectTask(
+  projectId: string,
+  task: TaskDto,
+): ResultAsync<void, StableError> {
+  return ResultAsync.fromPromise(
+    invoke<void>("write_project_task", { payload: { projectId, task } }),
+    mapInvokeError,
+  );
+}
+
+export function deleteProjectTask(
+  projectId: string,
+  task: TaskDto,
+): ResultAsync<void, StableError> {
+  return ResultAsync.fromPromise(
+    invoke<void>("delete_project_task", { payload: { projectId, task } }),
     mapInvokeError,
   );
 }

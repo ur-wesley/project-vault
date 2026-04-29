@@ -1,5 +1,5 @@
 import { createQuery, useQueryClient } from "@tanstack/solid-query";
-import { For, Show, createMemo, createSignal, type ParentProps } from "solid-js";
+import { For, Show, createEffect, createMemo, createSignal, onCleanup, type ParentProps } from "solid-js";
 
 import { StackIcon } from "~/components/StackIcon";
 import {
@@ -14,7 +14,6 @@ import {
 } from "~/components/ui/command";
 import { useEventHub } from "~/lib/event-hub-context";
 import { useI18n } from "~/lib/i18n-context";
-import { RegisterShortcut } from "~/lib/register-shortcut";
 import { rescanAllLibraryFolders } from "~/lib/rescan-library";
 import { listProjects } from "~/services/tauri";
 import { queryKeys } from "~/services/query-keys";
@@ -25,13 +24,29 @@ export type CommandPaletteProps = ParentProps<{
   onOpenSettings?: () => void;
   onOpenNewProject?: () => void;
   onSelectProject?: (project: ProjectDto) => void;
+  open?: boolean;
+  onOpenChange?: (open: boolean) => void;
 }>;
 
 export function CommandPalette(props: CommandPaletteProps) {
   const { t } = useI18n();
   const hub = useEventHub();
   const qc = useQueryClient();
-  const [open, setOpen] = createSignal(false);
+  const [internalOpen, setInternalOpen] = createSignal(false);
+  const open = () => props.open ?? internalOpen();
+  const setOpen = (v: boolean) => {
+    props.onOpenChange?.(v);
+    setInternalOpen(v);
+  };
+
+  createEffect(() => {
+    const listener = hub.on("shortcut:action", (payload) => {
+      if (payload.action === "command-palette:open") {
+        setOpen(true);
+      }
+    });
+    onCleanup(() => listener());
+  });
 
   const q = createQuery(() => ({
     queryKey: queryKeys.projects,
@@ -84,8 +99,6 @@ export function CommandPalette(props: CommandPaletteProps) {
 
   return (
     <>
-      <RegisterShortcut keys={["CONTROL", "K"]} onPress={() => setOpen(true)} />
-      <RegisterShortcut keys={["META", "K"]} onPress={() => setOpen(true)} />
       {props.children}
       <CommandDialog open={open()} onOpenChange={setOpen}>
         <CommandInput placeholder={t("commandPalette.placeholder") as string} />

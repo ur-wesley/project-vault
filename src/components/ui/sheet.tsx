@@ -6,6 +6,7 @@ import type { PolymorphicProps } from "@kobalte/core/polymorphic";
 import { cva, type VariantProps } from "class-variance-authority";
 
 import { cn } from "~/lib/utils";
+import { useI18n } from "~/lib/i18n-context";
 
 const Sheet = SheetPrimitive.Root;
 const SheetTrigger = SheetPrimitive.Trigger;
@@ -83,6 +84,7 @@ const SheetContent = <T extends ValidComponent = "div">(
     "class",
     "children",
   ]);
+  const { t } = useI18n();
   return (
     <SheetPortal position={local.position}>
       <SheetOverlay />
@@ -109,7 +111,7 @@ const SheetContent = <T extends ValidComponent = "div">(
             <path d="M18 6l-12 12" />
             <path d="M6 6l12 12" />
           </svg>
-          <span class="sr-only">Close</span>
+          <span class="sr-only">{t("common.close")}</span>
         </SheetPrimitive.CloseButton>
       </SheetPrimitive.Content>
     </SheetPortal>

@@ -18,6 +18,18 @@ export type TaskDto = {
   label: string;
   argv: string[];
   kind: string;
+  cwd: string | null;
+  description?: string;
+  depends: string[];
+  source?: string;
+};
+
+export type ProjectTaskConfig = {
+  tasks: TaskDto[];
+  hasMiseConfig: boolean;
+  hasJustfile: boolean;
+  misePath: string | null;
+  justfilePath: string | null;
 };
 
 export type ProjectDto = {
@@ -35,6 +47,7 @@ export type ProjectDto = {
   githubOwner: string | null;
   githubRepo: string | null;
   fileCount: number;
+  sizeBytes: number;
   lastEditedAtMs: number | null;
 };
 
@@ -44,6 +57,12 @@ export type SessionDto = {
   startedAtMs: number;
   endedAtMs: number | null;
   command: string | null;
+  state: string;
+  rootPid: number | null;
+  treePids: number[];
+  exitCode: number | null;
+  stopReason: string | null;
+  lastEventAtMs: number;
 };
 
 export type AddLocationPayload = {
@@ -98,6 +117,13 @@ export type ShellCandidateDto = {
   executable: string;
 };
 
+export type ToolCandidateDto = {
+  id: string;
+  label: string;
+  executable: string;
+  version: string | null;
+};
+
 export type OpenProjectIdePayload = {
   projectId: string;
   executable: string;
@@ -108,6 +134,7 @@ export type SpawnProjectTaskPayload = {
   argv: string[];
   acknowledgeRisk: boolean;
   sessionId?: string;
+  cwd?: string | null;
 };
 
 export type SpawnProjectTaskResponse = {
@@ -130,19 +157,31 @@ export type TemplateSummaryDto = {
   id: string;
   name: string;
   description: string;
+  type: "command" | "git" | "files";
+  config: Record<string, unknown>;
 };
 
 export type CreateProjectPayload = {
-  parentPath: string;
+  locationId: string;
   projectName: string;
   templateId: string;
-  runPostCreate: boolean;
 };
 
 export type CreateProjectResultDto = {
   projectPath: string;
   filesWritten: number;
   postCreateLog: string | null;
+  sessionId: string | null;
+  projectId: string | null;
+};
+
+export type RunTemplateCommandPayload = {
+  command: string;
+  cwd: string;
+};
+
+export type RunTemplateCommandResultDto = {
+  sessionId: string;
 };
 
 export type GitHubRepoRefDto = {
@@ -156,6 +195,10 @@ export type GitStatusDto = {
   behind: number;
   isDirty: boolean;
   hasUpstream: boolean;
+};
+
+export type GitTagResultDto = {
+  newTag: string;
 };
 
 export type ImportProjectPayload = {
@@ -212,4 +255,10 @@ export type MiseToolDto = {
   version: string;
   source: string;
   isActive: boolean;
+};
+
+export type MiseToolSuggestionDto = {
+  name: string;
+  version: string;
+  reason: string;
 };

@@ -6,13 +6,13 @@ import {
   For,
   Show,
   createEffect,
+  createMemo,
   createSignal,
   onCleanup,
-  onMount,
-  on,
   untrack,
   type Accessor,
 } from "solid-js";
+import { toast } from "solid-sonner";
 
 import "@xterm/xterm/css/xterm.css";
 
@@ -27,6 +27,11 @@ import { useI18n } from "~/lib/i18n-context";
 import { stableErrorMessage } from "~/lib/invoke-error";
 import { cn } from "~/lib/utils";
 import { queryKeys } from "~/services/query-keys";
+import {
+  appendTerminalChunk,
+  getTerminalReplay,
+  clearTerminalBuffer,
+} from "./lib/terminal-buffer";
 import {
   embeddedTerminalKill,
   embeddedTerminalResize,
@@ -45,19 +50,15 @@ function decodeChunk(b64: string): Uint8Array {
   return out;
 }
 
-type TerminalInstance = {
+export type EmbeddedTerminalInstance = {
   id: string;
   name: string;
   shell?: string;
   icon?: string;
   sessionId?: string;
   attachSessionId?: string;
-  term?: Terminal;
-  fit?: FitAddon;
-  host?: HTMLDivElement;
 };
 
-// Icon map for shells
 const SHELL_ICON_MAP: Record<string, string> = {
   powershell: "mdi--powershell",
   pwsh: "mdi--powershell",
@@ -72,41 +73,17 @@ const SHELL_ICON_MAP: Record<string, string> = {
 export function EmbeddedTerminalPane(props: {
   projectId: string;
   active: boolean;
+  instances: Accessor<readonly EmbeddedTerminalInstance[]>;
+  activeId: Accessor<string | null>;
+  onOpenTerminal: (instance: Pick<EmbeddedTerminalInstance, "name" | "shell" | "icon">) => void;
+  onCloseTerminal: (id: string) => void | Promise<void>;
+  onSelectTerminal: (id: string) => void;
+  onUpdateSessionId: (id: string, sessionId: string) => void;
   onExternalShell?: () => void;
-  attachRequest?: Accessor<{ sessionId: string; label: string } | null>;
+  fullscreen?: boolean;
+  onToggleFullscreen?: () => void;
 }) {
   const { t } = useI18n();
-  const [instances, setInstances] = createSignal<TerminalInstance[]>([]);
-  const [activeId, setActiveId] = createSignal<string | null>(null);
-  const [banner, setBanner] = createSignal<string | null>(null);
-
-  // Handle attach requests
-  createEffect(() => {
-    const req = props.attachRequest?.();
-    if (!req) return;
-
-    untrack(() => {
-      // Check if already attached
-      const list = instances();
-      const existing = list.find(
-        (i) => i.attachSessionId === req.sessionId || i.sessionId === req.sessionId,
-      );
-      if (existing) {
-        setActiveId(existing.id);
-        return;
-      }
-
-      const id = Math.random().toString(36).substring(2, 11);
-      const newInstance: TerminalInstance = {
-        id,
-        name: req.label,
-        icon: "mdi--application-variable-outline",
-        attachSessionId: req.sessionId,
-      };
-      setInstances([...list, newInstance]);
-      setActiveId(id);
-    });
-  });
 
   const shellsQ = createQuery(() => ({
     queryKey: queryKeys.availableShells,
@@ -128,69 +105,41 @@ export function EmbeddedTerminalPane(props: {
   }));
 
   const createInstance = async (name?: string, shell?: string) => {
-    const id = Math.random().toString(36).substring(2, 11);
     const targetShell = shell || defaultShellQ.data || undefined;
-    
-    // Find shell info for label/icon
     const shellInfo = shellsQ.data?.find(s => s.executable === targetShell);
-    const label = name || shellInfo?.label || (targetShell ? "Terminal" : "Default Shell");
+    const label = name || shellInfo?.label || (targetShell ? (t("projectDetail.tabTerminal") as string) : (t("projectDetail.terminalDefaultShell") as string));
     const icon = shellInfo ? (SHELL_ICON_MAP[shellInfo.id.toLowerCase()] || "mdi--console") : "mdi--terminal";
 
-    const newInstance: TerminalInstance = {
-      id,
+    props.onOpenTerminal({
       name: label,
       shell: targetShell,
       icon,
-    };
-    setInstances([...instances(), newInstance]);
-    setActiveId(id);
+    });
   };
 
   const closeInstance = (id: string) => {
-    const inst = instances().find((i) => i.id === id);
-    if (inst?.sessionId) {
-      void embeddedTerminalKill(inst.sessionId);
-    }
-    inst?.term?.dispose();
-
-    const next = instances().filter((i) => i.id !== id);
-    setInstances(next);
-    if (activeId() === id) {
-      setActiveId(next.length > 0 ? next[next.length - 1]!.id : null);
-    }
+    void props.onCloseTerminal(id);
   };
 
-  onMount(() => {
-    void createInstance();
-  });
-
-  onCleanup(() => {
-    for (const inst of instances()) {
-      if (inst.sessionId) {
-        void embeddedTerminalKill(inst.sessionId);
-      }
-      inst.term?.dispose();
-    }
-  });
-
   return (
-    <div class="flex h-full min-h-0 flex-1 flex-col overflow-hidden">
-      <Show when={banner()}>
-        <p class="mb-2 shrink-0 text-sm text-destructive">{banner()}</p>
-      </Show>
-
-      <div class="mb-1 flex shrink-0 items-center justify-between border-b border-border/40 pb-1">
-        <div class="flex min-w-0 flex-1 items-center gap-1 overflow-x-auto overflow-y-hidden px-1 scrollbar-none">
-          <For each={instances()}>
+    <div
+      class={cn(
+        "flex h-full min-h-0 flex-1 flex-col overflow-hidden rounded-md border border-border bg-card",
+        props.fullscreen && "fixed inset-x-0 bottom-0 top-9 z-50 rounded-none border-0",
+      )}
+    >
+      <div class="flex shrink-0 items-center justify-between px-3 pt-2 pb-1.5">
+        <div class="flex min-w-0 flex-1 items-center gap-1 overflow-x-auto overflow-y-hidden scrollbar-none">
+          <For each={props.instances()}>
             {(inst) => (
               <div
                 class={cn(
-                  "flex h-7 min-w-24 max-w-40 shrink-0 cursor-pointer items-center gap-1.5 rounded-t-md border-x border-t px-2 text-xs transition-colors",
-                  activeId() === inst.id
-                    ? "border-border bg-card text-foreground"
-                    : "border-transparent text-muted-foreground hover:bg-muted/50 hover:text-foreground",
+                  "flex h-7 min-w-24 max-w-40 shrink-0 cursor-pointer items-center gap-1.5 rounded-t-sm px-2 text-xs transition-colors",
+                  props.activeId() === inst.id
+                    ? "bg-muted text-foreground"
+                    : "text-muted-foreground hover:bg-muted/50 hover:text-foreground",
                 )}
-                onClick={() => setActiveId(inst.id)}
+                onClick={() => props.onSelectTerminal(inst.id)}
               >
                 <span class={cn("iconify size-3.5 shrink-0", inst.icon || "mdi--terminal")} />
                 <span class="min-w-0 flex-1 truncate">{inst.name}</span>
@@ -210,35 +159,59 @@ export function EmbeddedTerminalPane(props: {
         </div>
 
         <div class="flex shrink-0 items-center gap-1 pl-2">
-          <DropdownMenu>
-            <DropdownMenuTrigger
-              as={Button}
+          <div class="flex items-center">
+            <Button
+              variant="ghost"
+              size="icon"
+              class="size-7 rounded-r-none"
+              onClick={() => void createInstance()}
+              title={t("projectDetail.terminalNew") as string}
+            >
+              <span class="iconify mdi--plus size-4" />
+            </Button>
+            <DropdownMenu>
+              <DropdownMenuTrigger
+                as={Button}
+                variant="ghost"
+                size="icon"
+                class="size-7 -ml-px rounded-l-none"
+                title={t("projectDetail.terminalNew") as string}
+              >
+                <span class="iconify mdi--chevron-down size-4" />
+              </DropdownMenuTrigger>
+              <DropdownMenuContent>
+                <DropdownMenuItem onSelect={() => void createInstance()}>
+                  <span class="iconify mdi--terminal mr-2 size-4" />
+                  <span>{t("projectDetail.terminalDefaultShell") as string}</span>
+                </DropdownMenuItem>
+                <Show when={shellsQ.data && shellsQ.data.length > 0}>
+                  <For each={shellsQ.data}>
+                    {(shell) => (
+                      <DropdownMenuItem
+                        onSelect={() => void createInstance(shell.label, shell.executable)}
+                      >
+                        <span class="iconify mdi--console mr-2 size-4" />
+                        <span>{shell.label}</span>
+                      </DropdownMenuItem>
+                    )}
+                  </For>
+                </Show>
+              </DropdownMenuContent>
+            </DropdownMenu>
+          </div>
+
+          <Show when={props.onToggleFullscreen}>
+            <Button
+              type="button"
               variant="ghost"
               size="icon"
               class="size-7"
-              title="New Terminal"
+              onClick={() => props.onToggleFullscreen?.()}
+              title={props.fullscreen ? "Exit Fullscreen" : "Fullscreen Terminal"}
             >
-              <span class="iconify mdi--plus size-4" />
-            </DropdownMenuTrigger>
-            <DropdownMenuContent>
-              <DropdownMenuItem onSelect={() => void createInstance()}>
-                <span class="iconify mdi--terminal mr-2 size-4" />
-                <span>Default Shell</span>
-              </DropdownMenuItem>
-              <Show when={shellsQ.data && shellsQ.data.length > 0}>
-                <For each={shellsQ.data}>
-                  {(shell) => (
-                    <DropdownMenuItem
-                      onSelect={() => void createInstance(shell.label, shell.executable)}
-                    >
-                      <span class="iconify mdi--console mr-2 size-4" />
-                      <span>{shell.label}</span>
-                    </DropdownMenuItem>
-                  )}
-                </For>
-              </Show>
-            </DropdownMenuContent>
-          </DropdownMenu>
+              <span class={cn("iconify size-4", props.fullscreen ? "mdi--fullscreen-exit" : "mdi--fullscreen")} />
+            </Button>
+          </Show>
 
           <Show when={props.onExternalShell}>
             <Button
@@ -255,51 +228,100 @@ export function EmbeddedTerminalPane(props: {
         </div>
       </div>
 
-      <div class="relative min-h-0 flex-1 bg-card">
-        <For each={instances()}>
-          {(inst) => (
-            <TerminalHost
-              instance={inst}
-              active={props.active && activeId() === inst.id}
-              projectId={props.projectId}
-              shell={inst.shell}
-              onSessionId={(sid) => {
-                inst.sessionId = sid;
-              }}
-              onError={(err) => setBanner(err)}
-            />
-          )}
-        </For>
-        <Show when={instances().length === 0}>
-          <div class="flex h-full items-center justify-center text-sm text-muted-foreground">
-            <Button variant="outline" size="sm" onClick={() => void createInstance()}>
-              {(t("projectDetail.openTerminal") as string) || "Open Terminal"}
-            </Button>
-          </div>
-        </Show>
+      <div class="min-h-0 flex-1 p-3">
+        <div class="relative h-full overflow-hidden rounded-sm" style={{ "background-color": "#111111" }}>
+          <For each={props.instances()}>
+            {(inst) => (
+              <TerminalHost
+                instance={inst}
+                activeId={props.activeId}
+                isActivePane={props.active}
+                projectId={props.projectId}
+                onSessionId={(id, sid) => props.onUpdateSessionId(id, sid)}
+                onError={(err) => toast.error(err)}
+              />
+            )}
+          </For>
+          <Show when={props.instances().length === 0}>
+            <div class="flex h-full items-center justify-center text-sm text-muted-foreground">
+              <Button variant="outline" size="sm" onClick={() => void createInstance()}>
+                {(t("projectDetail.openTerminal") as string)}
+              </Button>
+            </div>
+          </Show>
+        </div>
       </div>
     </div>
   );
 }
 
 function TerminalHost(props: {
-  instance: TerminalInstance;
-  active: boolean;
+  instance: EmbeddedTerminalInstance;
+  activeId: Accessor<string | null>;
+  isActivePane: boolean;
   projectId: string;
-  shell?: string;
-  attachSessionId?: string;
-  onSessionId: (id: string) => void;
+  onSessionId: (id: string, sessionId: string) => void;
   onError: (msg: string | null) => void;
 }) {
+  const active = createMemo(() => props.isActivePane && props.activeId() === props.instance.id);
   const { t } = useI18n();
   const [container, setContainer] = createSignal<HTMLDivElement | null>(null);
+  const [terminalReady, setTerminalReady] = createSignal(false);
+
+  let term: Terminal | null = null;
+  let fit: FitAddon | null = null;
+  let hasInitialized = false;
+  let sessionId: string | null = null;
+
+  const MIN_COLS = 20;
+  const MIN_ROWS = 5;
+
+  const doResize = () => {
+    if (!sessionId || !term || !fit) return;
+    const rect = term.element?.getBoundingClientRect();
+    // Bail out if the terminal is hidden or hasn't finished layout yet.
+    // Resizing xterm to a tiny width corrupts the buffer (lines get wrapped
+    // at 1–2 columns) and that damage persists even after resizing back up.
+    if (!rect || rect.width < 200 || rect.height < 100) return;
+    fit.fit();
+    if (term.cols >= MIN_COLS && term.rows >= MIN_ROWS) {
+      void embeddedTerminalResize(sessionId, term.rows, term.cols);
+    }
+  };
+
+  createEffect(() => {
+    if (!active() || !terminalReady()) return;
+    const currentTerm = term;
+    if (!currentTerm) return;
+
+    let raf = 0;
+    let timer = 0;
+
+    // Wait for the browser to finish layout after the tab becomes visible
+    // before measuring and resizing, to avoid corrupting the buffer with
+    // a tiny intermediate size.
+    raf = requestAnimationFrame(() => {
+      timer = window.setTimeout(() => {
+        if (!active() || !currentTerm.element) return;
+        if (currentTerm.element.offsetParent !== null) {
+          currentTerm.focus();
+          doResize();
+          // Force a full refresh so lines corrupted while hidden repaint correctly
+          currentTerm.refresh(0, currentTerm.rows - 1);
+        }
+      }, 150);
+    });
+
+    onCleanup(() => {
+      cancelAnimationFrame(raf);
+      window.clearTimeout(timer);
+    });
+  });
 
   createEffect(() => {
     const node = container();
-    if (!node) return;
+    if (!node || hasInitialized) return;
 
-    // DEFINITIVE FIX: Use a capturing listener to stop focus events
-    // from reaching parent components (Kobalte/Solid) that cause focus loops.
     const stopFocus = (e: FocusEvent) => {
       e.stopPropagation();
     };
@@ -311,14 +333,26 @@ function TerminalHost(props: {
       node.removeEventListener("focusout", stopFocus, { capture: true });
     });
 
+    // Capture prop values once so the effect does not re-run when the parent
+    // updates the instance object (e.g. after setting the sessionId).
+    const instanceId = untrack(() => props.instance.id);
+    const instanceShell = untrack(() => props.instance.shell);
+    const attachSid = untrack(() => props.instance.attachSessionId);
+    const existingSessionId = untrack(() => props.instance.sessionId);
+    const projectId = untrack(() => props.projectId);
+    const onSessionId = untrack(() => props.onSessionId);
+    const onError = untrack(() => props.onError);
+
     let cancelled = false;
-    let term: Terminal | null = null;
-    let fit: FitAddon | null = null;
-    let sessionId: string | null = null;
+    let spawnedByThisEffect = false;
     let unData: (() => void) | undefined;
     let unExit: (() => void) | undefined;
     let ro: ResizeObserver | null = null;
     let resizeT: number | undefined;
+    const existingSid = attachSid ?? existingSessionId;
+    let sid = existingSid;
+
+    hasInitialized = true;
 
     void (async () => {
       term = new Terminal({
@@ -334,41 +368,59 @@ function TerminalHost(props: {
       fit = new FitAddon();
       term.loadAddon(fit);
       term.open(node);
-      fit.fit();
-
-      props.instance.term = term;
-      props.instance.fit = fit;
-      props.instance.host = node;
-
-      let sid = props.attachSessionId;
+      // Only fit if the container is actually visible. When the terminal tab
+      // is not active, the parent TabsContent is display:none and fit() would
+      // resize xterm to 0x0, corrupting the buffer before any data arrives.
+      const openRect = node.getBoundingClientRect();
+      if (openRect.width >= 200 && openRect.height >= 100) {
+        fit.fit();
+      }
       if (!sid) {
-        const spawn = await embeddedTerminalSpawn(props.projectId, props.shell);
+        const spawn = await embeddedTerminalSpawn(projectId, instanceShell);
         if (spawn.isErr()) {
-          props.onError(stableErrorMessage(t, spawn.error));
+          onError(stableErrorMessage(t, spawn.error));
           term.dispose();
           term = null;
           return;
         }
         sid = spawn.value;
+        spawnedByThisEffect = true;
       }
 
       if (cancelled) {
-        if (!props.attachSessionId) void embeddedTerminalKill(sid!);
+        if (spawnedByThisEffect && sid) {
+          void embeddedTerminalKill(sid);
+        }
         term.dispose();
         return;
       }
       sessionId = sid!;
-      props.onSessionId(sessionId);
+      if (!existingSid) {
+        onSessionId(instanceId, sessionId);
+      }
+      setTerminalReady(true);
+
+      // Replay buffered output so the terminal is not empty after remounting
+      const replay = getTerminalReplay(sessionId);
+      for (const chunk of replay) {
+        if (!term) break;
+        term.write(decodeChunk(chunk));
+      }
 
       term.onData((data) => {
         if (!sessionId) return;
-        void embeddedTerminalWrite(sessionId, data);
+        const result = embeddedTerminalWrite(sessionId, data);
+        result.mapErr((err) => {
+          console.error("terminal write error:", err);
+        });
       });
 
       unData = await listen<{ sessionId: string; chunk: string }>(
         "embedded-terminal-data",
         (ev) => {
-          if (ev.payload.sessionId !== sessionId || !term) return;
+          if (ev.payload.sessionId !== sessionId) return;
+          appendTerminalChunk(ev.payload.sessionId, ev.payload.chunk);
+          if (!term) return;
           const data = decodeChunk(ev.payload.chunk);
           term.write(data);
         },
@@ -376,19 +428,15 @@ function TerminalHost(props: {
 
       unExit = await listen<{ sessionId: string }>("embedded-terminal-exit", (ev) => {
         if (ev.payload.sessionId !== sessionId || !term) return;
-        term.writeln("\r\n\x1b[90m[process exited]\x1b[0m");
+        clearTerminalBuffer(ev.payload.sessionId);
+        term.writeln("\r\n\x1b[90m" + (t("projectDetail.terminalProcessExited") as string) + "\x1b[0m");
       });
 
-      const pushResize = () => {
-        if (!sessionId || !term) return;
-        fit?.fit();
-        void embeddedTerminalResize(sessionId, term.rows, term.cols);
-      };
-      pushResize();
+      doResize();
 
       ro = new ResizeObserver(() => {
         window.clearTimeout(resizeT);
-        resizeT = window.setTimeout(() => pushResize(), 120);
+        resizeT = window.setTimeout(() => doResize(), 120);
       });
       ro.observe(node);
     })();
@@ -399,41 +447,22 @@ function TerminalHost(props: {
       ro?.disconnect();
       unData?.();
       unExit?.();
-      // Only kill if we spawned it ourselves
-      if (sessionId && !props.attachSessionId) {
-        void embeddedTerminalKill(sessionId);
-      }
+      // NOTE: We do NOT kill the PTY session here.
+      // The session should stay alive when the user switches routes/tabs.
+      // It is only killed when the user explicitly closes the terminal tab.
       term?.dispose();
+      term = null;
+      fit = null;
+      sessionId = null;
     });
   });
-
-  createEffect(
-    on(
-      () => props.active,
-      (active) => {
-        const t = props.instance.term;
-        if (active && t) {
-          // Significant delay to ensure DOM is settled and other focus logic has finished
-          const timer = window.setTimeout(() => {
-            if (!props.active || document.activeElement === t.textarea) return;
-            if (t.element?.offsetParent !== null) {
-              t.focus();
-              props.instance.fit?.fit();
-            }
-          }, 100);
-          onCleanup(() => window.clearTimeout(timer));
-        }
-      },
-      { defer: true },
-    ),
-  );
 
   return (
     <div
       ref={setContainer}
       class={cn(
-        "absolute inset-0 size-full p-2 outline-none",
-        props.active ? "z-10 visible" : "z-0 invisible",
+        "h-full w-full outline-none",
+        active() ? "block" : "hidden",
       )}
     />
   );

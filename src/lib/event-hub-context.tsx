@@ -2,6 +2,7 @@ import { createEventBus, createEventHub } from "@solid-primitives/event-bus";
 import { createContext, useContext, type ParentComponent } from "solid-js";
 
 export type ScanCompletePayload = { projectCount: number; locationId?: string };
+export type ShortcutActionPayload = { action: string };
 
 function createAppEventHub() {
   return createEventHub({
@@ -9,6 +10,7 @@ function createAppEventHub() {
     "project:opened": createEventBus<{ projectId: string }>(),
     "session:started": createEventBus<{ sessionId: string; projectId: string }>(),
     "session:ended": createEventBus<{ sessionId: string }>(),
+    "shortcut:action": createEventBus<ShortcutActionPayload>(),
   });
 }
 

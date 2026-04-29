@@ -3,6 +3,7 @@ import { join } from "@tauri-apps/api/path";
 import { For, Show, createEffect, createSignal, createResource } from "solid-js";
 import { createHighlighter } from "shiki";
 import { cn } from "~/lib/utils";
+import { useI18n } from "~/lib/i18n-context";
 
 const SKIP = new Set([
   "node_modules",
@@ -228,6 +229,7 @@ const FILENAME_LANG_MAP: Record<string, string> = {
 };
 
 function FilePreview(props: { path: string | null }) {
+  const { t } = useI18n();
   const [content] = createResource(
     () => props.path,
     async (path) => {
@@ -249,14 +251,14 @@ function FilePreview(props: { path: string | null }) {
             }).length > 10;
 
         if (isBinary || text.includes("\ufffd")) {
-          return { text: "[Binary File]", html: null, loc: 0 };
+          return { text: t('projectDetail.fileBinary') as string, html: null, loc: 0 };
         }
 
         const lines = text.split(/\r?\n/);
         const loc = lines.length;
 
         if (text.length > 100000) {
-          return { text: text.slice(0, 100000) + "\n\n[Truncated...]", html: null, loc };
+          return { text: text.slice(0, 100000) + "\n\n" + (t('projectDetail.fileTruncated') as string), html: null, loc };
         }
 
         const filename = path.split(/[\\/]/).pop()?.toLowerCase() || "";
@@ -300,19 +302,19 @@ function FilePreview(props: { path: string | null }) {
         <div class="flex items-center gap-2 min-w-0">
           <span class="iconify mdi--file-document h-3.5 w-3.5 text-muted-foreground" />
           <span class="text-[10px] font-mono text-muted-foreground truncate">
-            {props.path?.split(/[\\/]/).pop() ?? "No file selected"}
+            {props.path?.split(/[\\/]/).pop() ?? (t('projectDetail.noFileSelected') as string)}
           </span>
         </div>
         <Show when={content() && content()!.loc > 0}>
           <span class="text-[9px] font-mono text-muted-foreground/60 uppercase tracking-wider">
-            {content()!.loc} lines
+            {t('projectDetail.fileLines', { count: content()!.loc }) as string}
           </span>
         </Show>
       </div>
       <div class="flex-1 overflow-auto text-[11px] font-mono">
         <Show
           when={content()}
-          fallback={<div class="p-3 text-muted-foreground italic">Select a file to preview</div>}
+          fallback={<div class="p-3 text-muted-foreground italic">{t('projectDetail.selectFilePreview') as string}</div>}
         >
           {(c) => (
             <Show when={c().html} fallback={<pre class="p-3 whitespace-pre-wrap">{c().text}</pre>}>
@@ -335,7 +337,7 @@ export function FileTree(props: { rootPath: string }) {
   };
 
   return (
-    <div class="flex h-full min-h-0 gap-4 overflow-hidden">
+    <div class="flex h-full min-h-0 gap-4 overflow-hidden p-3">
       <div class="w-64 shrink-0 overflow-auto rounded-md border border-border/60 bg-muted/20 p-2 scrollbar-none">
         <Folder
           absPath={props.rootPath}
