@@ -4,7 +4,7 @@ use std::io::{Read, Write};
 use std::path::{Path, PathBuf};
 
 use serde::{Deserialize, Serialize};
-use tauri::{AppHandle, Emitter, State};
+use tauri::{AppHandle, State};
 use tauri_plugin_sql::DbInstances;
 
 use crate::db;
@@ -373,7 +373,7 @@ pub async fn create_project_from_template(
                 .get("cwd")
                 .and_then(|v| v.as_str())
                 .unwrap_or("project");
-            let post_create = config
+            let _post_create = config
                 .get("postCreate")
                 .and_then(|v| v.as_array())
                 .map(|arr| {
@@ -489,13 +489,13 @@ pub async fn create_project_from_template(
 #[tauri::command]
 pub async fn run_template_command(
     app: AppHandle,
-    db: State<'_, DbInstances>,
+    _db: State<'_, DbInstances>,
     terms: State<'_, EmbeddedTerminals>,
     payload: RunTemplateCommandPayload,
 ) -> Result<RunTemplateCommandResultDto, StableError> {
     #[cfg(any(target_os = "android", target_os = "ios"))]
     {
-        let _ = (app, db, terms, payload);
+        let _ = (app, _db, terms, payload);
         return Err(StableError::new(
             codes::INTERNAL,
             "embedded terminal not available on this platform",
