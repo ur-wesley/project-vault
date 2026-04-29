@@ -80,6 +80,7 @@ pub fn run() {
         .plugin(tauri_plugin_process::init())
         .plugin(tauri_plugin_autostart::Builder::new().build())
         .plugin(tauri_plugin_opener::init())
+        .plugin(tauri_plugin_updater::Builder::new().build())
         .manage(crate::spawn::EmbeddedTerminals::default())
         .manage(crate::spawn::ProjectIdeSessions::default())
         .manage(crate::spawn::TaskMonitors::default())
