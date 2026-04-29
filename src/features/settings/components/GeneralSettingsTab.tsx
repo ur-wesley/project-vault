@@ -7,6 +7,7 @@ import { TabsContent } from "~/components/ui/tabs";
 import { TextField, TextFieldInput } from "~/components/ui/text-field";
 import type { Locale } from "~/messages";
 import { debugScanLocation } from "~/services/tauri";
+import pkg from "../../../../package.json";
 
 export type GeneralSettingsTabProps = Readonly<{
   t: (key: string, args?: Record<string, unknown>) => string;
@@ -173,8 +174,8 @@ export const GeneralSettingsTab: Component<GeneralSettingsTabProps> = (props) =>
                 </Label>
               </div>
             </div>
-            <Show when={props.onCheckForUpdates}>
-              <div class="pt-1">
+            <div class="flex items-center gap-2 pt-1">
+              <Show when={props.onCheckForUpdates}>
                 <Button
                   variant="outline"
                   size="sm"
@@ -184,8 +185,11 @@ export const GeneralSettingsTab: Component<GeneralSettingsTabProps> = (props) =>
                 >
                   {props.t("settings.checkForUpdates")}
                 </Button>
-              </div>
-            </Show>
+              </Show>
+              <span class="text-[10px] text-muted-foreground font-mono">
+                v{pkg.version}
+              </span>
+            </div>
           </div>
         </div>
       </section>
