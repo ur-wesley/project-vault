@@ -25,6 +25,22 @@ jobs:
         run: |
           echo "VITE_GITHUB_DEVICE_CLIENT_ID=${{ secrets.GH_DEVICE_CLIENT_ID }}" > .env
 
+      - name: Sync version from tag
+        shell: pwsh
+        run: |
+          $tag = "${{ github.ref_name }}"
+          $version = $tag -replace '^v',''
+          Write-Host "Syncing version to $version"
+
+          # Update Cargo.toml
+          (Get-Content src-tauri/Cargo.toml) -replace '^version = "[^"]+"', "version = `"$version`"" | Set-Content src-tauri/Cargo.toml
+
+          # Update tauri.conf.json
+          (Get-Content src-tauri/tauri.conf.json) -replace '"version": "[^"]+"', "`"version`": `"$version`"" | Set-Content src-tauri/tauri.conf.json
+
+          # Update package.json
+          (Get-Content package.json) -replace '"version": "[^"]+"', "`"version`": `"$version`"" | Set-Content package.json
+
       - name: Install frontend dependencies
         run: bun install
 
