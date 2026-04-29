@@ -18,9 +18,15 @@ pub struct GitStatusDto {
 }
 
 fn run_git(cwd: &Path, args: &[&str]) -> Result<String, StableError> {
-    let output = Command::new("git")
-        .args(args)
-        .current_dir(cwd)
+    let mut cmd = Command::new("git");
+    cmd.args(args).current_dir(cwd);
+    #[cfg(windows)]
+    {
+        use std::os::windows::process::CommandExt;
+        const CREATE_NO_WINDOW: u32 = 0x08000000;
+        cmd.creation_flags(CREATE_NO_WINDOW);
+    }
+    let output = cmd
         .output()
         .map_err(|e| StableError::new(codes::INTERNAL, format!("failed to execute git: {e}")))?;
 
@@ -104,9 +110,18 @@ pub async fn git_push(
     Ok(())
 }
 
+fn split_prerelease(tag: &str) -> (&str, &str) {
+    if let Some(pos) = tag.find('-') {
+        (&tag[..pos], &tag[pos..])
+    } else {
+        (tag, "")
+    }
+}
+
 fn parse_semver(tag: &str) -> Option<(u64, u64, u64)> {
     let t = tag.strip_prefix('v').unwrap_or(tag);
-    let parts: Vec<&str> = t.split('.').collect();
+    let (core, _prerelease) = split_prerelease(t);
+    let parts: Vec<&str> = core.split('.').collect();
     if parts.len() != 3 {
         return None;
     }
@@ -117,18 +132,42 @@ fn parse_semver(tag: &str) -> Option<(u64, u64, u64)> {
 }
 
 fn bump_semver(tag: &str, bump: &str) -> Option<String> {
-    let (major, minor, patch) = parse_semver(tag)?;
     let has_v = tag.starts_with('v');
-    let (new_major, new_minor, new_patch) = match bump {
-        "major" => (major + 1, 0, 0),
-        "minor" => (major, minor + 1, 0),
-        _ => (major, minor, patch + 1),
-    };
-    let version = format!("{new_major}.{new_minor}.{new_patch}");
-    if has_v {
-        Some(format!("v{version}"))
+    let t = tag.strip_prefix('v').unwrap_or(tag);
+    let (core, prerelease) = split_prerelease(t);
+
+    if bump == "beta" {
+        let new_version = if prerelease.is_empty() {
+            format!("{}-beta.0", core)
+        } else if let Some(idx) = prerelease.rfind('.') {
+            let base = &prerelease[..idx];
+            let num_str = &prerelease[idx + 1..];
+            if let Ok(num) = num_str.parse::<u64>() {
+                format!("{}{}.{}", core, base, num + 1)
+            } else {
+                format!("{}-beta.0", core)
+            }
+        } else {
+            format!("{}-beta.0", core)
+        };
+        if has_v {
+            Some(format!("v{}", new_version))
+        } else {
+            Some(new_version)
+        }
     } else {
-        Some(version)
+        let (major, minor, patch) = parse_semver(tag)?;
+        let (new_major, new_minor, new_patch) = match bump {
+            "major" => (major + 1, 0, 0),
+            "minor" => (major, minor + 1, 0),
+            _ => (major, minor, patch + 1),
+        };
+        let version = format!("{new_major}.{new_minor}.{new_patch}");
+        if has_v {
+            Some(format!("v{version}"))
+        } else {
+            Some(version)
+        }
     }
 }
 
@@ -142,9 +181,11 @@ pub struct GitTagResultDto {
 #[serde(rename_all = "camelCase")]
 pub struct GitPreviewVersionsDto {
     pub current_version: String,
+    pub latest_tag: Option<String>,
     pub patch_version: String,
     pub minor_version: String,
     pub major_version: String,
+    pub beta_version: String,
 }
 
 #[tauri::command]
@@ -164,18 +205,25 @@ pub async fn git_preview_versions(
 
     let version_info = get_version_info(cwd);
     println!("[git_preview_versions] version_info: {:?}", version_info);
-    let raw_version = version_info.map(|(r, _, _)| r).unwrap_or_else(|_| "0.0.0".to_string());
+    let raw_version = version_info.as_ref().map(|(r, _, _)| r.clone()).unwrap_or_else(|_| "0.0.0".to_string());
     println!("[git_preview_versions] raw_version: {}", raw_version);
+
+    let latest_tag = run_git(cwd, &["describe", "--tags", "--abbrev=0"]).ok();
+    println!("[git_preview_versions] latest_tag: {:?}", latest_tag);
+
     let patch = bump_semver(&raw_version, "patch").unwrap_or_else(|| "0.0.1".to_string());
     let minor = bump_semver(&raw_version, "minor").unwrap_or_else(|| "0.1.0".to_string());
     let major = bump_semver(&raw_version, "major").unwrap_or_else(|| "1.0.0".to_string());
-    println!("[git_preview_versions] patch: {}, minor: {}, major: {}", patch, minor, major);
+    let beta = bump_semver(&raw_version, "beta").unwrap_or_else(|| "0.0.1-beta.0".to_string());
+    println!("[git_preview_versions] patch: {}, minor: {}, major: {}, beta: {}", patch, minor, major, beta);
 
     Ok(GitPreviewVersionsDto {
         current_version: raw_version,
+        latest_tag,
         patch_version: patch,
         minor_version: minor,
         major_version: major,
+        beta_version: beta,
     })
 }
 
@@ -204,6 +252,7 @@ pub async fn git_tag_and_push(
         match bump.as_str() {
             "major" => "1.0.0".to_string(),
             "minor" => "0.1.0".to_string(),
+            "beta" => "0.0.1-beta.0".to_string(),
             _ => "0.0.1".to_string(),
         }
     };
@@ -497,16 +546,19 @@ fn replace_version_in_file(
     path: &Path,
     old_raw: &str,
     new_raw: &str,
-    old_tag: &str,
-    new_tag: &str,
+    _old_tag: &str,
+    _new_tag: &str,
 ) -> Result<(), StableError> {
     let content = std::fs::read_to_string(path).map_err(|e| {
         StableError::new(codes::INTERNAL, format!("failed to read {}: {}", path.display(), e))
     })?;
 
-    let mut updated = content.replace(old_tag, new_tag);
-    if old_raw != old_tag {
-        updated = updated.replace(old_raw, new_raw);
+    let mut updated = content.replace(old_raw, new_raw);
+
+    let v_old = format!("v{}", old_raw);
+    let v_new = format!("v{}", new_raw);
+    if updated.contains(&v_old) {
+        updated = updated.replace(&v_old, &v_new);
     }
 
     std::fs::write(path, updated).map_err(|e| {

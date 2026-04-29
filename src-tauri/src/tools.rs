@@ -31,7 +31,15 @@ fn path_lookup(name: &str) -> Option<PathBuf> {
 }
 
 fn get_version(executable: &str, arg: &str) -> Option<String> {
-    let output = Command::new(executable).arg(arg).output().ok()?;
+    let mut cmd = Command::new(executable);
+    cmd.arg(arg);
+    #[cfg(windows)]
+    {
+        use std::os::windows::process::CommandExt;
+        const CREATE_NO_WINDOW: u32 = 0x08000000;
+        cmd.creation_flags(CREATE_NO_WINDOW);
+    }
+    let output = cmd.output().ok()?;
     if !output.status.success() {
         return None;
     }

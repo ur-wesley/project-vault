@@ -338,11 +338,16 @@ fn discover_ports_for_pids(pids: &[u32]) -> Vec<u16> {
     #[cfg(windows)]
     {
         let pids_set: std::collections::HashSet<u32> = pids.iter().copied().collect();
-        let output = std::process::Command::new("netstat")
-            .args(["-ano"])
+        let mut cmd = std::process::Command::new("netstat");
+        cmd.args(["-ano"])
             .stdout(std::process::Stdio::piped())
-            .stderr(std::process::Stdio::null())
-            .output();
+            .stderr(std::process::Stdio::null());
+        {
+            use std::os::windows::process::CommandExt;
+            const CREATE_NO_WINDOW: u32 = 0x08000000;
+            cmd.creation_flags(CREATE_NO_WINDOW);
+        }
+        let output = cmd.output();
         match output {
             Ok(out) => {
                 let text = String::from_utf8_lossy(&out.stdout);

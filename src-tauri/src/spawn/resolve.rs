@@ -16,11 +16,17 @@ pub fn project_has_mise_config(root: &Path) -> bool {
 }
 
 pub fn mise_available() -> bool {
-    std::process::Command::new("mise")
-        .arg("--version")
+    let mut cmd = std::process::Command::new("mise");
+    cmd.arg("--version")
         .stdout(std::process::Stdio::null())
-        .stderr(std::process::Stdio::null())
-        .status()
+        .stderr(std::process::Stdio::null());
+    #[cfg(windows)]
+    {
+        use std::os::windows::process::CommandExt;
+        const CREATE_NO_WINDOW: u32 = 0x08000000;
+        cmd.creation_flags(CREATE_NO_WINDOW);
+    }
+    cmd.status()
         .map(|s| s.success())
         .unwrap_or(false)
 }
