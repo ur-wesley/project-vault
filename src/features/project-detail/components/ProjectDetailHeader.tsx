@@ -134,7 +134,7 @@ export const ProjectDetailHeader: Component<ProjectDetailHeaderProps> = (props) 
   const [deleteFromDisk, setDeleteFromDisk] = createSignal(false);
   const [tagDialogOpen, setTagDialogOpen] = createSignal(false);
   const [tagStep, setTagStep] = createSignal<"bump" | "files">("bump");
-  const [selectedBump, setSelectedBump] = createSignal<"patch" | "minor" | "major">("patch");
+  const [selectedBump, setSelectedBump] = createSignal<"patch" | "minor" | "major" | "beta">("patch");
   const [discoveredFiles, setDiscoveredFiles] = createSignal<DiscoverVersionFilesResultDto | null>(null);
   const [selectedVersionFiles, setSelectedVersionFiles] = createSignal<Set<string>>(new Set<string>());
   const [tagError, setTagError] = createSignal<string | null>(null);
@@ -288,8 +288,26 @@ export const ProjectDetailHeader: Component<ProjectDetailHeaderProps> = (props) 
                                    <p class="text-[10px] font-black uppercase tracking-widest text-muted-foreground">{t('projectDetail.gitBehind') as string}</p>
                                    <div class="flex items-center gap-1.5"><span class="iconify mdi--arrow-down size-3.5 text-blue-500" /><span class="font-mono text-sm font-bold tabular-nums">{s().behind}</span></div>
                                 </div>
-                             </div>
-                               <Show when={s().hasUpstream}>
+                              </div>
+                                <Show when={m().previewVersionsQ.data}>
+                                  {(v) => (
+                                    <div class="border-t border-border/40 pt-2 space-y-1.5">
+                                      <div class="flex items-center justify-between">
+                                        <span class="text-[10px] font-black uppercase tracking-widest text-muted-foreground">Version</span>
+                                        <span class="font-mono text-xs font-bold tabular-nums">{v().currentVersion}</span>
+                                      </div>
+                                      <Show when={v().latestTag}>
+                                        {(tag) => (
+                                          <div class="flex items-center justify-between">
+                                            <span class="text-[10px] font-black uppercase tracking-widest text-muted-foreground">Latest Tag</span>
+                                            <span class="font-mono text-xs font-bold tabular-nums">{tag()}</span>
+                                          </div>
+                                        )}
+                                      </Show>
+                                    </div>
+                                  )}
+                                </Show>
+                                <Show when={s().hasUpstream}>
                                    <div class="flex gap-2 pt-2">
                                       <Button size="sm" class="h-8 flex-1 gap-1.5 text-xs font-bold" variant={s().ahead > 0 ? "default" : "secondary"} disabled={m().isPushing() || m().isPulling()} onClick={() => m().pushMutate()}>
                                          <Show when={m().isPushing()} fallback={<span class="iconify mdi--upload size-3.5" />}><span class="iconify mdi--loading animate-spin size-3.5" /></Show>
@@ -447,7 +465,7 @@ export const ProjectDetailHeader: Component<ProjectDetailHeaderProps> = (props) 
                 {tagError()}
               </div>
             </Show>
-            <div class="grid grid-cols-3 gap-3 py-2">
+            <div class="grid grid-cols-4 gap-3 py-2">
               <Button variant="outline" class="flex flex-col gap-1 h-auto py-3" disabled={m().isDiscoveringFiles()} onClick={async () => {
                 setSelectedBump("patch");
                 setTagError(null);
@@ -463,7 +481,11 @@ export const ProjectDetailHeader: Component<ProjectDetailHeaderProps> = (props) 
                 <Show when={m().isDiscoveringFiles() && selectedBump() === "patch"} fallback={
                   <>
                     <span class="text-lg font-bold">patch</span>
-                    <span class="text-[10px] text-muted-foreground">x.x.1 → x.x.2</span>
+                    <span class="text-[10px] text-muted-foreground">
+                      <Show when={m().previewVersionsQ.data} fallback={<span>x.x.1 → x.x.2</span>}>
+                        {(v) => <span>{v().currentVersion} → {v().patchVersion}</span>}
+                      </Show>
+                    </span>
                   </>
                 }>
                   <span class="iconify mdi--loading animate-spin size-5" />
@@ -484,7 +506,11 @@ export const ProjectDetailHeader: Component<ProjectDetailHeaderProps> = (props) 
                 <Show when={m().isDiscoveringFiles() && selectedBump() === "minor"} fallback={
                   <>
                     <span class="text-lg font-bold">minor</span>
-                    <span class="text-[10px] text-muted-foreground">x.1.x → x.2.0</span>
+                    <span class="text-[10px] text-muted-foreground">
+                      <Show when={m().previewVersionsQ.data} fallback={<span>x.1.x → x.2.0</span>}>
+                        {(v) => <span>{v().currentVersion} → {v().minorVersion}</span>}
+                      </Show>
+                    </span>
                   </>
                 }>
                   <span class="iconify mdi--loading animate-spin size-5" />
@@ -505,7 +531,36 @@ export const ProjectDetailHeader: Component<ProjectDetailHeaderProps> = (props) 
                 <Show when={m().isDiscoveringFiles() && selectedBump() === "major"} fallback={
                   <>
                     <span class="text-lg font-bold">major</span>
-                    <span class="text-[10px] text-muted-foreground">1.x.x → 2.0.0</span>
+                    <span class="text-[10px] text-muted-foreground">
+                      <Show when={m().previewVersionsQ.data} fallback={<span>1.x.x → 2.0.0</span>}>
+                        {(v) => <span>{v().currentVersion} → {v().majorVersion}</span>}
+                      </Show>
+                    </span>
+                  </>
+                }>
+                  <span class="iconify mdi--loading animate-spin size-5" />
+                </Show>
+              </Button>
+              <Button variant="outline" class="flex flex-col gap-1 h-auto py-3" disabled={m().isDiscoveringFiles()} onClick={async () => {
+                setSelectedBump("beta");
+                setTagError(null);
+                try {
+                  const result = await m().discoverVersionFiles("beta");
+                  setDiscoveredFiles(result);
+                  setSelectedVersionFiles(new Set<string>(result.files.map(f => f.path)));
+                  setTagStep("files");
+                } catch (e: any) {
+                  setTagError(e?.message || String(e));
+                }
+              }}>
+                <Show when={m().isDiscoveringFiles() && selectedBump() === "beta"} fallback={
+                  <>
+                    <span class="text-lg font-bold">beta</span>
+                    <span class="text-[10px] text-muted-foreground">
+                      <Show when={m().previewVersionsQ.data} fallback={<span>x.x.x → x.x.x-beta.0</span>}>
+                        {(v) => <span>{v().currentVersion} → {v().betaVersion}</span>}
+                      </Show>
+                    </span>
                   </>
                 }>
                   <span class="iconify mdi--loading animate-spin size-5" />

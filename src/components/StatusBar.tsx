@@ -2,7 +2,7 @@ import { For, Show, createMemo, createSignal, onCleanup, type Component } from "
 
 import { useI18n } from "~/lib/i18n-context";
 import { useEventHub } from "~/lib/event-hub-context";
-import { getGitStatus, listAllProcesses } from "~/services/tauri";
+import { getGitStatus, gitPreviewVersions, listAllProcesses } from "~/services/tauri";
 import { createQuery } from "@tanstack/solid-query";
 import { isTauri } from "@tauri-apps/api/core";
 
@@ -45,6 +45,18 @@ export const StatusBar: Component<{
     },
     enabled: props.activeView === "project" && props.projectId != null && isTauri(),
     staleTime: 5000,
+  }));
+
+  const versionQ = createQuery(() => ({
+    queryKey: ["git", "preview-versions", props.projectId] as const,
+    queryFn: async () => {
+      if (!props.projectId) return null;
+      const r = await gitPreviewVersions(props.projectId);
+      if (r.isErr()) throw new Error(r.error.message);
+      return r.value;
+    },
+    enabled: props.activeView === "project" && props.projectId != null && isTauri(),
+    staleTime: 60000,
   }));
 
   const runningCount = createMemo(() =>
@@ -122,6 +134,14 @@ export const StatusBar: Component<{
             <Show when={gitQ.data!.behind > 0}>
               <span class="font-mono text-amber-500">↓{gitQ.data!.behind}</span>
             </Show>
+          </div>
+        </Show>
+
+        {/* Version */}
+        <Show when={versionQ.data}>
+          <div class="flex items-center gap-1 text-muted-foreground">
+            <span class="iconify mdi--tag-outline size-3" />
+            <span class="font-mono">{versionQ.data!.currentVersion}</span>
           </div>
         </Show>
       </div>

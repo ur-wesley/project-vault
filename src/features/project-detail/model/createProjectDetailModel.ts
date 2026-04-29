@@ -382,8 +382,14 @@ export function createProjectDetailModel(props: ProjectDetailViewProps) {
       const r = await deleteProjectTauri(p.id, p.deleteFromDisk);
       if (r.isErr()) throw r.error;
     },
-    onSuccess: () => {
+    onSuccess: (_data, variables) => {
+      // Optimistically remove deleted project from sidebar cache
+      qc.setQueryData<ProjectDto[]>(queryKeys.projects, (old) => {
+        if (!old) return old;
+        return old.filter((p) => p.id !== variables.id);
+      });
       void qc.invalidateQueries({ queryKey: queryKeys.projects });
+      void qc.removeQueries({ queryKey: queryKeys.project(variables.id) });
       props.onBack();
     },
     onError: (err: unknown) => {

@@ -77,7 +77,7 @@ export function useProjectGit(props: UseProjectGitProps) {
   }));
 
   const tagMu = createMutation(() => ({
-    mutationFn: async (bump: "patch" | "minor" | "major") => {
+    mutationFn: async (bump: "patch" | "minor" | "major" | "beta") => {
       const r = await gitTagAndPush(props.projectId(), bump);
       if (r.isErr()) throw r.error;
       return r.value;
@@ -94,19 +94,16 @@ export function useProjectGit(props: UseProjectGitProps) {
   const previewVersionsQ = createQuery(() => ({
     queryKey: ["git", "preview-versions", props.projectId()] as const,
     queryFn: async () => {
-      console.log("[useProjectGit] queryFn fetching preview versions");
       const r = await gitPreviewVersions(props.projectId());
-      console.log("[useProjectGit] queryFn result", r);
       if (r.isErr()) throw new Error(r.error.message);
-      console.log("[useProjectGit] queryFn returning", r.value);
       return r.value;
     },
-    enabled: false,
+    enabled: true,
     staleTime: Infinity,
   }));
 
   const discoverFilesMu = createMutation(() => ({
-    mutationFn: async (bump: "patch" | "minor" | "major") => {
+    mutationFn: async (bump: "patch" | "minor" | "major" | "beta") => {
       const r = await gitDiscoverVersionFiles(props.projectId(), bump);
       if (r.isErr()) throw r.error;
       return r.value;
@@ -117,7 +114,7 @@ export function useProjectGit(props: UseProjectGitProps) {
   }));
 
   const bumpVersionMu = createMutation(() => ({
-    mutationFn: async (payload: { bump: "patch" | "minor" | "major"; files: string[] }) => {
+    mutationFn: async (payload: { bump: "patch" | "minor" | "major" | "beta"; files: string[] }) => {
       const r = await gitBumpVersionAndTag(props.projectId(), payload);
       if (r.isErr()) throw r.error;
       return r.value;
@@ -136,14 +133,11 @@ export function useProjectGit(props: UseProjectGitProps) {
     pullMutate: () => pullMu.mutate(),
     pushMutate: () => pushMu.mutate(),
     initMutate: () => initMu.mutate(),
-    tagAndPushMutate: (bump: "patch" | "minor" | "major") => tagMu.mutate(bump),
+    tagAndPushMutate: (bump: "patch" | "minor" | "major" | "beta") => tagMu.mutate(bump),
     previewVersionsQ,
-    fetchPreviewVersions: () => {
-      console.log("[useProjectGit] fetchPreviewVersions called");
-      return previewVersionsQ.refetch();
-    },
-    discoverVersionFiles: (bump: "patch" | "minor" | "major") => discoverFilesMu.mutateAsync(bump),
-    bumpVersionAndTag: (payload: { bump: "patch" | "minor" | "major"; files: string[] }) => bumpVersionMu.mutate(payload),
+    fetchPreviewVersions: () => previewVersionsQ.refetch(),
+    discoverVersionFiles: (bump: "patch" | "minor" | "major" | "beta") => discoverFilesMu.mutateAsync(bump),
+    bumpVersionAndTag: (payload: { bump: "patch" | "minor" | "major" | "beta"; files: string[] }) => bumpVersionMu.mutate(payload),
     isPulling: () => pullMu.isPending,
     isPushing: () => pushMu.isPending,
     isIniting: () => initMu.isPending,

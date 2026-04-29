@@ -147,6 +147,11 @@ export function ProjectSidebarList(props: {
       props.onPlayError(stableErrorMessage(t, r.error as StableError));
       return;
     }
+    // Optimistically remove from sidebar cache
+    qc.setQueryData<ProjectDto[]>(queryKeys.projects, (old) => {
+      if (!old) return old;
+      return old.filter((p) => p.id !== project.id);
+    });
     void qc.invalidateQueries({ queryKey: queryKeys.projects });
   };
 
