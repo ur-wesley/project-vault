@@ -23,6 +23,9 @@ pub fn skip_dir_name(name: &str) -> bool {
             | ".Trash"
             | ".fseventsd"
             | "lost+found"
+            | ".github"
+            | "examples"
+            | "fixtures"
     )
 }
 

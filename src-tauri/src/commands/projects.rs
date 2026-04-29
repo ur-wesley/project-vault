@@ -6,8 +6,9 @@ use tauri_plugin_sql::DbInstances;
 
 use crate::db;
 use crate::error::StableError;
-use crate::models::{MoveProjectProgress, MoveProjectResultDto, ProjectDto, MiseToolDto};
+use crate::models::{MoveProjectProgress, MoveProjectResultDto, ProjectDto, MiseToolDto, MiseToolSuggestionDto};
 use crate::project_move;
+use crate::mise_tools;
 
 #[tauri::command]
 pub async fn get_project_mise_tools(
@@ -84,10 +85,31 @@ pub async fn get_project(
     db::get_project(&pool, &id).await
 }
 
+#[derive(Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct DeleteProjectPayload {
+    pub id: String,
+    pub delete_from_disk: bool,
+}
+
 #[tauri::command]
-pub async fn delete_project(db: State<'_, DbInstances>, id: String) -> Result<(), StableError> {
+pub async fn delete_project(
+    db: State<'_, DbInstances>,
+    payload: DeleteProjectPayload,
+) -> Result<(), StableError> {
     let pool = db::sqlite_pool(&*db).await?;
-    db::delete_project(&pool, &id).await
+
+    if payload.delete_from_disk {
+        let project = db::get_project(&pool, &payload.id).await?;
+        let path = std::path::Path::new(&project.path);
+        if path.is_dir() {
+            let _ = std::fs::remove_dir_all(path);
+        } else if path.is_file() {
+            let _ = std::fs::remove_file(path);
+        }
+    }
+
+    db::delete_project(&pool, &payload.id).await
 }
 
 #[tauri::command]
@@ -131,58 +153,89 @@ pub async fn get_project_languages(
     }
 
     let mut stats = HashMap::new();
-    let mut stack = vec![root.to_path_buf()];
     let mut files_processed = 0;
-
-    // Limits to avoid hanging on massive folders
     const MAX_FILES: usize = 10_000;
-    const IGNORED: &[&str] = &[
-        "node_modules",
-        ".git",
-        "dist",
-        "build",
-        "target",
-        "vendor",
-        ".next",
-        ".nuxt",
-        "venv",
-        ".venv",
-        "__pycache__",
-        "obj",
-        "bin",
-    ];
 
-    while let Some(dir) = stack.pop() {
-        if let Ok(entries) = std::fs::read_dir(dir) {
-            for entry in entries.flatten() {
-                let path = entry.path();
-                let name = entry.file_name();
-                let name_str = name.to_string_lossy();
+    let walker = ignore::WalkBuilder::new(root)
+        .git_ignore(true)
+        .git_global(true)
+        .git_exclude(true)
+        .ignore(true)
+        .build();
 
-                if IGNORED.contains(&name_str.as_ref()) {
-                    continue;
-                }
+    for result in walker {
+        let entry = match result {
+            Ok(e) => e,
+            Err(_) => continue,
+        };
 
-                if path.is_dir() {
-                    stack.push(path);
-                } else if path.is_file() {
-                    files_processed += 1;
-                    if let Some(ext) = path.extension().and_then(|e| e.to_str()) {
-                        let count = stats.entry(ext.to_lowercase()).or_insert(0);
-                        *count += 1;
-                    }
-                    if files_processed >= MAX_FILES {
-                        break;
-                    }
-                }
-            }
+        if !entry.file_type().map_or(false, |ft| ft.is_file()) {
+            continue;
         }
+
+        files_processed += 1;
+        if let Some(ext) = entry.path().extension().and_then(|e| e.to_str()) {
+            let count = stats.entry(ext.to_lowercase()).or_insert(0);
+            *count += 1;
+        }
+
         if files_processed >= MAX_FILES {
             break;
         }
     }
 
     Ok(stats)
+}
+
+#[tauri::command]
+pub async fn suggest_mise_tools(
+    db: State<'_, DbInstances>,
+    project_id: String,
+) -> Result<Vec<MiseToolSuggestionDto>, StableError> {
+    let pool = db::sqlite_pool(&*db).await?;
+    let project = db::get_project(&pool, &project_id).await?;
+    let root = std::path::Path::new(&project.path);
+
+    if !root.is_dir() {
+        return Ok(Vec::new());
+    }
+
+    let suggestions = mise_tools::suggest_tools_for_project(
+        root,
+        &project.stack,
+        project.runtime_hint.as_deref(),
+    );
+
+    Ok(suggestions)
+}
+
+#[derive(Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct PinMiseToolsPayload {
+    pub project_id: String,
+    pub tools: Vec<MiseToolSuggestionDto>,
+}
+
+#[tauri::command]
+pub async fn pin_mise_tools(
+    db: State<'_, DbInstances>,
+    payload: PinMiseToolsPayload,
+) -> Result<(), StableError> {
+    let pool = db::sqlite_pool(&*db).await?;
+    let project = db::get_project(&pool, &payload.project_id).await?;
+    let root = std::path::Path::new(&project.path);
+
+    if !root.is_dir() {
+        return Err(StableError::new(
+            crate::error::codes::INVALID_PATH,
+            "project path is not a directory",
+        ));
+    }
+
+    mise_tools::pin_tools_to_mise(root, &payload.tools)
+        .map_err(|e| StableError::new(crate::error::codes::INTERNAL, e))?;
+
+    Ok(())
 }
 
 #[derive(Deserialize)]

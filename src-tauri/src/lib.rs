@@ -11,6 +11,10 @@ pub mod project_move;
 #[cfg(not(any(target_os = "android", target_os = "ios")))]
 mod shells;
 mod spawn;
+pub mod task_config;
+pub mod mise_tools;
+#[cfg(not(any(target_os = "android", target_os = "ios")))]
+mod tools;
 
 use tauri::Manager;
 use tauri_plugin_sql::{Builder as SqlPluginBuilder, Migration, MigrationKind};
@@ -49,6 +53,18 @@ pub fn run() {
                             sql: include_str!("../migrations/004_last_edited.sql"),
                             kind: MigrationKind::Up,
                         },
+                        Migration {
+                            version: 5,
+                            description: "task_runtime",
+                            sql: include_str!("../migrations/005_task_runtime.sql"),
+                            kind: MigrationKind::Up,
+                        },
+                        Migration {
+                            version: 6,
+                            description: "size_bytes",
+                            sql: include_str!("../migrations/006_size_bytes.sql"),
+                            kind: MigrationKind::Up,
+                        },
                     ],
                 )
                 .build(),
@@ -65,12 +81,43 @@ pub fn run() {
         .plugin(tauri_plugin_opener::init())
         .manage(crate::spawn::EmbeddedTerminals::default())
         .manage(crate::spawn::ProjectIdeSessions::default())
+        .manage(crate::spawn::TaskMonitors::default())
         .setup(|app| {
             let handle = app.handle().clone();
             let db = app.state::<tauri_plugin_sql::DbInstances>();
+            let monitors = app.state::<crate::spawn::TaskMonitors>().clone();
             tauri::async_runtime::block_on(async {
                 if let Ok(pool) = db::sqlite_pool(&*db).await {
-                    let _ = db::recover_orphan_sessions(&pool).await;
+                    let orphans = db::list_active_sessions_for_project_all(&pool).await.ok().unwrap_or_default();
+                    let mut sys = sysinfo::System::new_all();
+                    sys.refresh_processes(sysinfo::ProcessesToUpdate::All, true);
+                    for s in orphans {
+                        let alive = s.root_pid.map(|pid| sys.process(sysinfo::Pid::from(pid as usize)).is_some()).unwrap_or(false);
+                        if alive {
+                            let _ = crate::spawn::task_monitor::reregister_task(
+                                &handle,
+                                &monitors,
+                                s.id.clone(),
+                                s.project_id.clone(),
+                                s.command.clone(),
+                                s.root_pid,
+                                s.started_at_ms,
+                            );
+                        } else {
+                            let now = db::now_ms();
+                            let dur = now.saturating_sub(s.started_at_ms);
+                            let _ = sqlx::query("UPDATE sessions SET ended_at_ms = ?1, state = 'error', stop_reason = COALESCE(stop_reason, 'Process not found on startup'), last_event_at_ms = ?1 WHERE id = ?2")
+                                .bind(now)
+                                .bind(&s.id)
+                                .execute(&pool)
+                                .await;
+                            let _ = sqlx::query("UPDATE projects SET total_playtime_ms = total_playtime_ms + ?1 WHERE id = ?2")
+                                .bind(dur)
+                                .bind(&s.project_id)
+                                .execute(&pool)
+                                .await;
+                        }
+                    }
                     if let Ok(locs) = db::list_locations(&pool).await {
                         for loc in locs {
                             let _ = fs_scope_util::allow_library_root(&handle, &loc.path);
@@ -90,6 +137,8 @@ pub fn run() {
             commands::git::get_git_status,
             commands::git::git_pull,
             commands::git::git_push,
+            commands::git::git_init,
+            commands::git::git_tag_and_push,
             commands::projects::import_project,
             commands::projects::list_projects,
             commands::projects::get_project,
@@ -99,17 +148,26 @@ pub fn run() {
             commands::projects::touch_project_opened,
             commands::projects::move_project,
             commands::projects::get_project_mise_tools,
+            commands::projects::suggest_mise_tools,
+            commands::projects::pin_mise_tools,
             commands::sessions::start_session,
             commands::sessions::end_session,
             commands::sessions::list_sessions_for_project,
             commands::sessions::list_active_sessions,
             commands::sessions::recover_orphan_sessions,
+            commands::sessions::clear_sessions_for_project,
+            commands::sessions::get_session_count_for_project,
+            commands::sessions::list_all_processes,
+            commands::sessions::stop_all_project_processes,
             commands::scan::scan_library_location,
             commands::scan::debug_detect_project,
+            commands::scan::debug_scan_location,
             commands::locations::pick_library_folder,
             commands::locations::pick_project_parent_folder,
             commands::project_wizard::list_project_templates,
+            commands::project_wizard::save_project_templates,
             commands::project_wizard::create_project_from_template,
+            commands::project_wizard::run_template_command,
             commands::github_device::is_github_device_configured,
             commands::github_device::start_github_device_flow,
             commands::github_device::wait_github_device_flow,
@@ -117,9 +175,15 @@ pub fn run() {
             commands::settings::get_setting,
             commands::settings::set_setting,
             commands::settings::list_settings,
+            commands::settings::get_app_data_dir,
             commands::settings::export_library_snapshot,
             commands::task_runner::spawn_project_task,
             commands::task_runner::open_project_shell,
+            commands::task_runner::stop_project_task,
+            commands::task_runner::open_shell_at_path,
+            commands::task_config::read_project_task_config,
+            commands::task_config::write_project_task,
+            commands::task_config::delete_project_task,
             commands::ide::list_discovered_ides,
             commands::ide::list_running_projects,
             commands::ide::open_project_in_ide,
@@ -127,6 +191,7 @@ pub fn run() {
             commands::ide::is_project_ide_running,
             commands::embedded_terminal::embedded_terminal_spawn,
             commands::embedded_terminal::list_available_shells,
+            commands::tools::list_discovered_tools,
             commands::embedded_terminal::embedded_terminal_write,
             commands::embedded_terminal::embedded_terminal_resize,
             commands::embedded_terminal::embedded_terminal_kill,

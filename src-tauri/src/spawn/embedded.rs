@@ -7,13 +7,31 @@ use std::sync::{Arc, Mutex};
 
 use base64::{engine::general_purpose::STANDARD, Engine as _};
 use portable_pty::{native_pty_system, ChildKiller, CommandBuilder, MasterPty, PtySize};
-use tauri::{AppHandle, Emitter, Manager};
-use tauri_plugin_sql::DbInstances;
+use tauri::{AppHandle, Emitter};
 use uuid::Uuid;
 
-use crate::db;
 use crate::error::{codes, StableError};
 use crate::spawn::resolve::get_mise_tool_args;
+use crate::spawn::task_monitor::{self, TaskMonitors, TaskRegisterInput};
+
+#[cfg(windows)]
+fn is_terminal_launcher(path: &str) -> bool {
+    let name = Path::new(path)
+        .file_name()
+        .and_then(|n| n.to_str())
+        .unwrap_or(path)
+        .to_ascii_lowercase();
+    matches!(
+        name.as_str(),
+        "wt" | "wt.exe" | "openconsole" | "openconsole.exe" | "conhost" | "conhost.exe"
+            | "windowsterminal" | "windowsterminal.exe"
+    )
+}
+
+#[cfg(not(windows))]
+fn is_terminal_launcher(_path: &str) -> bool {
+    false
+}
 
 #[derive(Clone, Default)]
 pub struct EmbeddedTerminals(pub Arc<Mutex<HashMap<String, EmbeddedSession>>>);
@@ -40,9 +58,9 @@ struct TermExitPayload {
 
 #[derive(Clone, serde::Serialize)]
 #[serde(rename_all = "camelCase")]
-struct SessionEndedEmit {
+struct TaskLogChunkPayload {
     session_id: String,
-    project_id: String,
+    chunk: String,
 }
 
 #[cfg(windows)]
@@ -77,10 +95,9 @@ fn task_command_windows(
 
     // Determine the shell to use. Default to cmd.exe.
     let shell = if let Some(s) = shell_pref {
-        if Path::new(s).exists() {
+        if Path::new(s).exists() && !is_terminal_launcher(s) {
             s.to_string()
         } else {
-            // If the preferred shell doesn't exist, fallback to cmd.exe
             "cmd.exe".to_string()
         }
     } else {
@@ -169,6 +186,10 @@ fn task_command(
 pub fn spawn_task_in_pty(
     app: AppHandle,
     sessions: &EmbeddedTerminals,
+    monitors: &TaskMonitors,
+    project_id: String,
+    command_line: Option<String>,
+    started_at_ms: i64,
     cwd: &Path,
     argv: &[String],
     use_mise: bool,
@@ -201,6 +222,20 @@ pub fn spawn_task_in_pty(
             return Err(StableError::new(codes::SPAWN_FAILED, e.to_string()));
         }
     };
+    let root_pid = child.process_id();
+
+    task_monitor::register_task(
+        &app,
+        monitors,
+        TaskRegisterInput {
+            session_id: stream_session_id.clone(),
+            project_id,
+            command: command_line,
+            root_pid,
+            stream_output: true,
+            started_at_ms,
+        },
+    )?;
     
     let killer = Arc::new(Mutex::new(child.clone_killer()));
     let reader = pair
@@ -239,11 +274,19 @@ pub fn spawn_task_in_pty(
                 },
                 Ok(n) => {
                     let chunk = STANDARD.encode(&buf[..n]);
+                    let task_chunk = chunk.clone();
                     let _ = app_read.emit(
                         "embedded-terminal-data",
                         TermPayload {
                             session_id: sid_read.clone(),
                             chunk,
+                        },
+                    );
+                    let _ = app_read.emit(
+                        "task-log-chunk",
+                        TaskLogChunkPayload {
+                            session_id: sid_read.clone(),
+                            chunk: task_chunk,
                         },
                     );
                 }
@@ -257,8 +300,35 @@ pub fn spawn_task_in_pty(
     let app_wait = app.clone();
     let sid_wait = stream_session_id.clone();
     let map = sessions.0.clone();
+    let monitors_wait = monitors.clone();
     std::thread::spawn(move || {
-        let _wait_res = child.wait();
+        let wait_res = child.wait();
+        let stop_requested = task_monitor::is_stop_requested(&monitors_wait, &sid_wait);
+        let (state, exit_code, stop_reason) = match wait_res {
+            Ok(status) => {
+                let signal_reason = status.signal().map(|s| format!("signal {s}"));
+                let final_reason = if stop_requested {
+                    Some("stop requested".to_string())
+                } else {
+                    signal_reason
+                };
+                let state = if stop_requested {
+                    task_monitor::TASK_STATE_CANCELLED.to_string()
+                } else if status.success() {
+                    task_monitor::TASK_STATE_SUCCESS.to_string()
+                } else {
+                    task_monitor::TASK_STATE_ERROR.to_string()
+                };
+                let exit_code = Some(status.exit_code() as i32);
+                (state, exit_code, final_reason)
+            }
+            Err(e) => (
+                task_monitor::TASK_STATE_ERROR.to_string(),
+                None,
+                Some(e.to_string()),
+            ),
+        };
+
         if let Ok(mut g) = map.lock() {
             g.remove(&sid_wait);
         }
@@ -268,19 +338,17 @@ pub fn spawn_task_in_pty(
                 session_id: sid_wait.clone(),
             },
         );
+        let monitors_done = monitors_wait.clone();
         tauri::async_runtime::block_on(async move {
-            let db = app_wait.state::<DbInstances>();
-            if let Ok(pool) = db::sqlite_pool(&*db).await {
-                if let Ok(s) = db::end_session(&pool, &sid_wait).await {
-                    let _ = app_wait.emit(
-                        "session:ended",
-                        SessionEndedEmit {
-                            session_id: s.id,
-                            project_id: s.project_id,
-                        },
-                    );
-                }
-            }
+            let _ = task_monitor::finalize_task(
+                app_wait,
+                monitors_done,
+                sid_wait,
+                state,
+                exit_code,
+                stop_reason,
+            )
+            .await;
         });
     });
 
@@ -290,7 +358,7 @@ pub fn spawn_task_in_pty(
 fn shell_command(shell_pref: Option<&str>, cwd: &Path) -> Result<CommandBuilder, StableError> {
     if let Some(p) = shell_pref {
         let p = p.trim();
-        if !p.is_empty() {
+        if !p.is_empty() && !is_terminal_launcher(p) {
             let mut c = CommandBuilder::new(p);
             c.cwd(cwd);
             return Ok(c);
@@ -361,6 +429,10 @@ pub fn spawn_session(
     let app_read = app.clone();
     let sid_read = session_id.clone();
     std::thread::spawn(move || {
+        // Give the frontend a moment to mount and start listening before
+        // emitting data, otherwise early chunks (e.g. the shell prompt) may
+        // be lost.
+        std::thread::sleep(std::time::Duration::from_millis(300));
         let mut reader = reader;
         let mut buf = [0u8; 4096];
         loop {
@@ -459,12 +531,13 @@ pub fn kill_session(sessions: &EmbeddedTerminals, session_id: &str) -> Result<()
             .lock()
             .map_err(|e| StableError::new(codes::INTERNAL, e.to_string()))?;
         g.remove(session_id)
-            .ok_or_else(|| StableError::new(codes::NOT_FOUND, "terminal session not found"))?
     };
-    let mut k = sess
-        .killer
-        .lock()
-        .map_err(|e| StableError::new(codes::INTERNAL, e.to_string()))?;
-    let _ = k.kill();
+    if let Some(sess) = sess {
+        let mut k = sess
+            .killer
+            .lock()
+            .map_err(|e| StableError::new(codes::INTERNAL, e.to_string()))?;
+        let _ = k.kill();
+    }
     Ok(())
 }

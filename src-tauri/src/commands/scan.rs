@@ -6,7 +6,7 @@ use tauri_plugin_sql::DbInstances;
 
 use crate::db;
 use crate::discovery::{
-    collect_projects_under_root, filter_outermost_projects, path_key, DetectorRegistry,
+    collect_projects_under_root, filter_workspaces_and_outermost, path_key, DetectorRegistry,
     ProjectDraft,
 };
 use crate::error::{codes, StableError};
@@ -25,6 +25,34 @@ pub fn debug_detect_project(path: String) -> Result<Option<ProjectDraft>, Stable
     }
     let res = reg.detect(root);
     Ok(res)
+}
+
+#[derive(serde::Serialize)]
+pub struct DebugScanResult {
+    pub raw: Vec<ProjectDraft>,
+    pub filtered: Vec<ProjectDraft>,
+    pub monorepos_expanded: u64,
+    pub workspace_warnings: u64,
+}
+
+#[tauri::command]
+pub fn debug_scan_location(path: String) -> Result<DebugScanResult, StableError> {
+    let reg = registry();
+    let root = Path::new(&path);
+    if !root.is_dir() {
+        return Err(StableError::new(codes::INVALID_PATH, "not a directory"));
+    }
+    let mut dirs_skipped = 0u64;
+    let raw = collect_projects_under_root(&reg, root, &mut dirs_skipped);
+    let mut monorepos_expanded = 0u64;
+    let mut workspace_warnings = 0u64;
+    let filtered = filter_workspaces_and_outermost(&reg, raw.clone(), &mut monorepos_expanded, &mut workspace_warnings);
+    Ok(DebugScanResult {
+        raw,
+        filtered,
+        monorepos_expanded,
+        workspace_warnings,
+    })
 }
 
 #[tauri::command]
@@ -50,7 +78,9 @@ pub async fn scan_library_location(
     let reg = registry();
     let mut dirs_skipped = 0u64;
     let raw = collect_projects_under_root(&reg, root, &mut dirs_skipped);
-    let drafts = filter_outermost_projects(raw);
+    let mut monorepos_expanded = 0u64;
+    let mut workspace_warnings = 0u64;
+    let drafts = filter_workspaces_and_outermost(&reg, raw, &mut monorepos_expanded, &mut workspace_warnings);
     let discovered = drafts.len() as u64;
     let mut keep = HashSet::new();
     let mut upserted = 0u64;
@@ -58,9 +88,10 @@ pub async fn scan_library_location(
         let key = path_key(&d.root);
         keep.insert(key.clone());
 
-        let stats = crate::project_move::count_filtered_dir(&d.root).ok();
-        let file_count = stats.map(|s| s.file_count).unwrap_or(0);
-        let last_edited_at_ms = stats.and_then(|s| if s.last_edited_at_ms > 0 { Some(s.last_edited_at_ms) } else { None });
+        let filtered_stats = crate::project_move::count_filtered_dir(&d.root).ok();
+        let file_count = filtered_stats.map(|s| s.file_count).unwrap_or(0);
+        let last_edited_at_ms = filtered_stats.and_then(|s| if s.last_edited_at_ms > 0 { Some(s.last_edited_at_ms) } else { None });
+        let size_bytes = crate::project_move::count_all_dir(&d.root).map(|(_, total)| total).unwrap_or(0);
 
         let dto = ProjectDto {
             id: String::new(),
@@ -77,6 +108,7 @@ pub async fn scan_library_location(
             github_owner: d.github_owner,
             github_repo: d.github_repo,
             file_count,
+            size_bytes,
             last_edited_at_ms,
         };
         db::upsert_project(&pool, &dto).await?;
@@ -88,7 +120,7 @@ pub async fn scan_library_location(
         projects_upserted: upserted,
         projects_pruned: pruned,
         dirs_skipped_errors: dirs_skipped,
-        monorepos_expanded: 0,
-        workspace_warnings: 0,
+        monorepos_expanded,
+        workspace_warnings,
     })
 }

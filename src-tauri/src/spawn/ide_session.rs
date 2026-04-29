@@ -59,6 +59,9 @@ pub async fn start_ide_session(
     let db_session = db::start_session(&pool, &project_id, Some(format!("IDE: {exe_stem}")), None).await?;
     let session_id = db_session.id;
 
+    // 5.5 Update project's last_opened_at_ms
+    let _ = db::touch_project_opened(&pool, &project_id).await;
+
     // 6. Register Session
     {
         let mut g = sessions.0.lock().unwrap();

@@ -18,6 +18,10 @@ pub struct TaskDto {
     pub label: String,
     pub argv: Vec<String>,
     pub kind: String,
+    pub cwd: Option<String>,
+    pub description: Option<String>,
+    pub depends: Vec<String>,
+    pub source: Option<String>,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
@@ -37,6 +41,7 @@ pub struct ProjectDto {
     pub github_owner: Option<String>,
     pub github_repo: Option<String>,
     pub file_count: u64,
+    pub size_bytes: u64,
     pub last_edited_at_ms: Option<i64>,
 }
 
@@ -48,6 +53,12 @@ pub struct SessionDto {
     pub started_at_ms: i64,
     pub ended_at_ms: Option<i64>,
     pub command: Option<String>,
+    pub state: String,
+    pub root_pid: Option<u32>,
+    pub tree_pids: Vec<u32>,
+    pub exit_code: Option<i32>,
+    pub stop_reason: Option<String>,
+    pub last_event_at_ms: i64,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
@@ -65,6 +76,15 @@ pub struct ShellCandidateDto {
     pub id: String,
     pub label: String,
     pub executable: String,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct ToolCandidateDto {
+    pub id: String,
+    pub label: String,
+    pub executable: String,
+    pub version: Option<String>,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
@@ -100,6 +120,14 @@ pub struct MiseToolDto {
     pub version: String,
     pub source: String,
     pub is_active: bool,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct MiseToolSuggestionDto {
+    pub name: String,
+    pub version: String,
+    pub reason: String,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]

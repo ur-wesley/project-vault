@@ -103,3 +103,86 @@ pub async fn git_push(
     run_git(cwd, &["push"])?;
     Ok(())
 }
+
+fn parse_semver(tag: &str) -> Option<(u64, u64, u64)> {
+    let t = tag.strip_prefix('v').unwrap_or(tag);
+    let parts: Vec<&str> = t.split('.').collect();
+    if parts.len() != 3 {
+        return None;
+    }
+    let major = parts[0].parse().ok()?;
+    let minor = parts[1].parse().ok()?;
+    let patch = parts[2].parse().ok()?;
+    Some((major, minor, patch))
+}
+
+fn bump_semver(tag: &str, bump: &str) -> Option<String> {
+    let (major, minor, patch) = parse_semver(tag)?;
+    let has_v = tag.starts_with('v');
+    let (new_major, new_minor, new_patch) = match bump {
+        "major" => (major + 1, 0, 0),
+        "minor" => (major, minor + 1, 0),
+        _ => (major, minor, patch + 1),
+    };
+    let version = format!("{new_major}.{new_minor}.{new_patch}");
+    if has_v {
+        Some(format!("v{version}"))
+    } else {
+        Some(version)
+    }
+}
+
+#[derive(Serialize, Clone)]
+#[serde(rename_all = "camelCase")]
+pub struct GitTagResultDto {
+    pub new_tag: String,
+}
+
+#[tauri::command]
+pub async fn git_tag_and_push(
+    db: State<'_, DbInstances>,
+    project_id: String,
+    bump: String,
+) -> Result<GitTagResultDto, StableError> {
+    let pool = db::sqlite_pool(&*db).await?;
+    let project = db::get_project(&pool, &project_id).await?;
+    let cwd = Path::new(&project.path);
+
+    if !cwd.join(".git").exists() {
+        return Err(StableError::new(codes::INVALID_PATH, "not a git repository"));
+    }
+
+    // Get latest tag
+    let latest_tag = run_git(cwd, &["describe", "--tags", "--abbrev=0"]);
+    let new_tag = if let Ok(tag) = latest_tag {
+        bump_semver(&tag, &bump).ok_or_else(|| {
+            StableError::new(codes::INTERNAL, format!("could not parse latest tag '{}' as semver", tag))
+        })?
+    } else {
+        // No existing tags — start at 0.0.1 or 0.1.0 or 1.0.0
+        match bump.as_str() {
+            "major" => "1.0.0".to_string(),
+            "minor" => "0.1.0".to_string(),
+            _ => "0.0.1".to_string(),
+        }
+    };
+
+    run_git(cwd, &["tag", &new_tag])?;
+    run_git(cwd, &["push", "origin", &new_tag])?;
+
+    Ok(GitTagResultDto { new_tag })
+}
+
+#[tauri::command]
+pub async fn git_init(
+    db: State<'_, DbInstances>,
+    project_id: String,
+) -> Result<(), StableError> {
+    let pool = db::sqlite_pool(&*db).await?;
+    let project = db::get_project(&pool, &project_id).await?;
+    let cwd = Path::new(&project.path);
+
+    run_git(cwd, &["init"])?;
+    run_git(cwd, &["checkout", "-b", "main"])?;
+    Ok(())
+}

@@ -3,9 +3,9 @@ use std::sync::Arc;
 
 use crate::discovery::detectors::{
     CMakeDetector, CargoTomlDetector, ComposerDetector, CsProjDetector, DenoDetector,
-    GemfileDetector, GitDetector, GoModDetector, GoWorkDetector, GradleDetector, MavenDetector,
-    MixExsDetector, PackageJsonDetector, PythonDetector, SolutionDetector, SwiftPackageDetector,
-    MiseDetector,
+    GemfileDetector, GitDetector, GoModDetector, GoWorkDetector, GradleDetector, JustfileDetector,
+    MavenDetector, MixExsDetector, PackageJsonDetector, PnpmWorkspaceDetector, PythonDetector,
+    SolutionDetector, SwiftPackageDetector, MiseDetector,
 };
 use crate::discovery::draft::ProjectDraft;
 use crate::discovery::ProjectDetector;
@@ -19,8 +19,10 @@ impl DetectorRegistry {
         let mut detectors: Vec<Arc<dyn ProjectDetector>> = vec![
             Arc::new(GitDetector),
             Arc::new(MiseDetector),
+            Arc::new(JustfileDetector),
             Arc::new(DenoDetector),
             Arc::new(PackageJsonDetector),
+            Arc::new(PnpmWorkspaceDetector),
             Arc::new(GoWorkDetector),
             Arc::new(GoModDetector),
             Arc::new(CargoTomlDetector),

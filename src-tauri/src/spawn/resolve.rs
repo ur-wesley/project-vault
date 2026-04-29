@@ -56,11 +56,8 @@ pub fn get_mise_tool_args(hint: Option<&str>, stack: &str, argv: &[String]) -> V
         {
             args.push(format!("{}@{}", tool_base, h));
         } else {
-            // If the hint is a tool name (like 'bun' or 'node'), use it if it's different from tool_base
-            if h != tool_base {
-                args.push(h.to_string());
-            }
-            args.push(tool_base.to_string());
+            // If the hint is a tool name (like 'bun' or 'node'), use it as the sole tool
+            args.push(h.to_string());
         }
     } else {
         args.push(tool_base.to_string());

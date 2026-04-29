@@ -15,5 +15,6 @@ pub struct ProjectDraft {
     pub github_owner: Option<String>,
     pub github_repo: Option<String>,
     pub file_count: u64,
+    pub size_bytes: u64,
     pub last_edited_at_ms: Option<i64>,
 }

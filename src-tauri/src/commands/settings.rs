@@ -1,5 +1,5 @@
 use serde::Serialize;
-use tauri::State;
+use tauri::{AppHandle, Manager, State};
 use tauri_plugin_sql::DbInstances;
 
 use crate::db;
@@ -50,6 +50,15 @@ pub async fn list_settings(
         .into_iter()
         .map(|(key, value)| SettingEntryDto { key, value })
         .collect())
+}
+
+#[tauri::command]
+pub async fn get_app_data_dir(app: AppHandle) -> Result<String, StableError> {
+    let dir = app
+        .path()
+        .app_data_dir()
+        .map_err(|e| StableError::new(crate::error::codes::INTERNAL, format!("failed to resolve app data dir: {e}")))?;
+    Ok(dir.to_string_lossy().into_owned())
 }
 
 #[tauri::command]

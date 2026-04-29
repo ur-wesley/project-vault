@@ -9,5 +9,7 @@ pub mod projects;
 pub mod scan;
 pub mod sessions;
 pub mod settings;
+pub mod task_config;
 pub mod task_runner;
+pub mod tools;
 pub mod volumes;

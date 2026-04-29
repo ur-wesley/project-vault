@@ -20,6 +20,7 @@ fn sh_single_quote(s: &str) -> String {
 }
 
 #[cfg(windows)]
+#[allow(dead_code)]
 fn spawn_in_new_console_cmd(_cwd: &Path, line: &str) -> Result<std::process::Child, StableError> {
     use std::os::windows::process::CommandExt;
     const CREATE_NEW_CONSOLE: u32 = 0x00000010;
@@ -35,6 +36,7 @@ fn spawn_in_new_console_cmd(_cwd: &Path, line: &str) -> Result<std::process::Chi
 }
 
 #[cfg(windows)]
+#[allow(dead_code)]
 pub fn spawn_in_new_console(
     cwd: &Path,
     argv: &[String],
@@ -70,6 +72,7 @@ pub fn spawn_in_new_console(
 }
 
 #[cfg(target_os = "macos")]
+#[allow(dead_code)]
 pub fn spawn_in_new_console(
     cwd: &Path,
     argv: &[String],
@@ -103,6 +106,7 @@ pub fn spawn_in_new_console(
 }
 
 #[cfg(all(unix, not(target_os = "macos")))]
+#[allow(dead_code)]
 pub fn spawn_in_new_console(
     cwd: &Path,
     argv: &[String],

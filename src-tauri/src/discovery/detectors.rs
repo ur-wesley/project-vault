@@ -128,7 +128,11 @@ fn package_json_looks_real(v: &JsonValue) -> bool {
     {
         return true;
     }
-    // Otherwise, check if it has at least 2 common keys to avoid random JSON files
+    // A workspace manifest is always a real project (monorepo root)
+    if o.get("workspaces").is_some() {
+        return true;
+    }
+    // Otherwise, check if it has at least 1 common key to avoid random JSON files
     let common_keys = [
         "name",
         "version",
@@ -137,6 +141,8 @@ fn package_json_looks_real(v: &JsonValue) -> bool {
         "type",
         "author",
         "license",
+        "private",
+        "packageManager",
     ];
     let count = o
         .keys()
@@ -158,6 +164,10 @@ fn script_task(id: &str, label: &str, argv: Vec<String>) -> TaskDto {
         label: label.to_string(),
         argv,
         kind: "script".into(),
+        cwd: None,
+        description: None,
+        depends: Vec::new(),
+        source: None,
     }
 }
 
@@ -177,42 +187,8 @@ impl ProjectDetector for MiseDetector {
     }
 
     fn detect(&self, path: &Path) -> Option<ProjectDraft> {
-        let has_config = path.join("mise.toml").is_file()
-            || path.join(".mise.toml").is_file()
-            || path.join("mise.local.toml").is_file()
-            || path.join(".mise.local.toml").is_file();
-
-        if !has_config {
-            return None;
-        }
-
-        // Try to get tasks from mise
-        let mut tasks = Vec::new();
-        let output = std::process::Command::new("mise")
-            .args(["tasks", "ls", "--json"])
-            .current_dir(path)
-            .output()
-            .ok();
-
-        if let Some(out) = output {
-            if out.status.success() {
-                if let Ok(v) = serde_json::from_slice::<JsonValue>(&out.stdout) {
-                    if let Some(arr) = v.as_array() {
-                        for t in arr {
-                            let name = t.get("name").and_then(|x| x.as_str());
-                            if let Some(n) = name {
-                                tasks.push(TaskDto {
-                                    id: format!("mise-{}", n),
-                                    label: n.to_string(),
-                                    argv: vec!["mise".to_string(), "run".to_string(), n.to_string()],
-                                    kind: "mise".into(),
-                                });
-                            }
-                        }
-                    }
-                }
-            }
-        }
+        let config_path = crate::task_config::mise::find_mise_config(path)?;
+        let tasks = crate::task_config::mise::read_mise_tasks(&config_path);
 
         Some(ProjectDraft {
             root: path.to_path_buf(),
@@ -224,6 +200,42 @@ impl ProjectDetector for MiseDetector {
             github_owner: None,
             github_repo: None,
             file_count: 0,
+            size_bytes: 0,
+            last_edited_at_ms: None,
+        })
+    }
+}
+
+pub struct JustfileDetector;
+
+impl ProjectDetector for JustfileDetector {
+    fn id(&self) -> &'static str {
+        "justfile"
+    }
+
+    fn priority(&self) -> i32 {
+        105
+    }
+
+    fn markers(&self) -> &'static [&'static str] {
+        &["justfile", "Justfile", ".justfile", ".Justfile"]
+    }
+
+    fn detect(&self, path: &Path) -> Option<ProjectDraft> {
+        let justfile_path = crate::task_config::justfile::find_justfile(path)?;
+        let tasks = crate::task_config::justfile::read_justfile_tasks(&justfile_path);
+
+        Some(ProjectDraft {
+            root: path.to_path_buf(),
+            name: dirname_name(path),
+            stack: "justfile".into(),
+            runtime_hint: None,
+            tasks,
+            tags: vec!["justfile".into()],
+            github_owner: None,
+            github_repo: None,
+            file_count: 0,
+            size_bytes: 0,
             last_edited_at_ms: None,
         })
     }
@@ -322,7 +334,7 @@ impl ProjectDetector for PackageJsonDetector {
         };
         let stack = package_json_stack(&v, path);
         let mut tags = vec![self.id().into()];
-        if v.get("workspaces").is_some() {
+        if v.get("workspaces").is_some() || path.join("pnpm-workspace.yaml").is_file() {
             tags.push("monorepo".into());
         }
         Some(ProjectDraft {
@@ -335,6 +347,52 @@ impl ProjectDetector for PackageJsonDetector {
             github_owner: None,
             github_repo: None,
             file_count: 0,
+            size_bytes: 0,
+            last_edited_at_ms: None,
+        })
+    }
+}
+
+/// Detects pnpm workspace roots that lack a `package.json` (or have one that
+/// `PackageJsonDetector` rejects). Ensures `pnpm-workspace.yaml` drives
+/// workspace discovery even when no root package manifest is present.
+pub struct PnpmWorkspaceDetector;
+
+impl ProjectDetector for PnpmWorkspaceDetector {
+    fn id(&self) -> &'static str {
+        "pnpm-workspace"
+    }
+
+    fn priority(&self) -> i32 {
+        98 // Just below PackageJsonDetector (100)
+    }
+
+    fn markers(&self) -> &'static [&'static str] {
+        &["pnpm-workspace.yaml"]
+    }
+
+    fn detect(&self, path: &Path) -> Option<ProjectDraft> {
+        let ws = path.join("pnpm-workspace.yaml");
+        if !ws.is_file() {
+            return None;
+        }
+        // Only match when PackageJsonDetector did NOT already match.
+        // If package.json exists, PackageJsonDetector (priority 100) already
+        // handled this directory and merged in the monorepo tag.
+        if path.join("package.json").is_file() {
+            return None;
+        }
+        Some(ProjectDraft {
+            root: path.to_path_buf(),
+            name: dirname_name(path),
+            stack: "javascript".into(),
+            runtime_hint: Some("pnpm".into()),
+            tasks: Vec::new(),
+            tags: vec![self.id().into(), "monorepo".into()],
+            github_owner: None,
+            github_repo: None,
+            file_count: 0,
+            size_bytes: 0,
             last_edited_at_ms: None,
         })
     }
@@ -406,6 +464,7 @@ impl ProjectDetector for GitDetector {
             github_owner: owner,
             github_repo: repo,
             file_count: 0,
+            size_bytes: 0,
             last_edited_at_ms: None,
         })
     }
@@ -510,6 +569,7 @@ impl ProjectDetector for GoModDetector {
             github_owner: None,
             github_repo: None,
             file_count: 0,
+            size_bytes: 0,
             last_edited_at_ms: None,
         })
     }
@@ -556,16 +616,21 @@ impl ProjectDetector for CargoTomlDetector {
             script_task("cargo-test", "test", vec!["cargo".into(), "test".into()]),
             script_task("cargo-run", "run", vec!["cargo".into(), "run".into()]),
         ];
+        let mut tags = vec![self.id().into()];
+        if t.get("workspace").is_some() {
+            tags.push("monorepo".into());
+        }
         Some(ProjectDraft {
             root: path.to_path_buf(),
             name,
             stack: "rust".into(),
             runtime_hint: Some("cargo".into()),
             tasks,
-            tags: vec![self.id().into()],
+            tags,
             github_owner: None,
             github_repo: None,
             file_count: 0,
+            size_bytes: 0,
             last_edited_at_ms: None,
         })
     }
@@ -620,6 +685,7 @@ impl ProjectDetector for SolutionDetector {
             github_owner: None,
             github_repo: None,
             file_count: 0,
+            size_bytes: 0,
             last_edited_at_ms: None,
         })
     }
@@ -673,6 +739,7 @@ impl ProjectDetector for CsProjDetector {
             github_owner: None,
             github_repo: None,
             file_count: 0,
+            size_bytes: 0,
             last_edited_at_ms: None,
         })
     }
@@ -739,6 +806,7 @@ impl ProjectDetector for DenoDetector {
             github_owner: None,
             github_repo: None,
             file_count: 0,
+            size_bytes: 0,
             last_edited_at_ms: None,
         })
     }
@@ -806,6 +874,7 @@ impl ProjectDetector for ComposerDetector {
             github_owner: None,
             github_repo: None,
             file_count: 0,
+            size_bytes: 0,
             last_edited_at_ms: None,
         })
     }
@@ -861,6 +930,7 @@ impl ProjectDetector for GemfileDetector {
             github_owner: None,
             github_repo: None,
             file_count: 0,
+            size_bytes: 0,
             last_edited_at_ms: None,
         })
     }
@@ -909,6 +979,7 @@ impl ProjectDetector for MixExsDetector {
             github_owner: None,
             github_repo: None,
             file_count: 0,
+            size_bytes: 0,
             last_edited_at_ms: None,
         })
     }
@@ -973,6 +1044,7 @@ impl ProjectDetector for GradleDetector {
             github_owner: None,
             github_repo: None,
             file_count: 0,
+            size_bytes: 0,
             last_edited_at_ms: None,
         })
     }
@@ -1025,6 +1097,7 @@ impl ProjectDetector for MavenDetector {
             github_owner: None,
             github_repo: None,
             file_count: 0,
+            size_bytes: 0,
             last_edited_at_ms: None,
         })
     }
@@ -1069,6 +1142,7 @@ impl ProjectDetector for SwiftPackageDetector {
             github_owner: None,
             github_repo: None,
             file_count: 0,
+            size_bytes: 0,
             last_edited_at_ms: None,
         })
     }
@@ -1121,6 +1195,7 @@ impl ProjectDetector for CMakeDetector {
             github_owner: None,
             github_repo: None,
             file_count: 0,
+            size_bytes: 0,
             last_edited_at_ms: None,
         })
     }
@@ -1173,10 +1248,11 @@ impl ProjectDetector for GoWorkDetector {
             stack: "go".into(),
             runtime_hint: Some("go".into()),
             tasks,
-            tags: vec![self.id().into()],
+            tags: vec![self.id().into(), "monorepo".into()],
             github_owner: None,
             github_repo: None,
             file_count: 0,
+            size_bytes: 0,
             last_edited_at_ms: None,
         })
     }
@@ -1307,6 +1383,7 @@ impl ProjectDetector for PythonDetector {
             github_owner: None,
             github_repo: None,
             file_count: 0,
+            size_bytes: 0,
             last_edited_at_ms: None,
         })
     }

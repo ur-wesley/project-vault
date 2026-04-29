@@ -1,6 +1,6 @@
 //! Parse `package.json` `workspaces`, resolve glob patterns to member directory keys, and enforce caps.
 //! Unlisted nested packages still follow [`crate::discovery::walk::filter_outermost_projects`] unless a
-//! workspace manifest applies; see [`crate::discovery::walk::filter_monorepo_and_outermost`].
+//! workspace manifest applies; see [`crate::discovery::walk::filter_workspaces_and_outermost`].
 
 use std::collections::HashSet;
 use std::fs;

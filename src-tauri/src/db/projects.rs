@@ -22,6 +22,7 @@ struct ProjectRow {
     github_owner: Option<String>,
     github_repo: Option<String>,
     file_count: i64,
+    size_bytes: i64,
     last_edited_at_ms: Option<i64>,
 }
 
@@ -45,13 +46,14 @@ fn row_to_dto(r: ProjectRow) -> Result<ProjectDto, StableError> {
         github_owner: r.github_owner,
         github_repo: r.github_repo,
         file_count: r.file_count as u64,
+        size_bytes: r.size_bytes as u64,
         last_edited_at_ms: r.last_edited_at_ms,
     })
 }
 
 pub async fn list_projects(pool: &Pool<Sqlite>) -> Result<Vec<ProjectDto>, StableError> {
     let rows: Vec<ProjectRow> = sqlx::query_as(
-        "SELECT id, location_id, name, path, stack, runtime_hint, favorite, last_opened_at_ms, total_playtime_ms, tasks_json, tags_json, github_owner, github_repo, file_count, last_edited_at_ms FROM projects ORDER BY name ASC",
+        "SELECT id, location_id, name, path, stack, runtime_hint, favorite, last_opened_at_ms, total_playtime_ms, tasks_json, tags_json, github_owner, github_repo, file_count, size_bytes, last_edited_at_ms FROM projects ORDER BY name ASC",
     )
     .fetch_all(pool)
     .await
@@ -65,7 +67,7 @@ pub async fn list_projects(pool: &Pool<Sqlite>) -> Result<Vec<ProjectDto>, Stabl
 
 pub async fn get_project(pool: &Pool<Sqlite>, id: &str) -> Result<ProjectDto, StableError> {
     let row: Option<ProjectRow> = sqlx::query_as(
-        "SELECT id, location_id, name, path, stack, runtime_hint, favorite, last_opened_at_ms, total_playtime_ms, tasks_json, tags_json, github_owner, github_repo, file_count, last_edited_at_ms FROM projects WHERE id = ?1",
+        "SELECT id, location_id, name, path, stack, runtime_hint, favorite, last_opened_at_ms, total_playtime_ms, tasks_json, tags_json, github_owner, github_repo, file_count, size_bytes, last_edited_at_ms FROM projects WHERE id = ?1",
     )
     .bind(id)
     .fetch_optional(pool)
@@ -108,8 +110,8 @@ pub async fn upsert_project(
 
     let id = if let Some(eid) = existing {
         sqlx::query(
-            r#"UPDATE projects SET name = ?1, stack = ?2, runtime_hint = ?3, tasks_json = ?4, tags_json = ?5, github_owner = ?6, github_repo = ?7, file_count = ?8, last_edited_at_ms = ?9
-               WHERE id = ?10"#,
+            r#"UPDATE projects SET name = ?1, stack = ?2, runtime_hint = ?3, tasks_json = ?4, tags_json = ?5, github_owner = ?6, github_repo = ?7, file_count = ?8, size_bytes = ?9, last_edited_at_ms = ?10
+               WHERE id = ?11"#,
         )
         .bind(&dto.name)
         .bind(&dto.stack)
@@ -119,6 +121,7 @@ pub async fn upsert_project(
         .bind(&dto.github_owner)
         .bind(&dto.github_repo)
         .bind(dto.file_count as i64)
+        .bind(dto.size_bytes as i64)
         .bind(dto.last_edited_at_ms)
         .bind(&eid)
         .execute(pool)
@@ -133,8 +136,8 @@ pub async fn upsert_project(
         };
         sqlx::query(
             r#"INSERT INTO projects (
-                id, location_id, name, path, stack, runtime_hint, favorite, last_opened_at_ms, total_playtime_ms, tasks_json, tags_json, github_owner, github_repo, file_count, last_edited_at_ms
-            ) VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7, ?8, ?9, ?10, ?11, ?12, ?13, ?14, ?15)"#,
+                id, location_id, name, path, stack, runtime_hint, favorite, last_opened_at_ms, total_playtime_ms, tasks_json, tags_json, github_owner, github_repo, file_count, size_bytes, last_edited_at_ms
+            ) VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7, ?8, ?9, ?10, ?11, ?12, ?13, ?14, ?15, ?16)"#,
         )
         .bind(&nid)
         .bind(&dto.location_id)
@@ -150,6 +153,7 @@ pub async fn upsert_project(
         .bind(&dto.github_owner)
         .bind(&dto.github_repo)
         .bind(dto.file_count as i64)
+        .bind(dto.size_bytes as i64)
         .bind(dto.last_edited_at_ms)
         .execute(pool)
         .await
@@ -222,6 +226,22 @@ pub async fn touch_project_opened(
         .await
         .map_err(|e| StableError::new(codes::DB_ERROR, e.to_string()))?;
     get_project(pool, id).await
+}
+
+pub async fn update_project_tasks(
+    pool: &Pool<Sqlite>,
+    id: &str,
+    tasks: &[TaskDto],
+) -> Result<(), StableError> {
+    let tasks_json = serde_json::to_string(tasks)
+        .map_err(|e| StableError::new(codes::INTERNAL, e.to_string()))?;
+    sqlx::query("UPDATE projects SET tasks_json = ?1 WHERE id = ?2")
+        .bind(&tasks_json)
+        .bind(id)
+        .execute(pool)
+        .await
+        .map_err(|e| StableError::new(codes::DB_ERROR, e.to_string()))?;
+    Ok(())
 }
 
 pub async fn delete_projects_for_location_not_in_paths(

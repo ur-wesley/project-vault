@@ -1,5 +1,5 @@
 use serde::Deserialize;
-use tauri::{AppHandle, Emitter, Manager, State};
+use tauri::{AppHandle, State};
 use tauri_plugin_sql::DbInstances;
 
 use crate::db;
@@ -7,9 +7,10 @@ use crate::error::{codes, StableError};
 #[cfg(not(any(target_os = "android", target_os = "ios")))]
 use crate::spawn::embedded;
 use crate::spawn::{
-    argv_needs_confirmation, open_interactive_shell, spawn_in_new_console, use_mise_for_project,
-    EmbeddedTerminals,
+    argv_needs_confirmation, open_interactive_shell, use_mise_for_project,
+    EmbeddedTerminals, TaskMonitors,
 };
+use crate::spawn::task_monitor;
 
 #[derive(Deserialize)]
 #[serde(rename_all = "camelCase")]
@@ -18,6 +19,7 @@ pub struct SpawnProjectTaskPayload {
     pub argv: Vec<String>,
     pub acknowledge_risk: bool,
     pub session_id: Option<String>,
+    pub cwd: Option<String>,
 }
 
 #[derive(serde::Serialize)]
@@ -33,18 +35,12 @@ pub struct OpenProjectShellPayload {
     pub project_id: String,
 }
 
-#[derive(Clone, serde::Serialize)]
-#[serde(rename_all = "camelCase")]
-struct SessionEndedEmit {
-    session_id: String,
-    project_id: String,
-}
-
 #[tauri::command]
 pub async fn spawn_project_task(
     app: AppHandle,
     db: State<'_, DbInstances>,
     terms: State<'_, EmbeddedTerminals>,
+    monitor: State<'_, TaskMonitors>,
     payload: SpawnProjectTaskPayload,
 ) -> Result<SpawnProjectTaskResponse, StableError> {
     if payload.argv.is_empty() {
@@ -58,13 +54,20 @@ pub async fn spawn_project_task(
     }
     let pool = db::sqlite_pool(&*db).await?;
     let project = db::get_project(&pool, &payload.project_id).await?;
-    let cwd = std::path::PathBuf::from(&project.path);
-    if !cwd.is_dir() {
+    let project_path = std::path::PathBuf::from(&project.path);
+    if !project_path.is_dir() {
         return Err(StableError::new(
             codes::INVALID_PATH,
             "project path not a directory",
         ));
     }
+    let cwd = if let Some(ref rel) = payload.cwd {
+        let resolved = project_path.join(rel);
+        if resolved.is_dir() { resolved } else { project_path.clone() }
+    } else {
+        project_path.clone()
+    };
+    eprintln!("[spawn_project_task] project_path={} cwd={} argv={:?}", project_path.display(), cwd.display(), payload.argv);
     let use_mise = use_mise_for_project(&cwd);
     let cmd_line = payload.argv.join(" ");
 
@@ -81,14 +84,40 @@ pub async fn spawn_project_task(
         }
     };
 
-    let session = db::start_session(&pool, &payload.project_id, Some(cmd_line), payload.session_id).await?;
+    let session = db::start_session(&pool, &payload.project_id, Some(cmd_line.clone()), payload.session_id).await?;
     let session_id = session.id.clone();
     let response_session_id = session_id.clone();
+    #[cfg(any(target_os = "android", target_os = "ios"))]
+    {
+        let _ = (
+            &app,
+            &terms,
+            &monitor,
+            &payload,
+            &pool,
+            &project,
+            &cwd,
+            &use_mise,
+            &cmd_line,
+            &shell_pref,
+            &session,
+            &session_id,
+            &response_session_id,
+        );
+        return Err(StableError::new(
+            codes::INTERNAL,
+            "task execution not available on this platform",
+        ));
+    }
     #[cfg(not(any(target_os = "android", target_os = "ios")))]
     {
-        if embedded::spawn_task_in_pty(
+        if let Err(e) = embedded::spawn_task_in_pty(
             app.clone(),
             &terms,
+            &monitor,
+            payload.project_id.clone(),
+            Some(cmd_line.clone()),
+            session.started_at_ms,
             &cwd,
             &payload.argv,
             use_mise,
@@ -97,49 +126,26 @@ pub async fn spawn_project_task(
             project.stack.clone(),
             shell_pref,
         )
-        .is_ok()
         {
-            return Ok(SpawnProjectTaskResponse {
-                session_id: response_session_id,
-                stream_output: true,
-            });
-        }
-    }
-    let mut child = match spawn_in_new_console(
-        &cwd,
-        &payload.argv,
-        use_mise,
-        project.runtime_hint.as_deref(),
-        &project.stack,
-    ) {
-        Ok(c) => c,
-        Err(e) => {
+            let _ = db::update_session_runtime(
+                &pool,
+                &session_id,
+                task_monitor::TASK_STATE_ERROR,
+                None,
+                &[],
+                None,
+                Some(e.message.as_str()),
+                db::now_ms(),
+            )
+            .await;
             let _ = db::end_session(&pool, &session_id).await;
             return Err(e);
         }
-    };
-    let app_h = app.clone();
-    std::thread::spawn(move || {
-        let _ = child.wait();
-        tauri::async_runtime::block_on(async move {
-            let db = app_h.state::<DbInstances>();
-            if let Ok(pool) = db::sqlite_pool(&*db).await {
-                if let Ok(s) = db::end_session(&pool, &session_id).await {
-                    let _ = app_h.emit(
-                        "session:ended",
-                        SessionEndedEmit {
-                            session_id: s.id,
-                            project_id: s.project_id,
-                        },
-                    );
-                }
-            }
+        return Ok(SpawnProjectTaskResponse {
+            session_id: response_session_id,
+            stream_output: true,
         });
-    });
-    Ok(SpawnProjectTaskResponse {
-        session_id: response_session_id,
-        stream_output: false,
-    })
+    }
 }
 
 #[tauri::command]
@@ -161,5 +167,35 @@ pub async fn open_project_shell(
         .filter(|s| !s.trim().is_empty());
     open_interactive_shell(&cwd, shell_pref.as_deref())?;
     db::touch_project_opened(&pool, &payload.project_id).await?;
+    Ok(())
+}
+
+#[tauri::command]
+pub async fn stop_project_task(
+    app: AppHandle,
+    monitor: State<'_, TaskMonitors>,
+    session_id: String,
+) -> Result<(), StableError> {
+    task_monitor::request_stop(app, &monitor, &session_id).await
+}
+
+#[derive(Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct OpenShellAtPathPayload {
+    pub path: String,
+}
+
+#[tauri::command]
+pub async fn open_shell_at_path(
+    payload: OpenShellAtPathPayload,
+) -> Result<(), StableError> {
+    let cwd = std::path::PathBuf::from(&payload.path);
+    if !cwd.is_dir() {
+        return Err(StableError::new(
+            codes::INVALID_PATH,
+            "path not a directory",
+        ));
+    }
+    open_interactive_shell(&cwd, None)?;
     Ok(())
 }

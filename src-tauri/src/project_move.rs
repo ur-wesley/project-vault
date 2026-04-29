@@ -119,7 +119,7 @@ pub fn count_filtered_dir(src: &Path) -> Result<DirStats, std::io::Error> {
     })
 }
 
-fn count_all_dir(dir: &Path) -> Result<(u64, u64), std::io::Error> {
+pub fn count_all_dir(dir: &Path) -> Result<(u64, u64), std::io::Error> {
     let mut n = 0u64;
     let mut total = 0u64;
     for entry in WalkDir::new(dir).min_depth(1) {
