@@ -1,6 +1,6 @@
 {
   "name": "project-vault",
-  "version": "0.7.1",
+  "version": "0.7.2",
   "description": "",
   "license": "MIT",
   "type": "module",
@@ -61,7 +61,7 @@
     "@types/dompurify": "^3.2.0",
     "@types/node": "^25.6.0",
     "autoprefixer": "^10.5.0",
-    "class-variance-authority": "^0.7.1",
+    "class-variance-authority": "^0.7.2",
     "clsx": "^2.1.1",
     "consola": "^3.4.2",
     "oxfmt": "^0.47.0",
