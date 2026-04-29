@@ -1,6 +1,6 @@
 [package]
 name = "project-vault"
-version = "v0.3.0"
+version = "0.3.0"
 description = "A Tauri App"
 authors = ["you"]
 edition = "2021"
@@ -42,8 +42,12 @@ ignore = "0.4"
 sysinfo = { version = "0.33", default-features = false, features = ["system", "disk"] }
 reqwest = { version = "0.12", default-features = false, features = ["json", "rustls-tls"] }
 zip = { version = "2", default-features = false, features = ["deflate"] }
-tokio = { version = "1", default-features = false, features = ["time"] }
+tokio = { version = "1", default-features = false, features = ["time", "sync", "rt"] }
 dotenvy = "0.15.7"
+tantivy = "0.21"
+notify = "6.1"
+tempfile = "3"
+zstd-sys = "=2.0.9"
 
 [target.'cfg(not(any(target_os = "android", target_os = "ios")))'.dependencies]
 portable-pty = "0.9"

@@ -23,10 +23,15 @@ pub async fn get_project_mise_tools(
         return Ok(Vec::new());
     }
 
-    let output = std::process::Command::new("mise")
-        .args(["ls", "--json"])
-        .current_dir(root)
-        .output();
+    let mut cmd = std::process::Command::new("mise");
+    cmd.args(["ls", "--json"]).current_dir(root);
+    #[cfg(windows)]
+    {
+        use std::os::windows::process::CommandExt;
+        const CREATE_NO_WINDOW: u32 = 0x08000000;
+        cmd.creation_flags(CREATE_NO_WINDOW);
+    }
+    let output = cmd.output();
 
     let Ok(out) = output else {
         return Ok(Vec::new());
@@ -139,6 +144,21 @@ pub struct MoveProjectPayload {
 
 use std::collections::HashMap;
 
+const MEDIA_EXTENSIONS: &[&str] = &[
+    // Images
+    "png", "jpg", "jpeg", "gif", "bmp", "tiff", "webp", "svg", "ico", "raw", "psd", "ai",
+    // Videos
+    "mp4", "mov", "avi", "mkv", "wmv", "flv", "webm", "m4v", "mpg", "mpeg", "3gp",
+    // Audio
+    "mp3", "wav", "flac", "aac", "ogg", "wma", "m4a", "opus",
+    // Fonts
+    "woff", "woff2", "ttf", "otf", "eot",
+    // Archives / binaries
+    "zip", "tar", "gz", "rar", "7z", "exe", "dll", "so", "dylib", "bin",
+    // Documents
+    "pdf", "doc", "docx", "xls", "xlsx", "ppt", "pptx", "odt", "ods", "odp",
+];
+
 #[tauri::command]
 pub async fn get_project_languages(
     db: State<'_, DbInstances>,
@@ -152,6 +172,7 @@ pub async fn get_project_languages(
         return Ok(HashMap::new());
     }
 
+    let media_set: std::collections::HashSet<&str> = MEDIA_EXTENSIONS.iter().copied().collect();
     let mut stats = HashMap::new();
     let mut files_processed = 0;
     const MAX_FILES: usize = 10_000;
@@ -173,11 +194,17 @@ pub async fn get_project_languages(
             continue;
         }
 
-        files_processed += 1;
-        if let Some(ext) = entry.path().extension().and_then(|e| e.to_str()) {
-            let count = stats.entry(ext.to_lowercase()).or_insert(0);
-            *count += 1;
+        let Some(ext) = entry.path().extension().and_then(|e| e.to_str()) else {
+            continue;
+        };
+        let ext_lower = ext.to_lowercase();
+        if media_set.contains(ext_lower.as_str()) {
+            continue;
         }
+
+        files_processed += 1;
+        let count = stats.entry(ext_lower).or_insert(0);
+        *count += 1;
 
         if files_processed >= MAX_FILES {
             break;
@@ -296,7 +323,7 @@ pub async fn import_project(
     }
 
     // 4. Trigger a scan of the location to pick up the new project
-    crate::commands::scan::scan_library_location(db, payload.destination_location_id).await?;
+    crate::commands::scan::scan_library_location(app, db, payload.destination_location_id).await?;
 
     Ok(())
 }

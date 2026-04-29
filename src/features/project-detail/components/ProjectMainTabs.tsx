@@ -176,7 +176,7 @@ export const ProjectMainTabs: Component<ProjectMainTabsProps> = (props) => {
             </TabsContent>
           </Show>
           <TabsContent value="files" class="min-h-0 flex-1 outline-none overflow-hidden">
-            <FileTree rootPath={props.project().path} />
+            <FileTree rootPath={props.project().path} projectId={props.project().id} />
           </TabsContent>
           <TabsContent value="tasks" class="min-h-0 flex-1 overflow-y-auto outline-none">
             <div class="space-y-6 pb-4">

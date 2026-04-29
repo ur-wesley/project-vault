@@ -2,14 +2,15 @@ import { createQuery, useQueryClient } from "@tanstack/solid-query";
 import { createEffect, createSignal } from "solid-js";
 import { isTauri } from "@tauri-apps/api/core";
 import { toast } from "solid-sonner";
-import { 
-  getSetting, 
-  setSetting, 
+import {
+  getSetting,
+  setSetting,
   isGithubDeviceConfigured,
   exportLibrarySnapshot,
   listDiscoveredIdes,
   listAvailableShells,
-  listDiscoveredTools
+  listDiscoveredTools,
+  deleteAllIndices,
 } from "~/services/tauri";
 import { GITHUB_TOKEN_SETTING_KEY, fetchGitHubViewer } from "~/services/github";
 import { runGithubDeviceSignIn } from "~/services/github-device-signin";
@@ -24,6 +25,7 @@ const SCAN_KEY = "scan_interval_minutes";
 const DEFAULT_IDE_KEY = "default_ide_path";
 const DEFAULT_SHELL_KEY = "default_shell_path";
 const LOCALE_KEY = "ui_locale";
+const AUTO_INDEX_KEY = "auto_index_projects";
 
 export type UseSettingsModelProps = Readonly<{
   t: (key: string, args?: any) => string;
@@ -38,6 +40,7 @@ export function useSettingsModel(props: UseSettingsModelProps) {
   const [defaultIde, setDefaultIde] = createSignal("");
   const [defaultShell, setDefaultShell] = createSignal("");
   const [selectedLocale, setSelectedLocale] = createSignal<Locale>("en");
+  const [autoIndex, setAutoIndex] = createSignal(true);
   const [githubToken, setGithubToken] = createSignal("");
   const [githubUserCode, setGithubUserCode] = createSignal("");
   const [busy, setBusy] = createSignal(false);
@@ -45,13 +48,14 @@ export function useSettingsModel(props: UseSettingsModelProps) {
   const settingsQ = createQuery(() => ({
     queryKey: ["settings", "view"] as const,
     queryFn: async () => {
-      const [sh, scan, gh, di, ds, loc] = await Promise.all([
+      const [sh, scan, gh, di, ds, loc, ai] = await Promise.all([
         getSetting(SHELL_KEY),
         getSetting(SCAN_KEY),
         getSetting(GITHUB_TOKEN_SETTING_KEY),
         getSetting(DEFAULT_IDE_KEY),
         getSetting(DEFAULT_SHELL_KEY),
         getSetting(LOCALE_KEY),
+        getSetting(AUTO_INDEX_KEY),
       ]);
       if (sh.isErr()) throw new Error(sh.error.message);
       if (scan.isErr()) throw new Error(scan.error.message);
@@ -59,6 +63,7 @@ export function useSettingsModel(props: UseSettingsModelProps) {
       if (di.isErr()) throw new Error(di.error.message);
       if (ds.isErr()) throw new Error(ds.error.message);
       if (loc.isErr()) throw new Error(loc.error.message);
+      if (ai.isErr()) throw new Error(ai.error.message);
 
       return {
         shell: sh.value ?? "",
@@ -67,6 +72,7 @@ export function useSettingsModel(props: UseSettingsModelProps) {
         defaultIde: di.value ?? "",
         defaultShell: ds.value ?? "",
         locale: loc.value ?? "en",
+        autoIndex: ai.value !== "false",
       };
     },
   }));
@@ -128,6 +134,7 @@ export function useSettingsModel(props: UseSettingsModelProps) {
       setDefaultIde(d.defaultIde);
       setDefaultShell(d.defaultShell);
       setSelectedLocale((d.locale as Locale) || props.locale());
+      setAutoIndex(d.autoIndex);
     }
   });
 
@@ -142,6 +149,7 @@ export function useSettingsModel(props: UseSettingsModelProps) {
         [DEFAULT_IDE_KEY, defaultIde()],
         [DEFAULT_SHELL_KEY, defaultShell()],
         [LOCALE_KEY, selectedLocale()],
+        [AUTO_INDEX_KEY, autoIndex() ? "true" : "false"],
       ] as const) {
         const r = await setSetting(key, val);
         if (r.isErr()) {
@@ -235,6 +243,7 @@ export function useSettingsModel(props: UseSettingsModelProps) {
     setBusy(true);
     toast.dismiss("settings");
     try {
+      await deleteAllIndices();
       const count = await rescanAllLibraryFolders();
       void qc.invalidateQueries({ queryKey: queryKeys.projects });
       void qc.invalidateQueries({ queryKey: queryKeys.locations });
@@ -263,6 +272,8 @@ export function useSettingsModel(props: UseSettingsModelProps) {
     setDefaultShell,
     selectedLocale,
     setSelectedLocale,
+    autoIndex,
+    setAutoIndex,
     githubToken,
     setGithubToken,
     githubUserCode,

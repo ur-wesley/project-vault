@@ -1,9 +1,16 @@
 import { readDir, readFile, type DirEntry } from "@tauri-apps/plugin-fs";
 import { join } from "@tauri-apps/api/path";
-import { For, Show, createEffect, createSignal, createResource } from "solid-js";
+import { For, Show, createEffect, createSignal, createResource, createMemo } from "solid-js";
 import { createHighlighter } from "shiki";
+import { createQuery } from "@tanstack/solid-query";
 import { cn } from "~/lib/utils";
 import { useI18n } from "~/lib/i18n-context";
+import { searchProject, indexProject, rebuildIndex, getIndexMeta } from "~/services/tauri";
+import { formatBytes } from "~/lib/format-bytes";
+import { toast } from "solid-sonner";
+import { queryKeys } from "~/services/query-keys";
+import { Popover, PopoverContent, PopoverTrigger } from "~/components/ui/popover";
+import type { SearchHitDto } from "~/types/dto";
 
 const SKIP = new Set([
   "node_modules",
@@ -32,6 +39,25 @@ function sortEntries(a: DirEntry, b: DirEntry): number {
   return a.name.localeCompare(b.name);
 }
 
+async function countFilesRecursively(absPath: string): Promise<number> {
+  let count = 0;
+  try {
+    const entries = await readDir(absPath);
+    for (const entry of entries) {
+      if (SKIP.has(entry.name)) continue;
+      if (entry.isDirectory) {
+        const childPath = await join(absPath, entry.name);
+        count += await countFilesRecursively(childPath);
+      } else {
+        count += 1;
+      }
+    }
+  } catch {
+    // ignore unreadable dirs
+  }
+  return count;
+}
+
 function Folder(props: {
   absPath: string;
   label: string;
@@ -42,6 +68,7 @@ function Folder(props: {
   const [open, setOpen] = createSignal(props.depth < 1);
   const [items, setItems] = createSignal<DirEntry[]>([]);
   const [loadErr, setLoadErr] = createSignal<string | null>(null);
+  const [recursiveCount, setRecursiveCount] = createSignal<number | null>(null);
 
   createEffect(() => {
     if (!open()) return;
@@ -54,6 +81,15 @@ function Folder(props: {
         setLoadErr(String(e));
         setItems([]);
       }
+    })();
+  });
+
+  // Compute recursive file count once on mount (no need to open first)
+  createEffect(() => {
+    if (recursiveCount() != null) return;
+    void (async () => {
+      const count = await countFilesRecursively(props.absPath);
+      setRecursiveCount(count);
     })();
   });
 
@@ -74,6 +110,11 @@ function Folder(props: {
         </span>
         <span class="iconify mdi--folder h-3.5 w-3.5 text-blue-400/80" />
         <span class="min-w-0 truncate text-foreground/90">{props.label}</span>
+        <Show when={recursiveCount() != null}>
+          <span class="text-[9px] text-muted-foreground/60 ml-0.5">
+            · {recursiveCount()}
+          </span>
+        </Show>
         <Show when={loadErr()}>
           <span class="truncate text-destructive">({loadErr()})</span>
         </Show>
@@ -228,7 +269,12 @@ const FILENAME_LANG_MAP: Record<string, string> = {
   ".env": "sh",
 };
 
-function FilePreview(props: { path: string | null }) {
+function FilePreview(props: {
+  path: string | null;
+  scrollToLine?: number;
+  onBackToResults?: () => void;
+  backLabel?: string;
+}) {
   const { t } = useI18n();
   const [content] = createResource(
     () => props.path,
@@ -238,7 +284,6 @@ function FilePreview(props: { path: string | null }) {
         const bytes = await readFile(path);
         const text = new TextDecoder().decode(bytes);
 
-        // Robust binary check: check for null bytes or excessive non-printable chars
         const isBinary =
           text.includes("\0") ||
           text
@@ -246,19 +291,22 @@ function FilePreview(props: { path: string | null }) {
             .split("")
             .filter((c) => {
               const code = c.charCodeAt(0);
-              // Allow tab (9), LF (10), CR (13)
               return code < 32 && code !== 9 && code !== 10 && code !== 13;
             }).length > 10;
 
         if (isBinary || text.includes("\ufffd")) {
-          return { text: t('projectDetail.fileBinary') as string, html: null, loc: 0 };
+          return { text: t("projectDetail.fileBinary") as string, html: null, loc: 0 };
         }
 
         const lines = text.split(/\r?\n/);
         const loc = lines.length;
 
         if (text.length > 100000) {
-          return { text: text.slice(0, 100000) + "\n\n" + (t('projectDetail.fileTruncated') as string), html: null, loc };
+          return {
+            text: text.slice(0, 100000) + "\n\n" + (t("projectDetail.fileTruncated") as string),
+            html: null,
+            loc,
+          };
         }
 
         const filename = path.split(/[\\/]/).pop()?.toLowerCase() || "";
@@ -296,25 +344,64 @@ function FilePreview(props: { path: string | null }) {
     },
   );
 
+  // Track the last scroll target so we only act on changes
+  const [lastScrolledLine, setLastScrolledLine] = createSignal(0);
+
+  createEffect(() => {
+    const line = props.scrollToLine ?? 0;
+    const c = content();
+    if (!line || line <= 0 || !c || !c.html) return;
+    if (lastScrolledLine() === line) return;
+
+    setLastScrolledLine(line);
+
+    // Wait for innerHTML to mount
+    setTimeout(() => {
+      const container = document.querySelector(".shiki-container");
+      if (!container) return;
+      const el = container.querySelector(`[data-line="${line}"]`);
+      if (el) {
+        el.classList.add("search-highlight-line");
+        el.scrollIntoView({ behavior: "smooth", block: "center" });
+        // Remove highlight after 3s
+        setTimeout(() => {
+          el.classList.remove("search-highlight-line");
+        }, 3000);
+      }
+    }, 120);
+  });
+
   return (
     <div class="h-full flex flex-col min-w-0 bg-card/50 rounded-md border border-border/40 overflow-hidden">
-      <div class="flex items-center justify-between px-3 py-1.5 bg-muted/20 border-b border-border/40 shrink-0">
+      <div class="flex items-center justify-between px-3 py-1.5 bg-muted/20 border-b border-border/40 shrink-0 gap-3">
         <div class="flex items-center gap-2 min-w-0">
-          <span class="iconify mdi--file-document h-3.5 w-3.5 text-muted-foreground" />
+          <Show when={props.onBackToResults}>
+            <button
+              type="button"
+              class="inline-flex items-center justify-center rounded-md p-1 text-muted-foreground hover:bg-muted/50 hover:text-foreground transition-colors"
+              onClick={props.onBackToResults}
+              title={props.backLabel ?? (t("projectDetail.searchResults") as string)}
+            >
+              <span class="iconify mdi--arrow-left h-3.5 w-3.5" />
+            </button>
+          </Show>
+          <span class="iconify mdi--file-document h-3.5 w-3.5 text-muted-foreground shrink-0" />
           <span class="text-[10px] font-mono text-muted-foreground truncate">
-            {props.path?.split(/[\\/]/).pop() ?? (t('projectDetail.noFileSelected') as string)}
+            {props.path?.split(/[\\/]/).pop() ?? (t("projectDetail.noFileSelected") as string)}
           </span>
         </div>
         <Show when={content() && content()!.loc > 0}>
-          <span class="text-[9px] font-mono text-muted-foreground/60 uppercase tracking-wider">
-            {t('projectDetail.fileLines', { count: content()!.loc }) as string}
+          <span class="text-[9px] font-mono text-muted-foreground/60 uppercase tracking-wider shrink-0">
+            {t("projectDetail.fileLines", { count: content()!.loc }) as string}
           </span>
         </Show>
       </div>
       <div class="flex-1 overflow-auto text-[11px] font-mono">
         <Show
           when={content()}
-          fallback={<div class="p-3 text-muted-foreground italic">{t('projectDetail.selectFilePreview') as string}</div>}
+          fallback={
+            <div class="p-3 text-muted-foreground italic">{t("projectDetail.selectFilePreview") as string}</div>
+          }
         >
           {(c) => (
             <Show when={c().html} fallback={<pre class="p-3 whitespace-pre-wrap">{c().text}</pre>}>
@@ -327,8 +414,89 @@ function FilePreview(props: { path: string | null }) {
   );
 }
 
-export function FileTree(props: { rootPath: string }) {
+function SearchResultItem(props: {
+  hit: SearchHitDto;
+  rootPath: string;
+  onClick: (path: string, line: number) => void;
+}) {
+  const { t } = useI18n();
+  const hitCount = () => props.hit.lineNumbers.length;
+
+  const absPath = createMemo(async () => {
+    try {
+      return await join(props.rootPath, props.hit.path);
+    } catch {
+      return null;
+    }
+  });
+
+  const handleLineClick = async (e: MouseEvent, line: number) => {
+    e.stopPropagation();
+    const p = await absPath();
+    if (p) props.onClick(p, line);
+  };
+
+  const handleCardClick = async () => {
+    const p = await absPath();
+    if (!p) return;
+    const line = props.hit.lineNumbers.length > 0 ? props.hit.lineNumbers[0] : 0;
+    props.onClick(p, line);
+  };
+
+  return (
+    <div
+      class="rounded-md border border-border/50 bg-muted/20 p-2.5 cursor-pointer hover:bg-muted/40 transition-colors"
+      onClick={handleCardClick}
+    >
+      <div class="flex items-center justify-between gap-2 mb-1.5">
+        <div class="flex items-center gap-1.5 min-w-0">
+          <span class="iconify mdi--file-document h-3.5 w-3.5 text-muted-foreground shrink-0" />
+          <span class="text-[11px] font-mono text-foreground/90 truncate">{props.hit.path}</span>
+        </div>
+        <span class="shrink-0 inline-flex items-center rounded-full bg-primary/20 px-1.5 py-0.5 text-[9px] font-mono font-black text-primary">
+          {hitCount() === 1
+            ? t("projectDetail.searchHitCount", { count: hitCount() })
+            : t("projectDetail.searchHitCountPlural", { count: hitCount() })}
+        </span>
+      </div>
+
+      <div class="flex flex-wrap gap-1 mb-1.5">
+        <span class="text-[9px] text-muted-foreground/70 uppercase tracking-wider self-center mr-0.5">{t("projectDetail.searchLinesLabel") as string}</span>
+        <For each={props.hit.lineNumbers}>
+          {(num) => (
+            <button
+              type="button"
+              class="inline-flex items-center rounded-sm bg-primary/15 px-1 py-0.5 text-[9px] font-mono font-bold text-primary/90 hover:bg-primary/30 transition-colors"
+              onClick={(e) => void handleLineClick(e, num)}
+            >
+              {num}
+            </button>
+          )}
+        </For>
+      </div>
+
+      <div class="space-y-1">
+        <For each={props.hit.highlights}>
+          {(snippet) => (
+            <div class="text-[10px] font-mono text-muted-foreground">
+              <span class="text-[9px] text-primary/70 mr-1.5 select-none">{snippet.lineNumber}</span>
+              <span class="text-foreground/80">{snippet.text}</span>
+            </div>
+          )}
+        </For>
+      </div>
+    </div>
+  );
+}
+
+export function FileTree(props: { rootPath: string; projectId: string }) {
+  const { t } = useI18n();
   const [selectedPath, setSelectedPath] = createSignal<string | null>(null);
+  const [scrollToLine, setScrollToLine] = createSignal(0);
+  const [searchQuery, setSearchQuery] = createSignal("");
+  const [activeQuery, setActiveQuery] = createSignal("");
+  const [previewPath, setPreviewPath] = createSignal<string | null>(null);
+  const [indexBusy, setIndexBusy] = createSignal(false);
 
   const label = () => {
     const s = props.rootPath.replace(/\\/g, "/").replace(/\/+$/, "");
@@ -336,19 +504,250 @@ export function FileTree(props: { rootPath: string }) {
     return i >= 0 ? s.slice(i + 1) : s;
   };
 
+  const indexMetaQ = createQuery(() => ({
+    queryKey: queryKeys.projectIndexMeta(props.projectId),
+    queryFn: async () => {
+      const r = await getIndexMeta(props.projectId);
+      if (r.isErr()) throw new Error(r.error.message);
+      return r.value;
+    },
+  }));
+
+  const searchQ = createQuery(() => ({
+    queryKey: queryKeys.projectSearch(props.projectId, activeQuery()),
+    queryFn: async () => {
+      const q = activeQuery().trim();
+      if (!q) return [];
+      const r = await searchProject(props.projectId, q);
+      if (r.isErr()) throw new Error(r.error.message);
+      return r.value;
+    },
+    enabled: activeQuery().trim().length > 0,
+  }));
+
+  let searchTimeout: ReturnType<typeof setTimeout> | null = null;
+  const onSearchInput = (value: string) => {
+    setSearchQuery(value);
+    setPreviewPath(null); // show search results again while typing
+    if (searchTimeout) clearTimeout(searchTimeout);
+    searchTimeout = setTimeout(() => {
+      setActiveQuery(value);
+    }, 200);
+  };
+
+  const onIndexProject = async () => {
+    setIndexBusy(true);
+    try {
+      const r = await indexProject(props.projectId);
+      if (r.isErr()) {
+        toast.error(r.error.message);
+        return;
+      }
+      toast.success(t("projectDetail.indexProject") as string);
+      void indexMetaQ.refetch();
+    } finally {
+      setIndexBusy(false);
+    }
+  };
+
+  const onRebuildIndex = async () => {
+    setIndexBusy(true);
+    try {
+      const r = await rebuildIndex(props.projectId);
+      if (r.isErr()) {
+        toast.error(r.error.message);
+        return;
+      }
+      toast.success(t("projectDetail.rebuildIndex") as string);
+      void indexMetaQ.refetch();
+    } finally {
+      setIndexBusy(false);
+    }
+  };
+
+  const isSearching = () => activeQuery().trim().length > 0;
+
+  const filteredHits = createMemo(() => {
+    const data = searchQ.data;
+    if (!data) return [];
+    return data.filter((h) => h.lineNumbers.length > 0);
+  });
+
+  const onResultClick = (path: string, line: number) => {
+    setPreviewPath(path);
+    setScrollToLine(line);
+  };
+
+  const onBackToResults = () => {
+    setPreviewPath(null);
+    setScrollToLine(0);
+  };
+
+  const onFileTreeClick = (path: string) => {
+    setSelectedPath(path);
+    setPreviewPath(path);
+    setScrollToLine(0);
+  };
+
   return (
     <div class="flex h-full min-h-0 gap-4 overflow-hidden p-3">
-      <div class="w-64 shrink-0 overflow-auto rounded-md border border-border/60 bg-muted/20 p-2 scrollbar-none">
-        <Folder
-          absPath={props.rootPath}
-          label={label()}
-          depth={0}
-          onFileClick={setSelectedPath}
-          selectedPath={selectedPath()}
-        />
+      <div class="w-64 shrink-0 overflow-auto rounded-md border border-border/60 bg-muted/20 p-2 scrollbar-none flex flex-col gap-2">
+        <div class="flex items-center gap-1.5">
+          <div class="relative flex-1">
+            <span class="iconify mdi--magnify absolute left-2 top-1/2 -translate-y-1/2 h-3.5 w-3.5 text-muted-foreground" />
+            <input
+              type="text"
+              class="w-full rounded-md bg-background border border-border/60 pl-7 pr-7 py-1 text-[11px] font-mono text-foreground placeholder:text-muted-foreground focus:outline-none focus:ring-1 focus:ring-primary/50"
+              placeholder={t("projectDetail.searchFiles") as string}
+              value={searchQuery()}
+              onInput={(e) => onSearchInput(e.currentTarget.value)}
+            />
+            <Show when={searchQuery().length > 0}>
+              <button
+                class="absolute right-1.5 top-1/2 -translate-y-1/2 text-muted-foreground hover:text-foreground"
+                onClick={() => {
+                  setSearchQuery("");
+                  setActiveQuery("");
+                  setPreviewPath(null);
+                  setScrollToLine(0);
+                }}
+              >
+                <span class="iconify mdi--close h-3 w-3" />
+              </button>
+            </Show>
+          </div>
+
+          <Show when={!indexMetaQ.data}>
+            <button
+              type="button"
+              class="inline-flex shrink-0 items-center gap-1 rounded-md bg-primary px-2 py-1 text-[10px] font-bold text-primary-foreground hover:bg-primary/90 disabled:opacity-50"
+              disabled={indexBusy()}
+              onClick={onIndexProject}
+              title={t("projectDetail.indexProject") as string}
+            >
+              <Show when={indexBusy()}>
+                <span class="iconify mdi--loading animate-spin h-3 w-3" />
+              </Show>
+              <span class="iconify mdi--database-plus h-3.5 w-3.5" />
+            </button>
+          </Show>
+
+          <Show when={indexMetaQ.data}>
+            {(meta) => (
+              <Popover gutter={4}>
+                <PopoverTrigger
+                  as="button"
+                  type="button"
+                  class="inline-flex shrink-0 items-center justify-center rounded-md p-1 text-muted-foreground hover:bg-muted/50 hover:text-foreground transition-colors"
+                  title={t("projectDetail.searchResults") as string}
+                >
+                  <span class="iconify mdi--dots-vertical h-4 w-4" />
+                </PopoverTrigger>
+                <PopoverContent class="w-56 p-2.5 space-y-2 text-foreground shadow-xl border-border/40">
+                  <div class="space-y-1.5">
+                    <div class="flex items-center justify-between">
+                      <span class="text-[9px] text-muted-foreground uppercase tracking-wider">
+                        {t("projectDetail.indexedFiles") as string}
+                      </span>
+                      <span class="text-[10px] font-mono font-bold">{meta().indexedFiles}</span>
+                    </div>
+                    <div class="flex items-center justify-between">
+                      <span class="text-[9px] text-muted-foreground uppercase tracking-wider">
+                        {t("projectDetail.indexSize") as string}
+                      </span>
+                      <span class="text-[10px] font-mono font-bold">{formatBytes(meta().indexSizeBytes)}</span>
+                    </div>
+                    <div class="flex items-center justify-between">
+                      <span class="text-[9px] text-muted-foreground uppercase tracking-wider">
+                        {t("projectDetail.lastUpdated") as string}
+                      </span>
+                      <span class="text-[10px] font-mono">
+                        {(() => {
+                          const ms = meta().lastUpdatedMs;
+                          return ms != null ? new Date(ms).toLocaleString() : "—";
+                        })()}
+                      </span>
+                    </div>
+                  </div>
+                  <button
+                    type="button"
+                    class="w-full inline-flex items-center justify-center gap-1 rounded-md border border-border/60 px-2 py-1 text-[10px] font-bold text-muted-foreground hover:bg-muted/30 disabled:opacity-50"
+                    disabled={indexBusy()}
+                    onClick={onRebuildIndex}
+                  >
+                    <Show when={indexBusy()}>
+                      <span class="iconify mdi--loading animate-spin h-3 w-3" />
+                    </Show>
+                    {t("projectDetail.rebuildIndex") as string}
+                  </button>
+                </PopoverContent>
+              </Popover>
+            )}
+          </Show>
+        </div>
+
+        <div class="flex-1 overflow-auto">
+          <Folder
+            absPath={props.rootPath}
+            label={label()}
+            depth={0}
+            onFileClick={onFileTreeClick}
+            selectedPath={selectedPath()}
+          />
+        </div>
       </div>
+
       <div class="flex-1 min-w-0 h-full overflow-hidden">
-        <FilePreview path={selectedPath()} />
+        <Show
+          when={previewPath()}
+          fallback={
+            <Show
+              when={isSearching()}
+              fallback={<FilePreview path={selectedPath()} scrollToLine={scrollToLine()} />}
+            >
+              <div class="h-full flex flex-col min-w-0 bg-card/50 rounded-md border border-border/40 overflow-hidden">
+                <div class="flex items-center justify-between px-3 py-1.5 bg-muted/20 border-b border-border/40 shrink-0">
+                  <div class="flex items-center gap-2 min-w-0">
+                    <span class="iconify mdi--magnify h-3.5 w-3.5 text-muted-foreground" />
+                    <span class="text-[10px] font-mono text-muted-foreground truncate">
+                      {t("projectDetail.searchResults") as string}
+                    </span>
+                  </div>
+                  <Show when={searchQ.isLoading}>
+                    <span class="text-[9px] text-muted-foreground animate-pulse">
+                      {t("projectDetail.searchLoading") as string}
+                    </span>
+                  </Show>
+                </div>
+                <div class="flex-1 overflow-auto p-3 space-y-2">
+                  <Show when={!searchQ.isLoading && filteredHits().length === 0}>
+                    <div class="flex items-center justify-center h-full text-muted-foreground text-xs italic">
+                      {t("projectDetail.searchEmpty") as string}
+                    </div>
+                  </Show>
+                  <For each={filteredHits()}>
+                    {(hit) => (
+                      <SearchResultItem
+                        hit={hit}
+                        rootPath={props.rootPath}
+                        onClick={onResultClick}
+                      />
+                    )}
+                  </For>
+                </div>
+              </div>
+            </Show>
+          }
+        >
+          {(path) => (
+            <FilePreview
+              path={path()}
+              scrollToLine={scrollToLine()}
+              onBackToResults={isSearching() ? onBackToResults : undefined}
+              backLabel={t("projectDetail.searchResults") as string}
+            />
+          )}
+        </Show>
       </div>
     </div>
   );

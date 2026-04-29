@@ -140,3 +140,26 @@ pub struct ScanResultDto {
     pub monorepos_expanded: u64,
     pub workspace_warnings: u64,
 }
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct IndexMetaDto {
+    pub indexed_files: u64,
+    pub index_size_bytes: u64,
+    pub last_updated_ms: Option<i64>,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct SearchHitDto {
+    pub path: String,
+    pub highlights: Vec<SearchSnippetDto>,
+    pub line_numbers: Vec<usize>,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct SearchSnippetDto {
+    pub line_number: usize,
+    pub text: String,
+}

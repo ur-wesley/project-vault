@@ -1,7 +1,7 @@
 use std::collections::HashSet;
 use std::path::Path;
 
-use tauri::State;
+use tauri::{AppHandle, Manager, State};
 use tauri_plugin_sql::DbInstances;
 
 use crate::db;
@@ -11,6 +11,7 @@ use crate::discovery::{
 };
 use crate::error::{codes, StableError};
 use crate::models::{ProjectDto, ScanResultDto};
+use crate::search::indexer::build_project_index;
 
 fn registry() -> DetectorRegistry {
     DetectorRegistry::standard()
@@ -57,6 +58,7 @@ pub fn debug_scan_location(path: String) -> Result<DebugScanResult, StableError>
 
 #[tauri::command]
 pub async fn scan_library_location(
+    app: AppHandle,
     db: State<'_, DbInstances>,
     location_id: String,
 ) -> Result<ScanResultDto, StableError> {
@@ -84,6 +86,7 @@ pub async fn scan_library_location(
     let discovered = drafts.len() as u64;
     let mut keep = HashSet::new();
     let mut upserted = 0u64;
+    let mut indexed_project_ids = Vec::new();
     for d in drafts {
         let key = path_key(&d.root);
         keep.insert(key.clone());
@@ -111,9 +114,25 @@ pub async fn scan_library_location(
             size_bytes,
             last_edited_at_ms,
         };
-        db::upsert_project(&pool, &dto).await?;
+        let project = db::upsert_project(&pool, &dto).await?;
         upserted += 1;
+        indexed_project_ids.push((project.id, d.root));
     }
+
+    // Auto-index discovered projects if setting is enabled
+    let auto_index = db::get_setting(&pool, "auto_index_projects").await.ok().flatten().unwrap_or_default() != "false";
+    if auto_index {
+        let app_data_dir = app.path().app_data_dir().map_err(|e| {
+            StableError::new(codes::INTERNAL, format!("app data dir: {e}"))
+        })?;
+        for (project_id, project_path) in indexed_project_ids {
+            let data_dir = app_data_dir.clone();
+            tokio::task::spawn_blocking(move || {
+                let _ = build_project_index(&data_dir, &project_id, &project_path);
+            });
+        }
+    }
+
     let pruned = db::delete_projects_for_location_not_in_paths(&pool, &location_id, &keep).await?;
     Ok(ScanResultDto {
         projects_discovered: discovered,

@@ -15,4 +15,6 @@ export const queryKeys = {
   gitStatus: (projectId: string) => ["git", "status", projectId] as const,
   projectReadme: (projectId: string) => ["github", "readme", "fs", projectId] as const,
   githubProjectIssues: (projectId: string) => ["github", "issues", "project", projectId] as const,
+  projectIndexMeta: (projectId: string) => ["project", projectId, "index-meta"] as const,
+  projectSearch: (projectId: string, query: string) => ["project", projectId, "search", query] as const,
 };

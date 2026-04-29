@@ -215,13 +215,15 @@ export type DiscoverVersionFilesResultDto = {
 
 export type GitPreviewVersionsDto = {
   currentVersion: string;
+  latestTag?: string | null;
   patchVersion: string;
   minorVersion: string;
   majorVersion: string;
+  betaVersion: string;
 };
 
 export type BumpVersionAndTagPayload = {
-  bump: "patch" | "minor" | "major";
+  bump: "patch" | "minor" | "major" | "beta";
   files: string[];
 };
 
@@ -285,4 +287,21 @@ export type MiseToolSuggestionDto = {
   name: string;
   version: string;
   reason: string;
+};
+
+export type IndexMetaDto = {
+  indexedFiles: number;
+  indexSizeBytes: number;
+  lastUpdatedMs: number | null;
+};
+
+export type SearchSnippetDto = {
+  lineNumber: number;
+  text: string;
+};
+
+export type SearchHitDto = {
+  path: string;
+  highlights: SearchSnippetDto[];
+  lineNumbers: number[];
 };

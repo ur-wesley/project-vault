@@ -473,3 +473,13 @@ html:not(.dark):not([data-kb-theme="dark"]) .markdown-body {
 [data-sonner-toaster] [data-sonner-toast][data-styled="true"][data-type="error"] [data-close-button] {
   background: color-mix(in oklch, var(--error-bg) 85%, transparent) !important;
 }
+
+/* Search result line highlight in Shiki code preview */
+.search-highlight-line {
+  display: inline-block;
+  width: 100%;
+  background-color: color-mix(in oklch, var(--primary) 20%, transparent) !important;
+  border-left: 2px solid var(--primary);
+  margin-left: -2px;
+  transition: background-color 0.5s ease;
+}

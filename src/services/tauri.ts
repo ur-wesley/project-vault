@@ -16,6 +16,7 @@ import type {
   GitTagResultDto,
   ImportProjectPayload,
   IdeCandidateDto,
+  IndexMetaDto,
   LocationDto,
   LocationOrderEntry,
   MoveProjectPayload,
@@ -26,6 +27,7 @@ import type {
   RunTemplateCommandPayload,
   RunTemplateCommandResultDto,
   ScanResultDto,
+  SearchHitDto,
   SessionDto,
   SetFavoritePayload,
   SettingEntryDto,
@@ -383,7 +385,7 @@ export function gitInit(projectId: string): ResultAsync<void, StableError> {
 
 export function gitTagAndPush(
   projectId: string,
-  bump: "patch" | "minor" | "major",
+  bump: "patch" | "minor" | "major" | "beta",
 ): ResultAsync<GitTagResultDto, StableError> {
   return ResultAsync.fromPromise(
     invoke<GitTagResultDto>("git_tag_and_push", { projectId, bump }),
@@ -402,7 +404,7 @@ export function gitPreviewVersions(
 
 export function gitDiscoverVersionFiles(
   projectId: string,
-  bump: "patch" | "minor" | "major",
+  bump: "patch" | "minor" | "major" | "beta",
 ): ResultAsync<DiscoverVersionFilesResultDto, StableError> {
   return ResultAsync.fromPromise(
     invoke<DiscoverVersionFilesResultDto>("git_discover_version_files", { projectId, bump }),
@@ -546,6 +548,53 @@ export function deleteProjectTask(
 ): ResultAsync<void, StableError> {
   return ResultAsync.fromPromise(
     invoke<void>("delete_project_task", { payload: { projectId, task } }),
+    mapInvokeError,
+  );
+}
+
+export function searchProject(
+  projectId: string,
+  query: string,
+): ResultAsync<SearchHitDto[], StableError> {
+  return ResultAsync.fromPromise(
+    invoke<SearchHitDto[]>("search_project", { projectId, query }),
+    mapInvokeError,
+  );
+}
+
+export function indexProject(projectId: string): ResultAsync<IndexMetaDto, StableError> {
+  return ResultAsync.fromPromise(
+    invoke<IndexMetaDto>("index_project", { projectId }),
+    mapInvokeError,
+  );
+}
+
+export function rebuildIndex(projectId: string): ResultAsync<IndexMetaDto, StableError> {
+  return ResultAsync.fromPromise(
+    invoke<IndexMetaDto>("rebuild_index", { projectId }),
+    mapInvokeError,
+  );
+}
+
+export function getIndexMeta(
+  projectId: string,
+): ResultAsync<IndexMetaDto | null, StableError> {
+  return ResultAsync.fromPromise(
+    invoke<IndexMetaDto | null>("get_index_meta", { projectId }),
+    mapInvokeError,
+  );
+}
+
+export function deleteIndex(projectId: string): ResultAsync<void, StableError> {
+  return ResultAsync.fromPromise(
+    invoke<void>("delete_index", { projectId }),
+    mapInvokeError,
+  );
+}
+
+export function deleteAllIndices(): ResultAsync<void, StableError> {
+  return ResultAsync.fromPromise(
+    invoke<void>("delete_all_indices"),
     mapInvokeError,
   );
 }

@@ -7,6 +7,7 @@ pub mod locations;
 pub mod project_wizard;
 pub mod projects;
 pub mod scan;
+pub mod search;
 pub mod sessions;
 pub mod settings;
 pub mod task_config;

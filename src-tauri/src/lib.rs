@@ -8,6 +8,7 @@ mod fs_scope_util;
 mod ide;
 pub mod models;
 pub mod project_move;
+pub mod search;
 #[cfg(not(any(target_os = "android", target_os = "ios")))]
 mod shells;
 mod spawn;
@@ -125,6 +126,7 @@ pub fn run() {
                     }
                 }
             });
+            crate::search::background::start_background_scanner(handle, 15);
             Ok(())
         })
         .invoke_handler(tauri::generate_handler![
@@ -198,6 +200,13 @@ pub fn run() {
             commands::embedded_terminal::embedded_terminal_write,
             commands::embedded_terminal::embedded_terminal_resize,
             commands::embedded_terminal::embedded_terminal_kill,
+            commands::search::search_project,
+            commands::search::index_project,
+            commands::search::rebuild_index,
+            commands::search::get_index_meta,
+            commands::search::delete_index,
+            commands::search::delete_all_indices,
+            commands::search::update_index_for_file,
         ])
         .run(tauri::generate_context!())
         .expect("error while running tauri application");

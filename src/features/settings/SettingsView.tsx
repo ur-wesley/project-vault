@@ -110,6 +110,8 @@ export const SettingsView: Component<SettingsViewProps> = (props) => {
                 setSelectedLocale={model.setSelectedLocale}
                 scanMinutes={model.scanMinutes()}
                 setScanMinutes={model.setScanMinutes}
+                autoIndex={model.autoIndex()}
+                setAutoIndex={model.setAutoIndex}
                 busy={model.busy()}
                 onExport={model.onExport}
                 onOpenAppDataDir={onOpenAppDataDir}
