@@ -264,6 +264,46 @@ export function useSettingsModel(props: UseSettingsModelProps) {
     }
   };
 
+  const onCheckForUpdates = async () => {
+    if (!isTauri()) return;
+    setBusy(true);
+    toast.dismiss("settings");
+    try {
+      const r = await checkForUpdates();
+      if (r.isErr()) {
+        toast.error(stableErrorMessage(props.t, r.error), { id: "settings" });
+        return;
+      }
+      const update = r.value;
+      if (update == null) {
+        toast.success(props.t("settings.noUpdateAvailable"), { id: "settings" });
+        return;
+      }
+      toast.success(
+        props.t("settings.updateAvailable", { version: update.version }),
+        { id: "settings", duration: 10000 }
+      );
+    } finally {
+      setBusy(false);
+    }
+  };
+
+  const onInstallUpdate = async () => {
+    if (!isTauri()) return;
+    setBusy(true);
+    toast.dismiss("settings");
+    try {
+      const r = await installUpdate();
+      if (r.isErr()) {
+        toast.error(stableErrorMessage(props.t, r.error), { id: "settings" });
+        return;
+      }
+      toast.success(props.t("settings.updateInstalling"), { id: "settings" });
+    } finally {
+      setBusy(false);
+    }
+  };
+
   return {
     settingsQ,
     idesQ,

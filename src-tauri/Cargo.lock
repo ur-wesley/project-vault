@@ -4261,7 +4261,7 @@ dependencies = [
 
 [[package]]
 name = "project-vault"
-version = "0.7.0"
+version = "0.7.3"
 dependencies = [
  "base64 0.22.1",
  "dotenvy",
