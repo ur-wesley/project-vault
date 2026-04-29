@@ -39,6 +39,7 @@
     "core:window:allow-close",
     "core:window:allow-set-title",
     "clipboard:default",
+    "clipboard:allow-read-text",
     "window-state:default"
   ]
 }

@@ -1,6 +1,10 @@
 import { listen } from "@tauri-apps/api/event";
+import { isTauri } from "@tauri-apps/api/core";
+import { openUrl } from "@tauri-apps/plugin-opener";
+import { readText } from "tauri-plugin-clipboard-api";
 import { FitAddon } from "@xterm/addon-fit";
 import { Terminal } from "@xterm/xterm";
+import type { ILink, ILinkProvider, Terminal as XTermTerminal } from "@xterm/xterm";
 import { Show, createEffect, createSignal, on, onCleanup } from "solid-js";
 
 import "@xterm/xterm/css/xterm.css";
@@ -18,6 +22,52 @@ import {
   embeddedTerminalResize,
   embeddedTerminalWrite,
 } from "~/services/tauri";
+
+const WEB_LINK_REGEX = /https?:\/\/[^\s"<>|`{}[\]^]+/g;
+
+function registerTauriWebLinks(term: XTermTerminal): { dispose: () => void } {
+  const provider: ILinkProvider = {
+    provideLinks(y, callback) {
+      const line = term.buffer.active.getLine(y - 1);
+      if (!line) {
+        callback(undefined);
+        return;
+      }
+
+      let text = "";
+      for (let x = 0; x < line.length; x++) {
+        const cell = line.getCell(x);
+        text += cell?.getChars() || "";
+      }
+
+      const links: ILink[] = [];
+      let match: RegExpExecArray | null;
+      WEB_LINK_REGEX.lastIndex = 0;
+
+      while ((match = WEB_LINK_REGEX.exec(text)) !== null) {
+        const uri = match[0];
+        const startX = match.index;
+        const endX = startX + uri.length;
+
+        links.push({
+          text: uri,
+          range: {
+            start: { x: startX + 1, y },
+            end: { x: endX, y },
+          },
+          activate(event, text) {
+            if (!event.ctrlKey && !event.metaKey) return;
+            void openUrl(text);
+          },
+        });
+      }
+
+      callback(links);
+    },
+  };
+
+  return term.registerLinkProvider(provider);
+}
 
 function decodeChunk(b64: string): Uint8Array {
   const bin = atob(b64);
@@ -61,6 +111,7 @@ function TaskStreamTerminal(props: { sessionId: string; active: boolean }) {
     let unExit: (() => void) | undefined;
     let ro: ResizeObserver | null = null;
     let resizeT: number | undefined;
+    let linkProvider: { dispose: () => void } | null = null;
 
     void (async () => {
       term = new Terminal({
@@ -75,6 +126,19 @@ function TaskStreamTerminal(props: { sessionId: string; active: boolean }) {
       });
       fit = new FitAddon();
       term.loadAddon(fit);
+      linkProvider = registerTauriWebLinks(term);
+      term.attachCustomKeyEventHandler((event) => {
+        if (event.type !== "keydown") return true;
+        const isPaste = (event.ctrlKey || event.metaKey) && event.key === "v";
+        if (isPaste && isTauri() && term) {
+          event.preventDefault();
+          readText().then((text) => {
+            if (term) term.paste(text);
+          }).catch(() => {});
+          return false;
+        }
+        return true;
+      });
       term.open(el);
 
       // Delay fit to ensure dialog animation is mostly done
@@ -123,6 +187,7 @@ function TaskStreamTerminal(props: { sessionId: string; active: boolean }) {
       ro?.disconnect();
       unData?.();
       unExit?.();
+      linkProvider?.dispose();
       void embeddedTerminalKill(sid);
       term?.dispose();
       term = null;

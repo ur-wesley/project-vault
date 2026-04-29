@@ -1,7 +1,11 @@
 import { listen } from "@tauri-apps/api/event";
+import { isTauri } from "@tauri-apps/api/core";
+import { openUrl } from "@tauri-apps/plugin-opener";
+import { readText } from "tauri-plugin-clipboard-api";
 import { createQuery } from "@tanstack/solid-query";
 import { FitAddon } from "@xterm/addon-fit";
 import { Terminal } from "@xterm/xterm";
+import type { ILink, ILinkProvider, Terminal as XTermTerminal } from "@xterm/xterm";
 import {
   For,
   Show,
@@ -40,6 +44,52 @@ import {
   getSetting,
   listAvailableShells,
 } from "~/services/tauri";
+
+const WEB_LINK_REGEX = /https?:\/\/[^\s"<>|`{}[\]^]+/g;
+
+function registerTauriWebLinks(term: XTermTerminal): { dispose: () => void } {
+  const provider: ILinkProvider = {
+    provideLinks(y, callback) {
+      const line = term.buffer.active.getLine(y - 1);
+      if (!line) {
+        callback(undefined);
+        return;
+      }
+
+      let text = "";
+      for (let x = 0; x < line.length; x++) {
+        const cell = line.getCell(x);
+        text += cell?.getChars() || "";
+      }
+
+      const links: ILink[] = [];
+      let match: RegExpExecArray | null;
+      WEB_LINK_REGEX.lastIndex = 0;
+
+      while ((match = WEB_LINK_REGEX.exec(text)) !== null) {
+        const uri = match[0];
+        const startX = match.index;
+        const endX = startX + uri.length;
+
+        links.push({
+          text: uri,
+          range: {
+            start: { x: startX + 1, y },
+            end: { x: endX, y },
+          },
+          activate(event, text) {
+            if (!event.ctrlKey && !event.metaKey) return;
+            void openUrl(text);
+          },
+        });
+      }
+
+      callback(links);
+    },
+  };
+
+  return term.registerLinkProvider(provider);
+}
 
 function decodeChunk(b64: string): Uint8Array {
   const bin = atob(b64);
@@ -349,6 +399,8 @@ function TerminalHost(props: {
     let unExit: (() => void) | undefined;
     let ro: ResizeObserver | null = null;
     let resizeT: number | undefined;
+    let linkProvider: { dispose: () => void } | null = null;
+    let onKeyDown: ((e: KeyboardEvent) => void) | null = null;
     const existingSid = attachSid ?? existingSessionId;
     let sid = existingSid;
 
@@ -367,7 +419,23 @@ function TerminalHost(props: {
       });
       fit = new FitAddon();
       term.loadAddon(fit);
+      linkProvider = registerTauriWebLinks(term);
       term.open(node);
+
+      const onKeyDown = (e: KeyboardEvent) => {
+        const isPaste = (e.ctrlKey || e.metaKey) && (e.key === "v" || e.key === "V");
+        if (!isPaste || !term) return;
+        e.preventDefault();
+        e.stopPropagation();
+        readText()
+          .then((text) => {
+            if (term) term.paste(text);
+          })
+          .catch((err) => {
+            console.error("clipboard read failed:", err);
+          });
+      };
+      node.addEventListener("keydown", onKeyDown, { capture: true });
       // Only fit if the container is actually visible. When the terminal tab
       // is not active, the parent TabsContent is display:none and fit() would
       // resize xterm to 0x0, corrupting the buffer before any data arrives.
@@ -447,6 +515,8 @@ function TerminalHost(props: {
       ro?.disconnect();
       unData?.();
       unExit?.();
+      linkProvider?.dispose();
+      if (onKeyDown) node.removeEventListener("keydown", onKeyDown, { capture: true });
       // NOTE: We do NOT kill the PTY session here.
       // The session should stay alive when the user switches routes/tabs.
       // It is only killed when the user explicitly closes the terminal tab.
