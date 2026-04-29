@@ -168,6 +168,7 @@ pub async fn git_tag_and_push(
     };
 
     run_git(cwd, &["tag", &new_tag])?;
+    run_git(cwd, &["push"])?;
     run_git(cwd, &["push", "origin", &new_tag])?;
 
     Ok(GitTagResultDto { new_tag })

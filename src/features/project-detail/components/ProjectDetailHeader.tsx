@@ -284,16 +284,16 @@ export const ProjectDetailHeader: Component<ProjectDetailHeaderProps> = (props) 
                                 </div>
                              </div>
                                <Show when={s().hasUpstream}>
-                                  <div class="flex gap-2 pt-2">
-                                     <Button size="sm" class="h-8 flex-1 gap-1.5 text-xs font-bold" variant={s().behind > 0 ? "default" : "secondary"} disabled={m().isPulling() || m().isPushing()} onClick={() => m().pullMutate()}>
-                                        <Show when={m().isPulling()} fallback={<span class="iconify mdi--download size-3.5" />}><span class="iconify mdi--loading animate-spin size-3.5" /></Show>
-                                        {t('projectDetail.gitPull') as string}
-                                     </Button>
-                                     <Button size="sm" class="h-8 flex-1 gap-1.5 text-xs font-bold" variant={s().ahead > 0 ? "default" : "secondary"} disabled={m().isPushing() || m().isPulling()} onClick={() => m().pushMutate()}>
-                                        <Show when={m().isPushing()} fallback={<span class="iconify mdi--upload size-3.5" />}><span class="iconify mdi--loading animate-spin size-3.5" /></Show>
-                                        {t('projectDetail.gitPush') as string}
-                                     </Button>
-                                  </div>
+                                   <div class="flex gap-2 pt-2">
+                                      <Button size="sm" class="h-8 flex-1 gap-1.5 text-xs font-bold" variant={s().ahead > 0 ? "default" : "secondary"} disabled={m().isPushing() || m().isPulling()} onClick={() => m().pushMutate()}>
+                                         <Show when={m().isPushing()} fallback={<span class="iconify mdi--upload size-3.5" />}><span class="iconify mdi--loading animate-spin size-3.5" /></Show>
+                                         {t('projectDetail.gitPush') as string}
+                                      </Button>
+                                      <Button size="sm" class="h-8 flex-1 gap-1.5 text-xs font-bold" variant={s().behind > 0 ? "default" : "secondary"} disabled={m().isPulling() || m().isPushing()} onClick={() => m().pullMutate()}>
+                                         <Show when={m().isPulling()} fallback={<span class="iconify mdi--download size-3.5" />}><span class="iconify mdi--loading animate-spin size-3.5" /></Show>
+                                         {t('projectDetail.gitPull') as string}
+                                      </Button>
+                                   </div>
                                   <div class="border-t border-border/40 pt-2">
                                     <Button size="sm" class="h-8 w-full gap-1.5 text-xs font-bold" variant="outline" disabled={m().isTagging()} onClick={() => setTagDialogOpen(true)}>
                                       <Show when={m().isTagging()} fallback={<span class="iconify mdi--tag-plus size-3.5" />}><span class="iconify mdi--loading animate-spin size-3.5" /></Show>
@@ -356,21 +356,21 @@ export const ProjectDetailHeader: Component<ProjectDetailHeaderProps> = (props) 
                                 <span class="flex items-center gap-0.5 text-[10px] font-bold tabular-nums"><span class="iconify mdi--arrow-down size-3 text-blue-500" />{s().behind}</span>
                               </div>
                             </div>
-                             <Show when={s().hasUpstream}>
-                               <DropdownMenuItem disabled={m().isPulling() || m().isPushing()} onClick={() => m().pullMutate()}>
-                                 <Show when={m().isPulling()} fallback={<span class="iconify mdi--download size-4" />}><span class="iconify mdi--loading animate-spin size-4" /></Show>
-                                 <span>{t('projectDetail.gitPullTooltip') as string}</span>
-                               </DropdownMenuItem>
-                               <DropdownMenuItem disabled={m().isPushing() || m().isPulling()} onClick={() => m().pushMutate()}>
-                                 <Show when={m().isPushing()} fallback={<span class="iconify mdi--upload size-4" />}><span class="iconify mdi--loading animate-spin size-4" /></Show>
-                                 <span>{t('projectDetail.gitPushTooltip') as string}</span>
-                               </DropdownMenuItem>
-                               <DropdownMenuItem disabled={m().isTagging()} onClick={() => setTagDialogOpen(true)}>
-                                 <Show when={m().isTagging()} fallback={<span class="iconify mdi--tag-plus size-4" />}><span class="iconify mdi--loading animate-spin size-4" /></Show>
-                                 <span>{t('projectDetail.gitPushTag') as string}</span>
-                               </DropdownMenuItem>
-                               <DropdownMenuSeparator />
-                             </Show>
+                              <Show when={s().hasUpstream}>
+                                <DropdownMenuItem disabled={m().isPushing() || m().isPulling()} onClick={() => m().pushMutate()}>
+                                  <Show when={m().isPushing()} fallback={<span class="iconify mdi--upload size-4" />}><span class="iconify mdi--loading animate-spin size-4" /></Show>
+                                  <span>{t('projectDetail.gitPushTooltip') as string}</span>
+                                </DropdownMenuItem>
+                                <DropdownMenuItem disabled={m().isPulling() || m().isPushing()} onClick={() => m().pullMutate()}>
+                                  <Show when={m().isPulling()} fallback={<span class="iconify mdi--download size-4" />}><span class="iconify mdi--loading animate-spin size-4" /></Show>
+                                  <span>{t('projectDetail.gitPullTooltip') as string}</span>
+                                </DropdownMenuItem>
+                                <DropdownMenuItem disabled={m().isTagging()} onClick={() => setTagDialogOpen(true)}>
+                                  <Show when={m().isTagging()} fallback={<span class="iconify mdi--tag-plus size-4" />}><span class="iconify mdi--loading animate-spin size-4" /></Show>
+                                  <span>{t('projectDetail.gitPushTag') as string}</span>
+                                </DropdownMenuItem>
+                                <DropdownMenuSeparator />
+                              </Show>
                           </>
                         )}
                       </Show>
