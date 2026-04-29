@@ -213,6 +213,13 @@ export type DiscoverVersionFilesResultDto = {
   files: VersionFileDto[];
 };
 
+export type GitPreviewVersionsDto = {
+  currentVersion: string;
+  patchVersion: string;
+  minorVersion: string;
+  majorVersion: string;
+};
+
 export type BumpVersionAndTagPayload = {
   bump: "patch" | "minor" | "major";
   files: string[];

@@ -139,6 +139,7 @@ pub fn run() {
             commands::git::git_push,
             commands::git::git_init,
             commands::git::git_tag_and_push,
+            commands::git::git_preview_versions,
             commands::git::git_discover_version_files,
             commands::git::git_bump_version_and_tag,
             commands::projects::import_project,

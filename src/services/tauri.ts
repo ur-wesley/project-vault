@@ -7,6 +7,7 @@ import type {
   CreateProjectResultDto,
   DiscoverVersionFilesResultDto,
   ExportSnapshotDto,
+  GitPreviewVersionsDto,
   GitHubDeviceStartDto,
   GitHubDeviceTokenDto,
   GitHubDeviceWaitPayload,
@@ -386,6 +387,15 @@ export function gitTagAndPush(
 ): ResultAsync<GitTagResultDto, StableError> {
   return ResultAsync.fromPromise(
     invoke<GitTagResultDto>("git_tag_and_push", { projectId, bump }),
+    mapInvokeError,
+  );
+}
+
+export function gitPreviewVersions(
+  projectId: string,
+): ResultAsync<GitPreviewVersionsDto, StableError> {
+  return ResultAsync.fromPromise(
+    invoke<GitPreviewVersionsDto>("git_preview_versions", { projectId }),
     mapInvokeError,
   );
 }
