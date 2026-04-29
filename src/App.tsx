@@ -2,6 +2,7 @@ import { createQuery, useQueryClient } from "@tanstack/solid-query";
 import { For, Show, type Accessor, createMemo, createSignal, onMount, onCleanup, createEffect, untrack } from "solid-js";
 
 import iconUrl from "../icon.png";
+import pkg from "../package.json";
 
 import {
   readAppUrl,
@@ -560,9 +561,14 @@ function App() {
                 class="size-9 shrink-0 rounded object-contain"
               />
               <div class="flex min-w-0 flex-1 flex-col">
-                <span class="truncate text-sm font-semibold tracking-wide text-sidebar-foreground">
-                  {t("app.title") as string}
-                </span>
+                <div class="flex items-center gap-2">
+                  <span class="truncate text-sm font-semibold tracking-wide text-sidebar-foreground">
+                    {t("app.title") as string}
+                  </span>
+                  <span class="shrink-0 rounded bg-primary/10 px-1.5 py-0.5 text-[10px] font-bold text-primary">
+                    v{pkg.version}
+                  </span>
+                </div>
                 <span class="truncate text-xs text-sidebar-foreground/60">
                   {t("app.librarySubtitle") as string}
                 </span>

@@ -10,6 +10,7 @@ import type { Locale } from "~/messages";
 import { LocationManager } from "../locations";
 import { getAppDataDir } from "~/services/tauri";
 import { stableErrorMessage } from "~/lib/invoke-error";
+import pkg from "../../../package.json";
 
 import { useSettingsModel } from "./model/useSettingsModel";
 import { GeneralSettingsTab } from "./components/GeneralSettingsTab";
@@ -63,7 +64,12 @@ export const SettingsView: Component<SettingsViewProps> = (props) => {
         <Button variant="ghost" size="icon" onClick={() => props.onBack()} class="h-8 w-8">
           <span class="iconify mdi--arrow-left h-4 w-4" />
         </Button>
-        <h2 class="text-lg font-bold tracking-tight">{t("settings.title") as string}</h2>
+        <div class="flex items-center gap-2">
+          <h2 class="text-lg font-bold tracking-tight">{t("settings.title") as string}</h2>
+          <span class="shrink-0 rounded bg-primary/10 px-1.5 py-0.5 text-[10px] font-bold text-primary">
+            v{pkg.version}
+          </span>
+        </div>
         <Button
           type="button"
           class="ml-auto font-bold h-9 shadow-sm hover:shadow-md transition-all"
