@@ -1,9 +1,17 @@
 import { createMutation, createQuery, useQueryClient } from "@tanstack/solid-query";
 import type { Accessor } from "solid-js";
-import { getGitStatus, gitPull, gitPush, gitInit, gitTagAndPush } from "~/services/tauri";
+import {
+  getGitStatus,
+  gitPull,
+  gitPush,
+  gitInit,
+  gitTagAndPush,
+  gitDiscoverVersionFiles,
+  gitBumpVersionAndTag,
+} from "~/services/tauri";
 import { queryKeys } from "~/services/query-keys";
 import { stableErrorMessage } from "~/lib/invoke-error";
-import type { StableError } from "~/types/error";
+
 
 export type UseProjectGitProps = Readonly<{
   projectId: Accessor<string>;
@@ -82,15 +90,45 @@ export function useProjectGit(props: UseProjectGitProps) {
     },
   }));
 
+  const discoverFilesMu = createMutation(() => ({
+    mutationFn: async (bump: "patch" | "minor" | "major") => {
+      const r = await gitDiscoverVersionFiles(props.projectId(), bump);
+      if (r.isErr()) throw r.error;
+      return r.value;
+    },
+    onError: (err: unknown) => {
+      props.showBanner(stableErrorMessage(props.t, err as any));
+    },
+  }));
+
+  const bumpVersionMu = createMutation(() => ({
+    mutationFn: async (payload: { bump: "patch" | "minor" | "major"; files: string[] }) => {
+      const r = await gitBumpVersionAndTag(props.projectId(), payload);
+      if (r.isErr()) throw r.error;
+      return r.value;
+    },
+    onSuccess: (data) => {
+      void qc.invalidateQueries({ queryKey: queryKeys.gitStatus(props.projectId()) });
+      props.showInfoBanner(props.t("projectDetail.gitTagPushed", { tag: data.newTag }));
+    },
+    onError: (err: unknown) => {
+      props.showBanner(stableErrorMessage(props.t, err as any));
+    },
+  }));
+
   return {
     gitStatusQ,
     pullMutate: () => pullMu.mutate(),
     pushMutate: () => pushMu.mutate(),
     initMutate: () => initMu.mutate(),
     tagAndPushMutate: (bump: "patch" | "minor" | "major") => tagMu.mutate(bump),
+    discoverVersionFiles: (bump: "patch" | "minor" | "major") => discoverFilesMu.mutateAsync(bump),
+    bumpVersionAndTag: (payload: { bump: "patch" | "minor" | "major"; files: string[] }) => bumpVersionMu.mutate(payload),
     isPulling: () => pullMu.isPending,
     isPushing: () => pushMu.isPending,
     isIniting: () => initMu.isPending,
     isTagging: () => tagMu.isPending,
+    isDiscoveringFiles: () => discoverFilesMu.isPending,
+    isBumpingVersion: () => bumpVersionMu.isPending,
   };
 }

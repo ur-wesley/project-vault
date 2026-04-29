@@ -2,6 +2,7 @@ import { createQuery } from "@tanstack/solid-query";
 import { isTauri } from "@tauri-apps/api/core";
 import { openUrl } from "@tauri-apps/plugin-opener";
 import { For, Show, createMemo, createSignal, type Component } from "solid-js";
+import type { DiscoverVersionFilesResultDto } from "~/types/dto";
 import { Portal } from "solid-js/web";
 
 import { StackIcon } from "~/components/StackIcon";
@@ -132,6 +133,10 @@ export const ProjectDetailHeader: Component<ProjectDetailHeaderProps> = (props) 
   const [deleteConfirmOpen, setDeleteConfirmOpen] = createSignal(false);
   const [deleteFromDisk, setDeleteFromDisk] = createSignal(false);
   const [tagDialogOpen, setTagDialogOpen] = createSignal(false);
+  const [tagStep, setTagStep] = createSignal<"bump" | "files">("bump");
+  const [selectedBump, setSelectedBump] = createSignal<"patch" | "minor" | "major">("patch");
+  const [discoveredFiles, setDiscoveredFiles] = createSignal<DiscoverVersionFilesResultDto | null>(null);
+  const [selectedVersionFiles, setSelectedVersionFiles] = createSignal<Set<string>>(new Set<string>());
 
   const openExternal = (href: string) => isTauri() ? void openUrl(href) : window.open(href, "_blank", "noopener,noreferrer");
 
@@ -411,29 +416,150 @@ export const ProjectDetailHeader: Component<ProjectDetailHeaderProps> = (props) 
 
       <LanguageBar projectId={m().props.projectId} />
 
-      <Dialog open={tagDialogOpen()} onOpenChange={setTagDialogOpen}>
-        <DialogContent class="sm:max-w-md">
+      <Dialog open={tagDialogOpen()} onOpenChange={(open) => {
+        setTagDialogOpen(open);
+        if (!open) {
+          setTagStep("bump");
+          setDiscoveredFiles(null);
+          setSelectedVersionFiles(new Set<string>());
+        }
+      }}>
+        <DialogContent class="sm:max-w-lg">
           <DialogHeader>
-            <DialogTitle>{t("projectDetail.gitPushTagTitle") as string}</DialogTitle>
-            <DialogDescription>{t("projectDetail.gitPushTagDescription") as string}</DialogDescription>
+            <Show when={tagStep() === "bump"} fallback={
+              <>
+                <DialogTitle>{t("projectDetail.gitBumpTitle") as string}</DialogTitle>
+                <DialogDescription>
+                  {discoveredFiles() ? (t("projectDetail.gitBumpDescription", { current: discoveredFiles()!.currentVersion, new: discoveredFiles()!.newVersion }) as string) : ""}
+                </DialogDescription>
+              </>
+            }>
+              <DialogTitle>{t("projectDetail.gitPushTagTitle") as string}</DialogTitle>
+              <DialogDescription>{t("projectDetail.gitPushTagDescription") as string}</DialogDescription>
+            </Show>
           </DialogHeader>
-          <div class="grid grid-cols-3 gap-3 py-2">
-            <Button variant="outline" class="flex flex-col gap-1 h-auto py-3" disabled={m().isTagging()} onClick={() => { m().tagAndPushMutate("patch"); setTagDialogOpen(false); }}>
-              <span class="text-lg font-bold">patch</span>
-              <span class="text-[10px] text-muted-foreground">0.0.1 → 0.0.2</span>
-            </Button>
-            <Button variant="outline" class="flex flex-col gap-1 h-auto py-3" disabled={m().isTagging()} onClick={() => { m().tagAndPushMutate("minor"); setTagDialogOpen(false); }}>
-              <span class="text-lg font-bold">minor</span>
-              <span class="text-[10px] text-muted-foreground">0.0.1 → 0.1.0</span>
-            </Button>
-            <Button variant="outline" class="flex flex-col gap-1 h-auto py-3" disabled={m().isTagging()} onClick={() => { m().tagAndPushMutate("major"); setTagDialogOpen(false); }}>
-              <span class="text-lg font-bold">major</span>
-              <span class="text-[10px] text-muted-foreground">0.0.1 → 1.0.0</span>
-            </Button>
-          </div>
-          <DialogFooter>
-            <Button variant="outline" onClick={() => setTagDialogOpen(false)}>{t("common.cancel") as string}</Button>
-          </DialogFooter>
+
+          <Show when={tagStep() === "bump"}>
+            <div class="grid grid-cols-3 gap-3 py-2">
+              <Button variant="outline" class="flex flex-col gap-1 h-auto py-3" disabled={m().isDiscoveringFiles()} onClick={async () => {
+                setSelectedBump("patch");
+                try {
+                  const result = await m().discoverVersionFiles("patch");
+                  setDiscoveredFiles(result);
+                  setSelectedVersionFiles(new Set<string>(result.files.map(f => f.path)));
+                  setTagStep("files");
+                } catch {
+                  setTagDialogOpen(false);
+                }
+              }}>
+                <Show when={m().isDiscoveringFiles() && selectedBump() === "patch"} fallback={
+                  <>
+                    <span class="text-lg font-bold">patch</span>
+                    <span class="text-[10px] text-muted-foreground">0.0.1 → 0.0.2</span>
+                  </>
+                }>
+                  <span class="iconify mdi--loading animate-spin size-5" />
+                </Show>
+              </Button>
+              <Button variant="outline" class="flex flex-col gap-1 h-auto py-3" disabled={m().isDiscoveringFiles()} onClick={async () => {
+                setSelectedBump("minor");
+                try {
+                  const result = await m().discoverVersionFiles("minor");
+                  setDiscoveredFiles(result);
+                  setSelectedVersionFiles(new Set<string>(result.files.map(f => f.path)));
+                  setTagStep("files");
+                } catch {
+                  setTagDialogOpen(false);
+                }
+              }}>
+                <Show when={m().isDiscoveringFiles() && selectedBump() === "minor"} fallback={
+                  <>
+                    <span class="text-lg font-bold">minor</span>
+                    <span class="text-[10px] text-muted-foreground">0.0.1 → 0.1.0</span>
+                  </>
+                }>
+                  <span class="iconify mdi--loading animate-spin size-5" />
+                </Show>
+              </Button>
+              <Button variant="outline" class="flex flex-col gap-1 h-auto py-3" disabled={m().isDiscoveringFiles()} onClick={async () => {
+                setSelectedBump("major");
+                try {
+                  const result = await m().discoverVersionFiles("major");
+                  setDiscoveredFiles(result);
+                  setSelectedVersionFiles(new Set<string>(result.files.map(f => f.path)));
+                  setTagStep("files");
+                } catch {
+                  setTagDialogOpen(false);
+                }
+              }}>
+                <Show when={m().isDiscoveringFiles() && selectedBump() === "major"} fallback={
+                  <>
+                    <span class="text-lg font-bold">major</span>
+                    <span class="text-[10px] text-muted-foreground">0.0.1 → 1.0.0</span>
+                  </>
+                }>
+                  <span class="iconify mdi--loading animate-spin size-5" />
+                </Show>
+              </Button>
+            </div>
+            <DialogFooter>
+              <Button variant="outline" onClick={() => setTagDialogOpen(false)}>{t("common.cancel") as string}</Button>
+            </DialogFooter>
+          </Show>
+
+          <Show when={tagStep() === "files" && discoveredFiles()}>
+            {(data) => (
+              <div class="space-y-3">
+                <Show when={data().files.length > 0} fallback={
+                  <div class="text-center py-4 space-y-3">
+                    <p class="text-sm text-muted-foreground">{t("projectDetail.gitBumpNoFiles") as string}</p>
+                    <Button size="sm" disabled={m().isBumpingVersion()} onClick={() => {
+                      m().tagAndPushMutate(selectedBump());
+                      setTagDialogOpen(false);
+                    }}>
+                      <Show when={m().isBumpingVersion()} fallback={<span class="iconify mdi--tag-plus size-3.5" />}><span class="iconify mdi--loading animate-spin size-3.5" /></Show>
+                      {t("projectDetail.gitPushTagOnly") as string}
+                    </Button>
+                  </div>
+                }>
+                  <div class="max-h-64 overflow-y-auto space-y-2 border rounded-md p-2">
+                    <For each={data().files}>
+                      {(file) => (
+                        <div class="flex items-start gap-2">
+                          <Checkbox
+                            id={`version-file-${file.path}`}
+                            checked={selectedVersionFiles().has(file.path)}
+                            onChange={(checked) => {
+                              setSelectedVersionFiles(prev => {
+                                const next = new Set(prev);
+                                if (checked) next.add(file.path);
+                                else next.delete(file.path);
+                                return next;
+                              });
+                            }}
+                          />
+                          <div class="flex-1 min-w-0">
+                            <label for={`version-file-${file.path}`} class="text-xs font-mono font-medium cursor-pointer">{file.path}</label>
+                            <p class="text-[10px] text-muted-foreground font-mono truncate">{file.preview}</p>
+                          </div>
+                        </div>
+                      )}
+                    </For>
+                  </div>
+                  <DialogFooter>
+                    <Button variant="outline" onClick={() => setTagDialogOpen(false)} disabled={m().isBumpingVersion()}>{t("common.cancel") as string}</Button>
+                    <Button disabled={m().isBumpingVersion() || selectedVersionFiles().size === 0} onClick={() => {
+                      m().bumpVersionAndTag({ bump: selectedBump(), files: Array.from(selectedVersionFiles()) });
+                      setTagDialogOpen(false);
+                    }}>
+                      <Show when={m().isBumpingVersion()} fallback={<span class="iconify mdi--tag-plus size-3.5" />}><span class="iconify mdi--loading animate-spin size-3.5" /></Show>
+                      {t("projectDetail.gitBumpCommitTagPush") as string}
+                    </Button>
+                  </DialogFooter>
+                </Show>
+              </div>
+            )}
+          </Show>
         </DialogContent>
       </Dialog>
 
