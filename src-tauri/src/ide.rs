@@ -19,6 +19,24 @@ fn dedup_key(path: &Path) -> String {
         .unwrap_or_else(|_| path.to_string_lossy().to_lowercase())
 }
 
+fn is_executable_file(path: &Path) -> bool {
+    if !path.is_file() {
+        return false;
+    }
+    #[cfg(windows)]
+    {
+        if let Some(ext) = path.extension().and_then(|e| e.to_str()) {
+            let ext_lower = ext.to_lowercase();
+            return matches!(ext_lower.as_str(), "exe" | "cmd" | "bat");
+        }
+        return false;
+    }
+    #[cfg(not(windows))]
+    {
+        true
+    }
+}
+
 fn push_candidate(
     out: &mut Vec<IdeCandidateDto>,
     seen_paths: &mut HashSet<String>,
@@ -27,7 +45,7 @@ fn push_candidate(
     label: &str,
     path: PathBuf,
 ) {
-    if !path.is_file() {
+    if !is_executable_file(&path) {
         return;
     }
     if seen_ids.contains(id) {
@@ -71,7 +89,8 @@ fn push_candidate(
 fn path_dirs_lookup(name: &str) -> Option<PathBuf> {
     let path_var = std::env::var_os("PATH")?;
     for dir in std::env::split_paths(&path_var) {
-        for ext in ["", ".exe", ".cmd", ".bat"] {
+        // Prefer .exe first, then scripts, then bare name (to avoid picking up non-executables)
+        for ext in [".exe", ".cmd", ".bat", ""] {
             let p = dir.join(format!("{name}{ext}"));
             if p.is_file() {
                 return Some(p);
