@@ -6,6 +6,7 @@ import { platform } from "@tauri-apps/plugin-os";
 import { Button } from "~/components/ui/button";
 import { Separator } from "~/components/ui/separator";
 import { SidebarTrigger } from "~/components/ui/sidebar";
+import { useI18n } from "~/lib/i18n-context";
 import { cn } from "~/lib/utils";
 
 type WindowTitleBarProps = Readonly<{
@@ -21,28 +22,29 @@ const MacWindowDots: Component<{
   onMinimize: () => void;
   onMaximize: () => void;
 }> = (props) => {
+  const { t } = useI18n();
   return (
     <div class="flex shrink-0 items-center gap-2 pl-1.5" data-tauri-drag-region="false">
       <button
         type="button"
         class="h-3 w-3 shrink-0 rounded-full bg-[#ff5f57] opacity-90 transition-opacity hover:opacity-100"
         onClick={props.onClose}
-        title="Close"
-        aria-label="Close"
+        title={t('window.close') as string}
+        aria-label={t('window.close') as string}
       />
       <button
         type="button"
         class="h-3 w-3 shrink-0 rounded-full bg-[#ffbd2e] opacity-90 transition-opacity hover:opacity-100"
         onClick={props.onMinimize}
-        title="Minimize"
-        aria-label="Minimize"
+        title={t('window.minimize') as string}
+        aria-label={t('window.minimize') as string}
       />
       <button
         type="button"
         class="h-3 w-3 shrink-0 rounded-full bg-[#28c840] opacity-90 transition-opacity hover:opacity-100"
         onClick={props.onMaximize}
-        title="Zoom"
-        aria-label="Zoom"
+        title={t('window.zoom') as string}
+        aria-label={t('window.zoom') as string}
       />
     </div>
   );
@@ -54,6 +56,7 @@ const WinWindowControls: Component<{
   onClose: () => void;
   maximized: boolean;
 }> = (props) => {
+  const { t } = useI18n();
   return (
     <div
       class="flex h-full min-h-8 shrink-0 items-stretch border-s border-border/60"
@@ -64,7 +67,7 @@ const WinWindowControls: Component<{
         variant="ghost"
         class="h-full rounded-none px-2.5 text-muted-foreground hover:bg-muted/80"
         onClick={props.onMinimize}
-        aria-label="Minimize"
+        aria-label={t('window.minimize') as string}
       >
         <span class="iconify mdi--window-minimize h-3.5 w-3.5" aria-hidden="true" />
       </Button>
@@ -73,7 +76,7 @@ const WinWindowControls: Component<{
         variant="ghost"
         class="h-full rounded-none px-2.5 text-muted-foreground hover:bg-muted/80"
         onClick={props.onMaximize}
-        aria-label={props.maximized ? "Restore" : "Maximize"}
+        aria-label={props.maximized ? (t('window.restore') as string) : (t('window.maximize') as string)}
       >
         <span
           class={
@@ -89,7 +92,7 @@ const WinWindowControls: Component<{
         variant="ghost"
         class="h-full rounded-none px-2.5 text-muted-foreground hover:bg-destructive/20 hover:text-destructive"
         onClick={props.onClose}
-        aria-label="Close"
+        aria-label={t('window.close') as string}
       >
         <span class="iconify mdi--close h-3.5 w-3.5" aria-hidden="true" />
       </Button>
