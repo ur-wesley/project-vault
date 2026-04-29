@@ -2,9 +2,10 @@ import { For, Show, createMemo, createSignal, onCleanup, type Component } from "
 
 import { useI18n } from "~/lib/i18n-context";
 import { useEventHub } from "~/lib/event-hub-context";
-import { getGitStatus, gitPreviewVersions, listAllProcesses } from "~/services/tauri";
+import { getGitStatus, listAllProcesses } from "~/services/tauri";
 import { createQuery } from "@tanstack/solid-query";
 import { isTauri } from "@tauri-apps/api/core";
+import { getVersion } from "@tauri-apps/api/app";
 
 type Notification = {
   id: number;
@@ -47,16 +48,14 @@ export const StatusBar: Component<{
     staleTime: 5000,
   }));
 
-  const versionQ = createQuery(() => ({
-    queryKey: ["git", "preview-versions", props.projectId] as const,
+  const appVersionQ = createQuery(() => ({
+    queryKey: ["app", "version"] as const,
     queryFn: async () => {
-      if (!props.projectId) return null;
-      const r = await gitPreviewVersions(props.projectId);
-      if (r.isErr()) throw new Error(r.error.message);
-      return r.value;
+      if (!isTauri()) return null;
+      return await getVersion();
     },
-    enabled: props.activeView === "project" && props.projectId != null && isTauri(),
-    staleTime: 60000,
+    enabled: isTauri(),
+    staleTime: Infinity,
   }));
 
   const runningCount = createMemo(() =>
@@ -137,11 +136,11 @@ export const StatusBar: Component<{
           </div>
         </Show>
 
-        {/* Version */}
-        <Show when={versionQ.data}>
+        {/* App Version */}
+        <Show when={appVersionQ.data}>
           <div class="flex items-center gap-1 text-muted-foreground">
             <span class="iconify mdi--tag-outline size-3" />
-            <span class="font-mono">{versionQ.data!.currentVersion}</span>
+            <span class="font-mono">v{appVersionQ.data}</span>
           </div>
         </Show>
       </div>

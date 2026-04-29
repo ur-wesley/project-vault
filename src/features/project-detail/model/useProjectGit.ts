@@ -84,6 +84,7 @@ export function useProjectGit(props: UseProjectGitProps) {
     },
     onSuccess: (data) => {
       void qc.invalidateQueries({ queryKey: queryKeys.gitStatus(props.projectId()) });
+      void qc.invalidateQueries({ queryKey: ["git", "preview-versions", props.projectId()] });
       props.showInfoBanner(props.t("projectDetail.gitTagPushed", { tag: data.newTag }));
     },
     onError: (err: unknown) => {
@@ -99,7 +100,7 @@ export function useProjectGit(props: UseProjectGitProps) {
       return r.value;
     },
     enabled: true,
-    staleTime: Infinity,
+    staleTime: 1000 * 60 * 5,
   }));
 
   const discoverFilesMu = createMutation(() => ({
@@ -121,6 +122,7 @@ export function useProjectGit(props: UseProjectGitProps) {
     },
     onSuccess: (data) => {
       void qc.invalidateQueries({ queryKey: queryKeys.gitStatus(props.projectId()) });
+      void qc.invalidateQueries({ queryKey: ["git", "preview-versions", props.projectId()] });
       props.showInfoBanner(props.t("projectDetail.gitTagPushed", { tag: data.newTag }));
     },
     onError: (err: unknown) => {
