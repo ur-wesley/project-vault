@@ -1,6 +1,8 @@
 import { createQuery, useQueryClient } from "@tanstack/solid-query";
 import { For, Show, type Accessor, createMemo, createSignal, onMount, onCleanup, createEffect, untrack } from "solid-js";
 
+import iconUrl from "../icon.png";
+
 import {
   readAppUrl,
   replaceUrlToLibrary,
@@ -527,9 +529,11 @@ function App() {
                 setSubDetail(null);
               }}
             >
-              <div class="flex size-9 shrink-0 items-center justify-center rounded border border-primary/40 bg-primary/15 text-xs font-bold tracking-tight text-primary">
-                PV
-              </div>
+              <img
+                src={iconUrl}
+                alt="Project Vault"
+                class="size-9 shrink-0 rounded object-contain"
+              />
               <div class="flex min-w-0 flex-1 flex-col">
                 <span class="truncate text-sm font-semibold tracking-wide text-sidebar-foreground">
                   {t("app.title") as string}
