@@ -2,8 +2,10 @@ import { invoke } from "@tauri-apps/api/core";
 import { ResultAsync } from "neverthrow";
 import type {
   AddLocationPayload,
+  BumpVersionAndTagPayload,
   CreateProjectPayload,
   CreateProjectResultDto,
+  DiscoverVersionFilesResultDto,
   ExportSnapshotDto,
   GitHubDeviceStartDto,
   GitHubDeviceTokenDto,
@@ -384,6 +386,26 @@ export function gitTagAndPush(
 ): ResultAsync<GitTagResultDto, StableError> {
   return ResultAsync.fromPromise(
     invoke<GitTagResultDto>("git_tag_and_push", { projectId, bump }),
+    mapInvokeError,
+  );
+}
+
+export function gitDiscoverVersionFiles(
+  projectId: string,
+  bump: "patch" | "minor" | "major",
+): ResultAsync<DiscoverVersionFilesResultDto, StableError> {
+  return ResultAsync.fromPromise(
+    invoke<DiscoverVersionFilesResultDto>("git_discover_version_files", { projectId, bump }),
+    mapInvokeError,
+  );
+}
+
+export function gitBumpVersionAndTag(
+  projectId: string,
+  payload: BumpVersionAndTagPayload,
+): ResultAsync<GitTagResultDto, StableError> {
+  return ResultAsync.fromPromise(
+    invoke<GitTagResultDto>("git_bump_version_and_tag", { projectId, payload }),
     mapInvokeError,
   );
 }

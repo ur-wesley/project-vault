@@ -201,6 +201,23 @@ export type GitTagResultDto = {
   newTag: string;
 };
 
+export type VersionFileDto = {
+  path: string;
+  preview: string;
+};
+
+export type DiscoverVersionFilesResultDto = {
+  currentVersion: string;
+  newVersion: string;
+  useVPrefix: boolean;
+  files: VersionFileDto[];
+};
+
+export type BumpVersionAndTagPayload = {
+  bump: "patch" | "minor" | "major";
+  files: string[];
+};
+
 export type ImportProjectPayload = {
   sourcePath: string;
   destinationLocationId: string;
