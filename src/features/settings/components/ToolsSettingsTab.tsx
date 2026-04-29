@@ -196,7 +196,7 @@ export const ToolsSettingsTab: Component<ToolsSettingsTabProps> = (props) => {
             <For each={props.toolsQ.data}>
               {(tool) => (
                 <div class="flex items-center gap-3 rounded-md border border-border/40 bg-muted/20 px-3 py-2">
-                  <span class={cn("iconify shrink-0 size-5", tool.id === "mise" ? "mdi--cube-outline" : "mdi--file-document-edit-outline")} />
+                  <span class={cn("iconify shrink-0 size-5", tool.id === "mise" ? "mdi--cube-outline" : tool.id === "git" ? "mdi--git" : "mdi--file-document-edit-outline")} />
                   <div class="min-w-0 flex-1">
                     <p class="text-xs font-bold truncate">{tool.label}</p>
                     <p class="text-[10px] text-muted-foreground font-mono truncate">{tool.executable}</p>

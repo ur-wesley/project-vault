@@ -49,6 +49,7 @@ pub fn discover_tools() -> Vec<ToolCandidateDto> {
     let mut seen = HashSet::new();
 
     let candidates = [
+        ("git", "git", "Git", "--version"),
         ("mise", "mise", "Mise", "--version"),
         ("just", "just", "Just", "--version"),
     ];
