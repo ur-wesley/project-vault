@@ -137,6 +137,7 @@ export const ProjectDetailHeader: Component<ProjectDetailHeaderProps> = (props) 
   const [selectedBump, setSelectedBump] = createSignal<"patch" | "minor" | "major">("patch");
   const [discoveredFiles, setDiscoveredFiles] = createSignal<DiscoverVersionFilesResultDto | null>(null);
   const [selectedVersionFiles, setSelectedVersionFiles] = createSignal<Set<string>>(new Set<string>());
+  const [tagError, setTagError] = createSignal<string | null>(null);
 
   const openExternal = (href: string) => isTauri() ? void openUrl(href) : window.open(href, "_blank", "noopener,noreferrer");
 
@@ -418,6 +419,7 @@ export const ProjectDetailHeader: Component<ProjectDetailHeaderProps> = (props) 
 
       <Dialog open={tagDialogOpen()} onOpenChange={(open) => {
         setTagDialogOpen(open);
+        setTagError(null);
         if (!open) {
           setTagStep("bump");
           setDiscoveredFiles(null);
@@ -440,22 +442,28 @@ export const ProjectDetailHeader: Component<ProjectDetailHeaderProps> = (props) 
           </DialogHeader>
 
           <Show when={tagStep() === "bump"}>
+            <Show when={tagError()}>
+              <div class="rounded-md border border-destructive/50 bg-destructive/10 px-3 py-2 text-sm text-destructive">
+                {tagError()}
+              </div>
+            </Show>
             <div class="grid grid-cols-3 gap-3 py-2">
               <Button variant="outline" class="flex flex-col gap-1 h-auto py-3" disabled={m().isDiscoveringFiles()} onClick={async () => {
                 setSelectedBump("patch");
+                setTagError(null);
                 try {
                   const result = await m().discoverVersionFiles("patch");
                   setDiscoveredFiles(result);
                   setSelectedVersionFiles(new Set<string>(result.files.map(f => f.path)));
                   setTagStep("files");
-                } catch {
-                  setTagDialogOpen(false);
+                } catch (e: any) {
+                  setTagError(e?.message || String(e));
                 }
               }}>
                 <Show when={m().isDiscoveringFiles() && selectedBump() === "patch"} fallback={
                   <>
                     <span class="text-lg font-bold">patch</span>
-                    <span class="text-[10px] text-muted-foreground">0.0.1 → 0.0.2</span>
+                    <span class="text-[10px] text-muted-foreground">x.x.1 → x.x.2</span>
                   </>
                 }>
                   <span class="iconify mdi--loading animate-spin size-5" />
@@ -463,19 +471,20 @@ export const ProjectDetailHeader: Component<ProjectDetailHeaderProps> = (props) 
               </Button>
               <Button variant="outline" class="flex flex-col gap-1 h-auto py-3" disabled={m().isDiscoveringFiles()} onClick={async () => {
                 setSelectedBump("minor");
+                setTagError(null);
                 try {
                   const result = await m().discoverVersionFiles("minor");
                   setDiscoveredFiles(result);
                   setSelectedVersionFiles(new Set<string>(result.files.map(f => f.path)));
                   setTagStep("files");
-                } catch {
-                  setTagDialogOpen(false);
+                } catch (e: any) {
+                  setTagError(e?.message || String(e));
                 }
               }}>
                 <Show when={m().isDiscoveringFiles() && selectedBump() === "minor"} fallback={
                   <>
                     <span class="text-lg font-bold">minor</span>
-                    <span class="text-[10px] text-muted-foreground">0.0.1 → 0.1.0</span>
+                    <span class="text-[10px] text-muted-foreground">x.1.x → x.2.0</span>
                   </>
                 }>
                   <span class="iconify mdi--loading animate-spin size-5" />
@@ -483,19 +492,20 @@ export const ProjectDetailHeader: Component<ProjectDetailHeaderProps> = (props) 
               </Button>
               <Button variant="outline" class="flex flex-col gap-1 h-auto py-3" disabled={m().isDiscoveringFiles()} onClick={async () => {
                 setSelectedBump("major");
+                setTagError(null);
                 try {
                   const result = await m().discoverVersionFiles("major");
                   setDiscoveredFiles(result);
                   setSelectedVersionFiles(new Set<string>(result.files.map(f => f.path)));
                   setTagStep("files");
-                } catch {
-                  setTagDialogOpen(false);
+                } catch (e: any) {
+                  setTagError(e?.message || String(e));
                 }
               }}>
                 <Show when={m().isDiscoveringFiles() && selectedBump() === "major"} fallback={
                   <>
                     <span class="text-lg font-bold">major</span>
-                    <span class="text-[10px] text-muted-foreground">0.0.1 → 1.0.0</span>
+                    <span class="text-[10px] text-muted-foreground">1.x.x → 2.0.0</span>
                   </>
                 }>
                   <span class="iconify mdi--loading animate-spin size-5" />
@@ -513,13 +523,19 @@ export const ProjectDetailHeader: Component<ProjectDetailHeaderProps> = (props) 
                 <Show when={data().files.length > 0} fallback={
                   <div class="text-center py-4 space-y-3">
                     <p class="text-sm text-muted-foreground">{t("projectDetail.gitBumpNoFiles") as string}</p>
-                    <Button size="sm" disabled={m().isBumpingVersion()} onClick={() => {
-                      m().tagAndPushMutate(selectedBump());
-                      setTagDialogOpen(false);
-                    }}>
-                      <Show when={m().isBumpingVersion()} fallback={<span class="iconify mdi--tag-plus size-3.5" />}><span class="iconify mdi--loading animate-spin size-3.5" /></Show>
-                      {t("projectDetail.gitPushTagOnly") as string}
-                    </Button>
+                    <div class="flex justify-center gap-2">
+                      <Button variant="outline" size="sm" disabled={m().isBumpingVersion()} onClick={() => setTagStep("bump")}>
+                        <span class="iconify mdi--arrow-left size-3.5" />
+                        {t("common.back") as string}
+                      </Button>
+                      <Button size="sm" disabled={m().isBumpingVersion()} onClick={() => {
+                        m().tagAndPushMutate(selectedBump());
+                        setTagDialogOpen(false);
+                      }}>
+                        <Show when={m().isBumpingVersion()} fallback={<span class="iconify mdi--tag-plus size-3.5" />}><span class="iconify mdi--loading animate-spin size-3.5" /></Show>
+                        {t("projectDetail.gitPushTagOnly") as string}
+                      </Button>
+                    </div>
                   </div>
                 }>
                   <div class="max-h-64 overflow-y-auto space-y-2 border rounded-md p-2">
@@ -547,6 +563,10 @@ export const ProjectDetailHeader: Component<ProjectDetailHeaderProps> = (props) 
                     </For>
                   </div>
                   <DialogFooter>
+                    <Button variant="outline" disabled={m().isBumpingVersion()} onClick={() => setTagStep("bump")}>
+                      <span class="iconify mdi--arrow-left size-3.5" />
+                      {t("common.back") as string}
+                    </Button>
                     <Button variant="outline" onClick={() => setTagDialogOpen(false)} disabled={m().isBumpingVersion()}>{t("common.cancel") as string}</Button>
                     <Button disabled={m().isBumpingVersion() || selectedVersionFiles().size === 0} onClick={() => {
                       m().bumpVersionAndTag({ bump: selectedBump(), files: Array.from(selectedVersionFiles()) });
