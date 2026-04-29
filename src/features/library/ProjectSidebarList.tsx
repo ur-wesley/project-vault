@@ -24,6 +24,7 @@ import { stableErrorMessage } from "~/lib/invoke-error";
 import {
   deleteProject,
   getSetting,
+  listAllProcesses,
   listDiscoveredIdes,
   listProjects,
   openProjectInIde,
@@ -73,6 +74,27 @@ export function ProjectSidebarList(props: {
       return r.value;
     },
   }));
+
+  const processesQ = createQuery(() => ({
+    queryKey: ["processes", "all"] as const,
+    queryFn: async () => {
+      const r = await listAllProcesses();
+      if (r.isErr()) throw new Error(r.error.message);
+      return r.value;
+    },
+    refetchInterval: 3000,
+  }));
+
+  const runningProjectIds = createMemo(() => {
+    const procs = processesQ.data ?? [];
+    const ids = new Set<string>();
+    for (const p of procs) {
+      if (p.state === "running" || p.state === "starting") {
+        ids.add(p.projectId);
+      }
+    }
+    return ids;
+  });
 
   const openInIde = async (project: ProjectDto) => {
     const ides = idesQ.data;
@@ -190,6 +212,9 @@ export function ProjectSidebarList(props: {
                           />
                           <Show when={project.favorite}>
                             <span class="iconify mdi--star absolute -top-1 -right-1 text-[9px] text-yellow-500" />
+                          </Show>
+                          <Show when={runningProjectIds().has(project.id)}>
+                            <span class="absolute -bottom-0.5 -right-0.5 size-2.5 rounded-full bg-red-500 ring-2 ring-sidebar" />
                           </Show>
                         </span>
                         <div class="min-w-0 flex-1 flex flex-col items-start gap-0 text-left group-data-[collapsible=icon]:hidden">
