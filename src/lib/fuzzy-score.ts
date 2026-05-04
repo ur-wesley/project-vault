@@ -1,16 +1,7 @@
 /**
  * Fuzzy match scorer inspired by VS Code's quick open.
- * Returns a score between 0 and 1, where 0 = no match.
- *
- * Characters in `query` must appear in order within `target`.
- * Higher scores for:
- * - Exact match
- * - Match at start of string
- * - Match after separator characters (space, -, _, /, \\, .)
- * - Consecutive character matches
- * Lower scores for:
- * - Many skipped characters before first match
- * - Gaps between matched characters
+ * Returns a score > 0 if all query characters appear in order within target.
+ * Higher scores for closer-together matches, start-of-string, and separators.
  */
 export function fuzzyScore(query: string, target: string): number {
   if (!query) return 1;
@@ -23,60 +14,65 @@ export function fuzzyScore(query: string, target: string): number {
   let qi = 0;
   let ti = 0;
   let firstMatchIndex = -1;
-  let consecutive = 0;
+  let lastMatchIndex = -1;
   let matchedCount = 0;
 
   while (qi < q.length && ti < t.length) {
     if (q[qi] === t[ti]) {
       if (firstMatchIndex === -1) {
         firstMatchIndex = ti;
-        // Bonus for starting near the beginning
-        score += Math.max(0, 1 - firstMatchIndex * 0.05);
+        // Small bonus for starting near the beginning
+        score += Math.max(0, 1 - firstMatchIndex * 0.04);
+      } else {
+        const gap = ti - lastMatchIndex - 1;
+        if (gap === 0) {
+          // Consecutive match — strong bonus
+          score += 1.5;
+        } else {
+          // Gap penalty — larger gaps hurt more
+          score -= gap * 0.2;
+        }
       }
 
-      // Bonus for exact case match
+      // Base score for every matched character
+      score += 0.5;
+
+      // Exact case match bonus
       if (query[qi] === target[ti]) {
         score += 0.1;
       }
 
-      // Bonus for match at start of string
+      // Match at start of string
       if (ti === 0) {
         score += 0.8;
       }
 
-      // Bonus for match after separator
+      // Match after separator
       if (ti > 0 && isSeparator(t[ti - 1])) {
         score += 0.6;
       }
 
-      // Bonus for consecutive matches
-      if (consecutive > 0) {
-        score += 0.4 * Math.min(consecutive, 3);
-      }
-
-      consecutive++;
       matchedCount++;
+      lastMatchIndex = ti;
       qi++;
-    } else {
-      consecutive = 0;
     }
     ti++;
   }
 
-  // If not all query characters matched, return 0
+  // Not all query characters matched
   if (qi < q.length) return 0;
 
-  // Penalty for target being much longer than query
-  const lengthPenalty = t.length / Math.max(query.length, 1);
-  score -= (lengthPenalty - 1) * 0.05;
+  const span = lastMatchIndex - firstMatchIndex + 1;
 
-  // Normalize by query length to prevent long queries from dominating
-  const baseScore = score / Math.max(query.length, 1);
+  // Perfect consecutive match bonus
+  if (span === query.length) {
+    score += 1.0;
+  }
 
-  // Boost for higher match ratio
-  const matchRatio = matchedCount / t.length;
+  // Penalize overall span being much larger than query (scattered matches)
+  score -= (span - query.length) * 0.1;
 
-  return Math.max(0, baseScore + matchRatio * 0.3);
+  return Math.max(0, score);
 }
 
 function isSeparator(c: string): boolean {
