@@ -175,6 +175,7 @@ pub fn run() {
 
             commands::projects::refresh_project,
             commands::projects::move_project,
+            commands::projects::get_project_languages,
             commands::projects::get_project_mise_tools,
             commands::projects::suggest_mise_tools,
             commands::projects::pin_mise_tools,
