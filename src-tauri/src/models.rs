@@ -1,4 +1,5 @@
 use serde::{Deserialize, Serialize};
+use tauri::{AppHandle, Emitter};
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
@@ -162,4 +163,21 @@ pub struct SearchHitDto {
 pub struct SearchSnippetDto {
     pub line_number: usize,
     pub text: String,
+}
+
+#[derive(Debug, Clone, Serialize)]
+#[serde(rename_all = "camelCase")]
+pub struct ProjectChangedEmit {
+    pub project_id: String,
+    pub change_type: String,
+}
+
+pub fn emit_project_changed(app: &AppHandle, project_id: &str, change_type: &str) {
+    let _ = app.emit(
+        "project:changed",
+        ProjectChangedEmit {
+            project_id: project_id.to_string(),
+            change_type: change_type.to_string(),
+        },
+    );
 }

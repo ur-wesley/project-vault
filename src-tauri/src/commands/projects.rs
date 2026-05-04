@@ -5,7 +5,10 @@ use tauri::State;
 use tauri_plugin_sql::DbInstances;
 
 use crate::db;
-use crate::error::StableError;
+use crate::discovery::DetectorRegistry;
+use crate::error::{codes, StableError};
+use crate::spawn::task_monitor;
+use crate::spawn::TaskMonitors;
 use crate::models::{MoveProjectProgress, MoveProjectResultDto, ProjectDto, MiseToolDto, MiseToolSuggestionDto};
 use crate::project_move;
 use crate::mise_tools;
@@ -99,18 +102,61 @@ pub struct DeleteProjectPayload {
 
 #[tauri::command]
 pub async fn delete_project(
+    app: AppHandle,
     db: State<'_, DbInstances>,
+    monitors: State<'_, TaskMonitors>,
     payload: DeleteProjectPayload,
 ) -> Result<(), StableError> {
     let pool = db::sqlite_pool(&*db).await?;
 
     if payload.delete_from_disk {
+        // Stop all running tasks for this project so they release file handles
+        let sessions_to_stop: Vec<String> = {
+            let guard = monitors
+                .0
+                .lock()
+                .map_err(|e| StableError::new(codes::INTERNAL, e.to_string()))?;
+            guard
+                .values()
+                .filter(|entry| entry.project_id == payload.id && !entry.finished)
+                .map(|entry| entry.session_id.clone())
+                .collect()
+        };
+        for session_id in sessions_to_stop {
+            let _ = task_monitor::request_stop(app.clone(), &*monitors, &session_id).await;
+        }
+
         let project = db::get_project(&pool, &payload.id).await?;
         let path = std::path::Path::new(&project.path);
         if path.is_dir() {
-            let _ = std::fs::remove_dir_all(path);
+            // Give the OS a moment to release handles after killing processes
+            tokio::time::sleep(std::time::Duration::from_millis(800)).await;
+            if let Err(_e) = std::fs::remove_dir_all(path) {
+                // Retry once after a longer delay in case handles are slow to release
+                tokio::time::sleep(std::time::Duration::from_millis(1200)).await;
+                std::fs::remove_dir_all(path).map_err(|e| {
+                    StableError::new(
+                        codes::INTERNAL,
+                        format!(
+                            "Could not delete project directory. \
+                            Please close any IDE, terminal, or file explorer windows \
+                            that have this project open, then try again. ({})",
+                            e
+                        ),
+                    )
+                })?;
+            }
         } else if path.is_file() {
-            let _ = std::fs::remove_file(path);
+            std::fs::remove_file(path).map_err(|e| {
+                StableError::new(
+                    codes::INTERNAL,
+                    format!(
+                        "Could not delete project file. \
+                        Please close any applications using this file, then try again. ({})",
+                        e
+                    ),
+                )
+            })?;
         }
     }
 
@@ -119,20 +165,125 @@ pub async fn delete_project(
 
 #[tauri::command]
 pub async fn set_project_favorite(
+    app: AppHandle,
     db: State<'_, DbInstances>,
     payload: SetFavoritePayload,
 ) -> Result<ProjectDto, StableError> {
     let pool = db::sqlite_pool(&*db).await?;
-    db::set_project_favorite(&pool, &payload.id, payload.favorite).await
+    let project = db::set_project_favorite(&pool, &payload.id, payload.favorite).await?;
+    crate::models::emit_project_changed(&app, &payload.id, "favorite");
+    Ok(project)
+}
+
+#[derive(Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct SetTagPayload {
+    pub id: String,
+    pub tag: String,
+}
+
+#[tauri::command]
+pub async fn set_project_tag(
+    app: AppHandle,
+    db: State<'_, DbInstances>,
+    payload: SetTagPayload,
+) -> Result<ProjectDto, StableError> {
+    let pool = db::sqlite_pool(&*db).await?;
+    let project = db::set_project_tag(&pool, &payload.id, &payload.tag).await?;
+    crate::models::emit_project_changed(&app, &payload.id, "tags");
+    Ok(project)
+}
+
+#[tauri::command]
+pub async fn remove_project_tag(
+    app: AppHandle,
+    db: State<'_, DbInstances>,
+    payload: SetTagPayload,
+) -> Result<ProjectDto, StableError> {
+    let pool = db::sqlite_pool(&*db).await?;
+    let project = db::remove_project_tag(&pool, &payload.id, &payload.tag).await?;
+    crate::models::emit_project_changed(&app, &payload.id, "tags");
+    Ok(project)
 }
 
 #[tauri::command]
 pub async fn touch_project_opened(
+    app: AppHandle,
     db: State<'_, DbInstances>,
     id: String,
 ) -> Result<ProjectDto, StableError> {
     let pool = db::sqlite_pool(&*db).await?;
-    db::touch_project_opened(&pool, &id).await
+    let project = db::touch_project_opened(&pool, &id).await?;
+    crate::models::emit_project_changed(&app, &id, "opened");
+    Ok(project)
+}
+
+#[tauri::command]
+pub async fn refresh_project(
+    app: AppHandle,
+    db: State<'_, DbInstances>,
+    project_id: String,
+) -> Result<ProjectDto, StableError> {
+    let pool = db::sqlite_pool(&*db).await?;
+    let existing = db::get_project(&pool, &project_id).await?;
+
+    // Re-detect the project on disk
+    let reg = DetectorRegistry::standard();
+    let draft = reg.detect(std::path::Path::new(&existing.path));
+
+    let needs_update = draft.as_ref().map(|d| {
+        d.stack != existing.stack
+            || d.name != existing.name
+            || d.github_owner != existing.github_owner
+            || d.github_repo != existing.github_repo
+            || d.runtime_hint != existing.runtime_hint
+            || d.tasks.len() != existing.tasks.len()
+            || d.tags.len() != existing.tags.len()
+    }).unwrap_or(false);
+
+    if needs_update {
+        if let Some(d) = draft {
+            let mut dto = existing.clone();
+            dto.name = d.name;
+            dto.stack = d.stack;
+            dto.runtime_hint = d.runtime_hint;
+            dto.github_owner = d.github_owner;
+            dto.github_repo = d.github_repo;
+            dto.tasks = d.tasks;
+            dto.tags = d.tags;
+            db::upsert_project(&pool, &dto).await?;
+            crate::models::emit_project_changed(&app, &project_id, "scan");
+        }
+    }
+
+    // Always update last_opened_at_ms
+    let updated = db::touch_project_opened(&pool, &project_id).await?;
+
+    // Background: re-count file count and size_bytes
+    let app_clone = app.clone();
+    let path_clone = existing.path.clone();
+    let pid_clone = project_id.clone();
+    let pool_clone = pool.clone();
+    tokio::task::spawn(async move {
+        if let Ok(stats) = project_move::count_filtered_dir(std::path::Path::new(&path_clone)) {
+            if let Ok(existing) = db::get_project(&pool_clone, &pid_clone).await {
+                if stats.file_count != existing.file_count
+                    || stats.total_bytes != existing.size_bytes
+                    || stats.last_edited_at_ms != existing.last_edited_at_ms.unwrap_or(0)
+                {
+                    let mut dto = existing.clone();
+                    dto.file_count = stats.file_count;
+                    dto.size_bytes = stats.total_bytes;
+                    dto.last_edited_at_ms = Some(stats.last_edited_at_ms);
+                    if db::upsert_project(&pool_clone, &dto).await.is_ok() {
+                        crate::models::emit_project_changed(&app_clone, &pid_clone, "scan");
+                    }
+                }
+            }
+        }
+    });
+
+    Ok(updated)
 }
 
 #[derive(Deserialize)]

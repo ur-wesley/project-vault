@@ -5,6 +5,7 @@ import { useEventHub } from "~/lib/event-hub-context";
 import { getGitStatus, listAllProcesses } from "~/services/tauri";
 import { createQuery } from "@tanstack/solid-query";
 import { isTauri } from "@tauri-apps/api/core";
+import { Tooltip, TooltipContent, TooltipTrigger } from "~/components/ui/tooltip";
 
 type Notification = {
   id: number;
@@ -97,15 +98,18 @@ export const StatusBar: Component<{
 
         {/* Running processes */}
         <Show when={runningCount() > 0}>
-          <button
-            type="button"
-            class="flex items-center gap-1 rounded px-1 py-0.5 text-muted-foreground transition-colors hover:bg-accent hover:text-accent-foreground"
-            onClick={() => props.onShowProcesses()}
-            title={t("processes.title") as string}
-          >
-            <span class="iconify mdi--lightning-bolt-outline size-3" />
-            <span class="font-mono">{runningCount()}</span>
-          </button>
+          <Tooltip>
+            <TooltipTrigger
+              as="button"
+              type="button"
+              class="flex items-center gap-1 rounded px-1 py-0.5 text-muted-foreground transition-colors hover:bg-accent hover:text-accent-foreground"
+              onClick={() => props.onShowProcesses()}
+            >
+              <span class="iconify mdi--lightning-bolt-outline size-3" />
+              <span class="font-mono">{runningCount()}</span>
+            </TooltipTrigger>
+            <TooltipContent>{t("processes.title") as string}</TooltipContent>
+          </Tooltip>
         </Show>
 
         {/* Git status */}
@@ -113,6 +117,11 @@ export const StatusBar: Component<{
           <div class="flex items-center gap-1 text-muted-foreground">
             <span class="iconify mdi--source-branch size-3" />
             <span class="font-mono">{gitQ.data!.branch}</span>
+            <Show when={gitQ.data!.version}>
+              <span class="rounded bg-muted px-1 py-0 text-[9px] font-mono text-muted-foreground/70">
+                {gitQ.data!.version}
+              </span>
+            </Show>
             <Show when={gitQ.data!.isDirty}>
               <span class="text-primary">●</span>
             </Show>

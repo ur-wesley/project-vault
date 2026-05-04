@@ -1,5 +1,6 @@
 import { Show, For, createSignal, type Component } from "solid-js";
 import { Button } from "~/components/ui/button";
+import { Tooltip, TooltipContent, TooltipTrigger } from "~/components/ui/tooltip";
 import { useI18n } from "~/lib/i18n-context";
 import { cn } from "~/lib/utils";
 import type { MiseToolSuggestionDto } from "~/types/dto";
@@ -55,28 +56,31 @@ export const MiseToolsSuggestion: Component<{
           <div class="mt-1.5 flex flex-wrap gap-1.5">
             <For each={props.suggestions}>
               {(tool) => (
-                <button
-                  type="button"
-                  class={cn(
-                    "flex items-center gap-1 rounded border px-2 py-0.5 text-[9px] font-medium transition-all",
-                    selected().has(tool.name)
-                      ? "border-primary/50 bg-primary/10 text-primary"
-                      : "border-border/40 bg-background/50 text-muted-foreground hover:border-primary/30 hover:text-foreground",
-                  )}
-                  onClick={() => toggleTool(tool.name)}
-                  title={tool.reason}
-                >
-                  <span
+                <Tooltip>
+                  <TooltipTrigger
+                    as="button"
+                    type="button"
                     class={cn(
-                      "iconify size-2.5",
+                      "flex items-center gap-1 rounded border px-2 py-0.5 text-[9px] font-medium transition-all",
                       selected().has(tool.name)
-                        ? "mdi--check-circle"
-                        : "mdi--checkbox-blank-circle-outline",
+                        ? "border-primary/50 bg-primary/10 text-primary"
+                        : "border-border/40 bg-background/50 text-muted-foreground hover:border-primary/30 hover:text-foreground",
                     )}
-                  />
-                  <span class="font-mono font-bold">{tool.name}</span>
-                  <span class="text-muted-foreground/70">{tool.version}</span>
-                </button>
+                    onClick={() => toggleTool(tool.name)}
+                  >
+                    <span
+                      class={cn(
+                        "iconify size-2.5",
+                        selected().has(tool.name)
+                          ? "mdi--check-circle"
+                          : "mdi--checkbox-blank-circle-outline",
+                      )}
+                    />
+                    <span class="font-mono font-bold">{tool.name}</span>
+                    <span class="text-muted-foreground/70">{tool.version}</span>
+                  </TooltipTrigger>
+                  <TooltipContent>{tool.reason}</TooltipContent>
+                </Tooltip>
               )}
             </For>
           </div>

@@ -1,5 +1,4 @@
 import { listen } from "@tauri-apps/api/event";
-import { isTauri } from "@tauri-apps/api/core";
 import { openUrl } from "@tauri-apps/plugin-opener";
 import { readText } from "tauri-plugin-clipboard-api";
 import { createQuery } from "@tanstack/solid-query";
@@ -30,6 +29,7 @@ import {
 import { useI18n } from "~/lib/i18n-context";
 import { stableErrorMessage } from "~/lib/invoke-error";
 import { cn } from "~/lib/utils";
+import { Tooltip, TooltipContent, TooltipTrigger } from "~/components/ui/tooltip";
 import { queryKeys } from "~/services/query-keys";
 import {
   appendTerminalChunk,
@@ -210,15 +210,17 @@ export function EmbeddedTerminalPane(props: {
 
         <div class="flex shrink-0 items-center gap-1 pl-2">
           <div class="flex items-center">
-            <Button
-              variant="ghost"
-              size="icon"
-              class="size-7 rounded-r-none"
-              onClick={() => void createInstance()}
-              title={t("projectDetail.terminalNew") as string}
-            >
-              <span class="iconify mdi--plus size-4" />
-            </Button>
+            <Tooltip>
+              <TooltipTrigger as={Button}
+                variant="ghost"
+                size="icon"
+                class="size-7 rounded-r-none"
+                onClick={() => void createInstance()}
+              >
+                <span class="iconify mdi--plus size-4" />
+              </TooltipTrigger>
+              <TooltipContent>{t("projectDetail.terminalNew") as string}</TooltipContent>
+            </Tooltip>
             <DropdownMenu>
               <DropdownMenuTrigger
                 as={Button}
@@ -251,29 +253,35 @@ export function EmbeddedTerminalPane(props: {
           </div>
 
           <Show when={props.onToggleFullscreen}>
-            <Button
-              type="button"
-              variant="ghost"
-              size="icon"
-              class="size-7"
-              onClick={() => props.onToggleFullscreen?.()}
-              title={props.fullscreen ? "Exit Fullscreen" : "Fullscreen Terminal"}
-            >
-              <span class={cn("iconify size-4", props.fullscreen ? "mdi--fullscreen-exit" : "mdi--fullscreen")} />
-            </Button>
+            <Tooltip>
+              <TooltipTrigger
+                as={Button}
+                type="button"
+                variant="ghost"
+                size="icon"
+                class="size-7"
+                onClick={() => props.onToggleFullscreen?.()}
+              >
+                <span class={cn("iconify size-4", props.fullscreen ? "mdi--fullscreen-exit" : "mdi--fullscreen")} />
+              </TooltipTrigger>
+              <TooltipContent>{props.fullscreen ? "Exit Fullscreen" : "Fullscreen Terminal"}</TooltipContent>
+            </Tooltip>
           </Show>
 
           <Show when={props.onExternalShell}>
-            <Button
-              type="button"
-              variant="ghost"
-              size="icon"
-              class="size-7"
-              onClick={() => props.onExternalShell?.()}
-              title={t("projectDetail.openExternalTerminal") as string}
-            >
-              <span class="iconify mdi--open-in-new size-4" />
-            </Button>
+            <Tooltip>
+              <TooltipTrigger
+                as={Button}
+                type="button"
+                variant="ghost"
+                size="icon"
+                class="size-7"
+                onClick={() => props.onExternalShell?.()}
+              >
+                <span class="iconify mdi--open-in-new size-4" />
+              </TooltipTrigger>
+              <TooltipContent>{t("projectDetail.openExternalTerminal") as string}</TooltipContent>
+            </Tooltip>
           </Show>
         </div>
       </div>

@@ -54,14 +54,11 @@ export const ShortcutsSettingsTab: Component<ShortcutsSettingsTabProps> = (props
   const [recordingKeys, setRecordingKeys] = createSignal<string[]>([]);
   const [peakKeys, setPeakKeys] = createSignal<string[]>([]);
   const [busy, setBusy] = createSignal(false);
-  let recordingRef: HTMLDivElement | undefined;
-
   const startRecording = (action: ShortcutAction) => {
     shortcuts.setRecording(true);
     setEditing(action);
     setRecordingKeys([]);
     setPeakKeys([]);
-    queueMicrotask(() => recordingRef?.focus());
   };
 
   const stopRecording = () => {

@@ -1,7 +1,7 @@
 import { join } from "@tauri-apps/api/path";
 import { readDir, readTextFile } from "@tauri-apps/plugin-fs";
 import DOMPurify, { type Config as DOMPurifyConfig } from "dompurify";
-import { ResultAsync, ok, err } from "neverthrow";
+import { ResultAsync } from "neverthrow";
 import { marked } from "marked";
 
 import { getSetting } from "~/services/tauri";
@@ -101,6 +101,29 @@ export function fetchGitHubViewer(): ResultAsync<
         avatarUrl: data.avatar_url,
         profileUrl: data.html_url,
       };
+    })(),
+    (e) => (e as any).code ? (e as StableError) : { code: "INVOKE_FAILED", message: (e as Error).message },
+  );
+}
+
+export function createLabel(
+  owner: string,
+  repo: string,
+  name: string,
+  color: string = "cccccc",
+): ResultAsync<{ name: string; color: string }, StableError> {
+  return ResultAsync.fromPromise(
+    (async () => {
+      const res = await githubFetch(`/repos/${owner}/${repo}/labels`, "POST", { name, color });
+      if (!res.ok) {
+        if (res.status === 422) {
+          // Label already exists
+          return { name, color };
+        }
+        throw mapResponseToError(res, { code: "INVOKE_FAILED", message: `Could not create label ${name}.` });
+      }
+      const data = await res.json();
+      return { name: data.name, color: data.color };
     })(),
     (e) => (e as any).code ? (e as StableError) : { code: "INVOKE_FAILED", message: (e as Error).message },
   );

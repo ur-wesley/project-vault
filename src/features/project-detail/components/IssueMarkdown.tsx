@@ -16,7 +16,6 @@ renderer.code = function (token) {
 
 export const IssueMarkdown: Component<IssueMarkdownProps> = (props) => {
   const { t } = useI18n();
-  let containerRef: HTMLDivElement | undefined;
 
   const [html] = createResource(
     () => props.content,

@@ -19,6 +19,7 @@ import {
   SidebarMenuButton,
   SidebarMenuItem,
 } from "~/components/ui/sidebar";
+import { Tooltip, TooltipContent, TooltipTrigger } from "~/components/ui/tooltip";
 import { useI18n } from "~/lib/i18n-context";
 import { stableErrorMessage } from "~/lib/invoke-error";
 import {
@@ -35,6 +36,7 @@ import { queryKeys } from "~/services/query-keys";
 import type { ProjectDto } from "~/types/dto";
 import type { StableError } from "~/types/error";
 import { projectIdeStorageKey } from "../project-detail/lib/ide-storage";
+import { toast } from "solid-sonner";
 
 
 export function ProjectSidebarList(props: {
@@ -152,6 +154,7 @@ export function ProjectSidebarList(props: {
       if (!old) return old;
       return old.filter((p) => p.id !== project.id);
     });
+    toast.success(t("projectDetail.projectDeleted") as string);
     void qc.invalidateQueries({ queryKey: queryKeys.projects });
   };
 
@@ -164,24 +167,27 @@ export function ProjectSidebarList(props: {
   };
 
   return (
-    <SidebarGroup class="flex min-h-0 min-w-0 flex-1 flex-col pt-0">
+    <SidebarGroup class="flex min-h-0 min-w-0 flex-1 flex-col pl-2 pr-0 pt-0 pb-0">
       <div class="flex items-center justify-between px-2 py-1.5 shrink-0">
         <SidebarGroupLabel class="text-[10px] uppercase font-bold tracking-wider opacity-50">
           {t("library.sidebarProjects") as string}
         </SidebarGroupLabel>
-        <Show when={props.onOpenNewProject}>
-          <button
-            type="button"
-            onClick={() => props.onOpenNewProject?.()}
-            class="flex h-5 w-5 items-center justify-center rounded text-sidebar-foreground/40 transition-colors hover:bg-sidebar-accent hover:text-sidebar-accent-foreground"
-            title={t("commandPalette.newProject") as string}
-          >
-            <span class="iconify mdi--plus text-sm" />
-          </button>
-        </Show>
+          <Show when={props.onOpenNewProject}>
+            <Tooltip>
+              <TooltipTrigger
+                as="button"
+                type="button"
+                onClick={() => props.onOpenNewProject?.()}
+                class="flex h-5 w-5 items-center justify-center rounded text-sidebar-foreground/40 transition-colors hover:bg-sidebar-accent hover:text-sidebar-accent-foreground"
+              >
+                <span class="iconify mdi--plus text-sm" />
+              </TooltipTrigger>
+              <TooltipContent>{t("commandPalette.newProject") as string}</TooltipContent>
+            </Tooltip>
+          </Show>
       </div>
       <SidebarGroupContent class="min-h-0 min-w-0 flex-1 overflow-hidden">
-        <SidebarMenu class="h-full overflow-y-auto group-data-[collapsible=icon]:pr-0 pr-1">
+        <SidebarMenu class="h-full overflow-y-auto group-data-[collapsible=icon]:pr-0 pb-2">
           <Show when={q.isPending}>
             <p class="px-2 text-xs text-sidebar-foreground/60">
               {t("library.loading") as string}
@@ -195,25 +201,21 @@ export function ProjectSidebarList(props: {
           </Show>
           <For each={sortedProjects()}>
             {(project) => (
-              <SidebarMenuItem class="group/menu-item relative mb-0.5">
+              <SidebarMenuItem class="group/menu-item relative">
                 <ContextMenu>
                   <ContextMenuTrigger as="div" class="contents">
                     <SidebarMenuButton
                       size="sm"
                       isActive={props.selectedProjectId() === project.id}
                       onClick={() => props.onSelectProject(project.id)}
-                      class="h-auto py-1 pr-8"
-                      tooltip={project.name}
+                      class="h-auto pr-8"
                     >
                       <div class="flex w-full min-w-0 items-center gap-2.5 group-data-[collapsible=icon]:justify-center">
-                        <span
-                          class="relative flex shrink-0 items-center justify-center self-center text-sidebar-foreground/70"
-                          title={project.stack}
-                        >
+                        <span class="relative flex shrink-0 items-center justify-center self-center text-sidebar-foreground/70">
                           <StackIcon
                             stack={project.stack}
                             class="size-6 shrink-0"
-                            title={project.stack}
+                            noTooltip
                           />
                           <Show when={project.favorite}>
                             <span class="iconify mdi--star absolute -top-1 -right-1 text-[9px] text-yellow-500" />
@@ -228,10 +230,7 @@ export function ProjectSidebarList(props: {
                               {project.name}
                             </span>
                           </div>
-                          <span
-                            class="w-full truncate text-[9px] leading-tight text-sidebar-foreground/45"
-                            title={project.path}
-                          >
+                          <span class="w-full truncate text-[9px] leading-tight text-sidebar-foreground/45">
                             {project.path}
                           </span>
                         </div>

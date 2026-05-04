@@ -2,12 +2,12 @@ import { For, Show, type Component } from "solid-js";
 import { Badge } from "~/components/ui/badge";
 import { Button } from "~/components/ui/button";
 import { cn } from "~/lib/utils";
-import type { GitHubIssueRow } from "~/services/github";
+import type { ExtendedIssueRow } from "../model/useGithubIssues";
 import { IssueMarkdown } from "./IssueMarkdown";
 import { LabelBadge } from "./LabelBadge";
 
 export type GithubIssueDetailProps = Readonly<{
-  issue: GitHubIssueRow;
+  issue: ExtendedIssueRow;
   onBack: () => void;
   onEdit: () => void;
   onClose: () => void;
@@ -77,6 +77,11 @@ export const GithubIssueDetail: Component<GithubIssueDetailProps> = (props) => {
               />
               {props.issue.state === 'open' ? props.t('projectDetail.issueStatusOpen') : props.t('projectDetail.issueStatusClosed')}
             </Badge>
+            <Show when={props.issue.isLocal}>
+               <Badge variant="outline" class="h-6 px-2 text-[10px] font-black uppercase tracking-wider border-primary/30 text-primary/70">
+                 local
+               </Badge>
+            </Show>
             <div class="flex items-center gap-1.5 text-xs text-muted-foreground font-mono">
               <span class="iconify mdi--pound h-3.5 w-3.5 opacity-50" />
               {props.issue.number}
@@ -113,14 +118,16 @@ export const GithubIssueDetail: Component<GithubIssueDetailProps> = (props) => {
           </div>
 
           <div class="mt-8 flex justify-center pb-6">
-             <Button
-               variant="link"
-               class="text-xs text-muted-foreground hover:text-primary gap-1.5"
-               onClick={() => props.openExternal(props.issue.htmlUrl)}
-             >
-               <span class="iconify mdi--github h-3.5 w-3.5" />
-               {props.t('projectDetail.viewOnGithub')}
-             </Button>
+             <Show when={props.issue.htmlUrl}>
+               <Button
+                 variant="link"
+                 class="text-xs text-muted-foreground hover:text-primary gap-1.5"
+                 onClick={() => props.openExternal(props.issue.htmlUrl)}
+               >
+                 <span class="iconify mdi--github h-3.5 w-3.5" />
+                 {props.t('projectDetail.viewOnGithub')}
+               </Button>
+             </Show>
           </div>
         </div>
       </div>

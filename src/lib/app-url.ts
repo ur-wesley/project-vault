@@ -102,6 +102,13 @@ export function replaceUrlToProject(projectId: string, tab: string, subDetail?: 
   window.history.replaceState({ projectId, tab: normalizeTab(tab), subDetail }, "", want);
 }
 
+export function pushUrlToProject(projectId: string, tab: string, subDetail?: string | null): void {
+  if (typeof window === "undefined") return;
+  const want = buildProjectUrl(projectId, tab, subDetail);
+  if (currentLocationKey() === want) return;
+  window.history.pushState({ projectId, tab: normalizeTab(tab), subDetail }, "", want);
+}
+
 export function replaceUrlToSettings(tab: string): void {
   if (typeof window === "undefined") return;
   const want = buildSettingsUrl(tab);
@@ -109,10 +116,23 @@ export function replaceUrlToSettings(tab: string): void {
   window.history.replaceState({ view: "settings", tab }, "", want);
 }
 
+export function pushUrlToSettings(tab: string): void {
+  if (typeof window === "undefined") return;
+  const want = buildSettingsUrl(tab);
+  if (currentLocationKey() === want) return;
+  window.history.pushState({ view: "settings", tab }, "", want);
+}
+
 export function replaceUrlToProcesses(): void {
   if (typeof window === "undefined") return;
   if (window.location.pathname === PROCESSES_PATH) return;
   window.history.replaceState({ view: "processes" }, "", PROCESSES_PATH);
+}
+
+export function pushUrlToProcesses(): void {
+  if (typeof window === "undefined") return;
+  if (window.location.pathname === PROCESSES_PATH) return;
+  window.history.pushState({ view: "processes" }, "", PROCESSES_PATH);
 }
 
 export function replaceUrlToLibrary(): void {
@@ -124,5 +144,17 @@ export function replaceUrlToLibrary(): void {
     window.location.pathname === PROCESSES_PATH
   ) {
     window.history.replaceState({}, "", "/");
+  }
+}
+
+export function pushUrlToLibrary(): void {
+  if (typeof window === "undefined") return;
+  if (window.location.pathname === "/") return;
+  if (
+    window.location.pathname.startsWith(`${PROJECTS_PATH_PREFIX}/`) ||
+    window.location.pathname.startsWith(SETTINGS_PATH) ||
+    window.location.pathname === PROCESSES_PATH
+  ) {
+    window.history.pushState({}, "", "/");
   }
 }

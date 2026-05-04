@@ -8,7 +8,6 @@ import { Portal } from "solid-js/web";
 import { StackIcon } from "~/components/StackIcon";
 import { Badge } from "~/components/ui/badge";
 import { Button } from "~/components/ui/button";
-import { ButtonGroup } from "~/components/ui/button-group";
 import { Separator } from "~/components/ui/separator";
 import { Tooltip, TooltipContent, TooltipTrigger } from "~/components/ui/tooltip";
 import { Popover, PopoverContent, PopoverTrigger } from "~/components/ui/popover";
@@ -18,9 +17,6 @@ import {
   DropdownMenuItem,
   DropdownMenuTrigger,
   DropdownMenuSeparator,
-  DropdownMenuSub,
-  DropdownMenuSubTrigger,
-  DropdownMenuSubContent,
 } from "~/components/ui/dropdown-menu";
 import {
   AlertDialog,
@@ -149,15 +145,23 @@ export const ProjectDetailHeader: Component<ProjectDetailHeaderProps> = (props) 
             <div class="flex min-w-0 flex-1 flex-col gap-2">
               <div class="flex items-center gap-3 min-w-0">
                 <div class="flex items-center gap-2 shrink-0">
-                  <Button type="button" variant="ghost" size="sm" class="h-7 px-1.5" onClick={() => m().props.onBack()} title={t('projectDetail.backToLibrary') as string}>
-                    <span class="iconify mdi--arrow-left size-4" />
-                  </Button>
+                  <Tooltip>
+                    <TooltipTrigger as={Button} type="button" variant="ghost" size="sm" class="h-7 px-1.5" onClick={() => m().props.onBack()}>
+                      <span class="iconify mdi--arrow-left size-4" />
+                    </TooltipTrigger>
+                    <TooltipContent>{t('projectDetail.backToLibrary') as string}</TooltipContent>
+                  </Tooltip>
                   <Separator orientation="vertical" class="h-4" />
                 </div>
                 <div class="flex min-w-0 items-center gap-3">
-                  <Badge variant="secondary" class="inline-flex size-6 shrink-0 items-center justify-center p-0.5" title={p().stack}>
-                    <StackIcon stack={p().stack} class="size-4" />
-                  </Badge>
+                  <Tooltip>
+                    <TooltipTrigger as="div">
+                      <Badge variant="secondary" class="inline-flex size-6 shrink-0 items-center justify-center p-0.5">
+                        <StackIcon stack={p().stack} class="size-4" />
+                      </Badge>
+                    </TooltipTrigger>
+                    <TooltipContent>{p().stack}</TooltipContent>
+                  </Tooltip>
                   <div class="flex min-w-0 flex-col">
                     <div class="flex items-center gap-2">
                       <div class="flex min-w-0 items-center gap-2">
@@ -167,10 +171,13 @@ export const ProjectDetailHeader: Component<ProjectDetailHeaderProps> = (props) 
                             return (
                               <Show when={u()} fallback={<h1 class="truncate text-sm font-bold tracking-tight text-foreground">{p().name}</h1>}>
                                 {(href) => (
-                                  <button type="button" class="group/gh flex min-w-0 items-center gap-1.5 text-sm font-bold tracking-tight hover:text-primary transition-colors" onClick={() => openExternal(href())} title={t('projectDetail.openOnGithub', { owner: g().owner, repo: g().repo }) as string}>
-                                    <span class="iconify mdi--github size-4 shrink-0 text-muted-foreground group-hover/gh:text-primary" />
-                                    <h1 class="truncate">{p().name}</h1>
-                                  </button>
+                                  <Tooltip>
+                                    <TooltipTrigger as="button" type="button" class="group/gh flex min-w-0 items-center gap-1.5 text-sm font-bold tracking-tight hover:text-primary transition-colors" onClick={() => openExternal(href())}>
+                                      <span class="iconify mdi--github size-4 shrink-0 text-muted-foreground group-hover/gh:text-primary" />
+                                      <h1 class="truncate">{p().name}</h1>
+                                    </TooltipTrigger>
+                                    <TooltipContent>{t('projectDetail.openOnGithub', { owner: g().owner, repo: g().repo }) as string}</TooltipContent>
+                                  </Tooltip>
                                 )}
                               </Show>
                             );
@@ -188,15 +195,20 @@ export const ProjectDetailHeader: Component<ProjectDetailHeaderProps> = (props) 
               </div>
               <div class="ml-1 flex min-w-0 items-center gap-4">
                 <div class="flex min-w-0">
-                  <div class="group/path flex min-w-0 cursor-pointer items-center gap-2" onClick={() => void m().onOpenProjectInFileManager(p().path)} title={t("library.openInFileManager") as string}>
-                    <span class="iconify mdi--folder size-3.5 shrink-0 text-muted-foreground/60 transition-colors group-hover/path:text-primary" />
-                    <p class="truncate font-mono text-[10px] text-muted-foreground/80 transition-colors group-hover/path:text-foreground" title={p().path}>{p().path}</p>
-                    <Show when={p().sizeBytes > 0}>
-                      <span class="shrink-0 text-[10px] text-muted-foreground/40 transition-colors group-hover/path:text-muted-foreground/60">
-                        · {formatBytes(p().sizeBytes)}
-                      </span>
-                    </Show>
-                  </div>
+                  <Tooltip>
+                    <TooltipTrigger as="div" class="group/path flex min-w-0 cursor-pointer items-center gap-2" onClick={() => void m().onOpenProjectInFileManager(p().path)}>
+                      <span class="iconify mdi--folder size-3.5 shrink-0 text-muted-foreground/60 transition-colors group-hover/path:text-primary" />
+                      <p class="truncate font-mono text-[10px] text-muted-foreground/80 transition-colors group-hover/path:text-foreground">
+                        {p().path}
+                      </p>
+                      <Show when={p().sizeBytes > 0}>
+                        <span class="shrink-0 text-[10px] text-muted-foreground/40 transition-colors group-hover/path:text-muted-foreground/60">
+                          · {formatBytes(p().sizeBytes)}
+                        </span>
+                      </Show>
+                    </TooltipTrigger>
+                    <TooltipContent>{t("library.openInFileManager") as string}</TooltipContent>
+                  </Tooltip>
                 </div>
               </div>
             </div>
@@ -236,10 +248,13 @@ export const ProjectDetailHeader: Component<ProjectDetailHeaderProps> = (props) 
                 </div>
               </Show>
               <div class="flex items-center gap-2 px-3">
-                <div class="flex items-center gap-1.5 text-[10px] font-bold uppercase tracking-tight text-muted-foreground/80" title={t('projectDetail.totalWorktime') as string}>
-                  <span class="iconify mdi--clock-outline size-3" />
-                  {formatWorktime(p().totalPlaytimeMs)}
-                </div>
+                <Tooltip>
+                  <TooltipTrigger as="div" class="flex items-center gap-1.5 text-[10px] font-bold uppercase tracking-tight text-muted-foreground/80">
+                    <span class="iconify mdi--clock-outline size-3" />
+                    {formatWorktime(p().totalPlaytimeMs)}
+                  </TooltipTrigger>
+                  <TooltipContent>{t('projectDetail.totalWorktime') as string}</TooltipContent>
+                </Tooltip>
                 <Show when={p().lastOpenedAtMs}>
                   <Separator orientation="vertical" class="h-2.5 opacity-40" />
                   <div class="text-[10px] font-bold uppercase tracking-tight text-muted-foreground/60">

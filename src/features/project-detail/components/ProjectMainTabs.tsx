@@ -19,15 +19,16 @@ import {
   DropdownMenuItem,
   DropdownMenuTrigger,
 } from "~/components/ui/dropdown-menu";
-import { Select, SelectContent, SelectItem, SelectTrigger } from "~/components/ui/select";
+import { Select, SelectTrigger } from "~/components/ui/select";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "~/components/ui/tabs";
 import { Popover, PopoverTrigger, PopoverContent } from "~/components/ui/popover";
 import { useI18n } from "~/lib/i18n-context";
 import { useSidebar } from "~/components/ui/sidebar";
 import { cn } from "~/lib/utils";
+import { Tooltip, TooltipContent, TooltipTrigger } from "~/components/ui/tooltip";
 
 import type { ProjectDetailModel } from "../model/createProjectDetailModel";
-import { formatSessionRange, formatWorktime } from "../lib/format";
+import { formatSessionRange } from "../lib/format";
 import { EmbeddedTerminalPane } from "../EmbeddedTerminal";
 import { FileTree } from "../FileTree";
 import { GithubProjectPanel } from "../GithubProjectPanel";
@@ -103,6 +104,26 @@ export const ProjectMainTabs: Component<ProjectMainTabsProps> = (props) => {
 
   const normalizeCommand = (value: string) => value.replace(/\s+/g, " ").trim();
 
+  const githubInfo = createMemo(() => {
+      const p = props.project();
+      if (p.githubOwner && p.githubRepo) {
+          return { owner: p.githubOwner, repo: p.githubRepo };
+      }
+      return null;
+  });
+
+  const taskGroups = createMemo(() => {
+    const g: Record<string, any[]> = {};
+    for (const task of props.project().tasks) {
+      const parts = task.label.split(": ");
+      const groupName = parts.length > 1 ? parts[0]! : (t('projectDetail.taskGroupRoot') as string);
+      const label = parts.length > 1 ? parts.slice(1).join(": ") : task.label;
+      if (!g[groupName]) g[groupName] = [];
+      g[groupName]!.push({ ...task, label });
+    }
+    return Object.entries(g);
+  });
+
   return (
     <Tabs
       value={m().activeDetailTab()}
@@ -115,11 +136,9 @@ export const ProjectMainTabs: Component<ProjectMainTabsProps> = (props) => {
           <TabsTrigger value="readme" class="flex-1 text-xs font-semibold">
             {t("projectDetail.tabReadme") as string}
           </TabsTrigger>
-          <Show when={props.project().githubOwner != null}>
-            <TabsTrigger value="issues" class="flex-1 text-xs font-semibold">
-              {t("projectDetail.tabIssues") as string}
-            </TabsTrigger>
-          </Show>
+          <TabsTrigger value="issues" class="flex-1 text-xs font-semibold">
+            {t("projectDetail.tabIssues") as string}
+          </TabsTrigger>
           <TabsTrigger value="files" class="flex-1 text-xs font-semibold">
             {t("projectDetail.tabFiles") as string}
           </TabsTrigger>
@@ -148,33 +167,26 @@ export const ProjectMainTabs: Component<ProjectMainTabsProps> = (props) => {
         <div class="flex-1 min-h-0 overflow-hidden flex flex-col">
           <TabsContent value="readme" class="min-h-0 flex-1 overflow-hidden outline-none flex flex-col">
             <GithubProjectPanel
-              projectId={props.project().id}
-              projectPath={props.project().path}
-              github={
-                props.project().githubOwner
-                  ? { owner: props.project().githubOwner!, repo: props.project().githubRepo! }
-                  : null
-              }
+              projectId={() => props.project().id}
+              projectPath={() => props.project().path}
+              github={githubInfo}
               view="readme"
               subDetail={m().props.subDetail()}
               onSubDetailChange={m().props.onSubDetailChange}
+              model={m()}
             />
           </TabsContent>
-          <Show when={props.project().githubOwner != null}>
-            <TabsContent value="issues" class="min-h-0 flex-1 overflow-hidden outline-none flex flex-col">
-              <GithubProjectPanel
-                projectId={props.project().id}
-                projectPath={props.project().path}
-                github={{
-                  owner: props.project().githubOwner!,
-                  repo: props.project().githubRepo!,
-                }}
-                view="issues"
-                subDetail={m().props.subDetail()}
-                onSubDetailChange={m().props.onSubDetailChange}
-              />
-            </TabsContent>
-          </Show>
+          <TabsContent value="issues" class="min-h-0 flex-1 overflow-hidden outline-none flex flex-col">
+            <GithubProjectPanel
+              projectId={() => props.project().id}
+              projectPath={() => props.project().path}
+              github={githubInfo}
+              view="issues"
+              subDetail={m().props.subDetail()}
+              onSubDetailChange={m().props.onSubDetailChange}
+              model={m()}
+            />
+          </TabsContent>
           <TabsContent value="files" class="min-h-0 flex-1 outline-none overflow-hidden">
             <FileTree rootPath={props.project().path} projectId={props.project().id} />
           </TabsContent>
@@ -236,227 +248,225 @@ export const ProjectMainTabs: Component<ProjectMainTabsProps> = (props) => {
               </Show>
 
               <Show when={activeSessions().length > 0}>
-                  <div class="rounded-lg border border-border/60 bg-card/80 p-3 shadow-sm">
-                    <div class="flex items-start justify-between gap-3">
-                      <div class="min-w-0">
-                        <p class="text-[10px] font-bold uppercase tracking-wider text-muted-foreground">
-                          {t("projectDetail.taskOutputTitle") as string}
-                        </p>
-                        <p class="mt-1 text-xs text-muted-foreground">
-                          {t("projectDetail.taskOutputHint") as string}
-                        </p>
-                      </div>
-                      <Badge variant="default" round class="h-5 min-w-5 px-1.5 text-[10px] font-black shadow-sm">
-                        {activeSessions().length}
-                      </Badge>
+                <div class="rounded-lg border border-border/60 bg-card/80 p-3 shadow-sm">
+                  <div class="flex items-start justify-between gap-3">
+                    <div class="min-w-0">
+                      <p class="text-[10px] font-bold uppercase tracking-wider text-muted-foreground">
+                        {t("projectDetail.taskOutputTitle") as string}
+                      </p>
+                      <p class="mt-1 text-xs text-muted-foreground">
+                        {t("projectDetail.taskOutputHint") as string}
+                      </p>
                     </div>
-                    <div class="mt-3 space-y-2">
-                      <For each={activeSessions()}>
-                        {(session) => (
-                          <div class="flex flex-wrap items-center justify-between gap-2 rounded-md border border-border/50 bg-muted/20 px-3 py-2">
-                            <div class="min-w-0 flex-1">
-                              <div class="flex min-w-0 flex-wrap items-center gap-2">
-                                <Badge
-                                  variant={session.state === "running" || session.state === "starting" ? "default" : "secondary"}
-                                  round
-                                  class="h-5 px-2 text-[10px] font-black uppercase tracking-wider"
-                                >
-                                  {session.state}
-                                </Badge>
-                                <span class="min-w-0 truncate font-mono text-xs text-foreground/90">
-                                  {session.command ?? "—"}
-                                </span>
-                              </div>
-                              <p class="mt-1 text-[11px] text-muted-foreground">
-                                {session.rootPid != null
-                                  ? `PID ${session.rootPid}`
-                                  : (t("projectDetail.taskOutputHint") as string)}
-                              </p>
-                              <div class="mt-1 text-[10px] text-muted-foreground">
-                                ports debug: sid={session.id} lookup={JSON.stringify(m().sessionPorts()[session.id])}
-                              </div>
-                              <Show when={m().sessionPorts()[session.id]?.length > 0}>
-                                <div class="mt-1 flex flex-wrap items-center gap-1">
-                                  <span class="text-[10px] text-muted-foreground/70">{t("projectDetail.ports") as string}:</span>
-                                  <For each={m().sessionPorts()[session.id]}>
-                                    {(port) => (
-                                      <Badge variant="outline" round class="h-4 px-1.5 text-[9px] font-mono font-bold border-primary/30 text-primary/80">
-                                        :{port}
-                                      </Badge>
-                                    )}
-                                  </For>
-                                </div>
-                              </Show>
+                    <Badge variant="default" round class="h-5 min-w-5 px-1.5 text-[10px] font-black shadow-sm">
+                      {activeSessions().length}
+                    </Badge>
+                  </div>
+                  <div class="mt-3 space-y-2">
+                    <For each={activeSessions()}>
+                      {(session) => (
+                        <div class="flex flex-wrap items-center justify-between gap-2 rounded-md border border-border/50 bg-muted/20 px-3 py-2">
+                          <div class="min-w-0 flex-1">
+                            <div class="flex min-w-0 flex-wrap items-center gap-2">
+                              <Badge
+                                variant={session.state === "running" || session.state === "starting" ? "default" : "secondary"}
+                                round
+                                class="h-5 px-2 text-[10px] font-black uppercase tracking-wider"
+                              >
+                                {session.state}
+                              </Badge>
+                              <span class="min-w-0 truncate font-mono text-xs text-foreground/90">
+                                {session.command ?? "—"}
+                              </span>
                             </div>
-                            <div class="flex items-center gap-1">
-                              <Button
+                            <p class="mt-1 text-[11px] text-muted-foreground">
+                              {session.rootPid != null
+                                ? `PID ${session.rootPid}`
+                                : (t("projectDetail.taskOutputHint") as string)}
+                            </p>
+                            <div class="mt-1 text-[10px] text-muted-foreground">
+                              ports debug: sid={session.id} lookup={JSON.stringify(m().sessionPorts()[session.id])}
+                            </div>
+                            <Show when={m().sessionPorts()[session.id]?.length > 0}>
+                              <div class="mt-1 flex flex-wrap items-center gap-1">
+                                <span class="text-[10px] text-muted-foreground/70">{t("projectDetail.ports") as string}:</span>
+                                <For each={m().sessionPorts()[session.id]}>
+                                  {(port) => (
+                                    <Badge variant="outline" round class="h-4 px-1.5 text-[9px] font-mono font-bold border-primary/30 text-primary/80">
+                                      :{port}
+                                    </Badge>
+                                  )}
+                                </For>
+                              </div>
+                            </Show>
+                          </div>
+                          <div class="flex items-center gap-1">
+                            <Tooltip>
+                              <TooltipTrigger as={Button}
                                 type="button"
                                 size="icon"
                                 variant="ghost"
                                 class="size-7 text-muted-foreground hover:text-foreground hover:bg-background/50"
                                 onClick={() => m().attachToTask(session.id, session.command ?? (t("projectDetail.tabTerminal") as string))}
-                                title={t("projectDetail.taskViewOutput") as string}
                               >
                                 <span class="iconify mdi--terminal size-4" />
-                              </Button>
-                              <Button
+                              </TooltipTrigger>
+                              <TooltipContent>{t("projectDetail.taskViewOutput") as string}</TooltipContent>
+                            </Tooltip>
+                            <Tooltip>
+                              <TooltipTrigger as={Button}
                                 type="button"
                                 size="icon"
                                 variant="ghost"
                                 class="size-7 text-muted-foreground hover:text-destructive hover:bg-destructive/5"
                                 onClick={() => void m().onStopTask(session.id)}
-                                title={t("projectDetail.taskStop") as string}
                               >
                                 <span class="iconify mdi--stop size-4" />
-                              </Button>
-                            </div>
-                          </div>
-                        )}
-                      </For>
-                    </div>
-                  </div>
-                </Show>
-                {(() => {
-                  const groups: Record<string, any[]> = {};
-                  for (const task of props.project().tasks) {
-                    const parts = task.label.split(": ");
-                    const groupName = parts.length > 1 ? parts[0]! : (t('projectDetail.taskGroupRoot') as string);
-                    const label = parts.length > 1 ? parts.slice(1).join(": ") : task.label;
-                    if (!groups[groupName]) groups[groupName] = [];
-                    groups[groupName]!.push({ ...task, label });
-                  }
-
-                  const findActiveSession = (argv: string[]) => {
-                    const cmd = normalizeCommand(argv.join(" "));
-                    return activeSessions().find((s) => normalizeCommand(s.command ?? "") === cmd);
-                  };
-
-                  return (
-                    <For each={Object.entries(groups)}>
-                      {([name, tasks]) => (
-                        <div class="space-y-2.5">
-                          <div class="flex items-center gap-2">
-                            <span class="text-[10px] font-bold uppercase tracking-wider text-muted-foreground/70">
-                              {name}
-                            </span>
-                            <div class="h-px flex-1 bg-border/40" />
-                          </div>
-                          <div class="flex flex-wrap gap-2">
-                            <For each={tasks}>
-                              {(task) => {
-                                const taskKey = `${name}::${task.label}::${task.argv.join("\u0000")}`;
-                                const busy = () => runningTaskKey() === taskKey;
-                                const active = () => findActiveSession(task.argv);
-                                
-                                const handleRun = async () => {
-                                  if (active()) {
-                                    m().attachToTask(active()!.id, task.label);
-                                    return;
-                                  }
-                                  setRunningTaskKey(taskKey);
-                                  try {
-                                    await m().runArgv(props.project(), task.argv, false, task.cwd);
-                                  } finally {
-                                    setRunningTaskKey((current) => (current === taskKey ? null : current));
-                                  }
-                                };
-
-                                return (
-                                  <div class="flex items-center gap-1 rounded-md border border-border/40 bg-muted/10 p-1 transition-colors hover:bg-muted/20">
-                                    <Button
-                                      type="button"
-                                      size="sm"
-                                      variant={active() ? "default" : name === (t('projectDetail.taskGroupRoot') as string) ? "default" : "secondary"}
-                                      class={cn(
-                                        "h-7 gap-1.5 px-3 transition-all", 
-                                        active() && "bg-green-600 hover:bg-green-700 shadow-sm"
-                                      )}
-                                      disabled={busy()}
-                                      onClick={handleRun}
-                                    >
-                                      <Show when={active() || busy()} fallback={<span class="iconify mdi--play size-3.5 opacity-50" />}>
-                                         <span class="iconify mdi--loading animate-spin size-3.5" />
-                                      </Show>
-                                      <span class="font-bold tracking-tight">{task.label}</span>
-                                    </Button>
-                                    <Show when={active()}>
-                                      <Badge variant="secondary" round class="h-7 px-2 text-[10px] font-black uppercase tracking-wider">
-                                        {active()!.state}
-                                      </Badge>
-                                    </Show>
-                                    
-                                     <Show when={active()}>
-                                        <Button
-                                          type="button"
-                                          size="icon"
-                                          variant="ghost"
-                                          class="size-7 text-muted-foreground hover:text-foreground hover:bg-background/50"
-                                          onClick={() => m().attachToTask(active()!.id, task.label)}
-                                          title={t('projectDetail.taskViewOutput') as string}
-                                        >
-                                          <span class="iconify mdi--terminal size-4" />
-                                        </Button>
-                                        <Button
-                                          type="button"
-                                          size="icon"
-                                          variant="ghost"
-                                          class="size-7 text-muted-foreground hover:text-destructive hover:bg-destructive/5"
-                                          onClick={() => void m().onStopTask(active()!.id)}
-                                          title={t('projectDetail.taskStop') as string}
-                                        >
-                                          <span class="iconify mdi--stop size-4" />
-                                        </Button>
-                                     </Show>
-
-                                     <Show when={task.kind === "mise" || task.kind === "justfile"}>
-                                        <Badge variant="outline" round class="h-5 px-1.5 text-[9px] font-black uppercase tracking-wider border-primary/30 text-primary/70">
-                                          {task.kind === "mise" ? "mise" : "just"}
-                                        </Badge>
-                                     </Show>
-
-                                     <Show when={!active() && (task.kind === "mise" || task.kind === "justfile")}>
-                                        <DropdownMenu>
-                                          <DropdownMenuTrigger asChild>
-                                            <Button
-                                              type="button"
-                                              size="icon"
-                                              variant="ghost"
-                                              class="size-6 text-muted-foreground hover:text-foreground hover:bg-background/50"
-                                            >
-                                              <span class="iconify mdi--dots-vertical size-4" />
-                                            </Button>
-                                          </DropdownMenuTrigger>
-                                          <DropdownMenuContent class="w-40">
-                                            <DropdownMenuItem
-                                              onSelect={() => {
-                                                setEditingTask(task as TaskDto);
-                                                setTaskEditorOpen(true);
-                                              }}
-                                              class="gap-2 text-xs"
-                                            >
-                                              <span class="iconify mdi--pencil size-3.5" />
-                                              {t('projectDetail.editTask') as string}
-                                            </DropdownMenuItem>
-                                            <DropdownMenuItem
-                                              onSelect={() => setDeletingTask(task as TaskDto)}
-                                              class="gap-2 text-xs text-destructive focus:text-destructive focus:bg-destructive/10"
-                                            >
-                                              <span class="iconify mdi--delete-outline size-3.5" />
-                                              {t('projectDetail.deleteTask') as string}
-                                            </DropdownMenuItem>
-                                          </DropdownMenuContent>
-                                        </DropdownMenu>
-                                     </Show>
-                                   </div>
-                                );
-                              }}
-                            </For>
+                              </TooltipTrigger>
+                              <TooltipContent>{t("projectDetail.taskStop") as string}</TooltipContent>
+                            </Tooltip>
                           </div>
                         </div>
                       )}
                     </For>
-                  );
-                })()}
+                  </div>
+                </div>
+              </Show>
+              <For each={taskGroups()}>
+                {([name, tasks]) => {
+
+                    const findActiveSession = (argv: string[]) => {
+                      const cmd = normalizeCommand(argv.join(" "));
+                      return activeSessions().find((s) => normalizeCommand(s.command ?? "") === cmd);
+                    };
+
+                    return (
+                      <div class="space-y-2.5">
+                        <div class="flex items-center gap-2">
+                          <span class="text-[10px] font-bold uppercase tracking-wider text-muted-foreground/70">
+                            {name}
+                          </span>
+                          <div class="h-px flex-1 bg-border/40" />
+                        </div>
+                        <div class="flex flex-wrap gap-2">
+                          <For each={tasks}>
+                            {(task) => {
+                              const taskKey = `${name}::${task.label}::${task.argv.join("\u0000")}`;
+                              const busy = () => runningTaskKey() === taskKey;
+                              const active = () => findActiveSession(task.argv);
+                              
+                              const handleRun = async () => {
+                                if (active()) {
+                                  m().attachToTask(active()!.id, task.label);
+                                  return;
+                                }
+                                setRunningTaskKey(taskKey);
+                                try {
+                                  await m().runArgv(props.project(), task.argv, false, task.cwd);
+                                } finally {
+                                  setRunningTaskKey((current) => (current === taskKey ? null : current));
+                                }
+                              };
+
+                              return (
+                                <div class="flex items-center gap-1 rounded-md border border-border/40 bg-muted/10 p-1 transition-colors hover:bg-muted/20">
+                                  <Button
+                                    type="button"
+                                    size="sm"
+                                    variant={active() ? "default" : name === (t('projectDetail.taskGroupRoot') as string) ? "default" : "secondary"}
+                                    class={cn(
+                                      "h-7 gap-1.5 px-3 transition-all", 
+                                      active() && "bg-green-600 hover:bg-green-700 shadow-sm"
+                                    )}
+                                    disabled={busy()}
+                                    onClick={handleRun}
+                                  >
+                                    <Show when={active() || busy()} fallback={<span class="iconify mdi--play size-3.5 opacity-50" />}>
+                                       <span class="iconify mdi--loading animate-spin size-3.5" />
+                                    </Show>
+                                    <span class="font-bold tracking-tight">{task.label}</span>
+                                  </Button>
+                                  <Show when={active()}>
+                                    <Badge variant="secondary" round class="h-7 px-2 text-[10px] font-black uppercase tracking-wider">
+                                      {active()!.state}
+                                    </Badge>
+                                  </Show>
+                                  
+                                   <Show when={active()}>
+                                       <Tooltip>
+                                         <TooltipTrigger as={Button}
+                                           type="button"
+                                           size="icon"
+                                           variant="ghost"
+                                           class="size-7 text-muted-foreground hover:text-foreground hover:bg-background/50"
+                                           onClick={() => m().attachToTask(active()!.id, task.label)}
+                                         >
+                                           <span class="iconify mdi--terminal size-4" />
+                                         </TooltipTrigger>
+                                         <TooltipContent>{t('projectDetail.taskViewOutput') as string}</TooltipContent>
+                                       </Tooltip>
+                                       <Tooltip>
+                                         <TooltipTrigger as={Button}
+                                           type="button"
+                                           size="icon"
+                                           variant="ghost"
+                                           class="size-7 text-muted-foreground hover:text-destructive hover:bg-destructive/5"
+                                           onClick={() => void m().onStopTask(active()!.id)}
+                                         >
+                                           <span class="iconify mdi--stop size-4" />
+                                         </TooltipTrigger>
+                                         <TooltipContent>{t('projectDetail.taskStop') as string}</TooltipContent>
+                                       </Tooltip>
+                                   </Show>
+
+                                   <Show when={task.kind === "mise" || task.kind === "justfile"}>
+                                      <Badge variant="outline" round class="h-5 px-1.5 text-[9px] font-black uppercase tracking-wider border-primary/30 text-primary/70">
+                                        {task.kind === "mise" ? "mise" : "just"}
+                                      </Badge>
+                                   </Show>
+
+                                   <Show when={!active() && (task.kind === "mise" || task.kind === "justfile")}>
+                                      <DropdownMenu>
+                                        <DropdownMenuTrigger asChild>
+                                          <Button
+                                            type="button"
+                                            size="icon"
+                                            variant="ghost"
+                                            class="size-6 text-muted-foreground hover:text-foreground hover:bg-background/50"
+                                          >
+                                            <span class="iconify mdi--dots-vertical size-4" />
+                                          </Button>
+                                        </DropdownMenuTrigger>
+                                        <DropdownMenuContent class="w-40">
+                                          <DropdownMenuItem
+                                            onSelect={() => {
+                                              setEditingTask(task as TaskDto);
+                                              setTaskEditorOpen(true);
+                                            }}
+                                            class="gap-2 text-xs"
+                                          >
+                                            <span class="iconify mdi--pencil size-3.5" />
+                                            {t('projectDetail.editTask') as string}
+                                          </DropdownMenuItem>
+                                          <DropdownMenuItem
+                                            onSelect={() => setDeletingTask(task as TaskDto)}
+                                            class="gap-2 text-xs text-destructive focus:text-destructive focus:bg-destructive/10"
+                                          >
+                                            <span class="iconify mdi--delete-outline size-3.5" />
+                                            {t('projectDetail.deleteTask') as string}
+                                          </DropdownMenuItem>
+                                        </DropdownMenuContent>
+                                      </DropdownMenu>
+                                   </Show>
+                                 </div>
+                              );
+                            }}
+                          </For>
+                        </div>
+                      </div>
+                    );
+                  }}
+                </For>
               </div>
           </TabsContent>
           <TabsContent

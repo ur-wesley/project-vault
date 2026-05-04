@@ -98,7 +98,7 @@ export const ToolsSettingsTab: Component<ToolsSettingsTabProps> = (props) => {
                   {(s) => (
                     <div class="flex items-center gap-2 truncate">
                       <Show when={s.selectedOption()?.icon}>
-                        <span class={cn("iconify shrink-0 size-4", s.selectedOption()?.icon!)} />
+                        {(icon) => <span class={cn("iconify shrink-0 size-4", icon())} />}
                       </Show>
                       <span class="truncate">
                         {s.selectedOption()?.label ?? props.t("settings.defaultIdePlaceholder")}
@@ -141,7 +141,7 @@ export const ToolsSettingsTab: Component<ToolsSettingsTabProps> = (props) => {
                   {(s) => (
                       <div class="flex items-center gap-2 truncate">
                           <Show when={s.selectedOption()?.icon}>
-                              <span class={cn("iconify shrink-0 size-4", s.selectedOption()?.icon!)} />
+                              {(icon) => <span class={cn("iconify shrink-0 size-4", icon())} />}
                           </Show>
                           <span class="truncate">
                               {s.selectedOption()?.label ?? props.t("settings.defaultShellPlaceholder")}

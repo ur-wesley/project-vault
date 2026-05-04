@@ -115,6 +115,7 @@ pub async fn scan_library_location(
             last_edited_at_ms,
         };
         let project = db::upsert_project(&pool, &dto).await?;
+        crate::models::emit_project_changed(&app, &project.id, "scan");
         upserted += 1;
         indexed_project_ids.push((project.id, d.root));
     }

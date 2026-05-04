@@ -1,7 +1,7 @@
 use std::path::Path;
 use std::process::Command;
 use serde::{Deserialize, Serialize};
-use tauri::State;
+use tauri::{AppHandle, State};
 use tauri_plugin_sql::DbInstances;
 
 use crate::db;
@@ -15,6 +15,7 @@ pub struct GitStatusDto {
     pub behind: u32,
     pub is_dirty: bool,
     pub has_upstream: bool,
+    pub version: Option<String>,
 }
 
 fn run_git(cwd: &Path, args: &[&str]) -> Result<String, StableError> {
@@ -75,17 +76,22 @@ pub async fn get_git_status(
     let status = run_git(cwd, &["status", "--porcelain"])?;
     let is_dirty = !status.is_empty();
 
+    // 4. Version (latest tag or from version files)
+    let version = run_git(cwd, &["describe", "--tags", "--abbrev=0"]).ok();
+
     Ok(Some(GitStatusDto {
         branch,
         ahead,
         behind,
         is_dirty,
         has_upstream,
+        version,
     }))
 }
 
 #[tauri::command]
 pub async fn git_pull(
+    app: AppHandle,
     db: State<'_, DbInstances>,
     project_id: String,
 ) -> Result<(), StableError> {
@@ -94,11 +100,13 @@ pub async fn git_pull(
     let cwd = Path::new(&project.path);
 
     run_git(cwd, &["pull"])?;
+    crate::models::emit_project_changed(&app, &project_id, "git");
     Ok(())
 }
 
 #[tauri::command]
 pub async fn git_push(
+    app: AppHandle,
     db: State<'_, DbInstances>,
     project_id: String,
 ) -> Result<(), StableError> {
@@ -107,6 +115,7 @@ pub async fn git_push(
     let cwd = Path::new(&project.path);
 
     run_git(cwd, &["push"])?;
+    crate::models::emit_project_changed(&app, &project_id, "git");
     Ok(())
 }
 
@@ -229,6 +238,7 @@ pub async fn git_preview_versions(
 
 #[tauri::command]
 pub async fn git_tag_and_push(
+    app: AppHandle,
     db: State<'_, DbInstances>,
     project_id: String,
     bump: String,
@@ -261,6 +271,7 @@ pub async fn git_tag_and_push(
     run_git(cwd, &["push"])?;
     run_git(cwd, &["push", "origin", &new_tag])?;
 
+    crate::models::emit_project_changed(&app, &project_id, "version-bump");
     Ok(GitTagResultDto { new_tag })
 }
 
@@ -631,6 +642,7 @@ pub async fn git_discover_version_files(
 
 #[tauri::command]
 pub async fn git_bump_version_and_tag(
+    app: AppHandle,
     db: State<'_, DbInstances>,
     project_id: String,
     payload: BumpVersionAndTagPayload,
@@ -681,6 +693,8 @@ pub async fn git_bump_version_and_tag(
     run_git(cwd, &["tag", &new_tag])?;
     run_git(cwd, &["push"])?;
     run_git(cwd, &["push", "origin", &new_tag])?;
+
+    crate::models::emit_project_changed(&app, &project_id, "version-bump");
 
     Ok(GitTagResultDto { new_tag })
 }

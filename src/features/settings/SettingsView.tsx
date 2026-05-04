@@ -1,4 +1,4 @@
-import { Show, type Component } from "solid-js";
+import { type Component } from "solid-js";
 import { isTauri } from "@tauri-apps/api/core";
 import { ask } from "@tauri-apps/plugin-dialog";
 import { openPath } from "@tauri-apps/plugin-opener";

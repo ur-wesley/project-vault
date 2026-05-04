@@ -18,6 +18,7 @@ import { rescanAllLibraryFolders } from "~/lib/rescan-library";
 import { listProjects } from "~/services/tauri";
 import { queryKeys } from "~/services/query-keys";
 import type { ProjectDto } from "~/types/dto";
+import { Tooltip, TooltipContent, TooltipTrigger } from "~/components/ui/tooltip";
 
 export type CommandPaletteProps = ParentProps<{
   onOpenLocations: () => void;
@@ -145,17 +146,19 @@ export function CommandPalette(props: CommandPaletteProps) {
                       onSelect={() => selectProject(project)}
                     >
                       {project.name}
-                      <CommandShortcut
-                        class="flex max-w-[40%] items-center justify-end font-normal"
-                        title={project.stack}
-                      >
-                        <StackIcon
-                          stack={project.stack}
-                          class="h-3.5 w-3.5"
-                          title={project.stack}
-                        />
-                        <span class="sr-only">{project.stack}</span>
-                      </CommandShortcut>
+                      <Tooltip>
+                        <TooltipTrigger
+                          as={CommandShortcut}
+                          class="flex max-w-[40%] items-center justify-end font-normal"
+                        >
+                          <StackIcon
+                            stack={project.stack}
+                            class="h-3.5 w-3.5"
+                          />
+                          <span class="sr-only">{project.stack}</span>
+                        </TooltipTrigger>
+                        <TooltipContent>{project.stack}</TooltipContent>
+                      </Tooltip>
                     </CommandItem>
                   )}
                 </For>
@@ -171,13 +174,16 @@ export function CommandPalette(props: CommandPaletteProps) {
                     onSelect={() => selectProject(project)}
                   >
                     {project.name}
-                    <CommandShortcut
-                      class="flex max-w-[40%] items-center justify-end font-normal"
-                      title={project.stack}
-                    >
-                      <StackIcon stack={project.stack} class="h-3.5 w-3.5" title={project.stack} />
-                      <span class="sr-only">{project.stack}</span>
-                    </CommandShortcut>
+                    <Tooltip>
+                      <TooltipTrigger
+                        as={CommandShortcut}
+                        class="flex max-w-[40%] items-center justify-end font-normal"
+                      >
+                        <StackIcon stack={project.stack} class="h-3.5 w-3.5" />
+                        <span class="sr-only">{project.stack}</span>
+                      </TooltipTrigger>
+                      <TooltipContent>{project.stack}</TooltipContent>
+                    </Tooltip>
                   </CommandItem>
                 )}
               </For>

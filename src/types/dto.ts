@@ -195,6 +195,7 @@ export type GitStatusDto = {
   behind: number;
   isDirty: boolean;
   hasUpstream: boolean;
+  version?: string | null;
 };
 
 export type GitTagResultDto = {

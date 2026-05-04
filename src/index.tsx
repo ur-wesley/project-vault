@@ -7,6 +7,7 @@ import App from "./App";
 import { EventHubProvider } from "./lib/event-hub-context";
 import { I18nProvider } from "./lib/i18n-context";
 import { ShortcutProvider } from "./lib/shortcut-context";
+import { useRealtimeProjects } from "./lib/use-realtime-projects";
 import { queryKeys } from "./services/query-keys";
 
 const queryClient = new QueryClient({
@@ -19,6 +20,8 @@ const queryClient = new QueryClient({
 });
 
 const Root: ParentComponent = (props) => {
+  useRealtimeProjects();
+
   onMount(() => {
     let unlisten: (() => void) | undefined;
     void listen("session:ended", () => {

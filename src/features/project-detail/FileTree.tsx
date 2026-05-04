@@ -1,6 +1,7 @@
+import { listen } from "@tauri-apps/api/event";
 import { readDir, readFile, type DirEntry } from "@tauri-apps/plugin-fs";
 import { join } from "@tauri-apps/api/path";
-import { For, Show, createEffect, createSignal, createResource, createMemo } from "solid-js";
+import { For, Show, createEffect, createSignal, createResource, createMemo, onMount, onCleanup } from "solid-js";
 import { createHighlighter } from "shiki";
 import { createQuery } from "@tanstack/solid-query";
 import { cn } from "~/lib/utils";
@@ -10,6 +11,7 @@ import { formatBytes } from "~/lib/format-bytes";
 import { toast } from "solid-sonner";
 import { queryKeys } from "~/services/query-keys";
 import { Popover, PopoverContent, PopoverTrigger } from "~/components/ui/popover";
+import { Tooltip, TooltipContent, TooltipTrigger } from "~/components/ui/tooltip";
 import type { SearchHitDto } from "~/types/dto";
 
 const SKIP = new Set([
@@ -376,14 +378,17 @@ function FilePreview(props: {
       <div class="flex items-center justify-between px-3 py-1.5 bg-muted/20 border-b border-border/40 shrink-0 gap-3">
         <div class="flex items-center gap-2 min-w-0">
           <Show when={props.onBackToResults}>
-            <button
-              type="button"
-              class="inline-flex items-center justify-center rounded-md p-1 text-muted-foreground hover:bg-muted/50 hover:text-foreground transition-colors"
-              onClick={props.onBackToResults}
-              title={props.backLabel ?? (t("projectDetail.searchResults") as string)}
-            >
-              <span class="iconify mdi--arrow-left h-3.5 w-3.5" />
-            </button>
+            <Tooltip>
+              <TooltipTrigger
+                as="button"
+                type="button"
+                class="inline-flex items-center justify-center rounded-md p-1 text-muted-foreground hover:bg-muted/50 hover:text-foreground transition-colors"
+                onClick={props.onBackToResults}
+              >
+                <span class="iconify mdi--arrow-left h-3.5 w-3.5" />
+              </TooltipTrigger>
+              <TooltipContent>{props.backLabel ?? (t("projectDetail.searchResults") as string)}</TooltipContent>
+            </Tooltip>
           </Show>
           <span class="iconify mdi--file-document h-3.5 w-3.5 text-muted-foreground shrink-0" />
           <span class="text-[10px] font-mono text-muted-foreground truncate">
@@ -513,6 +518,41 @@ export function FileTree(props: { rootPath: string; projectId: string }) {
     },
   }));
 
+  // Auto-build or rebuild index when component mounts
+  createEffect(() => {
+    const meta = indexMetaQ.data;
+    if (indexBusy()) return;
+    if (!meta) {
+      setIndexBusy(true);
+      void indexProject(props.projectId).then(
+        () => setIndexBusy(false),
+        () => setIndexBusy(false),
+      );
+      return;
+    }
+    const ONE_HOUR = 60 * 60 * 1000;
+    if (meta.lastUpdatedMs && Date.now() - meta.lastUpdatedMs > ONE_HOUR) {
+      setIndexBusy(true);
+      void rebuildIndex(props.projectId).then(
+        () => setIndexBusy(false),
+        () => setIndexBusy(false),
+      );
+    }
+  });
+
+  // Listen for background index completion
+  onMount(() => {
+    let unlisten: (() => void) | undefined;
+    void (async () => {
+      unlisten = await listen<{ projectId: string }>("index:built", (ev) => {
+        if (ev.payload.projectId === props.projectId) {
+          void indexMetaQ.refetch();
+        }
+      });
+    })();
+    onCleanup(() => unlisten?.());
+  });
+
   const searchQ = createQuery(() => ({
     queryKey: queryKeys.projectSearch(props.projectId, activeQuery()),
     queryFn: async () => {
@@ -618,31 +658,38 @@ export function FileTree(props: { rootPath: string; projectId: string }) {
           </div>
 
           <Show when={!indexMetaQ.data}>
-            <button
-              type="button"
-              class="inline-flex shrink-0 items-center gap-1 rounded-md bg-primary px-2 py-1 text-[10px] font-bold text-primary-foreground hover:bg-primary/90 disabled:opacity-50"
-              disabled={indexBusy()}
-              onClick={onIndexProject}
-              title={t("projectDetail.indexProject") as string}
-            >
-              <Show when={indexBusy()}>
-                <span class="iconify mdi--loading animate-spin h-3 w-3" />
-              </Show>
-              <span class="iconify mdi--database-plus h-3.5 w-3.5" />
-            </button>
+            <Tooltip>
+              <TooltipTrigger
+                as="button"
+                type="button"
+                class="inline-flex shrink-0 items-center gap-1 rounded-md bg-primary px-2 py-1 text-[10px] font-bold text-primary-foreground hover:bg-primary/90 disabled:opacity-50"
+                disabled={indexBusy()}
+                onClick={onIndexProject}
+              >
+                <Show when={indexBusy()}>
+                  <span class="iconify mdi--loading animate-spin h-3 w-3" />
+                </Show>
+                <span class="iconify mdi--database-plus h-3.5 w-3.5" />
+              </TooltipTrigger>
+              <TooltipContent>{t("projectDetail.indexProject") as string}</TooltipContent>
+            </Tooltip>
           </Show>
 
           <Show when={indexMetaQ.data}>
             {(meta) => (
               <Popover gutter={4}>
-                <PopoverTrigger
-                  as="button"
-                  type="button"
-                  class="inline-flex shrink-0 items-center justify-center rounded-md p-1 text-muted-foreground hover:bg-muted/50 hover:text-foreground transition-colors"
-                  title={t("projectDetail.searchResults") as string}
-                >
-                  <span class="iconify mdi--dots-vertical h-4 w-4" />
-                </PopoverTrigger>
+                <Tooltip>
+                  <TooltipTrigger as="div">
+                    <PopoverTrigger
+                      as="button"
+                      type="button"
+                      class="inline-flex shrink-0 items-center justify-center rounded-md p-1 text-muted-foreground hover:bg-muted/50 hover:text-foreground transition-colors"
+                    >
+                      <span class="iconify mdi--dots-vertical h-4 w-4" />
+                    </PopoverTrigger>
+                  </TooltipTrigger>
+                  <TooltipContent>{t("projectDetail.searchResults") as string}</TooltipContent>
+                </Tooltip>
                 <PopoverContent class="w-56 p-2.5 space-y-2 text-foreground shadow-xl border-border/40">
                   <div class="space-y-1.5">
                     <div class="flex items-center justify-between">

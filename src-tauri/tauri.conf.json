@@ -26,6 +26,94 @@
     }
   },
   "plugins": {
+    "cli": {
+      "description": "Project Vault CLI",
+      "subcommands": {
+        "issue": {
+          "description": "Manage issues",
+          "subcommands": {
+            "list": {
+              "description": "List issues"
+            },
+            "view": {
+              "description": "View an issue",
+              "args": [
+                {
+                  "name": "number",
+                  "index": 1,
+                  "required": true
+                }
+              ]
+            },
+            "create": {
+              "description": "Create a new issue",
+              "args": [
+                {
+                  "name": "title",
+                  "short": "t",
+                  "takesValue": true
+                },
+                {
+                  "name": "body",
+                  "short": "b",
+                  "takesValue": true
+                }
+              ]
+            },
+            "edit": {
+              "description": "Edit an issue",
+              "args": [
+                {
+                  "name": "number",
+                  "index": 1,
+                  "required": true
+                },
+                {
+                  "name": "title",
+                  "short": "t",
+                  "takesValue": true
+                },
+                {
+                  "name": "body",
+                  "short": "b",
+                  "takesValue": true
+                }
+              ]
+            },
+            "close": {
+              "description": "Close an issue",
+              "args": [
+                {
+                  "name": "number",
+                  "index": 1,
+                  "required": true
+                }
+              ]
+            },
+            "reopen": {
+              "description": "Reopen an issue",
+              "args": [
+                {
+                  "name": "number",
+                  "index": 1,
+                  "required": true
+                }
+              ]
+            },
+            "delete": {
+              "description": "Delete an issue",
+              "args": [
+                {
+                  "name": "number",
+                  "index": 1,
+                  "required": true
+                }
+              ]
+            }
+          }
+        }
+      }
+    },
     "sql": {
       "preload": [
         "sqlite:project-vault.db"

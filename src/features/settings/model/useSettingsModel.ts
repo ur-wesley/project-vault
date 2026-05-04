@@ -20,7 +20,7 @@ import { stableErrorMessage } from "~/lib/invoke-error";
 import { queryKeys } from "~/services/query-keys";
 import { rescanAllLibraryFolders } from "~/lib/rescan-library";
 import type { Locale } from "~/messages";
-import type { StableError } from "~/types/error";
+
 
 const SHELL_KEY = "shell_path";
 const SCAN_KEY = "scan_interval_minutes";
@@ -229,8 +229,10 @@ export function useSettingsModel(props: UseSettingsModelProps) {
       const a = document.createElement("a");
       a.href = url;
       a.download = `project-vault-export-${r.value.exportedAtMs}.json`;
+      document.body.appendChild(a);
       a.click();
-      URL.revokeObjectURL(url);
+      document.body.removeChild(a);
+      setTimeout(() => URL.revokeObjectURL(url), 0);
     } finally {
       setBusy(false);
     }

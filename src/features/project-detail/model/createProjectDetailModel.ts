@@ -273,6 +273,7 @@ export function createProjectDetailModel(props: ProjectDetailViewProps) {
       if (r.isErr()) throw new Error(r.error.message);
       return r.value;
     },
+    refetchInterval: 30_000,
   }));
 
   const miseToolsQ = createQuery(() => ({
@@ -291,6 +292,7 @@ export function createProjectDetailModel(props: ProjectDetailViewProps) {
       if (r.isErr()) throw new Error(r.error.message);
       return r.value;
     },
+    refetchInterval: 30_000,
   }));
 
   const pinMiseToolsMu = createMutation(() => ({
@@ -318,20 +320,8 @@ export function createProjectDetailModel(props: ProjectDetailViewProps) {
     setMiseSuggestionsDismissed(true);
   };
 
-  createEffect(() => {
-    if (ghQ.isPending) return;
-    if (props.detailTab() === "issues" && ghQ.data == null) {
-      props.onDetailTabChange("readme");
-    }
-  });
-
   const activeDetailTab = createMemo((): string => {
-    const choice = props.detailTab();
-    const gh = ghQ.data;
-    if (choice === "issues" && gh == null) {
-      return "readme";
-    }
-    return choice;
+    return props.detailTab();
   });
 
   const favMu = createMutation(() => ({
@@ -390,6 +380,7 @@ export function createProjectDetailModel(props: ProjectDetailViewProps) {
       });
       void qc.invalidateQueries({ queryKey: queryKeys.projects });
       void qc.removeQueries({ queryKey: queryKeys.project(variables.id) });
+      toast.success(t("projectDetail.projectDeleted") as string);
       props.onBack();
     },
     onError: (err: unknown) => {

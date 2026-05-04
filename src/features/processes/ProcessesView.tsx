@@ -4,6 +4,7 @@ import { createStore } from "solid-js/store";
 
 import { Button } from "~/components/ui/button";
 import { Badge } from "~/components/ui/badge";
+import { Tooltip, TooltipContent, TooltipTrigger } from "~/components/ui/tooltip";
 import { useI18n } from "~/lib/i18n-context";
 import {
   listAllProcesses,
@@ -228,15 +229,18 @@ export const ProcessesView: Component<{
                           </div>
                         </div>
 
-                        <Button
-                          variant="ghost"
-                          size="icon"
-                          class="size-8 shrink-0 text-destructive hover:bg-destructive/10"
-                          onClick={() => void handleKill(proc)}
-                          title={t("processes.kill") as string}
-                        >
-                          <span class="iconify mdi--close-octagon-outline size-4" />
-                        </Button>
+                        <Tooltip>
+                          <TooltipTrigger
+                            as={Button}
+                            variant="ghost"
+                            size="icon"
+                            class="size-8 shrink-0 text-destructive hover:bg-destructive/10"
+                            onClick={() => void handleKill(proc)}
+                          >
+                            <span class="iconify mdi--close-octagon-outline size-4" />
+                          </TooltipTrigger>
+                          <TooltipContent>{t("processes.kill") as string}</TooltipContent>
+                        </Tooltip>
                       </div>
                     )}
                   </For>

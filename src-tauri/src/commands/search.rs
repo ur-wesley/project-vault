@@ -1,6 +1,6 @@
 use std::path::PathBuf;
 
-use tauri::{AppHandle, Manager, State};
+use tauri::{AppHandle, Emitter, Manager, State};
 use tauri_plugin_sql::DbInstances;
 
 use crate::db;
@@ -38,6 +38,7 @@ pub async fn index_project(
         .map_err(|e| StableError::new(crate::error::codes::INTERNAL, format!("app data dir: {e}")))?;
 
     let meta = build_project_index(&app_data_dir, &project_id, PathBuf::from(&project.path).as_path())?;
+    let _ = app.emit("index:built", serde_json::json!({ "projectId": project_id }));
     Ok(IndexMetaDto {
         indexed_files: meta.indexed_files,
         index_size_bytes: meta.index_size_bytes,

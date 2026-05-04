@@ -4,6 +4,7 @@ pub mod discovery;
 mod disk_volume;
 pub mod error;
 mod fs_scope_util;
+pub mod issues;
 #[cfg(not(any(target_os = "android", target_os = "ios")))]
 mod ide;
 pub mod models;
@@ -66,6 +67,12 @@ pub fn run() {
                             sql: include_str!("../migrations/006_size_bytes.sql"),
                             kind: MigrationKind::Up,
                         },
+                        Migration {
+                            version: 7,
+                            description: "issues",
+                            sql: include_str!("../migrations/007_issues.sql"),
+                            kind: MigrationKind::Up,
+                        },
                     ],
                 )
                 .build(),
@@ -74,6 +81,7 @@ pub fn run() {
         .plugin(tauri_plugin_fs::init())
         .plugin(tauri_plugin_persisted_scope::init())
         .plugin(tauri_plugin_os::init())
+        .plugin(tauri_plugin_cli::init())
         .plugin(tauri_plugin_dialog::init())
         .plugin(tauri_plugin_clipboard::init())
         .plugin(tauri_plugin_shell::init())
@@ -85,6 +93,16 @@ pub fn run() {
         .manage(crate::spawn::ProjectIdeSessions::default())
         .manage(crate::spawn::TaskMonitors::default())
         .setup(|app| {
+            use tauri_plugin_cli::CliExt;
+            if let Ok(matches) = app.cli().matches() {
+                let db_instances = app.state::<tauri_plugin_sql::DbInstances>();
+                tauri::async_runtime::block_on(async {
+                    if let Ok(pool) = db::sqlite_pool(&*db_instances).await {
+                        let _ = crate::issues::cli::handle_cli_matches(matches, pool).await;
+                    }
+                });
+            }
+
             let handle = app.handle().clone();
             let db = app.state::<tauri_plugin_sql::DbInstances>();
             let monitors = app.state::<crate::spawn::TaskMonitors>().clone();
@@ -148,10 +166,14 @@ pub fn run() {
             commands::projects::import_project,
             commands::projects::list_projects,
             commands::projects::get_project,
+            commands::projects::move_project,
             commands::projects::delete_project,
-            commands::projects::get_project_languages,
             commands::projects::set_project_favorite,
+            commands::projects::set_project_tag,
+            commands::projects::remove_project_tag,
             commands::projects::touch_project_opened,
+
+            commands::projects::refresh_project,
             commands::projects::move_project,
             commands::projects::get_project_mise_tools,
             commands::projects::suggest_mise_tools,
@@ -210,6 +232,12 @@ pub fn run() {
             commands::search::update_index_for_file,
             commands::updater::check_for_updates,
             commands::updater::install_update,
+            commands::issues::list_issues,
+            commands::issues::get_issue,
+            commands::issues::create_issue,
+            commands::issues::update_issue,
+            commands::issues::delete_issue,
+            commands::issues::delete_all_local_issues,
         ])
         .run(tauri::generate_context!())
         .expect("error while running tauri application");

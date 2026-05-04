@@ -1,14 +1,14 @@
 import { createQuery, useQueryClient } from "@tanstack/solid-query";
-import { For, Show, type Accessor, createMemo, createSignal, onMount, onCleanup, createEffect, untrack } from "solid-js";
+import { Show, type Accessor, createMemo, createSignal, onMount, onCleanup, createEffect } from "solid-js";
 
 import iconUrl from "../icon.png";
 
 import {
   readAppUrl,
-  replaceUrlToLibrary,
-  replaceUrlToProcesses,
-  replaceUrlToProject,
-  replaceUrlToSettings,
+  pushUrlToLibrary,
+  pushUrlToProcesses,
+  pushUrlToProject,
+  pushUrlToSettings,
 } from "~/lib/app-url";
 
 import { CommandPalette } from "~/features/command-palette";
@@ -26,7 +26,7 @@ import { rescanAllLibraryFolders } from "~/lib/rescan-library";
 import { stableErrorMessage } from "~/lib/invoke-error";
 import { GITHUB_TOKEN_SETTING_KEY, fetchGitHubViewer } from "~/services/github";
 import { runGithubDeviceSignIn } from "~/services/github-device-signin";
-import { getProject, getSetting, isGithubDeviceConfigured, setSetting, listAllProcesses, listLocations, listProjects, checkForUpdates } from "~/services/tauri";
+import { getProject, getSetting, isGithubDeviceConfigured, setSetting, listAllProcesses, listLocations, listProjects, checkForUpdates, stopAllProjectProcesses } from "~/services/tauri";
 import { queryKeys } from "~/services/query-keys";
 import { isTauri } from "@tauri-apps/api/core";
 import { getCurrentWindow } from "@tauri-apps/api/window";
@@ -37,13 +37,14 @@ import { Button } from "~/components/ui/button";
 import { Toaster } from "~/components/ui/sonner";
 import { toast } from "solid-sonner";
 import {
-  DropdownMenu,
-  DropdownMenuContent,
-  DropdownMenuItem,
-  DropdownMenuLabel,
-  DropdownMenuSeparator,
-  DropdownMenuTrigger,
-} from "~/components/ui/dropdown-menu";
+  ContextMenu,
+  ContextMenuContent,
+  ContextMenuItem,
+  ContextMenuSeparator,
+  ContextMenuTrigger,
+} from "~/components/ui/context-menu";
+
+import { Tooltip, TooltipContent, TooltipTrigger } from "~/components/ui/tooltip";
 import {
   Sidebar,
   SidebarContent,
@@ -167,11 +168,13 @@ function App() {
   const [detailTab, setDetailTab] = createSignal(initialUrl.tab);
   const [subDetail, setSubDetail] = createSignal<string | null>(initialUrl.subDetail);
   const [settingsTab, setSettingsTab] = createSignal(initialUrl.settingsTab);
-  const [ghSignInBusy, setGhSignInBusy] = createSignal(false);
+  const [_ghSignInBusy, setGhSignInBusy] = createSignal(false);
   const [commandPaletteOpen, setCommandPaletteOpen] = createSignal(false);
   const [pathname, setPathname] = createSignal(
     typeof window !== "undefined" ? window.location.pathname : "/"
   );
+
+  let pendingPopstateSync = 0;
 
   const locQ = createQuery(() => ({
     queryKey: queryKeys.locations,
@@ -288,7 +291,7 @@ function App() {
     onCleanup(() => listener());
   });
 
-  const ghDeviceReadyQ = createQuery(() => ({
+  const _ghDeviceReadyQ = createQuery(() => ({
     queryKey: ["app", "github", "device", "ready"] as const,
     queryFn: async () => {
       if (!isTauri()) return false;
@@ -356,6 +359,7 @@ function App() {
 
   onMount(() => {
     const onPopState = () => {
+      pendingPopstateSync++;
       const n = readAppUrl();
       setActiveView(n.view);
       setProjectDetailId(n.projectId);
@@ -378,9 +382,20 @@ function App() {
       e.preventDefault();
     };
 
+    const onMouseDown = (e: MouseEvent) => {
+      if (e.button === 3) {
+        e.preventDefault();
+        window.history.back();
+      } else if (e.button === 4) {
+        e.preventDefault();
+        window.history.forward();
+      }
+    };
+
     window.addEventListener("popstate", onPopState);
     window.addEventListener("keydown", preventDefaultShortcuts);
     window.addEventListener("contextmenu", preventContextMenu);
+    window.addEventListener("mousedown", onMouseDown);
 
     // Auto-check for updates on startup if enabled
     void (async () => {
@@ -411,6 +426,7 @@ function App() {
       window.removeEventListener("popstate", onPopState);
       window.removeEventListener("keydown", preventDefaultShortcuts);
       window.removeEventListener("contextmenu", preventContextMenu);
+      window.removeEventListener("mousedown", onMouseDown);
     });
   });
 
@@ -428,24 +444,30 @@ function App() {
     const sub = subDetail();
     const sTab = settingsTab();
 
+    if (pendingPopstateSync > 0) {
+      pendingPopstateSync--;
+      setPathname(window.location.pathname);
+      return;
+    }
+
     if (v === "settings") {
-      replaceUrlToSettings(sTab);
+      pushUrlToSettings(sTab);
       setPathname(window.location.pathname);
       return;
     }
 
     if (v === "processes") {
-      replaceUrlToProcesses();
+      pushUrlToProcesses();
       setPathname(window.location.pathname);
       return;
     }
 
     if (id == null) {
-      replaceUrlToLibrary();
+      pushUrlToLibrary();
       setPathname(window.location.pathname);
       return;
     }
-    replaceUrlToProject(id, tab, sub);
+    pushUrlToProject(id, tab, sub);
     setPathname(window.location.pathname);
   });
 
@@ -499,11 +521,11 @@ function App() {
     }
   });
 
-  const onHeaderSignIn = async () => {
+  const _onHeaderSignIn = async () => {
     if (!isTauri()) return;
     setGhSignInBusy(true);
     toast.dismiss("github-signin");
-    const busyToast = toast.loading(t("account.signInBusy") as string, { id: "github-signin" });
+    toast.loading(t("account.signInBusy") as string, { id: "github-signin" });
     try {
       const r = await runGithubDeviceSignIn({
         onUserCode: (code) => {
@@ -599,68 +621,115 @@ function App() {
             />
           </SidebarContent>
           <SidebarFooter class="border-t border-sidebar-border px-2 py-1.5">
-            <Button
-              variant="ghost"
-              size="sm"
-              class={
-                "h-7 w-full justify-start gap-2 px-1.5 text-sidebar-foreground hover:bg-sidebar-accent hover:text-sidebar-accent-foreground " +
-                (activeView() === "processes" ? "bg-sidebar-accent text-sidebar-accent-foreground" : "")
-              }
-              onClick={() => setActiveView("processes")}
-            >
-              <span class="iconify mdi--application-cog-outline size-6 opacity-70" />
-              <span class="text-xs">{t("processes.title") as string}</span>
-              <Show when={runningProcessCount() > 0}>
-                <span class="ml-auto flex h-4 min-w-4 items-center justify-center rounded-full bg-primary px-1 text-[9px] font-bold text-primary-foreground">
-                  {runningProcessCount()}
-                </span>
-              </Show>
-            </Button>
-            <div class="flex items-center gap-1">
-              <Button
-                variant="ghost"
-                class="h-8 flex-1 min-w-0 justify-start gap-2 px-1.5 text-left text-sidebar-foreground hover:bg-sidebar-accent hover:text-sidebar-accent-foreground"
-                onClick={() => {
-                  setActiveView("settings");
-                  setSettingsTab("accounts");
-                }}
-                title={t("settings.tabAccounts") as string}
-              >
-                <Avatar class="size-6 shrink-0">
-                  <Show
-                    when={ghViewerQ.data != null && (ghViewerQ.data!.avatarUrl?.length ?? 0) > 0}
-                  >
-                    <AvatarImage
-                      class="object-cover"
-                      src={ghViewerQ.data!.avatarUrl ?? undefined}
-                      alt={ghViewerQ.data?.login ?? ""}
-                    />
+            <ContextMenu>
+              <ContextMenuTrigger as="div" class="contents">
+                <Button
+                  variant="ghost"
+                  size="sm"
+                  class={
+                    "h-7 w-full justify-start gap-2 px-1.5 text-sidebar-foreground hover:bg-sidebar-accent hover:text-sidebar-accent-foreground " +
+                    (activeView() === "processes" ? "bg-sidebar-accent text-sidebar-accent-foreground" : "")
+                  }
+                  onClick={() => setActiveView("processes")}
+                >
+                  <span class="iconify mdi--application-cog-outline size-6 opacity-70" />
+                  <span class="text-xs">{t("processes.title") as string}</span>
+                  <Show when={runningProcessCount() > 0}>
+                    <span class="ml-auto flex h-4 min-w-4 items-center justify-center rounded-full bg-primary px-1 text-[9px] font-bold text-primary-foreground">
+                      {runningProcessCount()}
+                    </span>
                   </Show>
-                  <AvatarFallback class="bg-primary/20 text-xs font-medium text-primary">
-                    {ghViewerQ.isLoading
-                      ? "…"
-                      : (ghViewerQ.data?.login?.slice(0, 2).toUpperCase() ?? "?")}
-                  </AvatarFallback>
-                </Avatar>
-                <span class="min-w-0 flex-1 truncate text-left text-xs font-medium">
-                  {ghViewerQ.data != null
-                    ? ghViewerQ.data.login
-                    : (t("account.notSignedIn") as string)}
-                </span>
-              </Button>
+                </Button>
+              </ContextMenuTrigger>
+              <ContextMenuContent>
+                <ContextMenuItem
+                  onSelect={() => {
+                    const running = (processesQ.data ?? []).filter(
+                      (p) => p.state === "running" || p.state === "starting",
+                    );
+                    const projectIds = new Set(running.map((p) => p.projectId));
+                    for (const pid of projectIds) {
+                      void stopAllProjectProcesses(pid);
+                    }
+                  }}
+                >
+                  <span class="iconify mdi--close-circle-outline size-4" />
+                  <span>Close everything</span>
+                </ContextMenuItem>
+              </ContextMenuContent>
+            </ContextMenu>
+            <div class="flex items-center gap-1">
+              <ContextMenu>
+                <ContextMenuTrigger as="div" class="contents">
+                  <Tooltip>
+                    <TooltipTrigger
+                      as={Button}
+                      variant="ghost"
+                      class="h-8 flex-1 min-w-0 justify-start gap-2 px-1.5 text-left text-sidebar-foreground hover:bg-sidebar-accent hover:text-sidebar-accent-foreground"
+                      onClick={() => {
+                        setActiveView("settings");
+                        setSettingsTab("accounts");
+                      }}
+                    >
+                      <Avatar class="size-6 shrink-0">
+                        <Show
+                          when={ghViewerQ.data != null && (ghViewerQ.data!.avatarUrl?.length ?? 0) > 0}
+                        >
+                          <AvatarImage
+                            class="object-cover"
+                            src={ghViewerQ.data!.avatarUrl ?? undefined}
+                            alt={ghViewerQ.data?.login ?? ""}
+                          />
+                        </Show>
+                        <AvatarFallback class="bg-primary/20 text-xs font-medium text-primary">
+                          {ghViewerQ.isLoading
+                            ? "…"
+                            : (ghViewerQ.data?.login?.slice(0, 2).toUpperCase() ?? "?")}
+                        </AvatarFallback>
+                      </Avatar>
+                      <span class="min-w-0 flex-1 truncate text-left text-xs font-medium">
+                        {ghViewerQ.data != null
+                          ? ghViewerQ.data.login
+                          : (t("account.notSignedIn") as string)}
+                      </span>
+                    </TooltipTrigger>
+                    <TooltipContent>{t("settings.tabAccounts") as string}</TooltipContent>
+                  </Tooltip>
+                </ContextMenuTrigger>
+                <ContextMenuContent>
+                  <Show when={ghViewerQ.data}>
+                    <ContextMenuItem
+                      onSelect={() =>
+                        onOpenGitHubProfile(`https://github.com/${ghViewerQ.data!.login}`)
+                      }
+                    >
+                      <span class="iconify mdi--github size-4" />
+                      <span>View GitHub profile</span>
+                    </ContextMenuItem>
+                    <ContextMenuSeparator />
+                  </Show>
+                  <ContextMenuItem onSelect={() => void onSignOut()}>
+                    <span class="iconify mdi--logout size-4" />
+                    <span>Logout</span>
+                  </ContextMenuItem>
+                </ContextMenuContent>
+              </ContextMenu>
 
-              <Button
-                variant="ghost"
-                size="icon"
-                class="size-7 shrink-0 text-sidebar-foreground/60 hover:text-sidebar-foreground"
-                onClick={() => {
-                  setActiveView("settings");
-                  setSettingsTab("general");
-                }}
-                title={t("settings.title") as string}
-              >
-                <span class="iconify mdi--cog-outline size-4" />
-              </Button>
+              <Tooltip>
+                <TooltipTrigger
+                  as={Button}
+                  variant="ghost"
+                  size="icon"
+                  class="size-7 shrink-0 text-sidebar-foreground/60 hover:text-sidebar-foreground"
+                  onClick={() => {
+                    setActiveView("settings");
+                    setSettingsTab("general");
+                  }}
+                >
+                  <span class="iconify mdi--cog-outline size-4" />
+                </TooltipTrigger>
+                <TooltipContent>{t("settings.title") as string}</TooltipContent>
+              </Tooltip>
             </div>
           </SidebarFooter>
         </Sidebar>

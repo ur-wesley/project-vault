@@ -1,5 +1,5 @@
 use serde::Deserialize;
-use tauri::State;
+use tauri::{AppHandle, State};
 use tauri_plugin_sql::DbInstances;
 
 use crate::db;
@@ -46,6 +46,7 @@ fn merge_config_tasks(existing: &[TaskDto], config_tasks: &[TaskDto]) -> Vec<Tas
 
 #[tauri::command]
 pub async fn write_project_task(
+    app: AppHandle,
     db: State<'_, DbInstances>,
     payload: WriteTaskPayload,
 ) -> Result<(), StableError> {
@@ -59,12 +60,14 @@ pub async fn write_project_task(
     let config = task_config::read_project_tasks(path);
     let merged = merge_config_tasks(&project.tasks, &config.tasks);
     db::update_project_tasks(&pool, &payload.project_id, &merged).await?;
+    crate::models::emit_project_changed(&app, &payload.project_id, "tasks");
 
     Ok(())
 }
 
 #[tauri::command]
 pub async fn delete_project_task(
+    app: AppHandle,
     db: State<'_, DbInstances>,
     payload: DeleteTaskPayload,
 ) -> Result<(), StableError> {
@@ -78,6 +81,7 @@ pub async fn delete_project_task(
     let config = task_config::read_project_tasks(path);
     let merged = merge_config_tasks(&project.tasks, &config.tasks);
     db::update_project_tasks(&pool, &payload.project_id, &merged).await?;
+    crate::models::emit_project_changed(&app, &payload.project_id, "tasks");
 
     Ok(())
 }

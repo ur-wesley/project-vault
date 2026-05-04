@@ -96,6 +96,10 @@ export function getProject(id: string): ResultAsync<ProjectDto, StableError> {
   return ResultAsync.fromPromise(invoke<ProjectDto>("get_project", { id }), mapInvokeError);
 }
 
+export function refreshProject(id: string): ResultAsync<ProjectDto, StableError> {
+  return ResultAsync.fromPromise(invoke<ProjectDto>("refresh_project", { id }), mapInvokeError);
+}
+
 export function getProjectLanguages(
   projectId: string,
 ): ResultAsync<Record<string, number>, StableError> {
@@ -181,6 +185,20 @@ export function setProjectFavorite(
 
   return ResultAsync.fromPromise(
     invoke<ProjectDto>("set_project_favorite", { payload }),
+    mapInvokeError,
+  );
+}
+
+export function setProjectTag(payload: { id: string; tag: string }): ResultAsync<ProjectDto, StableError> {
+  return ResultAsync.fromPromise(
+    invoke<ProjectDto>("set_project_tag", { payload }),
+    mapInvokeError,
+  );
+}
+
+export function removeProjectTag(payload: { id: string; tag: string }): ResultAsync<ProjectDto, StableError> {
+  return ResultAsync.fromPromise(
+    invoke<ProjectDto>("remove_project_tag", { payload }),
     mapInvokeError,
   );
 }
@@ -615,6 +633,80 @@ export function checkForUpdates(): ResultAsync<UpdateInfoDto | null, StableError
 export function installUpdate(): ResultAsync<void, StableError> {
   return ResultAsync.fromPromise(
     invoke<void>("install_update"),
+    mapInvokeError,
+  );
+}
+
+export type LocalIssueDto = {
+  id?: number;
+  number: number;
+  title: string;
+  body: string | null;
+  state: string;
+  tags: string[];
+  createdAtMs: number;
+  updatedAtMs: number;
+  closedAtMs: number | null;
+};
+
+export type CreateIssueInput = {
+  title: string;
+  body: string | null;
+  tags: string[];
+};
+
+export type UpdateIssueInput = {
+  title?: string;
+  body?: string | null;
+  state?: string;
+  tags?: string[];
+};
+
+export function listIssues(projectId: string): ResultAsync<LocalIssueDto[], StableError> {
+  return ResultAsync.fromPromise(
+    invoke<LocalIssueDto[]>("list_issues", { projectId }),
+    mapInvokeError,
+  );
+}
+
+export function getIssue(projectId: string, number: number): ResultAsync<LocalIssueDto, StableError> {
+  return ResultAsync.fromPromise(
+    invoke<LocalIssueDto>("get_issue", { projectId, number }),
+    mapInvokeError,
+  );
+}
+
+export function createIssueLocal(
+  projectId: string,
+  input: CreateIssueInput,
+): ResultAsync<LocalIssueDto, StableError> {
+  return ResultAsync.fromPromise(
+    invoke<LocalIssueDto>("create_issue", { projectId, input }),
+    mapInvokeError,
+  );
+}
+
+export function updateIssueLocal(
+  projectId: string,
+  number: number,
+  input: UpdateIssueInput,
+): ResultAsync<LocalIssueDto, StableError> {
+  return ResultAsync.fromPromise(
+    invoke<LocalIssueDto>("update_issue", { projectId, number, input }),
+    mapInvokeError,
+  );
+}
+
+export function deleteIssue(projectId: string, number: number): ResultAsync<void, StableError> {
+  return ResultAsync.fromPromise(
+    invoke<void>("delete_issue", { projectId, number }),
+    mapInvokeError,
+  );
+}
+
+export function deleteAllLocalIssues(projectId: string): ResultAsync<void, StableError> {
+  return ResultAsync.fromPromise(
+    invoke<void>("delete_all_local_issues", { projectId }),
     mapInvokeError,
   );
 }

@@ -1,22 +1,17 @@
-import { For, Show, createSignal, type Component } from "solid-js";
+import { For, Show, createSignal, createEffect, type Component } from "solid-js";
 import { Button } from "~/components/ui/button";
-import {
-  Dialog,
-  DialogContent,
-  DialogDescription,
-  DialogFooter,
-  DialogHeader,
-  DialogTitle,
-} from "~/components/ui/dialog";
+import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from "~/components/ui/dialog";
 import { TextField, TextFieldInput } from "~/components/ui/text-field";
+import { Checkbox } from "~/components/ui/checkbox";
+import { Label } from "~/components/ui/label";
 import { cn } from "~/lib/utils";
-import type { GitHubIssueRow } from "~/services/github";
+import type { ExtendedIssueRow } from "../model/useGithubIssues";
 
 export type GithubIssueDialogsProps = Readonly<{
   createOpen: boolean;
   setCreateOpen: (v: boolean) => void;
-  editIssue: GitHubIssueRow | null;
-  setEditIssue: (v: GitHubIssueRow | null) => void;
+  editIssue: ExtendedIssueRow | null;
+  setEditIssue: (v: ExtendedIssueRow | null) => void;
   title: string;
   setTitle: (v: string) => void;
   body: string;
@@ -53,6 +48,23 @@ function LabelBadge(props: { label: { name: string; color: string }, class?: str
 }
 
 export const GithubIssueDialogs: Component<GithubIssueDialogsProps> = (props) => {
+  const [newTag, setNewTag] = createSignal("");
+  const [forceLocal, setForceLocal] = createSignal(false);
+
+  createEffect(() => {
+    if (props.createOpen) {
+      setForceLocal(false);
+    }
+  });
+
+  const handleAddTag = () => {
+    const tag = newTag().trim();
+    if (tag && !props.selectedLabels.includes(tag)) {
+      props.toggleLabel(tag);
+      setNewTag("");
+    }
+  };
+
   return (
     <>
       {/* New Issue Dialog */}
@@ -61,7 +73,9 @@ export const GithubIssueDialogs: Component<GithubIssueDialogsProps> = (props) =>
           <DialogHeader>
             <DialogTitle>{props.t('projectDetail.createNewIssue')}</DialogTitle>
             <DialogDescription>
-              {props.t('projectDetail.submitIssueTo', { owner: props.github?.owner ?? '', repo: props.github?.repo ?? '' })}
+              {props.github && !forceLocal()
+                ? props.t('projectDetail.submitIssueToDescription', { owner: props.github.owner, repo: props.github.repo })
+                : props.t('projectDetail.localIssueDescription')}
             </DialogDescription>
           </DialogHeader>
           <div class="flex flex-col gap-4 py-4">
@@ -81,6 +95,20 @@ export const GithubIssueDialogs: Component<GithubIssueDialogsProps> = (props) =>
             
             <div class="space-y-2">
                <label class="text-xs font-bold uppercase tracking-wider text-muted-foreground/60">{props.t('projectDetail.labels')}</label>
+               <div class="flex gap-2 mb-2">
+                 <TextField class="flex-1">
+                   <TextFieldInput
+                     placeholder={props.t('projectDetail.addTag') as string}
+                     class="h-8 text-xs"
+                     value={newTag()}
+                     onInput={(e) => setNewTag(e.currentTarget.value)}
+                     onKeyDown={(e) => e.key === "Enter" && handleAddTag()}
+                   />
+                 </TextField>
+                 <Button size="sm" class="h-8 px-2" onClick={handleAddTag}>
+                   <span class="iconify mdi--plus size-4" />
+                 </Button>
+               </div>
                <div class="flex flex-wrap gap-1.5">
                   <For each={props.labels}>
                      {(l) => (
@@ -98,6 +126,15 @@ export const GithubIssueDialogs: Component<GithubIssueDialogsProps> = (props) =>
                   </For>
                </div>
             </div>
+
+            <Show when={props.github != null}>
+               <div class="flex items-center space-x-2 pt-2">
+                 <Checkbox checked={forceLocal()} onChange={setForceLocal} id="force-local" />
+                 <Label for="force-local" class="text-xs font-medium cursor-pointer">
+                   {props.t('projectDetail.createLocallyOnly')}
+                 </Label>
+               </div>
+            </Show>
           </div>
           <DialogFooter>
             <Button variant="outline" onClick={() => props.setCreateOpen(false)}>
@@ -105,7 +142,12 @@ export const GithubIssueDialogs: Component<GithubIssueDialogsProps> = (props) =>
             </Button>
             <Button
               disabled={props.createM.isPending || !props.title.trim()}
-              onClick={() => props.createM.mutate({ title: props.title, body: props.body, labels: props.selectedLabels })}
+              onClick={() => props.createM.mutate({ 
+                  title: props.title, 
+                  body: props.body, 
+                  labels: props.selectedLabels,
+                  local: forceLocal()
+              })}
             >
               <Show when={props.createM.isPending}>
                 <span class="iconify mdi--loading mr-2 h-4 w-4 animate-spin" />
@@ -139,6 +181,20 @@ export const GithubIssueDialogs: Component<GithubIssueDialogsProps> = (props) =>
 
             <div class="space-y-2">
                <label class="text-xs font-bold uppercase tracking-wider text-muted-foreground/60">{props.t('projectDetail.labels')}</label>
+               <div class="flex gap-2 mb-2">
+                 <TextField class="flex-1">
+                   <TextFieldInput
+                     placeholder={props.t('projectDetail.addTag') as string}
+                     class="h-8 text-xs"
+                     value={newTag()}
+                     onInput={(e) => setNewTag(e.currentTarget.value)}
+                     onKeyDown={(e) => e.key === "Enter" && handleAddTag()}
+                   />
+                 </TextField>
+                 <Button size="sm" class="h-8 px-2" onClick={handleAddTag}>
+                   <span class="iconify mdi--plus size-4" />
+                 </Button>
+               </div>
                <div class="flex flex-wrap gap-1.5">
                   <For each={props.labels}>
                      {(l) => (
@@ -168,7 +224,8 @@ export const GithubIssueDialogs: Component<GithubIssueDialogsProps> = (props) =>
                     number: props.editIssue!.number, 
                     title: props.title, 
                     body: props.body,
-                    labels: props.selectedLabels 
+                    labels: props.selectedLabels,
+                    isLocal: props.editIssue!.isLocal
                 })
               }
             >

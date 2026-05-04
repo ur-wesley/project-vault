@@ -5,7 +5,6 @@ import {
   Show,
   createEffect,
   createMemo,
-  createSignal,
   onCleanup,
   type Accessor,
   type Setter,
@@ -34,6 +33,7 @@ import { buildStacksList, filterProjectList } from "./filter-projects";
 import { cn } from "~/lib/utils";
 import { formatRelativeTime } from "~/lib/format-date";
 import { formatBytes } from "~/lib/format-bytes";
+import { Tooltip, TooltipContent, TooltipTrigger } from "~/components/ui/tooltip";
 
 export function LibraryView(props: {
   search: Accessor<string>;
@@ -242,9 +242,10 @@ export function LibraryView(props: {
                     <div class="flex flex-wrap gap-1.5">
                       <For each={stacks()}>
                         {(st) => (
-                          <button
+                        <Tooltip>
+                          <TooltipTrigger
+                            as="button"
                             type="button"
-                            title={st}
                             class={cn(
                               "flex h-7 w-7 items-center justify-center rounded-md border transition-all",
                               props.filter() === `stack:${st}`
@@ -254,7 +255,9 @@ export function LibraryView(props: {
                             onClick={() => props.onFilterChange(props.filter() === `stack:${st}` ? "all" : `stack:${st}`)}
                           >
                             <StackIcon stack={st} class="size-3.5" />
-                          </button>
+                          </TooltipTrigger>
+                          <TooltipContent>{st}</TooltipContent>
+                        </Tooltip>
                         )}
                       </For>
                     </div>
@@ -300,19 +303,22 @@ export function LibraryView(props: {
             <div class="mx-1 h-4 w-px bg-border/60" />
             <For each={stacks()}>
               {(st) => (
-                <button
-                  type="button"
-                  title={st}
-                  class={cn(
-                    "flex h-7 w-7 items-center justify-center rounded-md border transition-all active:scale-90",
-                    props.filter() === `stack:${st}`
-                      ? "bg-primary/10 border-primary text-primary shadow-sm"
-                      : "bg-muted/30 border-transparent text-muted-foreground hover:bg-muted hover:border-border hover:text-foreground",
-                  )}
-                  onClick={() => props.onFilterChange(props.filter() === `stack:${st}` ? "all" : `stack:${st}`)}
-                >
-                  <StackIcon stack={st} class="size-3.5" />
-                </button>
+                <Tooltip>
+                  <TooltipTrigger
+                    as="button"
+                    type="button"
+                    class={cn(
+                      "flex h-7 w-7 items-center justify-center rounded-md border transition-all active:scale-90",
+                      props.filter() === `stack:${st}`
+                        ? "bg-primary/10 border-primary text-primary shadow-sm"
+                        : "bg-muted/30 border-transparent text-muted-foreground hover:bg-muted hover:border-border hover:text-foreground",
+                    )}
+                    onClick={() => props.onFilterChange(props.filter() === `stack:${st}` ? "all" : `stack:${st}`)}
+                  >
+                    <StackIcon stack={st} class="size-3.5" />
+                  </TooltipTrigger>
+                  <TooltipContent>{st}</TooltipContent>
+                </Tooltip>
               )}
             </For>
           </Show>
@@ -394,17 +400,23 @@ export function LibraryView(props: {
                   <div class="min-w-0 flex-1">
                     <div class="flex items-center gap-1.5">
                       <Show when={project.tags.includes("monorepo")}>
-                        <StackIcon stack="monorepo" class="size-3.5 shrink-0 opacity-80" title={t("library.monorepo") as string} />
+                        <StackIcon stack="monorepo" class="size-3.5 shrink-0 opacity-80" />
                       </Show>
                       <p class="truncate text-sm font-bold leading-tight text-foreground group-hover:text-primary transition-colors">
                         {project.name}
                       </p>
                     </div>
                     <div class="mt-0.5 flex items-center gap-1.5">
-                      <div class="flex items-center gap-1 opacity-70" title={project.stack}>
-                        <StackIcon stack={project.stack} class="h-3 w-3" />
-                        <span class="truncate text-[10px] font-bold uppercase tracking-wider text-muted-foreground">{project.stack}</span>
-                      </div>
+                      <Tooltip>
+                        <TooltipTrigger
+                          as="div"
+                          class="flex items-center gap-1 opacity-70"
+                        >
+                          <StackIcon stack={project.stack} class="h-3 w-3" />
+                          <span class="truncate text-[10px] font-bold uppercase tracking-wider text-muted-foreground">{project.stack}</span>
+                        </TooltipTrigger>
+                        <TooltipContent>{project.stack}</TooltipContent>
+                      </Tooltip>
                       <Show when={project.runtimeHint}>
                         <div class="flex items-center gap-1 border-l border-border/50 pl-1.5">
                            <StackIcon stack={project.runtimeHint!} class="size-3 opacity-80" />
@@ -415,48 +427,63 @@ export function LibraryView(props: {
                   </div>
 
                   {/* Favorite Toggle */}
-                  <button
-                    type="button"
-                    class={cn(
-                      "flex size-7 shrink-0 items-center justify-center rounded-md transition-colors",
-                      project.favorite
-                        ? "text-yellow-500 hover:bg-yellow-500/10"
-                        : "text-muted-foreground/40 hover:text-yellow-500 hover:bg-muted"
-                    )}
-                    onClick={(e) => toggleFavorite(project, e)}
-                    title={project.favorite ? t("library.unfavorite") as string : t("library.favorite") as string}
-                  >
-                    <span class={cn("iconify size-4", project.favorite ? "mdi--star" : "mdi--star-outline")} />
-                  </button>
+                  <Tooltip>
+                    <TooltipTrigger
+                      as="button"
+                      type="button"
+                      class={cn(
+                        "flex size-7 shrink-0 items-center justify-center rounded-md transition-colors",
+                        project.favorite
+                          ? "text-yellow-500 hover:bg-yellow-500/10"
+                          : "text-muted-foreground/40 hover:text-yellow-500 hover:bg-muted"
+                      )}
+                      onClick={(e) => toggleFavorite(project, e)}
+                    >
+                      <span class={cn("iconify size-4", project.favorite ? "mdi--star" : "mdi--star-outline")} />
+                    </TooltipTrigger>
+                    <TooltipContent>{project.favorite ? t("library.unfavorite") as string : t("library.favorite") as string}</TooltipContent>
+                  </Tooltip>
                 </div>
 
                 {/* Card Footer: Metadata + IDE */}
                 <div class="mt-auto flex items-center justify-between border-t border-border/40 pt-2">
                    <div class="flex items-center gap-1.5">
-                     <div class="flex items-center gap-1 rounded bg-muted/50 px-1.5 py-0.5" title={`${t("library.fileCount") as string} · ${t("library.projectSize") as string}`}>
-                       <span class="iconify mdi--file-multiple-outline text-muted-foreground/60 size-3" />
-                       <span class="text-[10px] font-mono font-medium text-muted-foreground">{project.fileCount}</span>
-                       <Show when={project.sizeBytes > 0}>
-                         <span class="mx-0.5 h-2.5 w-px bg-border/60" />
-                         <span class="iconify mdi--harddisk text-muted-foreground/60 size-3" />
-                         <span class="text-[10px] font-mono font-medium text-muted-foreground">{formatBytes(project.sizeBytes)}</span>
-                       </Show>
-                     </div>
-                     <Show when={formatRelativeTime(project.lastEditedAtMs, localeCode()) || formatPlaytime(project.totalPlaytimeMs)}>
-                       <div class="hidden sm:flex items-center gap-1 rounded bg-muted/50 px-1.5 py-0.5" title={`${t("library.totalPlaytime") as string} · ${t("library.lastEdited") as string}`}>
-                         <Show when={formatPlaytime(project.totalPlaytimeMs)}>
-                           <span class="iconify mdi--clock-outline text-muted-foreground/60 size-3" />
-                           <span class="text-[10px] font-mono font-medium text-muted-foreground">{formatPlaytime(project.totalPlaytimeMs)}</span>
-                         </Show>
-                         <Show when={formatRelativeTime(project.lastEditedAtMs, localeCode()) && formatPlaytime(project.totalPlaytimeMs)}>
-                           <span class="mx-0.5 h-2.5 w-px bg-border/60" />
-                         </Show>
-                         <Show when={formatRelativeTime(project.lastEditedAtMs, localeCode())}>
-                           <span class="iconify mdi--pencil-outline text-muted-foreground/60 size-3" />
-                           <span class="text-[10px] font-mono font-medium text-muted-foreground">{formatRelativeTime(project.lastEditedAtMs, localeCode())}</span>
-                         </Show>
-                       </div>
-                     </Show>
+                      <Tooltip>
+                        <TooltipTrigger
+                          as="div"
+                          class="flex items-center gap-1 rounded bg-muted/50 px-1.5 py-0.5"
+                        >
+                          <span class="iconify mdi--file-multiple-outline text-muted-foreground/60 size-3" />
+                          <span class="text-[10px] font-mono font-medium text-muted-foreground">{project.fileCount}</span>
+                          <Show when={project.sizeBytes > 0}>
+                            <span class="mx-0.5 h-2.5 w-px bg-border/60" />
+                            <span class="iconify mdi--harddisk text-muted-foreground/60 size-3" />
+                            <span class="text-[10px] font-mono font-medium text-muted-foreground">{formatBytes(project.sizeBytes)}</span>
+                          </Show>
+                        </TooltipTrigger>
+                        <TooltipContent>{`${t("library.fileCount") as string} · ${t("library.projectSize") as string}`}</TooltipContent>
+                      </Tooltip>
+                      <Show when={formatRelativeTime(project.lastEditedAtMs, localeCode()) || formatPlaytime(project.totalPlaytimeMs)}>
+                        <Tooltip>
+                          <TooltipTrigger
+                            as="div"
+                            class="hidden sm:flex items-center gap-1 rounded bg-muted/50 px-1.5 py-0.5"
+                          >
+                            <Show when={formatPlaytime(project.totalPlaytimeMs)}>
+                              <span class="iconify mdi--clock-outline text-muted-foreground/60 size-3" />
+                              <span class="text-[10px] font-mono font-medium text-muted-foreground">{formatPlaytime(project.totalPlaytimeMs)}</span>
+                            </Show>
+                            <Show when={formatRelativeTime(project.lastEditedAtMs, localeCode()) && formatPlaytime(project.totalPlaytimeMs)}>
+                              <span class="mx-0.5 h-2.5 w-px bg-border/60" />
+                            </Show>
+                            <Show when={formatRelativeTime(project.lastEditedAtMs, localeCode())}>
+                              <span class="iconify mdi--pencil-outline text-muted-foreground/60 size-3" />
+                              <span class="text-[10px] font-mono font-medium text-muted-foreground">{formatRelativeTime(project.lastEditedAtMs, localeCode())}</span>
+                            </Show>
+                          </TooltipTrigger>
+                          <TooltipContent>{`${t("library.totalPlaytime") as string} · ${t("library.lastEdited") as string}`}</TooltipContent>
+                        </Tooltip>
+                      </Show>
                   </div>
                   
                   <Show
@@ -467,23 +494,26 @@ export function LibraryView(props: {
                       </span>
                     }
                   >
-                    <Button
-                      type="button"
-                      size="icon"
-                      variant={runningProjectsQ.data?.includes(project.id) ? "default" : "secondary"}
-                      class={cn(
-                        "size-7 shrink-0 rounded-md transition-all hover:shadow-sm",
-                        runningProjectsQ.data?.includes(project.id) 
-                           ? "bg-primary text-primary-foreground shadow-md ring-2 ring-primary/20" 
-                           : "hover:bg-primary hover:text-primary-foreground"
-                      )}
-                      onClick={(e) => void onPlay(project, e)}
-                      title={runningProjectsQ.data?.includes(project.id) ? t("library.stopIde") as string : (t("library.playInIde") as string)}
-                    >
-                      <Show when={runningProjectsQ.data?.includes(project.id)} fallback={<span class="iconify mdi--play size-4" />}>
-                        <span class="iconify mdi--stop size-4 animate-in zoom-in duration-300" />
-                      </Show>
-                    </Button>
+                    <Tooltip>
+                      <TooltipTrigger
+                        as={Button}
+                        type="button"
+                        size="icon"
+                        variant={runningProjectsQ.data?.includes(project.id) ? "default" : "secondary"}
+                        class={cn(
+                          "size-7 shrink-0 rounded-md transition-all hover:shadow-sm",
+                          runningProjectsQ.data?.includes(project.id)
+                             ? "bg-primary text-primary-foreground shadow-md ring-2 ring-primary/20"
+                             : "hover:bg-primary hover:text-primary-foreground"
+                        )}
+                        onClick={(e) => void onPlay(project, e)}
+                      >
+                        <Show when={runningProjectsQ.data?.includes(project.id)} fallback={<span class="iconify mdi--play size-4" />}>
+                          <span class="iconify mdi--stop size-4 animate-in zoom-in duration-300" />
+                        </Show>
+                      </TooltipTrigger>
+                      <TooltipContent>{runningProjectsQ.data?.includes(project.id) ? t("library.stopIde") as string : (t("library.playInIde") as string)}</TooltipContent>
+                    </Tooltip>
                   </Show>
                 </div>
 

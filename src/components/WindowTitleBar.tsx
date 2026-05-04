@@ -6,6 +6,7 @@ import { platform } from "@tauri-apps/plugin-os";
 import { Button } from "~/components/ui/button";
 import { Separator } from "~/components/ui/separator";
 import { SidebarTrigger } from "~/components/ui/sidebar";
+import { Tooltip, TooltipContent, TooltipTrigger } from "~/components/ui/tooltip";
 import { useI18n } from "~/lib/i18n-context";
 import { cn } from "~/lib/utils";
 
@@ -25,27 +26,36 @@ const MacWindowDots: Component<{
   const { t } = useI18n();
   return (
     <div class="flex shrink-0 items-center gap-2 pl-1.5" data-tauri-drag-region="false">
-      <button
-        type="button"
-        class="h-3 w-3 shrink-0 rounded-full bg-[#ff5f57] opacity-90 transition-opacity hover:opacity-100"
-        onClick={props.onClose}
-        title={t('window.close') as string}
-        aria-label={t('window.close') as string}
-      />
-      <button
-        type="button"
-        class="h-3 w-3 shrink-0 rounded-full bg-[#ffbd2e] opacity-90 transition-opacity hover:opacity-100"
-        onClick={props.onMinimize}
-        title={t('window.minimize') as string}
-        aria-label={t('window.minimize') as string}
-      />
-      <button
-        type="button"
-        class="h-3 w-3 shrink-0 rounded-full bg-[#28c840] opacity-90 transition-opacity hover:opacity-100"
-        onClick={props.onMaximize}
-        title={t('window.zoom') as string}
-        aria-label={t('window.zoom') as string}
-      />
+      <Tooltip>
+        <TooltipTrigger
+          as="button"
+          type="button"
+          class="h-3 w-3 shrink-0 rounded-full bg-[#ff5f57] opacity-90 transition-opacity hover:opacity-100"
+          onClick={props.onClose}
+          aria-label={t('window.close') as string}
+        />
+        <TooltipContent>{t('window.close') as string}</TooltipContent>
+      </Tooltip>
+      <Tooltip>
+        <TooltipTrigger
+          as="button"
+          type="button"
+          class="h-3 w-3 shrink-0 rounded-full bg-[#ffbd2e] opacity-90 transition-opacity hover:opacity-100"
+          onClick={props.onMinimize}
+          aria-label={t('window.minimize') as string}
+        />
+        <TooltipContent>{t('window.minimize') as string}</TooltipContent>
+      </Tooltip>
+      <Tooltip>
+        <TooltipTrigger
+          as="button"
+          type="button"
+          class="h-3 w-3 shrink-0 rounded-full bg-[#28c840] opacity-90 transition-opacity hover:opacity-100"
+          onClick={props.onMaximize}
+          aria-label={t('window.zoom') as string}
+        />
+        <TooltipContent>{t('window.zoom') as string}</TooltipContent>
+      </Tooltip>
     </div>
   );
 };
@@ -160,7 +170,6 @@ export const WindowTitleBar: Component<WindowTitleBarProps> = (props) => {
         <span
           data-tauri-drag-region
           class="w-full min-w-0 max-w-sm truncate text-center text-xs font-medium text-foreground sm:max-w-md sm:text-sm"
-          title={props.title()}
         >
           {props.title()}
         </span>

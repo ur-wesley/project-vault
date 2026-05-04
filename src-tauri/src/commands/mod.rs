@@ -3,6 +3,7 @@ pub mod git;
 pub mod github_device;
 pub mod github_remote;
 pub mod ide;
+pub mod issues;
 pub mod locations;
 pub mod project_wizard;
 pub mod projects;

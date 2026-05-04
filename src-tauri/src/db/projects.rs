@@ -213,6 +213,48 @@ pub async fn set_project_favorite(
     get_project(pool, id).await
 }
 
+pub async fn set_project_tag(
+    pool: &Pool<Sqlite>,
+    id: &str,
+    tag: &str,
+) -> Result<ProjectDto, StableError> {
+    let project = get_project(pool, id).await?;
+    let mut tags: HashSet<String> = project.tags.clone().into_iter().collect();
+    if tags.insert(tag.to_string()) {
+        let tags_json = serde_json::to_string(&tags).unwrap_or_else(|_| "[]".to_string());
+        sqlx::query("UPDATE projects SET tags_json = ?1 WHERE id = ?2")
+            .bind(tags_json)
+            .bind(id)
+            .execute(pool)
+            .await
+            .map_err(|e| StableError::new(codes::DB_ERROR, e.to_string()))?;
+        get_project(pool, id).await
+    } else {
+        Ok(project)
+    }
+}
+
+pub async fn remove_project_tag(
+    pool: &Pool<Sqlite>,
+    id: &str,
+    tag: &str,
+) -> Result<ProjectDto, StableError> {
+    let project = get_project(pool, id).await?;
+    let mut tags: HashSet<String> = project.tags.clone().into_iter().collect();
+    if tags.remove(tag) {
+        let tags_json = serde_json::to_string(&tags).unwrap_or_else(|_| "[]".to_string());
+        sqlx::query("UPDATE projects SET tags_json = ?1 WHERE id = ?2")
+            .bind(tags_json)
+            .bind(id)
+            .execute(pool)
+            .await
+            .map_err(|e| StableError::new(codes::DB_ERROR, e.to_string()))?;
+        get_project(pool, id).await
+    } else {
+        Ok(project)
+    }
+}
+
 pub async fn touch_project_opened(
     pool: &Pool<Sqlite>,
     id: &str,
@@ -242,6 +284,20 @@ pub async fn update_project_tasks(
         .await
         .map_err(|e| StableError::new(codes::DB_ERROR, e.to_string()))?;
     Ok(())
+}
+
+pub async fn find_project_by_path(pool: &Pool<Sqlite>, path: &str) -> Result<ProjectDto, StableError> {
+    let row: Option<ProjectRow> = sqlx::query_as(
+        "SELECT id, location_id, name, path, stack, runtime_hint, favorite, last_opened_at_ms, total_playtime_ms, tasks_json, tags_json, github_owner, github_repo, file_count, size_bytes, last_edited_at_ms FROM projects WHERE path = ?1",
+    )
+    .bind(path)
+    .fetch_optional(pool)
+    .await
+    .map_err(|e| StableError::new(codes::DB_ERROR, e.to_string()))?;
+    match row {
+        Some(r) => row_to_dto(r),
+        None => Err(StableError::new(codes::NOT_FOUND, "project not found at this path")),
+    }
 }
 
 pub async fn delete_projects_for_location_not_in_paths(
