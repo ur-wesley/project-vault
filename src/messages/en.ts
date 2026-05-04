@@ -161,6 +161,7 @@ const en = {
     loading: "Loading projects…",
     error: "Could not load projects.",
     noResults: "No results.",
+    results: "Results",
     actions: "Actions",
     recent: "Recent",
     allProjects: "All projects",

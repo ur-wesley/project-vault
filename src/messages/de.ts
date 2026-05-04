@@ -161,6 +161,7 @@ const de = {
     loading: "Projekte werden geladen…",
     error: "Projekte konnten nicht geladen werden.",
     noResults: "Keine Ergebnisse.",
+    results: "Ergebnisse",
     actions: "Aktionen",
     recent: "Aktuell",
     allProjects: "Alle Projekte",

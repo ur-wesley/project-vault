@@ -16,6 +16,8 @@ renderer.code = function (token) {
 
 export const IssueMarkdown: Component<IssueMarkdownProps> = (props) => {
   const { t } = useI18n();
+  // eslint-disable-next-line no-unassigned-vars — Solid ref pattern
+  let containerRef: HTMLDivElement | undefined;
 
   const [html] = createResource(
     () => props.content,

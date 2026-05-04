@@ -14,6 +14,7 @@ import {
 } from "~/components/ui/command";
 import { useEventHub } from "~/lib/event-hub-context";
 import { useI18n } from "~/lib/i18n-context";
+import { cn } from "~/lib/utils";
 import { fuzzyScore } from "~/lib/fuzzy-score";
 import { rescanAllLibraryFolders } from "~/lib/rescan-library";
 import { listProjects } from "~/services/tauri";
@@ -99,23 +100,99 @@ export function CommandPalette(props: CommandPaletteProps) {
     props.onOpenNewProject?.();
   };
 
-  const fuzzyFilter = (value: string, search: string, keywords?: string[]) => {
-    if (!search) return 1;
-    let best = fuzzyScore(search, value);
-    if (keywords) {
-      for (const kw of keywords) {
-        const s = fuzzyScore(search, kw);
-        if (s > best) best = s;
+  const [search, setSearch] = createSignal("");
+
+  const allProjects = createMemo(() => q.data ?? []);
+
+  const scoredResults = createMemo(() => {
+    const s = search().trim().toLowerCase();
+    if (!s) return [];
+
+    type ResultItem = {
+      id: string;
+      label: string;
+      detail: string;
+      icon: string;
+      score: number;
+      onSelect: () => void;
+    };
+
+    const items: ResultItem[] = [];
+
+    // Actions
+    items.push({
+      id: "action-open-locations",
+      label: t("commandPalette.openLocations") as string,
+      detail: t("commandPalette.locationsHint") as string,
+      icon: "mdi--folder-open",
+      score: fuzzyScore(s, t("commandPalette.openLocations") as string),
+      onSelect: openLocations,
+    });
+    items.push({
+      id: "action-rescan-all",
+      label: t("commandPalette.rescanAll") as string,
+      detail: "",
+      icon: "mdi--refresh",
+      score: fuzzyScore(s, t("commandPalette.rescanAll") as string),
+      onSelect: () => void rescanAll(),
+    });
+    if (props.onOpenNewProject) {
+      items.push({
+        id: "action-new-project",
+        label: t("commandPalette.newProject") as string,
+        detail: "",
+        icon: "mdi--plus",
+        score: fuzzyScore(s, t("commandPalette.newProject") as string),
+        onSelect: openNewProject,
+      });
+    }
+    if (props.onOpenSettings) {
+      items.push({
+        id: "action-settings",
+        label: t("commandPalette.settings") as string,
+        detail: "",
+        icon: "mdi--cog",
+        score: fuzzyScore(s, t("commandPalette.settings") as string),
+        onSelect: openSettings,
+      });
+    }
+
+    // Projects
+    for (const p of allProjects()) {
+      const score = Math.max(
+        fuzzyScore(s, p.name),
+        fuzzyScore(s, p.path),
+        fuzzyScore(s, p.stack),
+      );
+      if (score > 0) {
+        items.push({
+          id: `project-${p.id}`,
+          label: p.name,
+          detail: p.path,
+          icon: "",
+          score,
+          onSelect: () => selectProject(p),
+        });
       }
     }
-    return best;
-  };
+
+    return items.sort((a, b) => b.score - a.score).slice(0, 20);
+  });
+
+  const isSearching = createMemo(() => search().trim().length > 0);
 
   return (
     <>
       {props.children}
-      <CommandDialog open={open()} onOpenChange={setOpen} filter={fuzzyFilter}>
-        <CommandInput placeholder={t("commandPalette.placeholder") as string} />
+      <CommandDialog
+        open={open()}
+        onOpenChange={setOpen}
+        filter={() => 1}
+      >
+        <CommandInput
+          placeholder={t("commandPalette.placeholder") as string}
+          onValueChange={setSearch}
+        />
         <CommandList>
           <Show when={q.isPending}>
             <CommandEmpty>{t("commandPalette.loading") as string}</CommandEmpty>
@@ -124,38 +201,92 @@ export function CommandPalette(props: CommandPaletteProps) {
             <CommandEmpty>{t("commandPalette.error") as string}</CommandEmpty>
           </Show>
           <Show when={q.isSuccess}>
-            <CommandEmpty>{t("commandPalette.noResults") as string}</CommandEmpty>
-            <CommandGroup heading={t("commandPalette.actions") as string}>
-              <CommandItem value="action-open-locations" onSelect={openLocations}>
-                {t("commandPalette.openLocations") as string}
-                <CommandShortcut>{t("commandPalette.locationsHint") as string}</CommandShortcut>
-              </CommandItem>
-              <CommandItem value="action-rescan-all" onSelect={() => void rescanAll()}>
-                {t("commandPalette.rescanAll") as string}
-              </CommandItem>
-              <CommandItem
-                value="action-new-project"
-                disabled={props.onOpenNewProject == null}
-                onSelect={() => openNewProject()}
-              >
-                {t("commandPalette.newProject") as string}
-              </CommandItem>
-              <CommandItem
-                value="action-settings"
-                disabled={props.onOpenSettings == null}
-                onSelect={() => openSettings()}
-              >
-                {t("commandPalette.settings") as string}
-              </CommandItem>
-            </CommandGroup>
-            <Show when={recent().length > 0}>
+            <Show when={isSearching()}>
+              <CommandEmpty>{t("commandPalette.noResults") as string}</CommandEmpty>
+              <CommandGroup heading={t("commandPalette.results") as string}>
+                <For each={scoredResults()}>
+                  {(item) => (
+                    <CommandItem value={item.id} onSelect={item.onSelect}>
+                      <span class="flex min-w-0 flex-1 items-center gap-2">
+                        <Show when={item.icon}>
+                          <span class={cn("iconify shrink-0 size-4", item.icon)} />
+                        </Show>
+                        <Show when={!item.icon}>
+                          <StackIcon stack={item.detail || "folder"} class="h-3.5 w-3.5 shrink-0" />
+                        </Show>
+                        <span class="min-w-0 truncate">{item.label}</span>
+                      </span>
+                      <Show when={item.detail && !item.id.startsWith("action-")}>
+                        <CommandShortcut class="max-w-[50%] truncate">
+                          {item.detail}
+                        </CommandShortcut>
+                      </Show>
+                      <Show when={item.id.startsWith("action-") && item.detail}>
+                        <CommandShortcut>{item.detail}</CommandShortcut>
+                      </Show>
+                    </CommandItem>
+                  )}
+                </For>
+              </CommandGroup>
+            </Show>
+            <Show when={!isSearching()}>
+              <CommandGroup heading={t("commandPalette.actions") as string}>
+                <CommandItem value="action-open-locations" onSelect={openLocations}>
+                  {t("commandPalette.openLocations") as string}
+                  <CommandShortcut>{t("commandPalette.locationsHint") as string}</CommandShortcut>
+                </CommandItem>
+                <CommandItem value="action-rescan-all" onSelect={() => void rescanAll()}>
+                  {t("commandPalette.rescanAll") as string}
+                </CommandItem>
+                <CommandItem
+                  value="action-new-project"
+                  disabled={props.onOpenNewProject == null}
+                  onSelect={() => openNewProject()}
+                >
+                  {t("commandPalette.newProject") as string}
+                </CommandItem>
+                <CommandItem
+                  value="action-settings"
+                  disabled={props.onOpenSettings == null}
+                  onSelect={() => openSettings()}
+                >
+                  {t("commandPalette.settings") as string}
+                </CommandItem>
+              </CommandGroup>
+              <Show when={recent().length > 0}>
+                <CommandSeparator />
+                <CommandGroup heading={t("commandPalette.recent") as string}>
+                  <For each={recent()}>
+                    {(project) => (
+                      <CommandItem
+                        value={`project-${project.id}`}
+                        onSelect={() => selectProject(project)}
+                      >
+                        {project.name}
+                        <Tooltip>
+                          <TooltipTrigger
+                            as={CommandShortcut}
+                            class="flex max-w-[40%] items-center justify-end font-normal"
+                          >
+                            <StackIcon
+                              stack={project.stack}
+                              class="h-3.5 w-3.5"
+                            />
+                            <span class="sr-only">{project.stack}</span>
+                          </TooltipTrigger>
+                          <TooltipContent>{project.stack}</TooltipContent>
+                        </Tooltip>
+                      </CommandItem>
+                    )}
+                  </For>
+                </CommandGroup>
+              </Show>
               <CommandSeparator />
-              <CommandGroup heading={t("commandPalette.recent") as string}>
-                <For each={recent()}>
+              <CommandGroup heading={t("commandPalette.allProjects") as string}>
+                <For each={otherProjects()}>
                   {(project) => (
                     <CommandItem
                       value={`project-${project.id}`}
-                      keywords={[project.name, project.path, project.stack]}
                       onSelect={() => selectProject(project)}
                     >
                       {project.name}
@@ -164,10 +295,7 @@ export function CommandPalette(props: CommandPaletteProps) {
                           as={CommandShortcut}
                           class="flex max-w-[40%] items-center justify-end font-normal"
                         >
-                          <StackIcon
-                            stack={project.stack}
-                            class="h-3.5 w-3.5"
-                          />
+                          <StackIcon stack={project.stack} class="h-3.5 w-3.5" />
                           <span class="sr-only">{project.stack}</span>
                         </TooltipTrigger>
                         <TooltipContent>{project.stack}</TooltipContent>
@@ -177,30 +305,6 @@ export function CommandPalette(props: CommandPaletteProps) {
                 </For>
               </CommandGroup>
             </Show>
-            <CommandSeparator />
-            <CommandGroup heading={t("commandPalette.allProjects") as string}>
-              <For each={otherProjects()}>
-                {(project) => (
-                  <CommandItem
-                    value={`project-${project.id}`}
-                    keywords={[project.name, project.path, project.stack]}
-                    onSelect={() => selectProject(project)}
-                  >
-                    {project.name}
-                    <Tooltip>
-                      <TooltipTrigger
-                        as={CommandShortcut}
-                        class="flex max-w-[40%] items-center justify-end font-normal"
-                      >
-                        <StackIcon stack={project.stack} class="h-3.5 w-3.5" />
-                        <span class="sr-only">{project.stack}</span>
-                      </TooltipTrigger>
-                      <TooltipContent>{project.stack}</TooltipContent>
-                    </Tooltip>
-                  </CommandItem>
-                )}
-              </For>
-            </CommandGroup>
           </Show>
         </CommandList>
       </CommandDialog>
