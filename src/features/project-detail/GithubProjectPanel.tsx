@@ -72,6 +72,7 @@ export const GithubProjectPanel: Component<{
 }> = (props) => {
   const { t, localeCode } = useI18n();
   const [mutationError, setMutationError] = createSignal<string | null>(null);
+  // eslint-disable-next-line no-unassigned-vars — Solid ref pattern
   let containerRef: HTMLDivElement | undefined;
 
   const syncDismissed = createMemo(() => props.model.projectQ.data?.tags.includes("dismissed_sync_banner") ?? false);

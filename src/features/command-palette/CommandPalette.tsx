@@ -14,6 +14,7 @@ import {
 } from "~/components/ui/command";
 import { useEventHub } from "~/lib/event-hub-context";
 import { useI18n } from "~/lib/i18n-context";
+import { fuzzyScore } from "~/lib/fuzzy-score";
 import { rescanAllLibraryFolders } from "~/lib/rescan-library";
 import { listProjects } from "~/services/tauri";
 import { queryKeys } from "~/services/query-keys";
@@ -98,10 +99,22 @@ export function CommandPalette(props: CommandPaletteProps) {
     props.onOpenNewProject?.();
   };
 
+  const fuzzyFilter = (value: string, search: string, keywords?: string[]) => {
+    if (!search) return 1;
+    let best = fuzzyScore(search, value);
+    if (keywords) {
+      for (const kw of keywords) {
+        const s = fuzzyScore(search, kw);
+        if (s > best) best = s;
+      }
+    }
+    return best;
+  };
+
   return (
     <>
       {props.children}
-      <CommandDialog open={open()} onOpenChange={setOpen}>
+      <CommandDialog open={open()} onOpenChange={setOpen} filter={fuzzyFilter}>
         <CommandInput placeholder={t("commandPalette.placeholder") as string} />
         <CommandList>
           <Show when={q.isPending}>
