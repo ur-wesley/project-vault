@@ -1,6 +1,6 @@
 import { useQueryClient, createQuery } from "@tanstack/solid-query";
 import { openPath } from "@tauri-apps/plugin-opener";
-import { For, Show, createSignal, createMemo, type Component } from "solid-js";
+import { For, Show, createSignal, createMemo, onMount, onCleanup, type Component } from "solid-js";
 import { listen } from "@tauri-apps/api/event";
 
 import { Button } from "~/components/ui/button";
@@ -62,6 +62,32 @@ export const LocationManager: Component = () => {
       return r.value;
     },
   }));
+
+  onMount(() => {
+    const unlistens: (() => void)[] = [];
+
+    void listen<{ locationId: string; locationName: string }>(
+      "location:scan-started",
+      (e) => {
+        const current = work();
+        if (current == null || (current.kind === "rescan" && current.locationId === e.payload.locationId)) {
+          setWork({ kind: "rescan", locationId: e.payload.locationId, locationName: e.payload.locationName });
+        }
+      },
+    ).then((fn) => unlistens.push(fn));
+
+    void listen<{ locationId: string }>("location:scan-completed", (e) => {
+      const current = work();
+      if (current != null && current.kind === "rescan" && current.locationId === e.payload.locationId) {
+        setWork(null);
+      }
+      invalidateAll();
+    }).then((fn) => unlistens.push(fn));
+
+    onCleanup(() => {
+      for (const fn of unlistens) fn();
+    });
+  });
 
   const diskQ = createQuery(() => {
     const locs = locQ.data ?? [];

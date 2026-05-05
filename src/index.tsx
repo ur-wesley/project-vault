@@ -23,14 +23,19 @@ const Root: ParentComponent = (props) => {
   useRealtimeProjects();
 
   onMount(() => {
-    let unlisten: (() => void) | undefined;
+    const unlistens: (() => void)[] = [];
+
     void listen("session:ended", () => {
       void queryClient.invalidateQueries({ queryKey: queryKeys.projects });
-    }).then((fn) => {
-      unlisten = fn;
-    });
+    }).then((fn) => unlistens.push(fn));
+
+    void listen<{ locationId: string }>("location:scan-completed", () => {
+      void queryClient.invalidateQueries({ queryKey: queryKeys.locations });
+      void queryClient.invalidateQueries({ queryKey: queryKeys.projects });
+    }).then((fn) => unlistens.push(fn));
+
     onCleanup(() => {
-      unlisten?.();
+      for (const fn of unlistens) fn();
     });
   });
   return <>{props.children}</>;
