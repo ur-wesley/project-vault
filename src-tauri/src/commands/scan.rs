@@ -56,12 +56,12 @@ pub fn debug_scan_location(path: String) -> Result<DebugScanResult, StableError>
     })
 }
 
-#[tauri::command]
-pub async fn scan_library_location(
+pub async fn run_location_scan_impl(
     app: AppHandle,
-    db: State<'_, DbInstances>,
     location_id: String,
+    lightweight: bool,
 ) -> Result<ScanResultDto, StableError> {
+    let db = app.state::<DbInstances>();
     let pool = db::sqlite_pool(&*db).await?;
     let loc = db::get_location(&pool, &location_id).await?;
     if !loc.enabled {
@@ -84,6 +84,20 @@ pub async fn scan_library_location(
     let mut workspace_warnings = 0u64;
     let drafts = filter_workspaces_and_outermost(&reg, raw, &mut monorepos_expanded, &mut workspace_warnings);
     let discovered = drafts.len() as u64;
+
+    // Preload existing project paths for this location so lightweight scans
+    // can avoid emitting events for unchanged projects.
+    let existing_paths: HashSet<String> = if lightweight {
+        let rows: Vec<String> = sqlx::query_scalar("SELECT path FROM projects WHERE location_id = ?1")
+            .bind(&location_id)
+            .fetch_all(&pool)
+            .await
+            .map_err(|e| StableError::new(codes::DB_ERROR, e.to_string()))?;
+        rows.into_iter().collect()
+    } else {
+        HashSet::new()
+    };
+
     let mut keep = HashSet::new();
     let mut upserted = 0u64;
     let mut indexed_project_ids = Vec::new();
@@ -91,16 +105,21 @@ pub async fn scan_library_location(
         let key = path_key(&d.root);
         keep.insert(key.clone());
 
-        let filtered_stats = crate::project_move::count_filtered_dir(&d.root).ok();
-        let file_count = filtered_stats.map(|s| s.file_count).unwrap_or(0);
-        let last_edited_at_ms = filtered_stats.and_then(|s| if s.last_edited_at_ms > 0 { Some(s.last_edited_at_ms) } else { None });
-        let size_bytes = crate::project_move::count_all_dir(&d.root).map(|(_, total)| total).unwrap_or(0);
+        let (file_count, size_bytes, last_edited_at_ms) = if lightweight {
+            (0, 0, None)
+        } else {
+            let filtered_stats = crate::project_move::count_filtered_dir(&d.root).ok();
+            let file_count = filtered_stats.map(|s| s.file_count).unwrap_or(0);
+            let last_edited_at_ms = filtered_stats.and_then(|s| if s.last_edited_at_ms > 0 { Some(s.last_edited_at_ms) } else { None });
+            let size_bytes = crate::project_move::count_all_dir(&d.root).map(|(_, total)| total).unwrap_or(0);
+            (file_count, size_bytes, last_edited_at_ms)
+        };
 
         let dto = ProjectDto {
             id: String::new(),
             location_id: location_id.clone(),
             name: d.name,
-            path: key,
+            path: key.clone(),
             stack: d.stack,
             runtime_hint: d.runtime_hint,
             favorite: false,
@@ -114,8 +133,15 @@ pub async fn scan_library_location(
             size_bytes,
             last_edited_at_ms,
         };
-        let project = db::upsert_project(&pool, &dto).await?;
-        crate::models::emit_project_changed(&app, &project.id, "scan");
+        let is_new = lightweight && !existing_paths.contains(&key);
+        let project = if lightweight {
+            db::upsert_project_lightweight(&pool, &dto).await?
+        } else {
+            db::upsert_project(&pool, &dto).await?
+        };
+        if !lightweight || is_new {
+            crate::models::emit_project_changed(&app, &project.id, "scan");
+        }
         upserted += 1;
         indexed_project_ids.push((project.id, d.root));
     }
@@ -143,4 +169,13 @@ pub async fn scan_library_location(
         monorepos_expanded,
         workspace_warnings,
     })
+}
+
+#[tauri::command]
+pub async fn scan_library_location(
+    app: AppHandle,
+    _db: State<'_, DbInstances>,
+    location_id: String,
+) -> Result<ScanResultDto, StableError> {
+    run_location_scan_impl(app, location_id, false).await
 }

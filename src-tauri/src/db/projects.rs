@@ -164,6 +164,76 @@ pub async fn upsert_project(
     get_project(pool, &id).await
 }
 
+pub async fn upsert_project_lightweight(
+    pool: &Pool<Sqlite>,
+    dto: &ProjectDto,
+) -> Result<ProjectDto, StableError> {
+    let tasks_json = serde_json::to_string(&dto.tasks)
+        .map_err(|e| StableError::new(codes::INTERNAL, e.to_string()))?;
+    let tags_json = serde_json::to_string(&dto.tags)
+        .map_err(|e| StableError::new(codes::INTERNAL, e.to_string()))?;
+
+    let existing: Option<String> =
+        sqlx::query_scalar("SELECT id FROM projects WHERE location_id = ?1 AND path = ?2")
+            .bind(&dto.location_id)
+            .bind(&dto.path)
+            .fetch_optional(pool)
+            .await
+            .map_err(|e| StableError::new(codes::DB_ERROR, e.to_string()))?;
+
+    let id = if let Some(eid) = existing {
+        // Preserve metadata: only update structural fields
+        sqlx::query(
+            r#"UPDATE projects SET name = ?1, stack = ?2, runtime_hint = ?3, tasks_json = ?4, tags_json = ?5, github_owner = ?6, github_repo = ?7
+               WHERE id = ?8"#,
+        )
+        .bind(&dto.name)
+        .bind(&dto.stack)
+        .bind(&dto.runtime_hint)
+        .bind(&tasks_json)
+        .bind(&tags_json)
+        .bind(&dto.github_owner)
+        .bind(&dto.github_repo)
+        .bind(&eid)
+        .execute(pool)
+        .await
+        .map_err(|e| StableError::new(codes::DB_ERROR, e.to_string()))?;
+        eid
+    } else {
+        let nid = if dto.id.is_empty() {
+            uuid::Uuid::new_v4().to_string()
+        } else {
+            dto.id.clone()
+        };
+        sqlx::query(
+            r#"INSERT INTO projects (
+                id, location_id, name, path, stack, runtime_hint, favorite, last_opened_at_ms, total_playtime_ms, tasks_json, tags_json, github_owner, github_repo, file_count, size_bytes, last_edited_at_ms
+            ) VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7, ?8, ?9, ?10, ?11, ?12, ?13, ?14, ?15, ?16)"#,
+        )
+        .bind(&nid)
+        .bind(&dto.location_id)
+        .bind(&dto.name)
+        .bind(&dto.path)
+        .bind(&dto.stack)
+        .bind(&dto.runtime_hint)
+        .bind(if dto.favorite { 1 } else { 0 })
+        .bind(dto.last_opened_at_ms)
+        .bind(dto.total_playtime_ms)
+        .bind(&tasks_json)
+        .bind(&tags_json)
+        .bind(&dto.github_owner)
+        .bind(&dto.github_repo)
+        .bind(dto.file_count as i64)
+        .bind(dto.size_bytes as i64)
+        .bind(dto.last_edited_at_ms)
+        .execute(pool)
+        .await
+        .map_err(|e| StableError::new(codes::DB_ERROR, e.to_string()))?;
+        nid
+    };
+
+    get_project(pool, &id).await
+}
 
 pub async fn update_project_path_and_location(
     pool: &Pool<Sqlite>,

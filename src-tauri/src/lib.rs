@@ -7,6 +7,7 @@ mod fs_scope_util;
 pub mod issues;
 #[cfg(not(any(target_os = "android", target_os = "ios")))]
 mod ide;
+pub mod location_watcher;
 pub mod models;
 pub mod project_move;
 pub mod search;
@@ -145,6 +146,14 @@ pub fn run() {
                     }
                 }
             });
+
+            let watcher = crate::location_watcher::LocationWatcher::new(handle.clone());
+            let watcher_spawn = watcher.clone();
+            tauri::async_runtime::spawn(async move {
+                watcher_spawn.watch_all_enabled().await;
+            });
+            app.manage(watcher);
+
             crate::search::background::start_background_scanner(handle, 15);
             Ok(())
         })

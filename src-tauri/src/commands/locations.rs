@@ -1,13 +1,14 @@
 use std::path::Path;
 
 use serde::Deserialize;
-use tauri::{AppHandle, State};
+use tauri::{AppHandle, Manager, State};
 use tauri_plugin_dialog::DialogExt;
 use tauri_plugin_sql::DbInstances;
 
 use crate::db;
 use crate::error::StableError;
 use crate::fs_scope_util;
+use crate::location_watcher::LocationWatcher;
 use crate::models::LocationDto;
 
 #[derive(Deserialize)]
@@ -57,12 +58,22 @@ pub async fn add_location(
     });
     let loc = db::add_location(&pool, payload.path, name).await?;
     let _ = fs_scope_util::allow_library_root(&app, &loc.path);
+    if let Some(watcher) = app.try_state::<LocationWatcher>() {
+        let _ = watcher.watch(loc.id.clone(), loc.path.clone()).await;
+    }
     Ok(loc)
 }
 
 #[tauri::command]
-pub async fn remove_location(db: State<'_, DbInstances>, id: String) -> Result<(), StableError> {
+pub async fn remove_location(
+    app: AppHandle,
+    db: State<'_, DbInstances>,
+    id: String,
+) -> Result<(), StableError> {
     let pool = db::sqlite_pool(&*db).await?;
+    if let Some(watcher) = app.try_state::<LocationWatcher>() {
+        watcher.unwatch(&id).await;
+    }
     db::remove_location(&pool, &id).await
 }
 
@@ -86,6 +97,16 @@ pub async fn update_location(
     .await?;
     if before.path != loc.path {
         let _ = fs_scope_util::allow_library_root(&app, &loc.path);
+    }
+    if let Some(watcher) = app.try_state::<LocationWatcher>() {
+        let path_changed = before.path != loc.path;
+        let enabled_changed = before.enabled != loc.enabled;
+        if path_changed || enabled_changed {
+            watcher.unwatch(&loc.id).await;
+            if loc.enabled {
+                let _ = watcher.watch(loc.id.clone(), loc.path.clone()).await;
+            }
+        }
     }
     Ok(loc)
 }
