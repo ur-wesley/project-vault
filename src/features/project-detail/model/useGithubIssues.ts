@@ -56,6 +56,12 @@ function githubToExtended(i: GitHubIssueRow): ExtendedIssueRow {
 export function useGithubIssues(props: UseGithubIssuesProps) {
   const qc = useQueryClient();
 
+  const issuesQueryKey = createMemo(() => [
+    ...queryKeys.githubProjectIssues(props.projectId()),
+    props.github()?.owner,
+    props.github()?.repo,
+  ]);
+
   const rawLabelsQ = createQuery(() => ({
     queryKey: ["github", "labels", props.github()?.owner, props.github()?.repo, props.projectId()],
     queryFn: async () => {
@@ -167,7 +173,7 @@ export function useGithubIssues(props: UseGithubIssuesProps) {
       if (dr.isErr()) throw dr.error;
     },
     onSuccess: () => {
-      void issuesQ.refetch();
+      void qc.invalidateQueries({ queryKey: issuesQueryKey() });
       void localIssuesQ.refetch();
       void rawLabelsQ.refetch();
     },
@@ -195,7 +201,7 @@ export function useGithubIssues(props: UseGithubIssuesProps) {
     },
     onMutate: async (newIssue) => {
       props.setMutationError(null);
-      const queryKey = queryKeys.githubProjectIssues(props.projectId());
+      const queryKey = issuesQueryKey();
       await qc.cancelQueries({ queryKey });
       const previousIssues = qc.getQueryData<ExtendedIssueRow[]>(queryKey) ?? [];
 
@@ -230,6 +236,7 @@ export function useGithubIssues(props: UseGithubIssuesProps) {
           if (!old) return [data];
           return old.map((i) => (i.number === context.tempId ? data : i));
         });
+        void qc.invalidateQueries({ queryKey: context.queryKey });
       }
       void rawLabelsQ.refetch();
       void localIssuesQ.refetch();
@@ -256,7 +263,7 @@ export function useGithubIssues(props: UseGithubIssuesProps) {
     },
     onMutate: async (updatedIssue) => {
       props.setMutationError(null);
-      const queryKey = queryKeys.githubProjectIssues(props.projectId());
+      const queryKey = issuesQueryKey();
       await qc.cancelQueries({ queryKey });
       const previousIssues = qc.getQueryData<ExtendedIssueRow[]>(queryKey);
 
@@ -292,6 +299,7 @@ export function useGithubIssues(props: UseGithubIssuesProps) {
           if (!old) return [data];
           return old.map((i) => (i.number === data.number && i.isLocal === data.isLocal ? data : i));
         });
+        void qc.invalidateQueries({ queryKey: context.queryKey });
       }
       void rawLabelsQ.refetch();
       void localIssuesQ.refetch();
@@ -315,7 +323,7 @@ export function useGithubIssues(props: UseGithubIssuesProps) {
     },
     onMutate: async (args) => {
       props.setMutationError(null);
-      const queryKey = queryKeys.githubProjectIssues(props.projectId());
+      const queryKey = issuesQueryKey();
       await qc.cancelQueries({ queryKey });
       const previousIssues = qc.getQueryData<ExtendedIssueRow[]>(queryKey);
 
@@ -344,6 +352,7 @@ export function useGithubIssues(props: UseGithubIssuesProps) {
             i.number === args.number && i.isLocal === args.isLocal ? { ...i, state: "closed" as const, isPending: false } : i,
           );
         });
+        void qc.invalidateQueries({ queryKey: context.queryKey });
       }
       void localIssuesQ.refetch();
     },
