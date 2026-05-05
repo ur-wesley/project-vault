@@ -42,6 +42,7 @@ import { cn } from "~/lib/utils";
 import { queryKeys } from "~/services/query-keys";
 import { getProjectLanguages } from "~/services/tauri";
 import { formatWorktime } from "../lib/format";
+import { useLivePlaytime } from "~/lib/live-playtime-context";
 
 import type { ProjectDetailModel } from "../model/createProjectDetailModel";
 
@@ -125,6 +126,7 @@ function LanguageBar(props: { projectId: string }) {
 
 export const ProjectDetailHeader: Component<ProjectDetailHeaderProps> = (props) => {
   const { t } = useI18n();
+  const { getLivePlaytimeMs } = useLivePlaytime();
   const m = () => props.model;
   const [deleteConfirmOpen, setDeleteConfirmOpen] = createSignal(false);
   const [deleteFromDisk, setDeleteFromDisk] = createSignal(false);
@@ -140,7 +142,11 @@ export const ProjectDetailHeader: Component<ProjectDetailHeaderProps> = (props) 
   return (
     <div class="shrink-0 border-b border-border/40 bg-background/50">
       <Show when={m().projectQ.data}>
-        {(p) => (
+        {(p) => {
+          const livePlaytimeMs = createMemo(() =>
+            getLivePlaytimeMs(p().id, p().totalPlaytimeMs)(),
+          );
+          return (
           <div class="flex items-center justify-between gap-6 px-4 py-3">
             <div class="flex min-w-0 flex-1 flex-col gap-2">
               <div class="flex items-center gap-3 min-w-0">
@@ -251,7 +257,7 @@ export const ProjectDetailHeader: Component<ProjectDetailHeaderProps> = (props) 
                 <Tooltip>
                   <TooltipTrigger as="div" class="flex items-center gap-1.5 text-[10px] font-bold uppercase tracking-tight text-muted-foreground/80">
                     <span class="iconify mdi--clock-outline size-3" />
-                    {formatWorktime(p().totalPlaytimeMs)}
+                    {formatWorktime(livePlaytimeMs())}
                   </TooltipTrigger>
                   <TooltipContent>{t('projectDetail.totalWorktime') as string}</TooltipContent>
                 </Tooltip>

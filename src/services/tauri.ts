@@ -236,6 +236,13 @@ export function listActiveSessions(projectId: string): ResultAsync<SessionDto[],
   );
 }
 
+export function listAllActiveSessions(): ResultAsync<SessionDto[], StableError> {
+  return ResultAsync.fromPromise(
+    invoke<SessionDto[]>("list_all_active_sessions"),
+    mapInvokeError,
+  );
+}
+
 export type ProcessDto = {
   sessionId: string;
   projectId: string;

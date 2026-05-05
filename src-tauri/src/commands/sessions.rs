@@ -69,6 +69,14 @@ pub async fn list_active_sessions(
 }
 
 #[tauri::command]
+pub async fn list_all_active_sessions(
+    db: State<'_, DbInstances>,
+) -> Result<Vec<SessionDto>, StableError> {
+    let pool = db::sqlite_pool(&*db).await?;
+    db::list_active_sessions_for_project_all(&pool).await
+}
+
+#[tauri::command]
 pub async fn recover_orphan_sessions(db: State<'_, DbInstances>) -> Result<u64, StableError> {
     let pool = db::sqlite_pool(&*db).await?;
     db::recover_orphan_sessions(&pool).await

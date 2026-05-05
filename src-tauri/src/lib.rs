@@ -192,6 +192,7 @@ pub fn run() {
             commands::sessions::end_session,
             commands::sessions::list_sessions_for_project,
             commands::sessions::list_active_sessions,
+            commands::sessions::list_all_active_sessions,
             commands::sessions::recover_orphan_sessions,
             commands::sessions::clear_sessions_for_project,
             commands::sessions::get_session_count_for_project,

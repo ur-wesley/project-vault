@@ -8,6 +8,7 @@ import { EventHubProvider } from "./lib/event-hub-context";
 import { I18nProvider } from "./lib/i18n-context";
 import { ShortcutProvider } from "./lib/shortcut-context";
 import { useRealtimeProjects } from "./lib/use-realtime-projects";
+import { LivePlaytimeProvider } from "./lib/live-playtime-context";
 import { queryKeys } from "./services/query-keys";
 
 const queryClient = new QueryClient({
@@ -48,7 +49,9 @@ render(
         <EventHubProvider>
           <ShortcutProvider>
             <I18nProvider>
-              <App />
+              <LivePlaytimeProvider>
+                <App />
+              </LivePlaytimeProvider>
             </I18nProvider>
           </ShortcutProvider>
         </EventHubProvider>

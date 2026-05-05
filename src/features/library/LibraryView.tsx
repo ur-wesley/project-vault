@@ -10,6 +10,7 @@ import {
   type Setter,
 } from "solid-js";
 
+import { useLivePlaytime } from "~/lib/live-playtime-context";
 import { StackIcon } from "~/components/StackIcon";
 import { Button } from "~/components/ui/button";
 import { Badge } from "~/components/ui/badge";
@@ -45,6 +46,7 @@ export function LibraryView(props: {
   onOpenProjectTab?: (id: string, tab: string) => void;
 }) {
   const { t, localeCode } = useI18n();
+  const { getLivePlaytimeMs } = useLivePlaytime();
   const qc = useQueryClient();
 
   const q = createQuery(() => ({
@@ -378,7 +380,11 @@ export function LibraryView(props: {
 
         <div class="grid gap-3 pb-10" style={{ "grid-template-columns": "repeat(auto-fill, minmax(320px, 1fr))" }}>
           <For each={filtered()}>
-            {(project) => (
+            {(project) => {
+              const livePlaytimeMs = createMemo(() =>
+                getLivePlaytimeMs(project.id, project.totalPlaytimeMs)(),
+              );
+              return (
               <div
                 role="button"
                 tabindex="0"
@@ -463,17 +469,17 @@ export function LibraryView(props: {
                         </TooltipTrigger>
                         <TooltipContent>{`${t("library.fileCount") as string} · ${t("library.projectSize") as string}`}</TooltipContent>
                       </Tooltip>
-                      <Show when={formatRelativeTime(project.lastEditedAtMs, localeCode()) || formatPlaytime(project.totalPlaytimeMs)}>
+                      <Show when={formatRelativeTime(project.lastEditedAtMs, localeCode()) || formatPlaytime(livePlaytimeMs())}>
                         <Tooltip>
                           <TooltipTrigger
                             as="div"
                             class="hidden sm:flex items-center gap-1 rounded bg-muted/50 px-1.5 py-0.5"
                           >
-                            <Show when={formatPlaytime(project.totalPlaytimeMs)}>
+                            <Show when={formatPlaytime(livePlaytimeMs())}>
                               <span class="iconify mdi--clock-outline text-muted-foreground/60 size-3" />
-                              <span class="text-[10px] font-mono font-medium text-muted-foreground">{formatPlaytime(project.totalPlaytimeMs)}</span>
+                              <span class="text-[10px] font-mono font-medium text-muted-foreground">{formatPlaytime(livePlaytimeMs())}</span>
                             </Show>
-                            <Show when={formatRelativeTime(project.lastEditedAtMs, localeCode()) && formatPlaytime(project.totalPlaytimeMs)}>
+                            <Show when={formatRelativeTime(project.lastEditedAtMs, localeCode()) && formatPlaytime(livePlaytimeMs())}>
                               <span class="mx-0.5 h-2.5 w-px bg-border/60" />
                             </Show>
                             <Show when={formatRelativeTime(project.lastEditedAtMs, localeCode())}>
@@ -553,7 +559,7 @@ export function LibraryView(props: {
                   </button>
                 </div>
               </div>
-            )}
+            );}
           </For>
         </div>
       </div>
