@@ -3,3 +3,5 @@ bun = "latest"
 
 [tasks]
 build-app = { run = "bun run tauri build" }
+
+[env]

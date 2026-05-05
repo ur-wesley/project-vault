@@ -408,7 +408,7 @@ function TerminalHost(props: {
     let ro: ResizeObserver | null = null;
     let resizeT: number | undefined;
     let linkProvider: { dispose: () => void } | null = null;
-    let onKeyDown: ((e: KeyboardEvent) => void) | null = null;
+    let cleanupOnKeyDown: ((e: KeyboardEvent) => void) | null = null;
     const existingSid = attachSid ?? existingSessionId;
     let sid = existingSid;
 
@@ -430,20 +430,32 @@ function TerminalHost(props: {
       linkProvider = registerTauriWebLinks(term);
       term.open(node);
 
-      const onKeyDown = (e: KeyboardEvent) => {
+      cleanupOnKeyDown = (e: KeyboardEvent) => {
         const isPaste = (e.ctrlKey || e.metaKey) && (e.key === "v" || e.key === "V");
-        if (!isPaste || !term) return;
-        e.preventDefault();
-        e.stopPropagation();
-        readText()
-          .then((text) => {
-            if (term) term.paste(text);
-          })
-          .catch((err) => {
-            console.error("clipboard read failed:", err);
-          });
+        const isCopy = (e.ctrlKey || e.metaKey) && (e.key === "c" || e.key === "C");
+
+        if (isPaste && term) {
+          e.preventDefault();
+          e.stopPropagation();
+          readText()
+            .then((text) => {
+              if (term) term.paste(text);
+            })
+            .catch((err) => {
+              console.error("clipboard read failed:", err);
+            });
+          return;
+        }
+
+        if (isCopy && term && term.hasSelection()) {
+          e.preventDefault();
+          e.stopPropagation();
+          const text = term.getSelection();
+          void navigator.clipboard.writeText(text);
+          return;
+        }
       };
-      node.addEventListener("keydown", onKeyDown, { capture: true });
+      node.addEventListener("keydown", cleanupOnKeyDown, { capture: true });
       // Only fit if the container is actually visible. When the terminal tab
       // is not active, the parent TabsContent is display:none and fit() would
       // resize xterm to 0x0, corrupting the buffer before any data arrives.
@@ -524,7 +536,7 @@ function TerminalHost(props: {
       unData?.();
       unExit?.();
       linkProvider?.dispose();
-      if (onKeyDown) node.removeEventListener("keydown", onKeyDown, { capture: true });
+      if (cleanupOnKeyDown) node.removeEventListener("keydown", cleanupOnKeyDown, { capture: true });
       // NOTE: We do NOT kill the PTY session here.
       // The session should stay alive when the user switches routes/tabs.
       // It is only killed when the user explicitly closes the terminal tab.
