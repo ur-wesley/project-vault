@@ -52,6 +52,7 @@ import { formatBytes } from "~/lib/format-bytes";
 import { cn } from "~/lib/utils";
 import { formatWorktime } from "../lib/format";
 import { LanguageBar } from "./LanguageBar";
+import { DeleteProjectDialog } from "./DeleteProjectDialog";
 import { useLivePlaytime } from "~/lib/live-playtime-context";
 
 import type { ProjectDetailModel } from "../model/createProjectDetailModel";
@@ -68,7 +69,6 @@ export const ProjectDetailHeader: Component<ProjectDetailHeaderProps> = (
   const { getLivePlaytimeMs } = useLivePlaytime();
   const m = () => props.model;
   const [deleteConfirmOpen, setDeleteConfirmOpen] = createSignal(false);
-  const [deleteFromDisk, setDeleteFromDisk] = createSignal(false);
   const [tagDialogOpen, setTagDialogOpen] = createSignal(false);
   const [tagStep, setTagStep] = createSignal<"bump" | "files">("bump");
   const [selectedBump, setSelectedBump] = createSignal<
@@ -1354,54 +1354,11 @@ export const ProjectDetailHeader: Component<ProjectDetailHeaderProps> = (
         </AlertDialogContent>
       </AlertDialog>
 
-      <AlertDialog
+      <DeleteProjectDialog
+        model={m()}
         open={deleteConfirmOpen()}
-        onOpenChange={(v) => {
-          setDeleteConfirmOpen(v);
-          if (!v) setDeleteFromDisk(false);
-        }}
-      >
-        <AlertDialogContent>
-          <AlertDialogHeader>
-            <AlertDialogTitle>
-              {t("projectDetail.deleteProjectTitle") as string}
-            </AlertDialogTitle>
-            <AlertDialogDescription>
-              {t("projectDetail.deleteProjectDescription") as string}
-            </AlertDialogDescription>
-          </AlertDialogHeader>
-          <div class="flex items-center gap-2 py-2">
-            <Checkbox
-              id="delete-from-disk"
-              checked={deleteFromDisk()}
-              onChange={setDeleteFromDisk}
-            />
-            <label
-              for="delete-from-disk"
-              class="cursor-pointer text-xs text-muted-foreground"
-            >
-              {t("projectDetail.deleteFromDisk") as string}
-            </label>
-          </div>
-          <AlertDialogFooter>
-            <Button
-              variant="outline"
-              onClick={() => setDeleteConfirmOpen(false)}
-            >
-              {t("wizard.cancel") as string}
-            </Button>
-            <Button
-              variant="destructive"
-              onClick={() => {
-                setDeleteConfirmOpen(false);
-                m().deleteProject(m().props.projectId, deleteFromDisk());
-              }}
-            >
-              {t("projectDetail.deleteConfirm") as string}
-            </Button>
-          </AlertDialogFooter>
-        </AlertDialogContent>
-      </AlertDialog>
+        onOpenChange={setDeleteConfirmOpen}
+      />
     </div>
   );
 };
