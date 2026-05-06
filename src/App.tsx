@@ -60,103 +60,15 @@ import {
   SidebarProvider,
   useSidebar,
 } from "~/components/ui/sidebar";
-import { TextField, TextFieldInput } from "~/components/ui/text-field";
-import {
-  Combobox,
-  ComboboxContent,
-  ComboboxControl,
-  ComboboxItem,
-  ComboboxTrigger,
-} from "~/components/ui/combobox";
 import { StackIconSafelist } from "~/components/StackIconSafelist";
 import { WindowTitleBar } from "~/components/WindowTitleBar";
-import { StackIcon } from "~/components/StackIcon";
 import { buildStacksList } from "~/features/library/filter-projects";
 import "./App.css";
 
+import { SidebarHeaderSearch } from "~/components/SidebarHeaderSearch";
+import { SidebarToggleListener } from "~/components/SidebarToggleListener";
+
 type ProjectFilterOption = { value: string; label: string; textValue: string };
-
-function SidebarHeaderSearch(props: {
-  search: Accessor<string>;
-  setSearch: (v: string) => void;
-  filter: Accessor<string>;
-  setFilter: (v: string) => void;
-  filterOptions: Accessor<ProjectFilterOption[]>;
-  t: (k: string) => string;
-  shortcutHint: string;
-  onOpenCommandPalette?: () => void;
-}) {
-  const selectedFilterOption = createMemo(() => {
-    return props.filterOptions().find((o) => o.value === props.filter()) ?? props.filterOptions()[0];
-  });
-
-  return (
-    <div class="flex items-center bg-sidebar-accent/15">
-      <TextField class="flex-1">
-        <TextFieldInput
-          placeholder={`${props.t("common.search") as string} ${props.shortcutHint}`}
-          class="h-9 border-0 bg-transparent text-xs focus-visible:ring-0 focus-visible:ring-offset-0 px-3 cursor-pointer placeholder:text-sidebar-foreground/40"
-          value={props.search()}
-          readOnly
-          onClick={() => props.onOpenCommandPalette?.()}
-          autocomplete="off"
-        />
-      </TextField>
-      <div class="h-5 w-px bg-sidebar-border/30" />
-      <Combobox<ProjectFilterOption>
-        options={props.filterOptions()}
-        optionValue="value"
-        optionTextValue="textValue"
-        optionLabel="label"
-        value={selectedFilterOption()}
-        onChange={(opt) => {
-          if (opt) props.setFilter(opt.value);
-        }}
-        disallowEmptySelection
-        defaultFilter="contains"
-        itemComponent={(p) => {
-          const opt = p.item.rawValue;
-          const st = opt.value.startsWith("stack:") ? opt.value.slice(6) : null;
-          return (
-            <ComboboxItem item={p.item}>
-              <span class="flex min-w-0 items-center gap-2">
-                <Show when={st != null}>
-                  <StackIcon stack={st!} class="h-3.5 w-3.5" title={opt.label} />
-                </Show>
-                <span class="truncate text-xs">{opt.label}</span>
-              </span>
-            </ComboboxItem>
-          );
-        }}
-      >
-        <ComboboxControl class="h-9 border-0 bg-transparent px-2">
-          <ComboboxTrigger
-            class="flex h-full w-auto items-center gap-0.5 opacity-70 hover:opacity-100"
-            aria-label={props.t("library.filterLabel") as string}
-          >
-            <span class={props.filter() !== "all" ? "iconify mdi--filter size-3.5 text-primary" : "iconify mdi--filter-outline size-3.5"} />
-            <span class="iconify mdi--chevron-down size-3" />
-          </ComboboxTrigger>
-        </ComboboxControl>
-        <ComboboxContent />
-      </Combobox>
-    </div>
-  );
-}
-
-function SidebarToggleListener() {
-  const hub = useEventHub();
-  const { toggleSidebar } = useSidebar();
-  createEffect(() => {
-    const listener = hub.on("shortcut:action", (payload) => {
-      if (payload.action === "sidebar:toggle") {
-        toggleSidebar();
-      }
-    });
-    onCleanup(() => listener());
-  });
-  return null;
-}
 
 function App() {
   const { t, setLocale } = useI18n();
