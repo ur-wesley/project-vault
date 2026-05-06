@@ -1,4 +1,5 @@
-import { listLocations, scanLibraryLocation } from "~/services/tauri";
+import { listLocations } from "~/services/tauri/locations";
+import { scanLibraryLocation } from "~/services/tauri/scanning";
 
 export async function rescanAllLibraryFolders(): Promise<number> {
   const locs = await listLocations();

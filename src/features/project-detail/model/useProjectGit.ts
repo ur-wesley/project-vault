@@ -11,7 +11,7 @@ import {
   gitBumpVersionAndTag,
   gitCleanPreview,
   gitCleanExecute,
-} from "~/services/tauri";
+} from "~/services/tauri/git";
 import { queryKeys } from "~/services/query-keys";
 import { stableErrorMessage } from "~/lib/invoke-error";
 

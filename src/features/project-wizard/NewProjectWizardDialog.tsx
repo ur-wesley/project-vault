@@ -17,12 +17,8 @@ import { useEventHub } from "~/lib/event-hub-context";
 import { useI18n } from "~/lib/i18n-context";
 import { stableErrorMessage } from "~/lib/invoke-error";
 import { rescanAllLibraryFolders } from "~/lib/rescan-library";
-import {
-  createProjectFromTemplate,
-  listLocations,
-  listProjectTemplates,
-  runTemplateCommand,
-} from "~/services/tauri";
+import { listLocations } from "~/services/tauri/locations";
+import { createProjectFromTemplate, listProjectTemplates, runTemplateCommand } from "~/services/tauri/templates";
 import { getProjectTerminalStore } from "~/features/project-detail/model/global-terminal-store";
 import { queryKeys } from "~/services/query-keys";
 import type { TemplateSummaryDto } from "~/types/dto";

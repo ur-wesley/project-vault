@@ -1,4 +1,4 @@
-import { getSetting, setSetting } from "~/services/tauri";
+import { getSetting, setSetting } from "~/services/tauri/settings";
 
 export type ShortcutAction =
   | "command-palette:open"

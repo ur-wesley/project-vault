@@ -6,7 +6,7 @@ import { Select } from "~/components/ui/select";
 import { TabsContent } from "~/components/ui/tabs";
 import { TextField, TextFieldInput } from "~/components/ui/text-field";
 import type { Locale } from "~/messages";
-import { debugScanLocation } from "~/services/tauri";
+import { debugScanLocation } from "~/services/tauri/scanning";
 import pkg from "../../../../package.json";
 
 export type GeneralSettingsTabProps = Readonly<{

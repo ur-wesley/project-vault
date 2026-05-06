@@ -16,7 +16,7 @@ import {
   updateIssueLocal,
   deleteAllLocalIssues,
   type LocalIssueDto,
-} from "~/services/tauri";
+} from "~/services/tauri/issues";
 import { queryKeys } from "~/services/query-keys";
 
 

@@ -1,7 +1,7 @@
 import * as i18n from "@solid-primitives/i18n";
 import { createContext, useContext, createResource, createMemo, type ParentComponent, type Accessor } from "solid-js";
 import { messages, type Locale, defaultLocale } from "~/messages";
-import { getSetting } from "~/services/tauri";
+import { getSetting } from "~/services/tauri/settings";
 
 const LOCALE_SETTING_KEY = "ui_locale";
 

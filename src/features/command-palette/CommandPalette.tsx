@@ -17,7 +17,7 @@ import { useI18n } from "~/lib/i18n-context";
 import { cn } from "~/lib/utils";
 import { fuzzyScore } from "~/lib/fuzzy-score";
 import { rescanAllLibraryFolders } from "~/lib/rescan-library";
-import { listProjects } from "~/services/tauri";
+import { listProjects } from "~/services/tauri/projects";
 import { queryKeys } from "~/services/query-keys";
 import type { ProjectDto } from "~/types/dto";
 import { Tooltip, TooltipContent, TooltipTrigger } from "~/components/ui/tooltip";

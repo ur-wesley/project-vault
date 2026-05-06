@@ -2,18 +2,12 @@ import { createQuery, useQueryClient } from "@tanstack/solid-query";
 import { createEffect, createSignal } from "solid-js";
 import { isTauri } from "@tauri-apps/api/core";
 import { toast } from "solid-sonner";
-import {
-  getSetting,
-  setSetting,
-  isGithubDeviceConfigured,
-  exportLibrarySnapshot,
-  listDiscoveredIdes,
-  listAvailableShells,
-  listDiscoveredTools,
-  deleteAllIndices,
-  checkForUpdates,
-  installUpdate,
-} from "~/services/tauri";
+import { isGithubDeviceConfigured } from "~/services/tauri/github-auth";
+import { exportLibrarySnapshot } from "~/services/tauri/projects";
+import { listDiscoveredIdes } from "~/services/tauri/ide";
+import { listAvailableShells, listDiscoveredTools } from "~/services/tauri/terminal";
+import { deleteAllIndices } from "~/services/tauri/search";
+import { checkForUpdates, installUpdate } from "~/services/tauri/updates";
 import { GITHUB_TOKEN_SETTING_KEY, fetchGitHubViewer } from "~/services/github";
 import { runGithubDeviceSignIn } from "~/services/github-device-signin";
 import { stableErrorMessage } from "~/lib/invoke-error";

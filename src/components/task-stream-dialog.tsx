@@ -17,11 +17,7 @@ import {
   DialogTitle,
 } from "~/components/ui/dialog";
 import { useI18n } from "~/lib/i18n-context";
-import {
-  embeddedTerminalKill,
-  embeddedTerminalResize,
-  embeddedTerminalWrite,
-} from "~/services/tauri";
+import { embeddedTerminalKill, embeddedTerminalResize, embeddedTerminalWrite } from "~/services/tauri/terminal";
 
 const WEB_LINK_REGEX = /https?:\/\/[^\s"<>|`{}[\]^]+/g;
 

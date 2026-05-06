@@ -1,6 +1,6 @@
 import { createQuery } from "@tanstack/solid-query";
 import { For, Show } from "solid-js";
-import { getLargestEntries } from "~/services/tauri";
+import { getLargestEntries } from "~/services/tauri/projects";
 import { formatBytes } from "~/lib/format-bytes";
 import { cn } from "~/lib/utils";
 import {

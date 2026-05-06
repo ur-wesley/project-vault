@@ -6,7 +6,7 @@ import { createHighlighter } from "shiki";
 import { createQuery } from "@tanstack/solid-query";
 import { cn } from "~/lib/utils";
 import { useI18n } from "~/lib/i18n-context";
-import { searchProject, indexProject, rebuildIndex, getIndexMeta } from "~/services/tauri";
+import { searchProject, indexProject, rebuildIndex, getIndexMeta } from "~/services/tauri/search";
 import { formatBytes } from "~/lib/format-bytes";
 import { toast } from "solid-sonner";
 import { queryKeys } from "~/services/query-keys";

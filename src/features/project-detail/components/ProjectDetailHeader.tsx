@@ -51,7 +51,7 @@ import { formatRelativeTime } from "~/lib/format-date";
 import { formatBytes } from "~/lib/format-bytes";
 import { cn } from "~/lib/utils";
 import { queryKeys } from "~/services/query-keys";
-import { getProjectLanguages } from "~/services/tauri";
+import { getProjectLanguages } from "~/services/tauri/projects";
 import { formatWorktime } from "../lib/format";
 import { useLivePlaytime } from "~/lib/live-playtime-context";
 

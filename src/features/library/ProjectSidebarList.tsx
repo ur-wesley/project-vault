@@ -22,16 +22,11 @@ import {
 import { Tooltip, TooltipContent, TooltipTrigger } from "~/components/ui/tooltip";
 import { useI18n } from "~/lib/i18n-context";
 import { stableErrorMessage } from "~/lib/invoke-error";
-import {
-  deleteProject,
-  getSetting,
-  listAllProcesses,
-  listDiscoveredIdes,
-  listProjects,
-  openProjectInIde,
-  openProjectShell,
-  setProjectFavorite,
-} from "~/services/tauri";
+import { deleteProject, listProjects, setProjectFavorite } from "~/services/tauri/projects";
+import { getSetting } from "~/services/tauri/settings";
+import { listAllProcesses } from "~/services/tauri/sessions";
+import { listDiscoveredIdes, openProjectInIde } from "~/services/tauri/ide";
+import { openProjectShell } from "~/services/tauri/terminal";
 import { queryKeys } from "~/services/query-keys";
 import type { ProjectDto } from "~/types/dto";
 import type { StableError } from "~/types/error";

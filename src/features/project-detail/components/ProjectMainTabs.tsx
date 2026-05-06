@@ -35,7 +35,7 @@ import { GithubProjectPanel } from "../GithubProjectPanel";
 import { TaskEditorDialog } from "./TaskEditorDialog";
 import { MiseToolsSuggestion } from "./MiseToolsSuggestion";
 import type { ProjectDto, TaskDto } from "~/types/dto";
-import { deleteProjectTask } from "~/services/tauri";
+import { deleteProjectTask } from "~/services/tauri/tasks";
 import { toast } from "solid-sonner";
 
 type SessionState = "running" | "starting" | "success" | "error" | "cancelled" | "unknown";

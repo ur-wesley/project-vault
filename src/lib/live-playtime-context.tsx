@@ -9,7 +9,7 @@ import {
   useContext,
   createSignal,
 } from "solid-js";
-import { listAllActiveSessions } from "~/services/tauri";
+import { listAllActiveSessions } from "~/services/tauri/sessions";
 import type { SessionDto } from "~/types/dto";
 
 type LivePlaytimeContextValue = {

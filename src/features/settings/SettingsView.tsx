@@ -8,7 +8,7 @@ import { Tabs, TabsList, TabsTrigger, TabsContent } from "~/components/ui/tabs";
 import { useI18n } from "~/lib/i18n-context";
 import type { Locale } from "~/messages";
 import { LocationManager } from "../locations";
-import { getAppDataDir } from "~/services/tauri";
+import { getAppDataDir } from "~/services/tauri/settings";
 import { stableErrorMessage } from "~/lib/invoke-error";
 import pkg from "../../../package.json";
 

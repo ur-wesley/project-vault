@@ -1,6 +1,7 @@
 import { useQueryClient } from "@tanstack/solid-query";
 import { createMemo } from "solid-js";
-import { stopProjectTask, embeddedTerminalKill } from "~/services/tauri";
+import { stopProjectTask } from "~/services/tauri/tasks";
+import { embeddedTerminalKill } from "~/services/tauri/terminal";
 import { stableErrorMessage } from "~/lib/invoke-error";
 import { queryKeys } from "~/services/query-keys";
 import type { Accessor } from "solid-js";

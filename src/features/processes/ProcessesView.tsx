@@ -6,13 +6,10 @@ import { Button } from "~/components/ui/button";
 import { Badge } from "~/components/ui/badge";
 import { Tooltip, TooltipContent, TooltipTrigger } from "~/components/ui/tooltip";
 import { useI18n } from "~/lib/i18n-context";
-import {
-  listAllProcesses,
-  stopProjectTask,
-  stopProjectIde,
-  stopAllProjectProcesses,
-  type ProcessDto,
-} from "~/services/tauri";
+import { listAllProcesses, type ProcessDto } from "~/services/tauri/sessions";
+import { stopProjectTask } from "~/services/tauri/tasks";
+import { stopProjectIde } from "~/services/tauri/ide";
+import { stopAllProjectProcesses } from "~/services/tauri/processes";
 
 
 type ProjectGroup = {

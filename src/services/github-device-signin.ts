@@ -2,7 +2,8 @@ import { isTauri } from "@tauri-apps/api/core";
 import { openUrl } from "@tauri-apps/plugin-opener";
 
 import { GITHUB_TOKEN_SETTING_KEY } from "~/services/github";
-import { setSetting, startGithubDeviceFlow, waitGithubDeviceFlow } from "~/services/tauri";
+import { setSetting } from "~/services/tauri/settings";
+import { startGithubDeviceFlow, waitGithubDeviceFlow } from "~/services/tauri/github-auth";
 import type { StableError } from "~/types/error";
 
 export type GithubDeviceSignInOptions = {

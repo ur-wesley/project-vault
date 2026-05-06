@@ -26,7 +26,13 @@ import { rescanAllLibraryFolders } from "~/lib/rescan-library";
 import { stableErrorMessage } from "~/lib/invoke-error";
 import { GITHUB_TOKEN_SETTING_KEY, fetchGitHubViewer } from "~/services/github";
 import { runGithubDeviceSignIn } from "~/services/github-device-signin";
-import { getProject, getSetting, isGithubDeviceConfigured, setSetting, listAllProcesses, listLocations, listProjects, checkForUpdates, stopAllProjectProcesses } from "~/services/tauri";
+import { getProject, listProjects } from "~/services/tauri/projects";
+import { listLocations } from "~/services/tauri/locations";
+import { getSetting, setSetting } from "~/services/tauri/settings";
+import { isGithubDeviceConfigured } from "~/services/tauri/github-auth";
+import { listAllProcesses } from "~/services/tauri/sessions";
+import { checkForUpdates } from "~/services/tauri/updates";
+import { stopAllProjectProcesses } from "~/services/tauri/processes";
 import { queryKeys } from "~/services/query-keys";
 import { isTauri } from "@tauri-apps/api/core";
 import { getCurrentWindow } from "@tauri-apps/api/window";
@@ -419,7 +425,7 @@ function App() {
               label: "Install",
               onClick: () => {
                 void (async () => {
-                  const installR = await import("~/services/tauri").then((m) => m.installUpdate());
+                  const installR = await import("~/services/tauri/updates").then((m) => m.installUpdate());
                   if (installR.isErr()) {
                     toast.error(String(installR.error));
                   }

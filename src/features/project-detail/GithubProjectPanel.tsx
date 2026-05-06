@@ -12,7 +12,8 @@ import { Tooltip, TooltipContent, TooltipTrigger } from "~/components/ui/tooltip
 import { useI18n } from "~/lib/i18n-context";
 import { stableErrorMessage } from "~/lib/invoke-error";
 import { readProjectReadmeHtml } from "~/services/github";
-import { deleteAllLocalIssues, setProjectTag } from "~/services/tauri";
+import { deleteAllLocalIssues } from "~/services/tauri/issues";
+import { setProjectTag } from "~/services/tauri/projects";
 import { queryKeys } from "~/services/query-keys";
 import { cn } from "~/lib/utils";
 import type { StableError } from "~/types/error";

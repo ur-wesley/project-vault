@@ -4,7 +4,7 @@ import DOMPurify, { type Config as DOMPurifyConfig } from "dompurify";
 import { ResultAsync } from "neverthrow";
 import { marked } from "marked";
 
-import { getSetting } from "~/services/tauri";
+import { getSetting } from "~/services/tauri/settings";
 import type { StableError } from "~/types/error";
 
 export const GITHUB_TOKEN_SETTING_KEY = "github_token";

@@ -36,14 +36,8 @@ import {
   getTerminalReplay,
   clearTerminalBuffer,
 } from "./lib/terminal-buffer";
-import {
-  embeddedTerminalKill,
-  embeddedTerminalResize,
-  embeddedTerminalSpawn,
-  embeddedTerminalWrite,
-  getSetting,
-  listAvailableShells,
-} from "~/services/tauri";
+import { embeddedTerminalKill, embeddedTerminalResize, embeddedTerminalSpawn, embeddedTerminalWrite, listAvailableShells } from "~/services/tauri/terminal";
+import { getSetting } from "~/services/tauri/settings";
 
 const WEB_LINK_REGEX = /https?:\/\/[^\s"<>|`{}[\]^]+/g;
 

@@ -27,14 +27,9 @@ import {
 import { toast } from "solid-sonner";
 import { useI18n } from "~/lib/i18n-context";
 import { stableErrorMessage } from "~/lib/invoke-error";
-import {
-  listDiscoveredIdes,
-  listProjects,
-  openProjectInIde,
-  listRunningProjects,
-  stopProjectIde,
-  setProjectFavorite,
-} from "~/services/tauri";
+import { listProjects, listRunningProjects, setProjectFavorite } from "~/services/tauri/projects";
+import { listDiscoveredIdes } from "~/services/tauri/ide";
+import { openProjectInIde, stopProjectIde } from "~/services/tauri/ide";
 import { queryKeys } from "~/services/query-keys";
 import { fetchGitHubViewer } from "~/services/github";
 import type { ProjectDto } from "~/types/dto";

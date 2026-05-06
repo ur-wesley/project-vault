@@ -6,21 +6,11 @@ import { toast } from "solid-sonner";
 
 import { useI18n } from "~/lib/i18n-context";
 import { stableErrorMessage } from "~/lib/invoke-error";
-import {
-  getGitHubRepoForProject,
-  getProject,
-  getProjectMiseTools,
-  suggestMiseTools,
-  pinMiseTools,
-  getSetting,
-  listDiscoveredIdes,
-  openProjectInIde,
-  stopProjectIde,
-  isProjectIdeRunning,
-  openProjectShell,
-  setProjectFavorite,
-  deleteProject as deleteProjectTauri,
-} from "~/services/tauri";
+import { getGitHubRepoForProject, getProject, setProjectFavorite, deleteProject as deleteProjectTauri } from "~/services/tauri/projects";
+import { getProjectMiseTools, suggestMiseTools, pinMiseTools } from "~/services/tauri/mise";
+import { getSetting } from "~/services/tauri/settings";
+import { listDiscoveredIdes, openProjectInIde, stopProjectIde, isProjectIdeRunning } from "~/services/tauri/ide";
+import { openProjectShell } from "~/services/tauri/terminal";
 import { queryKeys } from "~/services/query-keys";
 import type { ProjectDto, MiseToolSuggestionDto } from "~/types/dto";
 import type { StableError } from "~/types/error";

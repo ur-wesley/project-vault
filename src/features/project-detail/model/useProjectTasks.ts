@@ -1,13 +1,7 @@
 import { createQuery, createMutation, useQueryClient } from "@tanstack/solid-query";
 import { createMemo, createSignal, type Accessor } from "solid-js";
-import {
-  listSessionsForProject,
-  listActiveSessions,
-  spawnProjectTask,
-  stopProjectTask,
-  clearSessionsForProject,
-  getSessionCountForProject,
-} from "~/services/tauri";
+import { listSessionsForProject, listActiveSessions, clearSessionsForProject, getSessionCountForProject } from "~/services/tauri/sessions";
+import { spawnProjectTask, stopProjectTask } from "~/services/tauri/tasks";
 import { queryKeys } from "~/services/query-keys";
 import { stableErrorMessage } from "~/lib/invoke-error";
 import { argvNeedsUserConfirmation } from "~/lib/task-risk";

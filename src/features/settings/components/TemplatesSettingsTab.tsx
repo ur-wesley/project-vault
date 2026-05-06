@@ -2,7 +2,7 @@ import { createQuery, useQueryClient } from "@tanstack/solid-query";
 import { For, Show, createSignal, type Component } from "solid-js";
 import { Button } from "~/components/ui/button";
 import { TextField, TextFieldInput, TextFieldTextArea } from "~/components/ui/text-field";
-import { listProjectTemplates, saveProjectTemplates } from "~/services/tauri";
+import { listProjectTemplates, saveProjectTemplates } from "~/services/tauri/templates";
 import type { TemplateSummaryDto } from "~/types/dto";
 
 interface TemplatesSettingsTabProps {

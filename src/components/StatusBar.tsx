@@ -2,7 +2,8 @@ import { For, Show, createMemo, createSignal, onCleanup, type Component } from "
 
 import { useI18n } from "~/lib/i18n-context";
 import { useEventHub } from "~/lib/event-hub-context";
-import { getGitStatus, listAllProcesses } from "~/services/tauri";
+import { getGitStatus } from "~/services/tauri/git";
+import { listAllProcesses } from "~/services/tauri/sessions";
 import { createQuery } from "@tanstack/solid-query";
 import { isTauri } from "@tauri-apps/api/core";
 import { Tooltip, TooltipContent, TooltipTrigger } from "~/components/ui/tooltip";

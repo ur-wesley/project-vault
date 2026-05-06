@@ -1,7 +1,8 @@
 import { listen } from "@tauri-apps/api/event";
 import { createMemo, createSignal, type Accessor } from "solid-js";
 import { useQueryClient, createQuery } from "@tanstack/solid-query";
-import { listLocations, moveProject } from "~/services/tauri";
+import { listLocations } from "~/services/tauri/locations";
+import { moveProject } from "~/services/tauri/projects";
 import { queryKeys } from "~/services/query-keys";
 import { stableErrorMessage } from "~/lib/invoke-error";
 import { formatBytes } from "~/lib/format-bytes";
