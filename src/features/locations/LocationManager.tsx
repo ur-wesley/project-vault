@@ -499,6 +499,10 @@ export const LocationManager: Component = () => {
         onOpenChange={setTreemapOpen}
         locationName={treemapLocation()?.name ?? ""}
         projects={treemapProjects()}
+        onOpenProject={(projectId) => {
+          setTreemapOpen(false);
+          hub.emit("project:opened", { projectId });
+        }}
       />
     </div>
   );

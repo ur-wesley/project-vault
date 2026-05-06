@@ -12,6 +12,7 @@ type SizeTreemapDialogProps = {
   onOpenChange: (open: boolean) => void;
   locationName: string;
   projects: { projectId: string; path: string; name: string; sizeBytes: number }[];
+  onOpenProject: (projectId: string) => void;
 };
 
 export function SizeTreemapDialog(props: SizeTreemapDialogProps) {
@@ -24,7 +25,7 @@ export function SizeTreemapDialog(props: SizeTreemapDialogProps) {
             {t("locations.storageBreakdown", { name: props.locationName }) as string}
           </DialogTitle>
         </DialogHeader>
-        <ProjectSizeTreemap projects={props.projects} />
+        <ProjectSizeTreemap projects={props.projects} onOpenProject={props.onOpenProject} />
       </DialogContent>
     </Dialog>
   );

@@ -2,6 +2,11 @@ import { For, Show, createMemo } from "solid-js";
 import { openPath } from "@tauri-apps/plugin-opener";
 import { formatBytes } from "~/lib/format-bytes";
 import { useI18n } from "~/lib/i18n-context";
+import {
+  Tooltip,
+  TooltipContent,
+  TooltipTrigger,
+} from "~/components/ui/tooltip";
 import { LargestEntriesHoverIcon } from "./LargestEntriesList";
 
 type ProjectSizeEntry = {
@@ -13,6 +18,7 @@ type ProjectSizeEntry = {
 
 type ProjectSizeTableProps = {
   projects: ProjectSizeEntry[];
+  onOpenProject: (projectId: string) => void;
 };
 
 function hue_for_value(value: number, maxValue: number): number {
@@ -38,7 +44,7 @@ export function ProjectSizeTreemap(props: ProjectSizeTableProps) {
     sorted().reduce((m, p) => Math.max(m, p.sizeBytes), 0),
   );
 
-  const handleOpen = async (path: string) => {
+  const handleOpenFileManager = async (path: string) => {
     if (!path) return;
     try {
       await openPath(path);
@@ -86,7 +92,7 @@ export function ProjectSizeTreemap(props: ProjectSizeTableProps) {
                   return (
                     <tr
                       class="border-b border-border/20 cursor-pointer hover:bg-muted/30 transition-colors"
-                      onClick={() => handleOpen(project.path)}
+                      onClick={() => props.onOpenProject(project.projectId)}
                     >
                       <td class="px-3 py-1.5">
                         <div class="flex items-center gap-2">
@@ -95,7 +101,25 @@ export function ProjectSizeTreemap(props: ProjectSizeTableProps) {
                             style={{ "background-color": `hsl(${hue}, 65%, 55%)` }}
                           />
                           <span class="truncate font-medium">{project.name}</span>
-                          <LargestEntriesHoverIcon path={project.path} />
+                          <div class="ml-auto flex items-center gap-1">
+                            <LargestEntriesHoverIcon path={project.path} />
+                            <Tooltip>
+                              <TooltipTrigger
+                                as="button"
+                                type="button"
+                                class="inline-flex h-5 w-5 items-center justify-center rounded text-muted-foreground/50 transition-colors hover:bg-primary/10 hover:text-primary"
+                                onClick={(e) => {
+                                  e.stopPropagation();
+                                  void handleOpenFileManager(project.path);
+                                }}
+                              >
+                                <span class="iconify mdi--folder-open h-3.5 w-3.5" aria-hidden="true" />
+                              </TooltipTrigger>
+                              <TooltipContent class="text-xs">
+                                {t("library.openInFileManager") as string}
+                              </TooltipContent>
+                            </Tooltip>
+                          </div>
                         </div>
                         <div class="mt-1 h-1 w-full overflow-hidden rounded-full bg-muted">
                           <div
