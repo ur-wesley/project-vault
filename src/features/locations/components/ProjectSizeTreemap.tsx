@@ -1,16 +1,7 @@
-import {
-  For,
-  Show,
-  createEffect,
-  createMemo,
-  createSignal,
-  onCleanup,
-} from "solid-js";
+import { For, Show, createMemo } from "solid-js";
 import { openPath } from "@tauri-apps/plugin-opener";
-import { treemap } from "~/lib/treemap";
 import { formatBytes } from "~/lib/format-bytes";
 import { useI18n } from "~/lib/i18n-context";
-import { LargestEntriesHoverCard } from "./LargestEntriesList";
 
 type ProjectSizeEntry = {
   projectId: string;
@@ -19,7 +10,7 @@ type ProjectSizeEntry = {
   sizeBytes: number;
 };
 
-type ProjectSizeTreemapProps = {
+type ProjectSizeTableProps = {
   projects: ProjectSizeEntry[];
 };
 
@@ -29,23 +20,8 @@ function hue_for_value(value: number, maxValue: number): number {
   return Math.round(240 - Math.min(1, t) * 240);
 }
 
-export function ProjectSizeTreemap(props: ProjectSizeTreemapProps) {
+export function ProjectSizeTreemap(props: ProjectSizeTableProps) {
   const { t } = useI18n();
-  let containerRef: HTMLDivElement | undefined;
-  const [dims, setDims] = createSignal({ w: 640, h: 320 });
-
-  createEffect(() => {
-    const el = containerRef;
-    if (!el) return;
-    const update = () => {
-      const rect = el.getBoundingClientRect();
-      setDims({ w: Math.max(1, rect.width), h: Math.max(1, rect.height) });
-    };
-    update();
-    const ro = new ResizeObserver(update);
-    ro.observe(el);
-    onCleanup(() => ro.disconnect());
-  });
 
   const sorted = createMemo(() =>
     [...props.projects]
@@ -91,13 +67,6 @@ export function ProjectSizeTreemap(props: ProjectSizeTreemapProps) {
     return big;
   });
 
-  const layout = createMemo(() => {
-    const items = grouped().map((p) => ({ value: p.sizeBytes, data: p }));
-    if (items.length === 0) return [];
-    const { w, h } = dims();
-    return treemap(items, 0, 0, w, h);
-  });
-
   const handleOpen = async (path: string) => {
     if (!path) return;
     try {
@@ -122,61 +91,67 @@ export function ProjectSizeTreemap(props: ProjectSizeTreemapProps) {
           <span>{t("locations.small") as string}</span>
         </span>
       </div>
-      <div
-        ref={containerRef}
-        class="relative w-full overflow-hidden rounded-md border border-border/40"
-        style={{ height: "320px" }}
-      >
-        <Show when={layout().length === 0}>
-          <div class="flex h-full items-center justify-center text-xs text-muted-foreground">
+
+      <div class="max-h-[320px] overflow-auto rounded-md border border-border/40">
+        <Show when={grouped().length === 0}>
+          <div class="flex h-24 items-center justify-center text-xs text-muted-foreground">
             {t("locations.noSizeData") as string}
           </div>
         </Show>
-        <For each={layout()}>
-          {(node) => {
-            const hue = hue_for_value(node.data.sizeBytes, maxSize());
-            const pct = totalSize() > 0 ? (node.data.sizeBytes / totalSize()) * 100 : 0;
-            const showLabel = node.w > 50 && node.h > 30;
-            const showSize = node.w > 70 && node.h > 45;
-            const isOthers = node.data.projectId === "__others__";
-            return (
-              <LargestEntriesHoverCard
-                path={isOthers ? "" : node.data.path}
-                disabled={isOthers}
-              >
-                <button
-                  type="button"
-                  class="absolute overflow-hidden text-left transition-all duration-150 hover:brightness-110 hover:z-10 focus:outline-none focus:ring-2 focus:ring-primary/50"
-                  style={{
-                    left: `${node.x}px`,
-                    top: `${node.y}px`,
-                    width: `${Math.max(1, node.w)}px`,
-                    height: `${Math.max(1, node.h)}px`,
-                    "background-color": `hsl(${hue}, 65%, 55%)`,
-                  }}
-                  onClick={() => !isOthers && handleOpen(node.data.path)}
-                  title={isOthers
-                    ? `${node.data.name} — ${formatBytes(node.data.sizeBytes)}`
-                    : `${node.data.name} — ${formatBytes(node.data.sizeBytes)} (${pct.toFixed(1)}%)`
-                  }
-                >
-                  <Show when={showLabel}>
-                    <div class="flex h-full flex-col justify-between p-1.5">
-                      <span class="truncate text-[10px] font-bold leading-tight text-white/90 drop-shadow">
-                        {node.data.name}
-                      </span>
-                      <Show when={showSize}>
-                        <span class="text-[9px] font-mono leading-tight text-white/70 drop-shadow">
-                          {formatBytes(node.data.sizeBytes)}
-                        </span>
-                      </Show>
-                    </div>
-                  </Show>
-                </button>
-              </LargestEntriesHoverCard>
-            );
-          }}
-        </For>
+        <Show when={grouped().length > 0}>
+          <table class="w-full text-left text-[11px]">
+            <thead class="sticky top-0 z-10 bg-muted/80 backdrop-blur-sm">
+              <tr class="border-b border-border/40">
+                <th class="px-3 py-1.5 font-semibold text-muted-foreground">Project</th>
+                <th class="px-3 py-1.5 font-semibold text-muted-foreground w-24">Size</th>
+                <th class="px-3 py-1.5 font-semibold text-muted-foreground w-16 text-right">%</th>
+              </tr>
+            </thead>
+            <tbody>
+              <For each={grouped()}>
+                {(project) => {
+                  const pct = totalSize() > 0 ? (project.sizeBytes / totalSize()) * 100 : 0;
+                  const hue = hue_for_value(project.sizeBytes, maxSize());
+                  const isOthers = project.projectId === "__others__";
+                  return (
+                    <tr
+                      class={isOthers
+                        ? "border-b border-border/20 bg-muted/20"
+                        : "border-b border-border/20 cursor-pointer hover:bg-muted/30 transition-colors"
+                      }
+                      onClick={() => !isOthers && handleOpen(project.path)}
+                    >
+                      <td class="px-3 py-1.5">
+                        <div class="flex items-center gap-2">
+                          <div
+                            class="h-2 w-2 shrink-0 rounded-sm"
+                            style={{ "background-color": `hsl(${hue}, 65%, 55%)` }}
+                          />
+                          <span class="truncate font-medium">{project.name}</span>
+                        </div>
+                        <div class="mt-1 h-1 w-full overflow-hidden rounded-full bg-muted">
+                          <div
+                            class="h-full rounded-full transition-all"
+                            style={{
+                              width: `${Math.min(100, pct)}%`,
+                              "background-color": `hsl(${hue}, 65%, 55%)`,
+                            }}
+                          />
+                        </div>
+                      </td>
+                      <td class="px-3 py-1.5 font-mono tabular-nums text-muted-foreground">
+                        {formatBytes(project.sizeBytes)}
+                      </td>
+                      <td class="px-3 py-1.5 text-right font-mono tabular-nums text-muted-foreground">
+                        {pct.toFixed(1)}%
+                      </td>
+                    </tr>
+                  );
+                }}
+              </For>
+            </tbody>
+          </table>
+        </Show>
       </div>
     </div>
   );
