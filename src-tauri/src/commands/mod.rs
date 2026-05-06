@@ -11,6 +11,7 @@ pub mod scan;
 pub mod search;
 pub mod sessions;
 pub mod settings;
+pub mod sizes;
 pub mod task_config;
 pub mod task_runner;
 pub mod tools;

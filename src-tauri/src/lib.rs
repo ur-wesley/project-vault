@@ -19,6 +19,8 @@ pub mod mise_tools;
 #[cfg(not(any(target_os = "android", target_os = "ios")))]
 mod tools;
 
+
+
 use tauri::Manager;
 use tauri_plugin_sql::{Builder as SqlPluginBuilder, Migration, MigrationKind};
 
@@ -249,6 +251,8 @@ pub fn run() {
             commands::issues::update_issue,
             commands::issues::delete_issue,
             commands::issues::delete_all_local_issues,
+            commands::sizes::get_location_project_sizes,
+            commands::sizes::get_largest_entries,
         ])
         .run(tauri::generate_context!())
         .expect("error while running tauri application");

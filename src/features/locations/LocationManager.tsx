@@ -13,6 +13,7 @@ import { rescanAllLibraryFolders } from "~/lib/rescan-library";
 import {
   addLocation,
   diskSpaceForPaths,
+  getLocationProjectSizes,
   listLocations,
   listProjects,
   pickLibraryFolder,
@@ -28,6 +29,7 @@ import { LocationWorkProgress } from "./components/LocationWorkProgress";
 import { LibraryLocationDiskBlock } from "./components/LibraryLocationDiskBlock";
 import { LocationRenameDialog } from "./components/LocationRenameDialog";
 import { LocationImportDialog } from "./components/LocationImportDialog";
+import { SizeTreemapDialog } from "./components/SizeTreemapDialog";
 
 type LocationWorkState =
   | { kind: "rescan"; locationId: string; locationName: string }
@@ -53,6 +55,10 @@ export const LocationManager: Component = () => {
   const [importSource, setImportOpenSource] = createSignal("");
   const [importDestLocationId, setImportDestLocationId] = createSignal("");
   const [importDeleteSource, setImportDeleteSource] = createSignal(false);
+
+  const [treemapOpen, setTreemapOpen] = createSignal(false);
+  const [treemapLocation, setTreemapLocation] = createSignal<LocationDto | null>(null);
+  const [treemapProjects, setTreemapProjects] = createSignal<{ projectId: string; path: string; name: string; sizeBytes: number }[]>([]);
 
   const locQ = createQuery(() => ({
     queryKey: queryKeys.locations,
@@ -120,6 +126,23 @@ export const LocationManager: Component = () => {
     }
     return map;
   });
+
+  const locationProjectCount = createMemo(() => {
+    const map = new Map<string, number>();
+    for (const p of projectsQ.data ?? []) {
+      map.set(p.locationId, (map.get(p.locationId) ?? 0) + 1);
+    }
+    return map;
+  });
+
+  const openTreemap = async (loc: LocationDto) => {
+    const r = await getLocationProjectSizes(loc.id);
+    if (r.isOk()) {
+      setTreemapLocation(loc);
+      setTreemapProjects(r.value);
+      setTreemapOpen(true);
+    }
+  };
 
   const invalidateAll = () => {
     void qc.invalidateQueries({ queryKey: queryKeys.locations });
@@ -371,6 +394,16 @@ export const LocationManager: Component = () => {
                   <span class="tabular-nums text-foreground/90">
                     {formatBytes(locationProjectSize().get(loc.id) ?? 0)}
                   </span>
+                  <Show when={(locationProjectCount().get(loc.id) ?? 0) > 1}>
+                    <button
+                      type="button"
+                      class="ml-1 inline-flex h-5 w-5 items-center justify-center rounded text-muted-foreground/50 transition-colors hover:bg-primary/10 hover:text-primary"
+                      onClick={() => void openTreemap(loc)}
+                      title="View storage breakdown"
+                    >
+                      <span class="iconify mdi--chart-pie h-3.5 w-3.5" aria-hidden="true" />
+                    </button>
+                  </Show>
                 </div>
                 <div class="mb-4">
                   <LibraryLocationDiskBlock
@@ -453,6 +486,13 @@ export const LocationManager: Component = () => {
         setDeleteSource={setImportDeleteSource}
         onConfirm={commitImport}
         t={(k) => t(k) as string}
+      />
+
+      <SizeTreemapDialog
+        open={treemapOpen()}
+        onOpenChange={setTreemapOpen}
+        locationName={treemapLocation()?.name ?? ""}
+        projects={treemapProjects()}
       />
     </div>
   );

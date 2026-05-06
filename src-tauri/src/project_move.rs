@@ -32,7 +32,7 @@ fn map_path_io(context: &str, e: std::io::Error) -> StableError {
     }
 }
 
-fn is_skip_name(name: &str) -> bool {
+pub fn is_skip_name(name: &str) -> bool {
     const ANY_DEPTH: &[&str] = &[
         "node_modules",
         "target",
@@ -55,7 +55,7 @@ fn is_skip_name(name: &str) -> bool {
     ANY_DEPTH.iter().any(|s| name.eq_ignore_ascii_case(s))
 }
 
-fn should_skip_path(rel: &Path) -> bool {
+pub fn should_skip_path(rel: &Path) -> bool {
     for c in rel.components() {
         if let std::path::Component::Normal(os) = c {
             if let Some(n) = os.to_str() {
@@ -68,7 +68,7 @@ fn should_skip_path(rel: &Path) -> bool {
     false
 }
 
-fn should_include_entry(e: &walkdir::DirEntry, src: &Path) -> bool {
+pub fn should_include_entry(e: &walkdir::DirEntry, src: &Path) -> bool {
     if e.depth() == 0 {
         return true;
     }

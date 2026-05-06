@@ -392,6 +392,20 @@ export function listRunningProjects(): ResultAsync<string[], StableError> {
   return ResultAsync.fromPromise(invoke<string[]>("list_running_projects"), mapInvokeError);
 }
 
+export function getLocationProjectSizes(locationId: string): ResultAsync<{ projectId: string; path: string; name: string; sizeBytes: number }[], StableError> {
+  return ResultAsync.fromPromise(
+    invoke<{ projectId: string; path: string; name: string; sizeBytes: number }[]>("get_location_project_sizes", { locationId }),
+    mapInvokeError,
+  );
+}
+
+export function getLargestEntries(path: string, limit: number): ResultAsync<{ path: string; name: string; sizeBytes: number; isDir: boolean }[], StableError> {
+  return ResultAsync.fromPromise(
+    invoke<{ path: string; name: string; sizeBytes: number; isDir: boolean }[]>("get_largest_entries", { path, limit }),
+    mapInvokeError,
+  );
+}
+
 export function getGitStatus(projectId: string): ResultAsync<GitStatusDto | null, StableError> {
   return ResultAsync.fromPromise(invoke<GitStatusDto | null>("get_git_status", { projectId }), mapInvokeError);
 }
