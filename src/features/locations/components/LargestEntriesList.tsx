@@ -4,10 +4,10 @@ import { getLargestEntries } from "~/services/tauri";
 import { formatBytes } from "~/lib/format-bytes";
 import { cn } from "~/lib/utils";
 import {
-  Popover,
-  PopoverContent,
-  PopoverTrigger,
-} from "~/components/ui/popover";
+  HoverCard,
+  HoverCardContent,
+  HoverCardTrigger,
+} from "~/components/ui/hover-card";
 
 type LargestEntriesListProps = {
   path: string;
@@ -73,18 +73,18 @@ export function LargestEntriesList(props: LargestEntriesListProps) {
   );
 }
 
-export function LargestEntriesPopover(props: {
+export function LargestEntriesHoverCard(props: {
   path: string;
   children: any;
 }) {
   return (
-    <Popover>
-      <PopoverTrigger as="div" class="contents">
+    <HoverCard gutter={4}>
+      <HoverCardTrigger as="div">
         {props.children}
-      </PopoverTrigger>
-      <PopoverContent class="p-3 shadow-xl border-border/40">
+      </HoverCardTrigger>
+      <HoverCardContent class="p-3 shadow-xl border-border/40">
         <LargestEntriesList path={props.path} />
-      </PopoverContent>
-    </Popover>
+      </HoverCardContent>
+    </HoverCard>
   );
 }

@@ -9,7 +9,7 @@ import {
 import { openPath } from "@tauri-apps/plugin-opener";
 import { squarify } from "~/lib/treemap";
 import { formatBytes } from "~/lib/format-bytes";
-import { LargestEntriesPopover } from "./LargestEntriesList";
+import { LargestEntriesHoverCard } from "./LargestEntriesList";
 
 type ProjectSizeEntry = {
   projectId: string;
@@ -23,8 +23,8 @@ type ProjectSizeTreemapProps = {
 };
 
 function hue_for_value(value: number, maxValue: number): number {
-  // Warm to cool: large = red (0°), small = blue (240°)
-  const t = maxValue > 0 ? Math.sqrt(value / maxValue) : 0;
+  if (maxValue <= 0) return 240;
+  const t = Math.sqrt(value / maxValue);
   return Math.round(240 - Math.min(1, t) * 240);
 }
 
@@ -101,22 +101,18 @@ export function ProjectSizeTreemap(props: ProjectSizeTreemapProps) {
         </Show>
         <For each={layout()}>
           {(node) => {
-            const hue = hue_for_value(node.value, maxSize());
-            const pct = totalSize() > 0 ? (node.value / totalSize()) * 100 : 0;
-            const left = (node.x / dims().w) * 100;
-            const top = (node.y / dims().h) * 100;
-            const width = (node.w / dims().w) * 100;
-            const height = (node.h / dims().h) * 100;
+            const hue = hue_for_value(node.data.sizeBytes, maxSize());
+            const pct = totalSize() > 0 ? (node.data.sizeBytes / totalSize()) * 100 : 0;
             return (
-              <LargestEntriesPopover path={node.data.path}>
+              <LargestEntriesHoverCard path={node.data.path}>
                 <button
                   type="button"
                   class="absolute overflow-hidden text-left transition-all duration-150 hover:brightness-110 hover:z-10 focus:outline-none focus:ring-2 focus:ring-primary/50"
                   style={{
-                    left: `${left}%`,
-                    top: `${top}%`,
-                    width: `${width}%`,
-                    height: `${height}%`,
+                    left: `${node.x}px`,
+                    top: `${node.y}px`,
+                    width: `${node.w}px`,
+                    height: `${node.h}px`,
                     "background-color": `hsl(${hue}, 65%, 55%)`,
                     "min-width": "40px",
                     "min-height": "28px",
@@ -128,14 +124,14 @@ export function ProjectSizeTreemap(props: ProjectSizeTreemapProps) {
                     <span class="truncate text-[10px] font-bold leading-tight text-white/90 drop-shadow">
                       {node.data.name}
                     </span>
-                    <Show when={width > 12 && height > 15}>
+                    <Show when={node.w > 60 && node.h > 40}>
                       <span class="text-[9px] font-mono leading-tight text-white/70 drop-shadow">
                         {formatBytes(node.data.sizeBytes)}
                       </span>
                     </Show>
                   </div>
                 </button>
-              </LargestEntriesPopover>
+              </LargestEntriesHoverCard>
             );
           }}
         </For>

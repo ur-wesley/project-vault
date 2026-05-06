@@ -4,54 +4,111 @@ export type TreemapNode<T> = {
   w: number;
   h: number;
   data: T;
-  value: number;
 };
 
-function aspect_ratio(w: number, h: number): number {
-  return Math.max(w / h, h / w);
-}
-
-function worst_ratio(row: { value: number }[], side: number): number {
+function worstAspectRatio(
+  row: { value: number }[],
+  sideLength: number,
+): number {
   if (row.length === 0) return Infinity;
   const s = row.reduce((sum, r) => sum + r.value, 0);
-  const thickness = s / side;
-  let maxRatio = 0;
+  const thickness = s / sideLength;
+  let worst = 0;
   for (const item of row) {
-    const otherSide = item.value / thickness;
-    maxRatio = Math.max(maxRatio, aspect_ratio(thickness, otherSide));
+    const length = (item.value / s) * sideLength;
+    const ar = Math.max(thickness / length, length / thickness);
+    if (ar > worst) worst = ar;
   }
-  return maxRatio;
+  return worst;
 }
 
-function layout_row<T>(
+function layoutRow<T>(
   row: { value: number; data: T }[],
   x: number,
   y: number,
   w: number,
   h: number,
+  vertical: boolean,
 ): TreemapNode<T>[] {
   const s = row.reduce((sum, r) => sum + r.value, 0);
+  const sideLength = vertical ? h : w;
+  const thickness = s / sideLength;
+  let offset = 0;
   const out: TreemapNode<T>[] = [];
-
-  if (w <= h) {
-    // Vertical strip along the left side
-    const stripW = s / h;
-    let offset = 0;
-    for (const item of row) {
-      const ih = (item.value / s) * h;
-      out.push({ x, y: y + offset, w: stripW, h: ih, data: item.data, value: item.value });
-      offset += ih;
-    }
-  } else {
-    // Horizontal strip along the top
-    const stripH = s / w;
-    let offset = 0;
-    for (const item of row) {
-      const iw = (item.value / s) * w;
-      out.push({ x: x + offset, y, w: iw, h: stripH, data: item.data, value: item.value });
-      offset += iw;
+  for (const item of row) {
+    const length = (item.value / s) * sideLength;
+    if (vertical) {
+      out.push({ x, y: y + offset, w: thickness, h: length, data: item.data });
+      offset += length;
+    } else {
+      out.push({ x: x + offset, y, w: length, h: thickness, data: item.data });
+      offset += length;
     }
   }
+  return out;
+}
+
+function squarifyInner<T>(
+  items: { value: number; data: T }[],
+  x: number,
+  y: number,
+  w: number,
+  h: number,
+): TreemapNode<T>[] {
+  if (items.length === 0) return [];
+  if (items.length === 1) {
+    return [{ x, y, w, h, data: items[0]!.data }];
+  }
+
+  const out: TreemapNode<T>[] = [];
+  let remaining = items.slice();
+  let row: { value: number; data: T }[] = [];
+  let cx = x;
+  let cy = y;
+  let cw = w;
+  let ch = h;
+
+  const flush = () => {
+    if (row.length === 0) return;
+    const vertical = cw <= ch;
+    const nodes = layoutRow(row, cx, cy, cw, ch, vertical);
+    out.push(...nodes);
+
+    const s = row.reduce((sum, r) => sum + r.value, 0);
+    if (vertical) {
+      const thickness = s / ch;
+      cx += thickness;
+      cw -= thickness;
+    } else {
+      const thickness = s / cw;
+      cy += thickness;
+      ch -= thickness;
+    }
+    row = [];
+  };
+
+  while (remaining.length > 0) {
+    const item = remaining[0]!;
+    const sideLength = Math.min(cw, ch);
+
+    if (row.length === 0) {
+      row.push(item);
+      remaining = remaining.slice(1);
+      continue;
+    }
+
+    const currentWorst = worstAspectRatio(row, sideLength);
+    const nextWorst = worstAspectRatio([...row, item], sideLength);
+
+    if (nextWorst <= currentWorst) {
+      row.push(item);
+      remaining = remaining.slice(1);
+    } else {
+      flush();
+    }
+  }
+
+  flush();
   return out;
 }
 
@@ -63,61 +120,16 @@ export function squarify<T>(
   h: number,
 ): TreemapNode<T>[] {
   if (items.length === 0) return [];
-  if (items.length === 1) {
-    return [{ x, y, w, h, data: items[0]!.data, value: items[0]!.value }];
-  }
 
-  // Normalize values to rectangle area
-  const totalValue = items.reduce((s, i) => s + i.value, 0);
+  // Sort descending for better layout
+  const sorted = [...items].sort((a, b) => b.value - a.value);
+
+  // Normalize values to area of rectangle
+  const totalValue = sorted.reduce((s, i) => s + i.value, 0);
   const area = w * h;
+  if (totalValue === 0) return [];
   const scale = area / totalValue;
-  const normalized = items.map((i) => ({ value: i.value * scale, data: i.data }));
+  const normalized = sorted.map((i) => ({ value: i.value * scale, data: i.data }));
 
-  const out: TreemapNode<T>[] = [];
-  let row: { value: number; data: T }[] = [];
-  let cx = x;
-  let cy = y;
-  let cw = w;
-  let ch = h;
-
-  const flush_row = () => {
-    if (row.length === 0) return;
-    const side = Math.min(cw, ch);
-    const nodes = layout_row(row, cx, cy, cw, ch);
-    out.push(...nodes);
-
-    const s = row.reduce((sum, r) => sum + r.value, 0);
-    if (cw <= ch) {
-      const stripW = s / ch;
-      cx += stripW;
-      cw -= stripW;
-    } else {
-      const stripH = s / cw;
-      cy += stripH;
-      ch -= stripH;
-    }
-    row = [];
-  };
-
-  for (const item of normalized) {
-    const side = Math.min(cw, ch);
-
-    if (row.length === 0) {
-      row.push(item);
-      continue;
-    }
-
-    const currentWorst = worst_ratio(row, side);
-    const nextWorst = worst_ratio([...row, item], side);
-
-    if (nextWorst <= currentWorst) {
-      row.push(item);
-    } else {
-      flush_row();
-      row.push(item);
-    }
-  }
-
-  flush_row();
-  return out;
+  return squarifyInner(normalized, x, y, w, h);
 }

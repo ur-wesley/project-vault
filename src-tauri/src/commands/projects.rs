@@ -265,25 +265,34 @@ pub async fn refresh_project(
     let pid_clone = project_id.clone();
     let pool_clone = pool.clone();
     tokio::task::spawn(async move {
-        if let Ok(stats) = project_move::count_filtered_dir(std::path::Path::new(&path_clone)) {
-            if let Ok(existing) = db::get_project(&pool_clone, &pid_clone).await {
-                if stats.file_count != existing.file_count
-                    || stats.total_bytes != existing.size_bytes
-                    || stats.last_edited_at_ms != existing.last_edited_at_ms.unwrap_or(0)
-                {
-                    let mut dto = existing.clone();
-                    dto.file_count = stats.file_count;
-                    dto.size_bytes = stats.total_bytes;
-                    dto.last_edited_at_ms = Some(stats.last_edited_at_ms);
-                    if db::upsert_project(&pool_clone, &dto).await.is_ok() {
-                        crate::models::emit_project_changed(&app_clone, &pid_clone, "scan");
-                    }
-                }
-            }
-        }
+        update_project_size(&app_clone, &pool_clone, &pid_clone, &path_clone).await;
     });
 
     Ok(updated)
+}
+
+pub async fn update_project_size(
+    app: &AppHandle,
+    pool: &sqlx::Pool<sqlx::Sqlite>,
+    project_id: &str,
+    path: &str,
+) {
+    if let Ok(stats) = project_move::count_filtered_dir(std::path::Path::new(path)) {
+        if let Ok(existing) = db::get_project(pool, project_id).await {
+            if stats.file_count != existing.file_count
+                || stats.total_bytes != existing.size_bytes
+                || stats.last_edited_at_ms != existing.last_edited_at_ms.unwrap_or(0)
+            {
+                let mut dto = existing.clone();
+                dto.file_count = stats.file_count;
+                dto.size_bytes = stats.total_bytes;
+                dto.last_edited_at_ms = Some(stats.last_edited_at_ms);
+                if db::upsert_project(pool, &dto).await.is_ok() {
+                    crate::models::emit_project_changed(app, project_id, "scan");
+                }
+            }
+        }
+    }
 }
 
 #[derive(Deserialize)]

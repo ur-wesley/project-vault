@@ -815,6 +815,9 @@ pub async fn git_clean_execute(
         run_git(cwd, &["checkout", "--", "."])?;
     }
 
+    let pool = db::sqlite_pool(&*db).await?;
+    crate::commands::projects::update_project_size(&app, &pool, &project_id, &project.path).await;
+
     crate::models::emit_project_changed(&app, &project_id, "git-clean");
     Ok(())
 }
