@@ -78,8 +78,8 @@ export function LargestEntriesHoverCard(props: {
   children: any;
 }) {
   return (
-    <HoverCard gutter={4}>
-      <HoverCardTrigger as="div">
+    <HoverCard openDelay={200} closeDelay={100}>
+      <HoverCardTrigger as="div" class="contents">
         {props.children}
       </HoverCardTrigger>
       <HoverCardContent class="p-3 shadow-xl border-border/40">

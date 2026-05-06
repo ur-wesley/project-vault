@@ -7,7 +7,7 @@ import {
   onCleanup,
 } from "solid-js";
 import { openPath } from "@tauri-apps/plugin-opener";
-import { squarify } from "~/lib/treemap";
+import { treemap } from "~/lib/treemap";
 import { formatBytes } from "~/lib/format-bytes";
 import { LargestEntriesHoverCard } from "./LargestEntriesList";
 
@@ -55,7 +55,7 @@ export function ProjectSizeTreemap(props: ProjectSizeTreemapProps) {
     const items = sorted().map((p) => ({ value: p.sizeBytes, data: p }));
     if (items.length === 0) return [];
     const { w, h } = dims();
-    return squarify(items, 0, 0, w, h);
+    return treemap(items, 0, 0, w, h);
   });
 
   const totalSize = createMemo(() =>
@@ -81,11 +81,11 @@ export function ProjectSizeTreemap(props: ProjectSizeTreemapProps) {
           {sorted().length} projects · {formatBytes(totalSize())}
         </span>
         <span class="flex items-center gap-1.5">
-          <span class="h-2 w-2 rounded-sm" style={{ "background-color": "hsl(0,70%,55%)" }} />
+          <span class="inline-block h-2 w-2 rounded-sm" style={{ "background-color": "hsl(0,70%,55%)" }} />
           <span>Large</span>
-          <span class="h-2 w-2 rounded-sm" style={{ "background-color": "hsl(120,60%,50%)" }} />
+          <span class="inline-block h-2 w-2 rounded-sm" style={{ "background-color": "hsl(120,60%,50%)" }} />
           <span>Medium</span>
-          <span class="h-2 w-2 rounded-sm" style={{ "background-color": "hsl(240,50%,55%)" }} />
+          <span class="inline-block h-2 w-2 rounded-sm" style={{ "background-color": "hsl(240,50%,55%)" }} />
           <span>Small</span>
         </span>
       </div>
@@ -103,6 +103,8 @@ export function ProjectSizeTreemap(props: ProjectSizeTreemapProps) {
           {(node) => {
             const hue = hue_for_value(node.data.sizeBytes, maxSize());
             const pct = totalSize() > 0 ? (node.data.sizeBytes / totalSize()) * 100 : 0;
+            const showLabel = node.w > 50 && node.h > 30;
+            const showSize = node.w > 70 && node.h > 45;
             return (
               <LargestEntriesHoverCard path={node.data.path}>
                 <button
@@ -111,25 +113,25 @@ export function ProjectSizeTreemap(props: ProjectSizeTreemapProps) {
                   style={{
                     left: `${node.x}px`,
                     top: `${node.y}px`,
-                    width: `${node.w}px`,
-                    height: `${node.h}px`,
+                    width: `${Math.max(1, node.w)}px`,
+                    height: `${Math.max(1, node.h)}px`,
                     "background-color": `hsl(${hue}, 65%, 55%)`,
-                    "min-width": "40px",
-                    "min-height": "28px",
                   }}
                   onClick={() => handleOpen(node.data.path)}
                   title={`${node.data.name} — ${formatBytes(node.data.sizeBytes)} (${pct.toFixed(1)}%)`}
                 >
-                  <div class="flex h-full flex-col justify-between p-1.5">
-                    <span class="truncate text-[10px] font-bold leading-tight text-white/90 drop-shadow">
-                      {node.data.name}
-                    </span>
-                    <Show when={node.w > 60 && node.h > 40}>
-                      <span class="text-[9px] font-mono leading-tight text-white/70 drop-shadow">
-                        {formatBytes(node.data.sizeBytes)}
+                  <Show when={showLabel}>
+                    <div class="flex h-full flex-col justify-between p-1.5">
+                      <span class="truncate text-[10px] font-bold leading-tight text-white/90 drop-shadow">
+                        {node.data.name}
                       </span>
-                    </Show>
-                  </div>
+                      <Show when={showSize}>
+                        <span class="text-[9px] font-mono leading-tight text-white/70 drop-shadow">
+                          {formatBytes(node.data.sizeBytes)}
+                        </span>
+                      </Show>
+                    </div>
+                  </Show>
                 </button>
               </LargestEntriesHoverCard>
             );
