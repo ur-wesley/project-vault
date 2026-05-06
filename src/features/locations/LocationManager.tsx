@@ -399,7 +399,7 @@ export const LocationManager: Component = () => {
                       type="button"
                       class="ml-1 inline-flex h-5 w-5 items-center justify-center rounded text-muted-foreground/50 transition-colors hover:bg-primary/10 hover:text-primary"
                       onClick={() => void openTreemap(loc)}
-                      title="View storage breakdown"
+                      title={t("locations.viewStorageBreakdown") as string}
                     >
                       <span class="iconify mdi--chart-pie h-3.5 w-3.5" aria-hidden="true" />
                     </button>

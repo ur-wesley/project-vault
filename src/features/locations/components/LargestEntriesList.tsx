@@ -8,12 +8,14 @@ import {
   HoverCardContent,
   HoverCardTrigger,
 } from "~/components/ui/hover-card";
+import { useI18n } from "~/lib/i18n-context";
 
 type LargestEntriesListProps = {
   path: string;
 };
 
 export function LargestEntriesList(props: LargestEntriesListProps) {
+  const { t } = useI18n();
   const q = createQuery(() => ({
     queryKey: ["largest-entries", props.path],
     queryFn: async () => {
@@ -27,7 +29,7 @@ export function LargestEntriesList(props: LargestEntriesListProps) {
   return (
     <div class="w-56 space-y-2">
       <div class="text-[9px] font-bold uppercase tracking-wider text-muted-foreground">
-        Largest entries
+        {t("locations.largestEntries") as string}
       </div>
       <Show when={q.isPending}>
         <div class="space-y-1.5">
@@ -75,8 +77,12 @@ export function LargestEntriesList(props: LargestEntriesListProps) {
 
 export function LargestEntriesHoverCard(props: {
   path: string;
+  disabled?: boolean;
   children: any;
 }) {
+  if (props.disabled || !props.path) {
+    return <>{props.children}</>;
+  }
   return (
     <HoverCard openDelay={200} closeDelay={100}>
       <HoverCardTrigger as="div" class="contents">

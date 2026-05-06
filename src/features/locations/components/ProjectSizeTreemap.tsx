@@ -9,6 +9,7 @@ import {
 import { openPath } from "@tauri-apps/plugin-opener";
 import { treemap } from "~/lib/treemap";
 import { formatBytes } from "~/lib/format-bytes";
+import { useI18n } from "~/lib/i18n-context";
 import { LargestEntriesHoverCard } from "./LargestEntriesList";
 
 type ProjectSizeEntry = {
@@ -29,6 +30,7 @@ function hue_for_value(value: number, maxValue: number): number {
 }
 
 export function ProjectSizeTreemap(props: ProjectSizeTreemapProps) {
+  const { t } = useI18n();
   let containerRef: HTMLDivElement | undefined;
   const [dims, setDims] = createSignal({ w: 640, h: 320 });
 
@@ -51,13 +53,6 @@ export function ProjectSizeTreemap(props: ProjectSizeTreemapProps) {
       .sort((a, b) => b.sizeBytes - a.sizeBytes),
   );
 
-  const layout = createMemo(() => {
-    const items = sorted().map((p) => ({ value: p.sizeBytes, data: p }));
-    if (items.length === 0) return [];
-    const { w, h } = dims();
-    return treemap(items, 0, 0, w, h);
-  });
-
   const totalSize = createMemo(() =>
     sorted().reduce((s, p) => s + p.sizeBytes, 0),
   );
@@ -66,7 +61,45 @@ export function ProjectSizeTreemap(props: ProjectSizeTreemapProps) {
     sorted().reduce((m, p) => Math.max(m, p.sizeBytes), 0),
   );
 
+  // Group small projects into "Others" — anything below 2% of total
+  const grouped = createMemo(() => {
+    const items = sorted();
+    const total = totalSize();
+    if (total === 0) return [];
+
+    const threshold = total * 0.02;
+    const big: ProjectSizeEntry[] = [];
+    let othersSize = 0;
+
+    for (const item of items) {
+      if (item.sizeBytes >= threshold) {
+        big.push(item);
+      } else {
+        othersSize += item.sizeBytes;
+      }
+    }
+
+    if (othersSize > 0) {
+      big.push({
+        projectId: "__others__",
+        path: "",
+        name: t("locations.others") as string,
+        sizeBytes: othersSize,
+      });
+    }
+
+    return big;
+  });
+
+  const layout = createMemo(() => {
+    const items = grouped().map((p) => ({ value: p.sizeBytes, data: p }));
+    if (items.length === 0) return [];
+    const { w, h } = dims();
+    return treemap(items, 0, 0, w, h);
+  });
+
   const handleOpen = async (path: string) => {
+    if (!path) return;
     try {
       await openPath(path);
     } catch {
@@ -82,11 +115,11 @@ export function ProjectSizeTreemap(props: ProjectSizeTreemapProps) {
         </span>
         <span class="flex items-center gap-1.5">
           <span class="inline-block h-2 w-2 rounded-sm" style={{ "background-color": "hsl(0,70%,55%)" }} />
-          <span>Large</span>
+          <span>{t("locations.large") as string}</span>
           <span class="inline-block h-2 w-2 rounded-sm" style={{ "background-color": "hsl(120,60%,50%)" }} />
-          <span>Medium</span>
+          <span>{t("locations.medium") as string}</span>
           <span class="inline-block h-2 w-2 rounded-sm" style={{ "background-color": "hsl(240,50%,55%)" }} />
-          <span>Small</span>
+          <span>{t("locations.small") as string}</span>
         </span>
       </div>
       <div
@@ -96,7 +129,7 @@ export function ProjectSizeTreemap(props: ProjectSizeTreemapProps) {
       >
         <Show when={layout().length === 0}>
           <div class="flex h-full items-center justify-center text-xs text-muted-foreground">
-            No size data available
+            {t("locations.noSizeData") as string}
           </div>
         </Show>
         <For each={layout()}>
@@ -105,8 +138,12 @@ export function ProjectSizeTreemap(props: ProjectSizeTreemapProps) {
             const pct = totalSize() > 0 ? (node.data.sizeBytes / totalSize()) * 100 : 0;
             const showLabel = node.w > 50 && node.h > 30;
             const showSize = node.w > 70 && node.h > 45;
+            const isOthers = node.data.projectId === "__others__";
             return (
-              <LargestEntriesHoverCard path={node.data.path}>
+              <LargestEntriesHoverCard
+                path={isOthers ? "" : node.data.path}
+                disabled={isOthers}
+              >
                 <button
                   type="button"
                   class="absolute overflow-hidden text-left transition-all duration-150 hover:brightness-110 hover:z-10 focus:outline-none focus:ring-2 focus:ring-primary/50"
@@ -117,8 +154,11 @@ export function ProjectSizeTreemap(props: ProjectSizeTreemapProps) {
                     height: `${Math.max(1, node.h)}px`,
                     "background-color": `hsl(${hue}, 65%, 55%)`,
                   }}
-                  onClick={() => handleOpen(node.data.path)}
-                  title={`${node.data.name} — ${formatBytes(node.data.sizeBytes)} (${pct.toFixed(1)}%)`}
+                  onClick={() => !isOthers && handleOpen(node.data.path)}
+                  title={isOthers
+                    ? `${node.data.name} — ${formatBytes(node.data.sizeBytes)}`
+                    : `${node.data.name} — ${formatBytes(node.data.sizeBytes)} (${pct.toFixed(1)}%)`
+                  }
                 >
                   <Show when={showLabel}>
                     <div class="flex h-full flex-col justify-between p-1.5">

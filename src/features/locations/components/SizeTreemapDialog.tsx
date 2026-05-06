@@ -4,6 +4,7 @@ import {
   DialogHeader,
   DialogTitle,
 } from "~/components/ui/dialog";
+import { useI18n } from "~/lib/i18n-context";
 import { ProjectSizeTreemap } from "./ProjectSizeTreemap";
 
 type SizeTreemapDialogProps = {
@@ -14,12 +15,13 @@ type SizeTreemapDialogProps = {
 };
 
 export function SizeTreemapDialog(props: SizeTreemapDialogProps) {
+  const { t } = useI18n();
   return (
     <Dialog open={props.open} onOpenChange={props.onOpenChange}>
       <DialogContent class="max-w-2xl">
         <DialogHeader>
           <DialogTitle class="text-sm font-bold">
-            Storage Breakdown — {props.locationName}
+            {t("locations.storageBreakdown", { name: props.locationName }) as string}
           </DialogTitle>
         </DialogHeader>
         <ProjectSizeTreemap projects={props.projects} />
