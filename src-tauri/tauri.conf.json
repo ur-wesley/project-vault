@@ -1,6 +1,6 @@
 {
   "$schema": "https://schema.tauri.app/config/2",
-  "productName": "project-vault",
+  "productName": "Project Vault",
   "version": "0.8.2",
   "identifier": "io.w4y.project-vault",
   "build": {

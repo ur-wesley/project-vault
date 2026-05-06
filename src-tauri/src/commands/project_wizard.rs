@@ -222,7 +222,7 @@ async fn download_github_template(
     let client = reqwest::Client::new();
     let resp = client
         .get(&url)
-        .header("User-Agent", "project-vault")
+        .header("User-Agent", "Project Vault")
         .send()
         .await
         .map_err(|e| StableError::new(codes::INTERNAL, format!("download failed: {}", e)))?;
