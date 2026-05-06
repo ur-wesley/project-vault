@@ -171,6 +171,11 @@ export function ProjectSidebarList(props: {
       <div class="flex items-center justify-between px-2 py-1.5 shrink-0">
         <SidebarGroupLabel class="text-[10px] uppercase font-bold tracking-wider opacity-50">
           {t("library.sidebarProjects") as string}
+          <Show when={q.isSuccess}>
+            <span class="ml-1.5 inline-flex h-4 min-w-4 items-center justify-center rounded-full bg-sidebar-accent px-1 text-[9px] font-bold text-sidebar-accent-foreground">
+              {q.data?.length ?? 0}
+            </span>
+          </Show>
         </SidebarGroupLabel>
           <Show when={props.onOpenNewProject}>
             <Tooltip>
