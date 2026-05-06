@@ -5,6 +5,7 @@ import { listen } from "@tauri-apps/api/event";
 
 import { Button } from "~/components/ui/button";
 import { ButtonGroup } from "~/components/ui/button-group";
+import { Tooltip, TooltipContent, TooltipTrigger } from "~/components/ui/tooltip";
 
 import { useEventHub } from "~/lib/event-hub-context";
 import { useI18n } from "~/lib/i18n-context";
@@ -395,14 +396,19 @@ export const LocationManager: Component = () => {
                     {formatBytes(locationProjectSize().get(loc.id) ?? 0)}
                   </span>
                   <Show when={(locationProjectCount().get(loc.id) ?? 0) > 1}>
-                    <button
-                      type="button"
-                      class="ml-1 inline-flex h-5 w-5 items-center justify-center rounded text-muted-foreground/50 transition-colors hover:bg-primary/10 hover:text-primary"
-                      onClick={() => void openTreemap(loc)}
-                      title={t("locations.viewStorageBreakdown") as string}
-                    >
-                      <span class="iconify mdi--chart-pie h-3.5 w-3.5" aria-hidden="true" />
-                    </button>
+                    <Tooltip>
+                      <TooltipTrigger
+                        as="button"
+                        type="button"
+                        class="ml-1 inline-flex h-5 w-5 items-center justify-center rounded text-muted-foreground/50 transition-colors hover:bg-primary/10 hover:text-primary"
+                        onClick={() => void openTreemap(loc)}
+                      >
+                        <span class="iconify mdi--chart-pie h-3.5 w-3.5" aria-hidden="true" />
+                      </TooltipTrigger>
+                      <TooltipContent class="text-xs">
+                        {t("locations.viewStorageBreakdown") as string}
+                      </TooltipContent>
+                    </Tooltip>
                   </Show>
                 </div>
                 <div class="mb-4">
