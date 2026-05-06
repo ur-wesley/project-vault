@@ -291,6 +291,16 @@ function App() {
     onCleanup(() => listener());
   });
 
+  createEffect(() => {
+    const listener = hub.on("project:opened", (payload) => {
+      setActiveView("project");
+      setDetailTab("readme");
+      setSubDetail(null);
+      setProjectDetailId(payload.projectId);
+    });
+    onCleanup(() => listener());
+  });
+
   const _ghDeviceReadyQ = createQuery(() => ({
     queryKey: ["app", "github", "device", "ready"] as const,
     queryFn: async () => {
