@@ -1,3 +1,4 @@
+use std::fs;
 use std::path::Path;
 use std::process::Command;
 use serde::{Deserialize, Serialize};
@@ -6,6 +7,7 @@ use tauri_plugin_sql::DbInstances;
 
 use crate::db;
 use crate::error::{codes, StableError};
+use crate::models::{CleanPreviewEntryDto, GitCleanPreviewDto};
 
 #[derive(Serialize, Clone)]
 #[serde(rename_all = "camelCase")]
@@ -710,5 +712,109 @@ pub async fn git_init(
 
     run_git(cwd, &["init"])?;
     run_git(cwd, &["checkout", "-b", "main"])?;
+    Ok(())
+}
+
+fn dir_size(path: &Path) -> u64 {
+    let mut total = 0u64;
+    if let Ok(entries) = fs::read_dir(path) {
+        for entry in entries.flatten() {
+            let p = entry.path();
+            if p.is_dir() {
+                total += dir_size(&p);
+            } else if let Ok(meta) = p.metadata() {
+                total += meta.len();
+            }
+        }
+    }
+    total
+}
+
+#[tauri::command]
+pub async fn git_clean_preview(
+    db: State<'_, DbInstances>,
+    project_id: String,
+) -> Result<GitCleanPreviewDto, StableError> {
+    let pool = db::sqlite_pool(&*db).await?;
+    let project = db::get_project(&pool, &project_id).await?;
+    let cwd = Path::new(&project.path);
+
+    if !cwd.join(".git").exists() {
+        return Err(StableError::new(codes::INTERNAL, "not a git repository"));
+    }
+
+    let dry_run = run_git(cwd, &["clean", "-fdX", "-n"])?;
+    let mut entries = Vec::new();
+    let mut total_bytes = 0u64;
+
+    for line in dry_run.lines() {
+        let path_str = line
+            .strip_prefix("Would remove ")
+            .or_else(|| line.strip_prefix("Would not remove "))
+            .map(|s| s.trim());
+        if let Some(rel) = path_str {
+            if rel.is_empty() {
+                continue;
+            }
+            let full = cwd.join(rel);
+            let is_dir = full.is_dir();
+            let size = if is_dir {
+                dir_size(&full)
+            } else {
+                full.metadata().map(|m| m.len()).unwrap_or(0)
+            };
+            total_bytes += size;
+            entries.push(CleanPreviewEntryDto {
+                path: rel.to_string(),
+                size_bytes: size,
+                is_dir,
+            });
+        }
+    }
+
+    let status = run_git(cwd, &["status", "--porcelain"])?;
+    let has_tracked_changes = status.lines().any(|line| {
+        let b = line.as_bytes();
+        b.len() >= 2
+            && !(b[0] == b'?' && b[1] == b'?')
+            && !(b[0] == b'!' && b[1] == b'!')
+            && !(b[0] == b' ' && b[1] == b' ')
+    });
+
+    Ok(GitCleanPreviewDto {
+        entries,
+        total_bytes,
+        has_tracked_changes,
+    })
+}
+
+#[tauri::command]
+pub async fn git_clean_execute(
+    app: AppHandle,
+    db: State<'_, DbInstances>,
+    project_id: String,
+    reset_tracked: bool,
+    selected_paths: Vec<String>,
+) -> Result<(), StableError> {
+    let pool = db::sqlite_pool(&*db).await?;
+    let project = db::get_project(&pool, &project_id).await?;
+    let cwd = Path::new(&project.path);
+
+    if !cwd.join(".git").exists() {
+        return Err(StableError::new(codes::INTERNAL, "not a git repository"));
+    }
+
+    if !selected_paths.is_empty() {
+        let mut args = vec!["clean", "-fdX", "--"];
+        let path_args: Vec<&str> = selected_paths.iter().map(|s| s.as_str()).collect();
+        args.extend(path_args);
+        run_git(cwd, &args)?;
+    }
+
+    if reset_tracked {
+        run_git(cwd, &["checkout", "--", "."])?;
+    }
+
+    crate::models::emit_project_changed(&app, &project_id, "git-clean");
     Ok(())
 }

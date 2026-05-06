@@ -174,6 +174,8 @@ pub fn run() {
             commands::git::git_preview_versions,
             commands::git::git_discover_version_files,
             commands::git::git_bump_version_and_tag,
+            commands::git::git_clean_preview,
+            commands::git::git_clean_execute,
             commands::projects::import_project,
             commands::projects::list_projects,
             commands::projects::get_project,

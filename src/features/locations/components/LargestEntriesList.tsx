@@ -2,11 +2,12 @@ import { createQuery } from "@tanstack/solid-query";
 import { For, Show } from "solid-js";
 import { getLargestEntries } from "~/services/tauri";
 import { formatBytes } from "~/lib/format-bytes";
+import { cn } from "~/lib/utils";
 import {
-  HoverCard,
-  HoverCardContent,
-  HoverCardTrigger,
-} from "~/components/ui/hover-card";
+  Popover,
+  PopoverContent,
+  PopoverTrigger,
+} from "~/components/ui/popover";
 
 type LargestEntriesListProps = {
   path: string;
@@ -50,11 +51,12 @@ export function LargestEntriesList(props: LargestEntriesListProps) {
             {(entry) => (
               <div class="flex items-center gap-1.5">
                 <span
-                  class={
+                  class={cn(
+                    "shrink-0 h-3 w-3",
                     entry.isDir
-                      ? "iconify mdi--folder-outline text-muted-foreground/60 h-3 w-3 shrink-0"
-                      : "iconify mdi--file-outline text-muted-foreground/40 h-3 w-3 shrink-0"
-                  }
+                      ? "iconify mdi--folder-outline text-muted-foreground/60"
+                      : "iconify mdi--file-outline text-muted-foreground/40",
+                  )}
                 />
                 <span class="min-w-0 flex-1 truncate text-[10px] text-foreground/80">
                   {entry.name}
@@ -71,15 +73,18 @@ export function LargestEntriesList(props: LargestEntriesListProps) {
   );
 }
 
-export function LargestEntriesHoverCard(props: { path: string; children: any }) {
+export function LargestEntriesPopover(props: {
+  path: string;
+  children: any;
+}) {
   return (
-    <HoverCard gutter={4}>
-      <HoverCardTrigger as="div" class="contents">
+    <Popover>
+      <PopoverTrigger as="div" class="contents">
         {props.children}
-      </HoverCardTrigger>
-      <HoverCardContent class="p-3 shadow-xl border-border/40">
+      </PopoverTrigger>
+      <PopoverContent class="p-3 shadow-xl border-border/40">
         <LargestEntriesList path={props.path} />
-      </HoverCardContent>
-    </HoverCard>
+      </PopoverContent>
+    </Popover>
   );
 }

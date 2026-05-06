@@ -9,6 +9,8 @@ import {
   gitPreviewVersions,
   gitDiscoverVersionFiles,
   gitBumpVersionAndTag,
+  gitCleanPreview,
+  gitCleanExecute,
 } from "~/services/tauri";
 import { queryKeys } from "~/services/query-keys";
 import { stableErrorMessage } from "~/lib/invoke-error";
@@ -130,6 +132,32 @@ export function useProjectGit(props: UseProjectGitProps) {
     },
   }));
 
+  const cleanPreviewMu = createMutation(() => ({
+    mutationFn: async () => {
+      const r = await gitCleanPreview(props.projectId());
+      if (r.isErr()) throw r.error;
+      return r.value;
+    },
+    onError: (err: unknown) => {
+      props.showBanner(stableErrorMessage(props.t, err as any));
+    },
+  }));
+
+  const cleanMu = createMutation(() => ({
+    mutationFn: async (payload: { resetTracked: boolean; selectedPaths: string[] }) => {
+      const r = await gitCleanExecute(props.projectId(), payload.resetTracked, payload.selectedPaths);
+      if (r.isErr()) throw r.error;
+    },
+    onSuccess: () => {
+      void qc.invalidateQueries({ queryKey: queryKeys.gitStatus(props.projectId()) });
+      void qc.invalidateQueries({ queryKey: queryKeys.project(props.projectId()) });
+      props.showInfoBanner(props.t("projectDetail.cleanSuccess"));
+    },
+    onError: (err: unknown) => {
+      props.showBanner(stableErrorMessage(props.t, err as any));
+    },
+  }));
+
   return {
     gitStatusQ,
     pullMutate: () => pullMu.mutate(),
@@ -147,5 +175,9 @@ export function useProjectGit(props: UseProjectGitProps) {
     isPreviewingVersions: () => previewVersionsQ.isFetching,
     isDiscoveringFiles: () => discoverFilesMu.isPending,
     isBumpingVersion: () => bumpVersionMu.isPending,
+    cleanPreview: () => cleanPreviewMu.mutateAsync(),
+    cleanExecute: (payload: { resetTracked: boolean; selectedPaths: string[] }) => cleanMu.mutateAsync(payload),
+    isCleaningPreview: () => cleanPreviewMu.isPending,
+    isCleaning: () => cleanMu.isPending,
   };
 }

@@ -202,6 +202,18 @@ export type GitTagResultDto = {
   newTag: string;
 };
 
+export type CleanPreviewEntryDto = {
+  path: string;
+  sizeBytes: number;
+  isDir: boolean;
+};
+
+export type GitCleanPreviewDto = {
+  entries: CleanPreviewEntryDto[];
+  totalBytes: number;
+  hasTrackedChanges: boolean;
+};
+
 export type VersionFileDto = {
   path: string;
   preview: string;

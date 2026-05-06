@@ -14,6 +14,7 @@ import type {
   GitHubRepoRefDto,
   GitStatusDto,
   GitTagResultDto,
+  GitCleanPreviewDto,
   ImportProjectPayload,
   IdeCandidateDto,
   IndexMetaDto,
@@ -457,6 +458,20 @@ export function gitBumpVersionAndTag(
 ): ResultAsync<GitTagResultDto, StableError> {
   return ResultAsync.fromPromise(
     invoke<GitTagResultDto>("git_bump_version_and_tag", { projectId, payload }),
+    mapInvokeError,
+  );
+}
+
+export function gitCleanPreview(projectId: string): ResultAsync<GitCleanPreviewDto, StableError> {
+  return ResultAsync.fromPromise(
+    invoke<GitCleanPreviewDto>("git_clean_preview", { projectId }),
+    mapInvokeError,
+  );
+}
+
+export function gitCleanExecute(projectId: string, resetTracked: boolean, selectedPaths: string[]): ResultAsync<void, StableError> {
+  return ResultAsync.fromPromise(
+    invoke<void>("git_clean_execute", { projectId, resetTracked, selectedPaths }),
     mapInvokeError,
   );
 }

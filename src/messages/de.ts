@@ -391,6 +391,16 @@ const de = {
     deleteConfirm: "Projekt entfernen",
     projectDeleted: "Projekt erfolgreich entfernt",
 
+    cleanProject: "Projekt bereinigen",
+    cleanProjectTitle: ".gitignore-Dateien bereinigen?",
+    cleanProjectDescription: "Dies wird alle git-ignorierten Dateien und Verzeichnisse dauerhaft löschen. Diese Aktion kann nicht rückgängig gemacht werden.",
+    cleanLoading: "Nach ignorierten Dateien suchen…",
+    cleanNoFiles: "Keine ignorierten Dateien gefunden.",
+    cleanTotal: "{count} Element(e) zum Entfernen",
+    cleanResetTracked: "Auch alle nicht committeten Änderungen verwerfen und getrackte Dateien auf HEAD zurücksetzen",
+    cleanConfirm: "Projekt bereinigen",
+    cleanSuccess: "Projekt erfolgreich bereinigt.",
+
     taskViewOutput: "Ausgabe ansehen",
     taskStop: "Aufgabe stoppen",
     taskGroupRoot: "Stammverzeichnis",

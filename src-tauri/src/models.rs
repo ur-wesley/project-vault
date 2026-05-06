@@ -116,6 +116,22 @@ pub struct MoveProjectProgress {
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
+pub struct CleanPreviewEntryDto {
+    pub path: String,
+    pub size_bytes: u64,
+    pub is_dir: bool,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct GitCleanPreviewDto {
+    pub entries: Vec<CleanPreviewEntryDto>,
+    pub total_bytes: u64,
+    pub has_tracked_changes: bool,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
 pub struct MiseToolDto {
     pub name: String,
     pub version: String,

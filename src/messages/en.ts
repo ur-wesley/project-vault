@@ -391,6 +391,16 @@ const en = {
     deleteConfirm: "Remove Project",
     projectDeleted: "Project removed successfully",
 
+    cleanProject: "Clean Project",
+    cleanProjectTitle: "Clean .gitignored files?",
+    cleanProjectDescription: "This will permanently remove all git-ignored files and directories. This action cannot be undone.",
+    cleanLoading: "Scanning for ignored files…",
+    cleanNoFiles: "No ignored files found.",
+    cleanTotal: "{count} item(s) to remove",
+    cleanResetTracked: "Also discard all uncommitted changes and reset tracked files to HEAD",
+    cleanConfirm: "Clean Project",
+    cleanSuccess: "Project cleaned successfully.",
+
     taskViewOutput: "View Output",
     taskStop: "Stop Task",
     taskGroupRoot: "Root Directory",
