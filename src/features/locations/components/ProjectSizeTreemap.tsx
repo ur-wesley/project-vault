@@ -2,6 +2,7 @@ import { For, Show, createMemo } from "solid-js";
 import { openPath } from "@tauri-apps/plugin-opener";
 import { formatBytes } from "~/lib/format-bytes";
 import { useI18n } from "~/lib/i18n-context";
+import { LargestEntriesHoverIcon } from "./LargestEntriesList";
 
 type ProjectSizeEntry = {
   projectId: string;
@@ -37,36 +38,6 @@ export function ProjectSizeTreemap(props: ProjectSizeTableProps) {
     sorted().reduce((m, p) => Math.max(m, p.sizeBytes), 0),
   );
 
-  // Group small projects into "Others" — anything below 2% of total
-  const grouped = createMemo(() => {
-    const items = sorted();
-    const total = totalSize();
-    if (total === 0) return [];
-
-    const threshold = total * 0.02;
-    const big: ProjectSizeEntry[] = [];
-    let othersSize = 0;
-
-    for (const item of items) {
-      if (item.sizeBytes >= threshold) {
-        big.push(item);
-      } else {
-        othersSize += item.sizeBytes;
-      }
-    }
-
-    if (othersSize > 0) {
-      big.push({
-        projectId: "__others__",
-        path: "",
-        name: t("locations.others") as string,
-        sizeBytes: othersSize,
-      });
-    }
-
-    return big;
-  });
-
   const handleOpen = async (path: string) => {
     if (!path) return;
     try {
@@ -93,33 +64,29 @@ export function ProjectSizeTreemap(props: ProjectSizeTableProps) {
       </div>
 
       <div class="max-h-[320px] overflow-auto rounded-md border border-border/40">
-        <Show when={grouped().length === 0}>
+        <Show when={sorted().length === 0}>
           <div class="flex h-24 items-center justify-center text-xs text-muted-foreground">
             {t("locations.noSizeData") as string}
           </div>
         </Show>
-        <Show when={grouped().length > 0}>
+        <Show when={sorted().length > 0}>
           <table class="w-full text-left text-[11px]">
             <thead class="sticky top-0 z-10 bg-muted/80 backdrop-blur-sm">
               <tr class="border-b border-border/40">
-                <th class="px-3 py-1.5 font-semibold text-muted-foreground">Project</th>
-                <th class="px-3 py-1.5 font-semibold text-muted-foreground w-24">Size</th>
-                <th class="px-3 py-1.5 font-semibold text-muted-foreground w-16 text-right">%</th>
+                <th class="px-3 py-1.5 font-semibold text-muted-foreground">{t("locations.projectColumn") as string}</th>
+                <th class="px-3 py-1.5 font-semibold text-muted-foreground w-24">{t("locations.sizeColumn") as string}</th>
+                <th class="px-3 py-1.5 font-semibold text-muted-foreground w-16 text-right">{t("locations.percentageColumn") as string}</th>
               </tr>
             </thead>
             <tbody>
-              <For each={grouped()}>
+              <For each={sorted()}>
                 {(project) => {
                   const pct = totalSize() > 0 ? (project.sizeBytes / totalSize()) * 100 : 0;
                   const hue = hue_for_value(project.sizeBytes, maxSize());
-                  const isOthers = project.projectId === "__others__";
                   return (
                     <tr
-                      class={isOthers
-                        ? "border-b border-border/20 bg-muted/20"
-                        : "border-b border-border/20 cursor-pointer hover:bg-muted/30 transition-colors"
-                      }
-                      onClick={() => !isOthers && handleOpen(project.path)}
+                      class="border-b border-border/20 cursor-pointer hover:bg-muted/30 transition-colors"
+                      onClick={() => handleOpen(project.path)}
                     >
                       <td class="px-3 py-1.5">
                         <div class="flex items-center gap-2">
@@ -128,6 +95,7 @@ export function ProjectSizeTreemap(props: ProjectSizeTableProps) {
                             style={{ "background-color": `hsl(${hue}, 65%, 55%)` }}
                           />
                           <span class="truncate font-medium">{project.name}</span>
+                          <LargestEntriesHoverIcon path={project.path} />
                         </div>
                         <div class="mt-1 h-1 w-full overflow-hidden rounded-full bg-muted">
                           <div
