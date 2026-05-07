@@ -222,10 +222,15 @@ pub fn index_meta(app_data_dir: &Path, project_id: &str) -> Result<IndexMeta, St
             let mut size = 0u64;
             if let Ok(entries) = fs::read_dir(path) {
                 for entry in entries.flatten() {
-                    if let Ok(meta) = entry.metadata() {
-                        if meta.is_file() {
-                            size += meta.len();
-                        } else if meta.is_dir() {
+                    if let Ok(ft) = entry.file_type() {
+                        if ft.is_symlink() {
+                            continue;
+                        }
+                        if ft.is_file() {
+                            if let Ok(meta) = entry.metadata() {
+                                size += meta.len();
+                            }
+                        } else if ft.is_dir() {
                             size += dir_size(&entry.path());
                         }
                     }
