@@ -68,6 +68,7 @@ import "./App.css";
 
 import { SidebarHeaderSearch } from "~/components/SidebarHeaderSearch";
 import { SidebarToggleListener } from "~/components/SidebarToggleListener";
+import { PluginUiBridge } from "~/components/PluginUiBridge";
 
 type ProjectFilterOption = { value: string; label: string; textValue: string };
 
@@ -512,6 +513,7 @@ function App() {
         setProjectDetailId(p.id);
       }}
     >
+      <PluginUiBridge />
       <SidebarProvider>
         <SidebarToggleListener />
         <StackIconSafelist />
