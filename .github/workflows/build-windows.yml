@@ -47,8 +47,16 @@ jobs:
         id: changelog
         shell: bash
         run: |
+          CURRENT_TAG="${{ github.ref_name }}"
+          PREV_TAG=$(git for-each-ref --sort=-creatordate --format '%(refname:short)' refs/tags | sed -n '2p')
+
           # Generate changelog into a file, avoiding commit/tag operations
-          npx changelogen@latest --no-commit --no-tag > CHANGELOG_RAW.txt
+          if [ -n "$PREV_TAG" ]; then
+            npx changelogen@latest --no-commit --no-tag --from "$PREV_TAG" > CHANGELOG_RAW.txt
+          else
+            npx changelogen@latest --no-commit --no-tag > CHANGELOG_RAW.txt
+          fi
+
           # Extract markdown starting from the first '##' line
           sed -n '/^## /,$p' CHANGELOG_RAW.txt > CHANGELOG_BODY.md
           # Set as output
