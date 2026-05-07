@@ -8,6 +8,8 @@ import { listDiscoveredIdes } from "~/services/tauri/ide";
 import { listAvailableShells, listDiscoveredTools } from "~/services/tauri/terminal";
 import { deleteAllIndices } from "~/services/tauri/search";
 import { checkForUpdates, installUpdate } from "~/services/tauri/updates";
+import { getAutostartEnabled, setAutostartEnabled } from "~/services/tauri/autostart";
+import { getSetting, setSetting } from "~/services/tauri/settings";
 import { GITHUB_TOKEN_SETTING_KEY, fetchGitHubViewer } from "~/services/github";
 import { runGithubDeviceSignIn } from "~/services/github-device-signin";
 import { stableErrorMessage } from "~/lib/invoke-error";
@@ -23,6 +25,7 @@ const DEFAULT_SHELL_KEY = "default_shell_path";
 const LOCALE_KEY = "ui_locale";
 const AUTO_INDEX_KEY = "auto_index_projects";
 const AUTO_CHECK_UPDATES_KEY = "auto_check_updates";
+const AUTO_START_KEY = "auto_start";
 
 export type UseSettingsModelProps = Readonly<{
   t: (key: string, args?: any) => string;
@@ -39,6 +42,7 @@ export function useSettingsModel(props: UseSettingsModelProps) {
   const [selectedLocale, setSelectedLocale] = createSignal<Locale>("en");
   const [autoIndex, setAutoIndex] = createSignal(true);
   const [autoCheckUpdates, setAutoCheckUpdates] = createSignal(true);
+  const [autoStart, setAutoStart] = createSignal(false);
   const [githubToken, setGithubToken] = createSignal("");
   const [githubUserCode, setGithubUserCode] = createSignal("");
   const [busy, setBusy] = createSignal(false);
@@ -46,7 +50,7 @@ export function useSettingsModel(props: UseSettingsModelProps) {
   const settingsQ = createQuery(() => ({
     queryKey: ["settings", "view"] as const,
     queryFn: async () => {
-      const [sh, scan, gh, di, ds, loc, ai, au] = await Promise.all([
+      const [sh, scan, gh, di, ds, loc, ai, au, as] = await Promise.all([
         getSetting(SHELL_KEY),
         getSetting(SCAN_KEY),
         getSetting(GITHUB_TOKEN_SETTING_KEY),
@@ -55,6 +59,7 @@ export function useSettingsModel(props: UseSettingsModelProps) {
         getSetting(LOCALE_KEY),
         getSetting(AUTO_INDEX_KEY),
         getSetting(AUTO_CHECK_UPDATES_KEY),
+        getAutostartEnabled(),
       ]);
       if (sh.isErr()) throw new Error(sh.error.message);
       if (scan.isErr()) throw new Error(scan.error.message);
@@ -74,6 +79,7 @@ export function useSettingsModel(props: UseSettingsModelProps) {
         locale: loc.value ?? "en",
         autoIndex: ai.value !== "false",
         autoCheckUpdates: au.value !== "false",
+        autoStart: as.isOk() ? as.value : false,
       };
     },
   }));
@@ -137,6 +143,7 @@ export function useSettingsModel(props: UseSettingsModelProps) {
       setSelectedLocale((d.locale as Locale) || props.locale());
       setAutoIndex(d.autoIndex);
       setAutoCheckUpdates(d.autoCheckUpdates);
+      setAutoStart(d.autoStart);
     }
   });
 
@@ -144,6 +151,11 @@ export function useSettingsModel(props: UseSettingsModelProps) {
     setBusy(true);
     toast.dismiss("settings");
     try {
+      const asR = await setAutostartEnabled(autoStart());
+      if (asR.isErr()) {
+        toast.error(stableErrorMessage(props.t, asR.error), { id: "settings" });
+        return;
+      }
       for (const [key, val] of [
         [SHELL_KEY, shellPath()],
         [SCAN_KEY, scanMinutes().trim() || "0"],
@@ -153,6 +165,7 @@ export function useSettingsModel(props: UseSettingsModelProps) {
         [LOCALE_KEY, selectedLocale()],
         [AUTO_INDEX_KEY, autoIndex() ? "true" : "false"],
         [AUTO_CHECK_UPDATES_KEY, autoCheckUpdates() ? "true" : "false"],
+        [AUTO_START_KEY, autoStart() ? "true" : "false"],
       ] as const) {
         const r = await setSetting(key, val);
         if (r.isErr()) {
@@ -260,6 +273,22 @@ export function useSettingsModel(props: UseSettingsModelProps) {
     }
   };
 
+  const onInstallUpdate = async () => {
+    if (!isTauri()) return;
+    setBusy(true);
+    toast.dismiss("settings");
+    try {
+      const r = await installUpdate();
+      if (r.isErr()) {
+        toast.error(stableErrorMessage(props.t, r.error), { id: "settings" });
+        return;
+      }
+      toast.success(props.t("settings.updateInstalling"), { id: "settings" });
+    } finally {
+      setBusy(false);
+    }
+  };
+
   const onCheckForUpdates = async () => {
     if (!isTauri()) return;
     setBusy(true);
@@ -275,26 +304,17 @@ export function useSettingsModel(props: UseSettingsModelProps) {
         toast.success(props.t("settings.noUpdateAvailable"), { id: "settings" });
         return;
       }
-      toast.success(
+      toast.info(
         props.t("settings.updateAvailable", { version: update.version }),
-        { id: "settings", duration: 10000 }
+        {
+          id: "settings",
+          duration: 30000,
+          action: {
+            label: "Install",
+            onClick: () => void onInstallUpdate(),
+          },
+        },
       );
-    } finally {
-      setBusy(false);
-    }
-  };
-
-  const onInstallUpdate = async () => {
-    if (!isTauri()) return;
-    setBusy(true);
-    toast.dismiss("settings");
-    try {
-      const r = await installUpdate();
-      if (r.isErr()) {
-        toast.error(stableErrorMessage(props.t, r.error), { id: "settings" });
-        return;
-      }
-      toast.success(props.t("settings.updateInstalling"), { id: "settings" });
     } finally {
       setBusy(false);
     }
@@ -321,6 +341,8 @@ export function useSettingsModel(props: UseSettingsModelProps) {
     setAutoIndex,
     autoCheckUpdates,
     setAutoCheckUpdates,
+    autoStart,
+    setAutoStart,
     githubToken,
     setGithubToken,
     githubUserCode,

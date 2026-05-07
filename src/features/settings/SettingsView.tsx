@@ -120,6 +120,8 @@ export const SettingsView: Component<SettingsViewProps> = (props) => {
                 setAutoIndex={model.setAutoIndex}
                 autoCheckUpdates={model.autoCheckUpdates()}
                 setAutoCheckUpdates={model.setAutoCheckUpdates}
+                autoStart={model.autoStart()}
+                setAutoStart={model.setAutoStart}
                 busy={model.busy()}
                 onExport={model.onExport}
                 onOpenAppDataDir={onOpenAppDataDir}

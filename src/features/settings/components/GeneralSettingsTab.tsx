@@ -19,6 +19,8 @@ export type GeneralSettingsTabProps = Readonly<{
   setAutoIndex: (v: boolean) => void;
   autoCheckUpdates: boolean;
   setAutoCheckUpdates: (v: boolean) => void;
+  autoStart: boolean;
+  setAutoStart: (v: boolean) => void;
   busy: boolean;
   onExport: () => void;
   onOpenAppDataDir?: () => void;
@@ -189,6 +191,30 @@ export const GeneralSettingsTab: Component<GeneralSettingsTabProps> = (props) =>
               <span class="text-[10px] text-muted-foreground font-mono">
                 v{pkg.version}
               </span>
+            </div>
+          </div>
+
+          <div class="grid gap-2">
+            <label class="text-[10px] font-bold text-muted-foreground uppercase tracking-widest">
+              {props.t("settings.autoStartTitle")}
+            </label>
+            <p class="text-xs text-muted-foreground">
+              {props.t("settings.autoStartDescription")}
+            </p>
+            <div class="flex items-start space-x-3 pt-1">
+              <Checkbox
+                id="auto-start"
+                checked={props.autoStart}
+                onChange={(checked) => props.setAutoStart(checked)}
+              />
+              <div class="grid gap-1.5 leading-none pt-0.5">
+                <Label
+                  for="auto-start"
+                  class="text-sm font-medium leading-none cursor-pointer"
+                >
+                  {props.t("settings.autoStartToggle")}
+                </Label>
+              </div>
             </div>
           </div>
         </div>
