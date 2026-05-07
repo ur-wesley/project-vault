@@ -482,6 +482,36 @@ pub async fn create_project_from_template(
                 project_id: None,
             })
         }
+        "lua" => {
+            let script_content = config.get("script").and_then(|v| v.as_str()).unwrap_or("");
+            let lua = crate::lua::engine::LuaEngine::create_instance()
+                .map_err(|e| StableError::new(codes::INTERNAL, format!("lua engine: {e}")))?;
+
+            fs::create_dir_all(&root).map_err(|e| {
+                StableError::new(codes::INTERNAL, format!("create project directory: {}", e))
+            })?;
+
+            lua.globals().set("project_name", display.to_string()).map_err(mlua::Error::external)?;
+            lua.globals().set("project_root", root.to_string_lossy().to_string()).map_err(mlua::Error::external)?;
+
+            // Execute the script
+            lua.load(script_content).exec().map_err(|e| {
+                StableError::new(codes::INTERNAL, format!("lua execution: {e}"))
+            })?;
+
+            fs_scope_util::allow_library_root(&app, root.to_str().unwrap_or(""))?;
+            
+            Ok(CreateProjectResultDto {
+                project_path: dunce::canonicalize(&root)
+                    .unwrap_or(root)
+                    .to_string_lossy()
+                    .into_owned(),
+                files_written: 0, // Lua script should track this if needed, or we re-scan
+                post_create_log: None,
+                session_id: None,
+                project_id: None,
+            })
+        }
         _ => Err(StableError::new(codes::NOT_FOUND, "unknown template type")),
     };
 
