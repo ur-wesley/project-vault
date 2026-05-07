@@ -5,6 +5,7 @@ mod disk_volume;
 pub mod error;
 mod fs_scope_util;
 pub mod issues;
+pub mod lua;
 #[cfg(not(any(target_os = "android", target_os = "ios")))]
 mod ide;
 pub mod location_watcher;
@@ -255,7 +256,9 @@ pub fn run() {
             commands::issues::delete_all_local_issues,
             commands::sizes::get_location_project_sizes,
             commands::sizes::get_largest_entries,
+            lua::ui::resolve_plugin_ui,
         ])
+        .manage(lua::ui::UiBridge::default())
         .run(tauri::generate_context!())
         .expect("error while running tauri application");
 }
