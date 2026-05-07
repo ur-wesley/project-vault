@@ -67,7 +67,7 @@ pub async fn spawn_project_task(
     } else {
         project_path.clone()
     };
-    eprintln!("[spawn_project_task] project_path={} cwd={} argv={:?}", project_path.display(), cwd.display(), payload.argv);
+
     let use_mise = use_mise_for_project(&cwd);
     let cmd_line = payload.argv.join(" ");
 

@@ -329,9 +329,7 @@ pub async fn finalize_task(
 
 fn discover_ports_for_pids(pids: &[u32]) -> Vec<u16> {
     let mut ports = Vec::new();
-    eprintln!("[discover_ports_for_pids] scanning pids: {:?}", pids);
     if pids.is_empty() {
-        eprintln!("[discover_ports_for_pids] no pids, returning empty");
         return ports;
     }
 
@@ -351,7 +349,7 @@ fn discover_ports_for_pids(pids: &[u32]) -> Vec<u16> {
         match output {
             Ok(out) => {
                 let text = String::from_utf8_lossy(&out.stdout);
-                eprintln!("[discover_ports_for_pids] netstat output {} lines", text.lines().count());
+
                 for line in text.lines() {
                     let parts: Vec<&str> = line.split_whitespace().collect();
                     if parts.len() < 4 {
@@ -377,7 +375,7 @@ fn discover_ports_for_pids(pids: &[u32]) -> Vec<u16> {
                     } else {
                         false
                     };
-                    eprintln!("[discover_ports_for_pids] matched pid={pid} proto={proto} parts={parts:?} is_listening={is_listening}");
+
                     if !is_listening {
                         continue;
                     }
@@ -386,7 +384,6 @@ fn discover_ports_for_pids(pids: &[u32]) -> Vec<u16> {
                         if let Some(port_str) = addr_part.rsplit(':').next() {
                             if let Ok(port) = port_str.parse::<u16>() {
                                 if !ports.contains(&port) {
-                                    eprintln!("[discover_ports_for_pids] found port {port}");
                                     ports.push(port);
                                 }
                             }
@@ -394,8 +391,7 @@ fn discover_ports_for_pids(pids: &[u32]) -> Vec<u16> {
                     }
                 }
             }
-            Err(e) => {
-                eprintln!("[discover_ports_for_pids] netstat failed: {e}");
+            Err(_e) => {
             }
         }
     }
@@ -473,11 +469,11 @@ async fn watch_task(app: AppHandle, monitors: TaskMonitors, session_id: String) 
         // Port detection: scan every ~2 seconds (6 ticks) or when state becomes running
         tick_count += 1;
         let should_scan_ports = (tick_count % 6 == 0) || (state_changed && next_state == TASK_STATE_RUNNING);
-        eprintln!("[watch_task {session_id}] tick={tick_count} alive={alive} should_scan={should_scan_ports} tree={:?}", tree);
+
         if should_scan_ports && alive {
             let pids: Vec<u32> = tree.iter().copied().collect();
             let detected = discover_ports_for_pids(&pids);
-            eprintln!("[watch_task {session_id}] detected ports: {:?} last_ports: {:?}", detected, last_ports);
+
             if detected != last_ports {
                 last_ports = detected.clone();
                 {
@@ -490,7 +486,7 @@ async fn watch_task(app: AppHandle, monitors: TaskMonitors, session_id: String) 
                         entry.last_event_at_ms = db::now_ms();
                     }
                 }
-                eprintln!("[watch_task {session_id}] EMITTING task-ports-changed ports={:?} project_id={}", detected, snapshot.project_id);
+
                 let _ = persist_snapshot(&app, &monitors, &session_id).await;
                 let _ = app.emit(
                     "task-ports-changed",
@@ -502,8 +498,6 @@ async fn watch_task(app: AppHandle, monitors: TaskMonitors, session_id: String) 
                     },
                 );
             }
-        } else {
-            eprintln!("[watch_task {session_id}] SKIPPING scan should_scan={should_scan_ports} alive={alive}");
         }
 
         if tree_changed || state_changed {
