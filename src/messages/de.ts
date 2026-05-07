@@ -548,11 +548,12 @@ const de = {
   },
   processes: {
     title: "Prozesse",
-    runningCount: "aktiv",
+    runningCount: "laufend",
     empty: "Keine aktiven Prozesse",
     kill: "Prozess beenden",
     killAll: "Alle beenden",
     killAllConfirm: "Sicher?",
+    closeConfirm: "Es gibt {count} laufende Aufgabe(n). Trotzdem schließen?",
   },
   globalTerminal: {
     title: "Terminal",
