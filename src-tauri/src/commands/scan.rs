@@ -13,13 +13,16 @@ use crate::error::{codes, StableError};
 use crate::models::{ProjectDto, ScanResultDto};
 use crate::search::indexer::build_project_index;
 
-fn registry() -> DetectorRegistry {
-    DetectorRegistry::standard()
+fn registry(app: &AppHandle) -> DetectorRegistry {
+    DetectorRegistry::standard(crate::discovery::detectors_dir(app))
 }
 
 #[tauri::command]
-pub fn debug_detect_project(path: String) -> Result<Option<ProjectDraft>, StableError> {
-    let reg = registry();
+pub fn debug_detect_project(
+    app: AppHandle,
+    path: String,
+) -> Result<Option<ProjectDraft>, StableError> {
+    let reg = registry(&app);
     let root = Path::new(&path);
     if !root.is_dir() {
         return Err(StableError::new(codes::INVALID_PATH, "not a directory"));
@@ -37,8 +40,8 @@ pub struct DebugScanResult {
 }
 
 #[tauri::command]
-pub fn debug_scan_location(path: String) -> Result<DebugScanResult, StableError> {
-    let reg = registry();
+pub fn debug_scan_location(app: AppHandle, path: String) -> Result<DebugScanResult, StableError> {
+    let reg = registry(&app);
     let root = Path::new(&path);
     if !root.is_dir() {
         return Err(StableError::new(codes::INVALID_PATH, "not a directory"));
@@ -77,7 +80,7 @@ pub async fn run_location_scan_impl(
             "location path is not a directory",
         ));
     }
-    let reg = registry();
+    let reg = registry(&app);
     let mut dirs_skipped = 0u64;
     let raw = collect_projects_under_root(&reg, root, &mut dirs_skipped);
     let mut monorepos_expanded = 0u64;

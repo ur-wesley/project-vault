@@ -255,7 +255,7 @@ mod tests {
             "packages/b/package.json",
             r#"{"name": "b","version": "0.0.0","scripts":{"build":"tsc"}}"#,
         );
-        let reg = DetectorRegistry::standard();
+        let reg = DetectorRegistry::standard(std::path::PathBuf::from("."));
         let mut e = 0u64;
         let raw = collect_projects_under_root(&reg, &base, &mut e);
         let mut m = 0u64;
@@ -285,7 +285,7 @@ mod tests {
             r#"{"name": "x","version": "0.0.0","scripts":{"dev":"vite"}}"#,
         );
 
-        let reg = DetectorRegistry::standard();
+        let reg = DetectorRegistry::standard(std::path::PathBuf::from("."));
         let mut e = 0u64;
         let raw = collect_projects_under_root(&reg, &base, &mut e);
         let mut m = 0u64;
@@ -320,7 +320,7 @@ version = "0.1.0"
 "#,
         );
 
-        let reg = DetectorRegistry::standard();
+        let reg = DetectorRegistry::standard(std::path::PathBuf::from("."));
         let mut e = 0u64;
         let raw = collect_projects_under_root(&reg, &base, &mut e);
         let mut m = 0u64;
@@ -351,7 +351,7 @@ go 1.21
 "#,
         );
 
-        let reg = DetectorRegistry::standard();
+        let reg = DetectorRegistry::standard(std::path::PathBuf::from("."));
         let mut e = 0u64;
         let raw = collect_projects_under_root(&reg, &base, &mut e);
         let mut m = 0u64;
@@ -383,7 +383,7 @@ go 1.21
             r#"{"name": "docs","version": "0.0.0","scripts":{"start":"storybook"}}"#,
         );
 
-        let reg = DetectorRegistry::standard();
+        let reg = DetectorRegistry::standard(std::path::PathBuf::from("."));
         let mut e = 0u64;
         let raw = collect_projects_under_root(&reg, &base, &mut e);
         let mut m = 0u64;
@@ -413,7 +413,7 @@ go 1.21
 "#,
         );
 
-        let reg = DetectorRegistry::standard();
+        let reg = DetectorRegistry::standard(std::path::PathBuf::from("."));
         let mut e = 0u64;
         let raw = collect_projects_under_root(&reg, &base, &mut e);
         let mut m = 0u64;
@@ -460,7 +460,7 @@ go 1.21
             r#"{"name": "@onyx-manager/web","version": "0.0.0","scripts":{"dev":"next"}}"#,
         );
 
-        let reg = DetectorRegistry::standard();
+        let reg = DetectorRegistry::standard(std::path::PathBuf::from("."));
         let mut e = 0u64;
         let raw = collect_projects_under_root(&reg, &base, &mut e);
         let mut m = 0u64;
@@ -496,7 +496,7 @@ go 1.21
             r#"{"name": "@test/shared","version": "0.0.0"}"#,
         );
 
-        let reg = DetectorRegistry::standard();
+        let reg = DetectorRegistry::standard(std::path::PathBuf::from("."));
         let mut e = 0u64;
         let raw = collect_projects_under_root(&reg, &base, &mut e);
         let mut m = 0u64;
@@ -533,7 +533,7 @@ go 1.21
             r#"{"name": "@onyx-manager/web","version": "0.0.0","scripts":{"dev":"next"}}"#,
         );
 
-        let reg = DetectorRegistry::standard();
+        let reg = DetectorRegistry::standard(std::path::PathBuf::from("."));
         let mut e = 0u64;
         let raw = collect_projects_under_root(&reg, &base, &mut e);
         let mut m = 0u64;
@@ -562,7 +562,7 @@ go 1.21
             r#"{"name": "web","version": "0.0.0"}"#,
         );
 
-        let reg = DetectorRegistry::standard();
+        let reg = DetectorRegistry::standard(std::path::PathBuf::from("."));
         let mut e = 0u64;
         let raw = collect_projects_under_root(&reg, &base, &mut e);
         let mut m = 0u64;
