@@ -228,7 +228,7 @@ pub async fn refresh_project(
     let existing = db::get_project(&pool, &project_id).await?;
 
     // Re-detect the project on disk
-    let reg = DetectorRegistry::standard();
+    let reg = DetectorRegistry::standard(crate::discovery::detectors_dir(&app));
     let draft = reg.detect(std::path::Path::new(&existing.path));
 
     let needs_update = draft.as_ref().map(|d| {
