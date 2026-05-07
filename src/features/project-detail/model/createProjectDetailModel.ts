@@ -41,7 +41,7 @@ export function createProjectDetailModel(props: ProjectDetailViewProps) {
     },
   }));
 
-  const ide = useProjectIde({ projectId: props.projectId });
+  const ide = useProjectIde({ projectId: () => props.projectId });
 
   const git = useProjectGit({
     projectId: () => props.projectId,
@@ -73,13 +73,13 @@ export function createProjectDetailModel(props: ProjectDetailViewProps) {
   });
 
   const events = useProjectEventListeners({
-    projectId: props.projectId,
+    projectId: () => props.projectId,
     activeSessionsQ: tasks.activeSessionsQ,
     terminalInstances: terminal.terminalInstances,
     attachToTask: terminal.attachToTask,
   });
 
-  const mise = useProjectMise({ projectId: props.projectId });
+  const mise = useProjectMise({ projectId: () => props.projectId });
 
   const ghQ = createQuery(() => ({
     queryKey: queryKeys.githubRepo(props.projectId),

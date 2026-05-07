@@ -1,5 +1,5 @@
 import { createQuery } from "@tanstack/solid-query";
-import { createEffect, createMemo, createSignal } from "solid-js";
+import { createEffect, createMemo, createSignal, type Accessor } from "solid-js";
 import { toast } from "solid-sonner";
 import { useQueryClient } from "@tanstack/solid-query";
 
@@ -11,16 +11,16 @@ import { queryKeys } from "~/services/query-keys";
 import { projectIdeStorageKey } from "../lib/ide-storage";
 import type { IdeSelectOption } from "../types";
 
-export function useProjectIde(props: { projectId: string }) {
+export function useProjectIde(props: { projectId: Accessor<string> }) {
   const { t } = useI18n();
   const qc = useQueryClient();
   const [selectedIdeExecutable, setSelectedIdeExecutable] = createSignal<string | null>(null);
   const lastIdeInitProjectId = { current: "" as string };
 
   const ideRunningQ = createQuery(() => ({
-    queryKey: ["projects", props.projectId, "ide-running"] as const,
+    queryKey: ["projects", props.projectId(), "ide-running"] as const,
     queryFn: async () => {
-      const r = await isProjectIdeRunning(props.projectId);
+      const r = await isProjectIdeRunning(props.projectId());
       return r.isErr() ? false : r.value;
     },
     refetchInterval: 5000,
@@ -64,7 +64,7 @@ export function useProjectIde(props: { projectId: string }) {
   });
 
   createEffect(() => {
-    const pid = props.projectId;
+    const pid = props.projectId();
     const ides = idesQ.data;
     const globalDefault = defaultIdeQ.data;
     if (ides == null || ides.length === 0) {
@@ -104,14 +104,14 @@ export function useProjectIde(props: { projectId: string }) {
     const r = await openProjectInIde({ projectId, executable });
     if (r.isErr()) toast.error(stableErrorMessage(t, r.error));
     void qc.invalidateQueries({ queryKey: queryKeys.projects });
-    void qc.invalidateQueries({ queryKey: queryKeys.project(props.projectId) });
+    void qc.invalidateQueries({ queryKey: queryKeys.project(props.projectId()) });
   };
 
   const onStopIde = async (projectId: string) => {
     const r = await stopProjectIde(projectId);
     if (r.isErr()) toast.error(stableErrorMessage(t, r.error));
     void qc.invalidateQueries({ queryKey: queryKeys.projects });
-    void qc.invalidateQueries({ queryKey: queryKeys.project(props.projectId) });
+    void qc.invalidateQueries({ queryKey: queryKeys.project(props.projectId()) });
   };
 
   return {

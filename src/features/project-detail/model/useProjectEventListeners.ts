@@ -1,6 +1,6 @@
 import { listen } from "@tauri-apps/api/event";
 import { useQueryClient } from "@tanstack/solid-query";
-import { createEffect, createSignal, onCleanup, untrack } from "solid-js";
+import { createEffect, createSignal, onCleanup, untrack, type Accessor } from "solid-js";
 import { queryKeys } from "~/services/query-keys";
 import type { SessionDto } from "~/types/dto";
 
@@ -11,7 +11,7 @@ export interface TerminalInstance {
 }
 
 export function useProjectEventListeners(props: {
-  projectId: string;
+  projectId: Accessor<string>;
   activeSessionsQ: { data?: SessionDto[] | null };
   terminalInstances: () => TerminalInstance[];
   attachToTask: (sessionId: string, label: string, focus?: boolean) => void;
@@ -20,9 +20,9 @@ export function useProjectEventListeners(props: {
   const [sessionPorts, setSessionPorts] = createSignal<Record<string, number[]>>({});
 
   const refreshTaskQueries = () => {
-    void qc.invalidateQueries({ queryKey: ["projects", props.projectId, "active-sessions"] });
-    void qc.invalidateQueries({ queryKey: queryKeys.sessions(props.projectId) });
-    void qc.invalidateQueries({ queryKey: queryKeys.project(props.projectId) });
+    void qc.invalidateQueries({ queryKey: ["projects", props.projectId(), "active-sessions"] });
+    void qc.invalidateQueries({ queryKey: queryKeys.sessions(props.projectId()) });
+    void qc.invalidateQueries({ queryKey: queryKeys.project(props.projectId()) });
   };
 
   createEffect(() => {
@@ -37,20 +37,20 @@ export function useProjectEventListeners(props: {
       unIde = await listen<{ projectId: string; running: boolean }>(
         "ide-state-changed",
         (ev) => {
-          if (ev.payload.projectId === props.projectId) {
+          if (ev.payload.projectId === props.projectId()) {
             void qc.setQueryData(
-              ["projects", props.projectId, "ide-running"],
+              ["projects", props.projectId(), "ide-running"],
               ev.payload.running,
             );
-            void qc.invalidateQueries({ queryKey: queryKeys.project(props.projectId) });
-            void qc.invalidateQueries({ queryKey: queryKeys.sessions(props.projectId) });
+            void qc.invalidateQueries({ queryKey: queryKeys.project(props.projectId()) });
+            void qc.invalidateQueries({ queryKey: queryKeys.sessions(props.projectId()) });
           }
         },
       );
       unTaskStarted = await listen<{ projectId: string; sessionId: string }>(
         "session:started",
         (ev) => {
-          if (ev.payload.projectId === props.projectId) {
+          if (ev.payload.projectId === props.projectId()) {
             refreshTaskQueries();
           }
         },
@@ -58,7 +58,7 @@ export function useProjectEventListeners(props: {
       unTaskState = await listen<{ projectId: string; sessionId: string; state: string }>(
         "task-state-changed",
         (ev) => {
-          if (ev.payload.projectId === props.projectId) {
+          if (ev.payload.projectId === props.projectId()) {
             refreshTaskQueries();
           }
         },
@@ -66,7 +66,7 @@ export function useProjectEventListeners(props: {
       unTaskTree = await listen<{ projectId: string; sessionId: string }>(
         "task-tree-changed",
         (ev) => {
-          if (ev.payload.projectId === props.projectId) {
+          if (ev.payload.projectId === props.projectId()) {
             refreshTaskQueries();
           }
         },
@@ -74,7 +74,7 @@ export function useProjectEventListeners(props: {
       unSession = await listen<{ projectId: string; sessionId: string }>(
         "session:ended",
         (ev) => {
-          if (ev.payload.projectId === props.projectId) {
+          if (ev.payload.projectId === props.projectId()) {
             refreshTaskQueries();
           }
         },
@@ -82,7 +82,7 @@ export function useProjectEventListeners(props: {
       unTaskPorts = await listen<{ sessionId: string; projectId: string; ports: number[] }>(
         "task-ports-changed",
         (ev) => {
-          if (ev.payload.projectId === props.projectId) {
+          if (ev.payload.projectId === props.projectId()) {
             setSessionPorts((prev) => ({
               ...prev,
               [ev.payload.sessionId]: ev.payload.ports,
