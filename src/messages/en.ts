@@ -512,6 +512,7 @@ const en = {
     kill: "Kill process",
     killAll: "Kill all",
     killAllConfirm: "Sure?",
+    closeConfirm: "There are {count} running task(s). Close anyway?",
   },
 };
 
