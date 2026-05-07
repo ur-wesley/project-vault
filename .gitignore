@@ -65,12 +65,15 @@ src-tauri/bin/
 .cursor/
 .claude/
 
-# OS files
+# os files
 .DS_Store
 Thumbs.db
 ehthumbs.db
 Desktop.ini
 $RECYCLE.BIN/
+
+# Tools
+graphify-out/
 
 # Temp and cache
 *.tmp
