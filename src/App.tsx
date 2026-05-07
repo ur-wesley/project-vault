@@ -74,6 +74,7 @@ import { SidebarToggleListener } from "~/components/SidebarToggleListener";
 import { useScreenshot } from "~/features/screenshot";
 import AnnotationEditor from "~/features/screenshot/components/AnnotationEditor";
 import SourceSelector from "~/features/screenshot/components/SourceSelector";
+import { PluginUiBridge } from "~/components/PluginUiBridge";
 
 type ProjectFilterOption = { value: string; label: string; textValue: string };
 
@@ -516,6 +517,7 @@ function App() {
         setProjectDetailId(p.id);
       }}
     >
+      <PluginUiBridge />
       <SidebarProvider>
         <SidebarToggleListener />
         <StackIconSafelist />
