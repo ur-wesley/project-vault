@@ -128,19 +128,24 @@ pub fn run() {
                             );
                         } else {
                             let now = db::now_ms();
-                            let dur = now.saturating_sub(s.started_at_ms);
                             let _ = sqlx::query("UPDATE sessions SET ended_at_ms = ?1, state = 'error', stop_reason = COALESCE(stop_reason, 'Process not found on startup'), last_event_at_ms = ?1 WHERE id = ?2")
                                 .bind(now)
                                 .bind(&s.id)
                                 .execute(&pool)
                                 .await;
-                            let _ = sqlx::query("UPDATE projects SET total_playtime_ms = total_playtime_ms + ?1 WHERE id = ?2")
-                                .bind(dur)
-                                .bind(&s.project_id)
-                                .execute(&pool)
-                                .await;
                         }
                     }
+
+                    // Start background playtime tracker
+                    let pool_for_tracker = pool.clone();
+                    tauri::async_runtime::spawn(async move {
+                        let mut ticker = tokio::time::interval(std::time::Duration::from_secs(10));
+                        loop {
+                            ticker.tick().await;
+                            let _ = db::increment_active_projects_playtime(&pool_for_tracker, 10000).await;
+                        }
+                    });
+
                     if let Ok(locs) = db::list_locations(&pool).await {
                         for loc in locs {
                             let _ = fs_scope_util::allow_library_root(&handle, &loc.path);

@@ -84,16 +84,9 @@ pub async fn end_session(pool: &Pool<Sqlite>, session_id: &str) -> Result<Sessio
         return Ok(row_to_dto(s));
     }
     let now = super::now_ms();
-    let dur = now.saturating_sub(s.started_at_ms);
     sqlx::query("UPDATE sessions SET ended_at_ms = ?1, state = CASE WHEN state IN ('success', 'error', 'cancelled') THEN state ELSE 'success' END, last_event_at_ms = ?1 WHERE id = ?2")
         .bind(now)
         .bind(session_id)
-        .execute(pool)
-        .await
-        .map_err(|e| StableError::new(codes::DB_ERROR, e.to_string()))?;
-    sqlx::query("UPDATE projects SET total_playtime_ms = total_playtime_ms + ?1 WHERE id = ?2")
-        .bind(dur)
-        .bind(&s.project_id)
         .execute(pool)
         .await
         .map_err(|e| StableError::new(codes::DB_ERROR, e.to_string()))?;
@@ -188,22 +181,29 @@ pub async fn recover_orphan_sessions(pool: &Pool<Sqlite>) -> Result<u64, StableE
     let now = super::now_ms();
     let mut n = 0u64;
     for s in open {
-        let dur = now.saturating_sub(s.started_at_ms);
         sqlx::query("UPDATE sessions SET ended_at_ms = ?1, state = 'error', stop_reason = COALESCE(stop_reason, 'Recovered as orphaned session on startup'), last_event_at_ms = ?1 WHERE id = ?2")
             .bind(now)
             .bind(&s.id)
             .execute(pool)
             .await
             .map_err(|e| StableError::new(codes::DB_ERROR, e.to_string()))?;
-        sqlx::query("UPDATE projects SET total_playtime_ms = total_playtime_ms + ?1 WHERE id = ?2")
-            .bind(dur)
-            .bind(&s.project_id)
-            .execute(pool)
-            .await
-            .map_err(|e| StableError::new(codes::DB_ERROR, e.to_string()))?;
         n += 1;
     }
     Ok(n)
+}
+
+pub async fn increment_active_projects_playtime(
+    pool: &Pool<Sqlite>,
+    ms: i64,
+) -> Result<(), StableError> {
+    sqlx::query(
+        "UPDATE projects SET total_playtime_ms = total_playtime_ms + ?1 WHERE id IN (SELECT DISTINCT project_id FROM sessions WHERE ended_at_ms IS NULL)",
+    )
+    .bind(ms)
+    .execute(pool)
+    .await
+    .map_err(|e| StableError::new(codes::DB_ERROR, e.to_string()))?;
+    Ok(())
 }
 
 pub async fn update_session_runtime(
