@@ -11,6 +11,8 @@ import {
   gitBumpVersionAndTag,
   gitCleanPreview,
   gitCleanExecute,
+  gitFetch,
+  gitIncoming,
 } from "~/services/tauri/git";
 import { queryKeys } from "~/services/query-keys";
 import { stableErrorMessage } from "~/lib/invoke-error";
@@ -35,6 +37,26 @@ export function useProjectGit(props: UseProjectGitProps) {
     },
     refetchInterval: 1000 * 60,
   }));
+
+  const gitIncomingQ = createQuery(() => ({
+    queryKey: queryKeys.gitIncoming(props.projectId()),
+    queryFn: async () => {
+      const r = await gitIncoming(props.projectId());
+      if (r.isErr()) throw new Error(r.error.message);
+      return r.value;
+    },
+    staleTime: 1000 * 30,
+  }));
+
+  async function fetchAndRefresh() {
+    const r = await gitFetch(props.projectId());
+    if (r.isErr()) {
+      props.showBanner(stableErrorMessage(props.t, r.error));
+      return;
+    }
+    await qc.invalidateQueries({ queryKey: queryKeys.gitStatus(props.projectId()) });
+    await qc.invalidateQueries({ queryKey: queryKeys.gitIncoming(props.projectId()) });
+  }
 
   const pullMu = createMutation(() => ({
     mutationFn: async () => {
@@ -160,6 +182,8 @@ export function useProjectGit(props: UseProjectGitProps) {
 
   return {
     gitStatusQ,
+    gitIncomingQ,
+    fetchAndRefresh,
     pullMutate: () => pullMu.mutate(),
     pushMutate: () => pushMu.mutate(),
     initMutate: () => initMu.mutate(),

@@ -70,6 +70,7 @@ export const ProjectDetailHeader: Component<ProjectDetailHeaderProps> = (
   const [deleteConfirmOpen, setDeleteConfirmOpen] = createSignal(false);
   const [tagDialogOpen, setTagDialogOpen] = createSignal(false);
   const [cleanDialogOpen, setCleanDialogOpen] = createSignal(false);
+  const [incomingOpen, setIncomingOpen] = createSignal(false);
 
   const openExternal = (href: string) =>
     isTauri()
@@ -371,7 +372,7 @@ export const ProjectDetailHeader: Component<ProjectDetailHeaderProps> = (
                     </Tooltip>
                     <Show when={m().gitStatusQ.data}>
                       {(s) => (
-                        <Popover gutter={8}>
+                        <Popover gutter={8} onOpenChange={(open) => { if (open) m().fetchAndRefresh(); }}>
                           <Tooltip openDelay={400}>
                             <TooltipTrigger
                               as={PopoverTrigger}
@@ -502,6 +503,57 @@ export const ProjectDetailHeader: Component<ProjectDetailHeaderProps> = (
                                     {t("projectDetail.gitPull") as string}
                                   </Button>
                                 </div>
+                                <Show when={s().behind > 0}>
+                                  <div class="border-t border-border/40 pt-2">
+                                    <button
+                                      type="button"
+                                      class="flex w-full items-center justify-between text-[10px] font-black uppercase tracking-widest text-muted-foreground hover:text-foreground transition-colors"
+                                      onClick={() => setIncomingOpen(!incomingOpen())}
+                                    >
+                                      <span>
+                                        {t("projectDetail.gitIncomingTitle", { count: s().behind }) as string}
+                                      </span>
+                                      <span class={`iconify mdi--chevron-down size-3.5 transition-transform ${incomingOpen() ? "rotate-180" : ""}`} />
+                                    </button>
+                                    <Show when={incomingOpen()}>
+                                      <div class="mt-1.5 max-h-40 space-y-1.5 overflow-y-auto">
+                                        <Show
+                                          when={!m().gitIncomingQ.isFetching}
+                                          fallback={
+                                            <div class="flex items-center gap-2 py-1 text-xs text-muted-foreground">
+                                              <span class="iconify mdi--loading animate-spin size-3" />
+                                              {t("projectDetail.gitFetching") as string}
+                                            </div>
+                                          }
+                                        >
+                                          <Show
+                                            when={(m().gitIncomingQ.data?.commits.length ?? 0) > 0}
+                                            fallback={
+                                              <p class="py-1 text-xs text-muted-foreground">
+                                                {t("projectDetail.gitNoIncoming") as string}
+                                              </p>
+                                            }
+                                          >
+                                            <For each={m().gitIncomingQ.data?.commits}>
+                                              {(commit) => (
+                                                <div class="flex flex-col gap-0.5 rounded-md px-1.5 py-1 hover:bg-muted/50">
+                                                  <span class="truncate text-xs font-medium" title={commit.message}>
+                                                    {commit.message}
+                                                  </span>
+                                                  <div class="flex items-center gap-1.5 text-[10px] text-muted-foreground">
+                                                    <span>{commit.author}</span>
+                                                    <span>·</span>
+                                                    <span>{commit.relativeTime}</span>
+                                                  </div>
+                                                </div>
+                                              )}
+                                            </For>
+                                          </Show>
+                                        </Show>
+                                      </div>
+                                    </Show>
+                                  </div>
+                                </Show>
                                 <div class="border-t border-border/40 pt-2">
                                   <Button
                                     size="sm"
@@ -625,7 +677,7 @@ export const ProjectDetailHeader: Component<ProjectDetailHeaderProps> = (
 
                   {/* Mobile View: Dropdown Chevron */}
                   <div class="flex items-stretch sm:hidden">
-                    <DropdownMenu gutter={0}>
+                    <DropdownMenu gutter={0} onOpenChange={(open) => { if (open) m().fetchAndRefresh(); }}>
                       <DropdownMenuTrigger
                         as={Button}
                         variant="ghost"
@@ -697,6 +749,39 @@ export const ProjectDetailHeader: Component<ProjectDetailHeaderProps> = (
                                     }
                                   </span>
                                 </DropdownMenuItem>
+                                <Show when={s().behind > 0}>
+                                  <DropdownMenuItem
+                                    class="flex items-center justify-between"
+                                    onClick={() => setIncomingOpen(!incomingOpen())}
+                                  >
+                                    <span class="text-[10px] font-black uppercase tracking-widest text-muted-foreground">
+                                      {t("projectDetail.gitIncomingTitle", { count: s().behind }) as string}
+                                    </span>
+                                    <span class={`iconify mdi--chevron-down size-3 transition-transform ${incomingOpen() ? "rotate-180" : ""}`} />
+                                  </DropdownMenuItem>
+                                  <Show when={incomingOpen()}>
+                                    <div class="max-h-32 space-y-1 overflow-y-auto px-2 py-1">
+                                      <Show
+                                        when={!m().gitIncomingQ.isFetching}
+                                        fallback={
+                                          <div class="flex items-center gap-2 py-1 text-[10px] text-muted-foreground">
+                                            <span class="iconify mdi--loading animate-spin size-3" />
+                                            {t("projectDetail.gitFetching") as string}
+                                          </div>
+                                        }
+                                      >
+                                        <For each={m().gitIncomingQ.data?.commits}>
+                                          {(commit) => (
+                                            <div class="flex flex-col gap-0.5 py-0.5">
+                                              <span class="truncate text-[10px] font-medium">{commit.message}</span>
+                                              <span class="text-[9px] text-muted-foreground">{commit.author} · {commit.relativeTime}</span>
+                                            </div>
+                                          )}
+                                        </For>
+                                      </Show>
+                                    </div>
+                                  </Show>
+                                </Show>
                                 <DropdownMenuItem
                                   disabled={m().isTagging()}
                                   onClick={() => setTagDialogOpen(true)}

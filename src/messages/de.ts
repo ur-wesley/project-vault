@@ -389,6 +389,9 @@ const de = {
     gitBumpCommitTagPush: "Committen, taggen & pushen",
     gitTagPushed: "Tag {tag} erstellt und gepusht.",
     gitInit: "Git-Repository initialisieren",
+    gitIncomingTitle: "Eingehende Änderungen ({count})",
+    gitFetching: "Wird abgerufen…",
+    gitNoIncoming: "Keine eingehenden Änderungen",
     gitStar: "Projekt sternen",
     gitUnstar: "Projekt entsternen",
 
