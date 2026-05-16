@@ -184,6 +184,7 @@ export function createProjectDetailModel(props: ProjectDetailViewProps) {
     pushMutate: git.pushMutate,
     initMutate: git.initMutate,
     tagAndPushMutate: git.tagAndPushMutate,
+    fetchAndRefresh: git.fetchAndRefresh,
     previewVersionsQ: git.previewVersionsQ,
     fetchPreviewVersions: git.fetchPreviewVersions,
     discoverVersionFiles: git.discoverVersionFiles,
