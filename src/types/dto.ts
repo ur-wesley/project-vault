@@ -198,6 +198,18 @@ export type GitStatusDto = {
   version?: string | null;
 };
 
+export type GitIncomingCommit = {
+  hash: string;
+  message: string;
+  author: string;
+  authorEmail: string;
+  relativeTime: string;
+};
+
+export type GitIncomingDto = {
+  commits: GitIncomingCommit[];
+};
+
 export type GitTagResultDto = {
   newTag: string;
 };

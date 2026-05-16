@@ -13,6 +13,7 @@ export const queryKeys = {
   githubViewer: () => ["github", "viewer"] as const,
   githubRepo: (projectId: string) => ["github", "repo", projectId] as const,
   gitStatus: (projectId: string) => ["git", "status", projectId] as const,
+  gitIncoming: (projectId: string) => ["git", "incoming", projectId] as const,
   projectReadme: (projectId: string) => ["github", "readme", "fs", projectId] as const,
   githubProjectIssues: (projectId: string) => ["github", "issues", "project", projectId] as const,
   projectIndexMeta: (projectId: string) => ["project", projectId, "index-meta"] as const,

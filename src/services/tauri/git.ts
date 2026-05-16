@@ -1,4 +1,4 @@
-import type { GitCleanPreviewDto, GitPreviewVersionsDto, GitStatusDto, GitTagResultDto, DiscoverVersionFilesResultDto, BumpVersionAndTagPayload } from "~/types/dto";
+import type { GitCleanPreviewDto, GitIncomingDto, GitPreviewVersionsDto, GitStatusDto, GitTagResultDto, DiscoverVersionFilesResultDto, BumpVersionAndTagPayload } from "~/types/dto";
 import { tauriInvoke } from "./utils";
 
 export function getGitStatus(projectId: string) {
@@ -11,6 +11,14 @@ export function gitPull(projectId: string) {
 
 export function gitPush(projectId: string) {
   return tauriInvoke<void>("git_push", { projectId });
+}
+
+export function gitFetch(projectId: string) {
+  return tauriInvoke<void>("git_fetch", { projectId });
+}
+
+export function gitIncoming(projectId: string) {
+  return tauriInvoke<GitIncomingDto>("git_incoming", { projectId });
 }
 
 export function gitInit(projectId: string) {

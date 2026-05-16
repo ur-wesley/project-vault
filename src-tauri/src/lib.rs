@@ -174,6 +174,8 @@ pub fn run() {
             commands::git::get_git_status,
             commands::git::git_pull,
             commands::git::git_push,
+            commands::git::git_fetch,
+            commands::git::git_incoming,
             commands::git::git_init,
             commands::git::git_tag_and_push,
             commands::git::git_preview_versions,

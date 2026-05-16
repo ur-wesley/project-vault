@@ -20,6 +20,22 @@ pub struct GitStatusDto {
     pub version: Option<String>,
 }
 
+#[derive(Serialize, Clone)]
+#[serde(rename_all = "camelCase")]
+pub struct GitIncomingCommit {
+    pub hash: String,
+    pub message: String,
+    pub author: String,
+    pub author_email: String,
+    pub relative_time: String,
+}
+
+#[derive(Serialize, Clone)]
+#[serde(rename_all = "camelCase")]
+pub struct GitIncomingDto {
+    pub commits: Vec<GitIncomingCommit>,
+}
+
 fn run_git(cwd: &Path, args: &[&str]) -> Result<String, StableError> {
     let mut cmd = Command::new("git");
     cmd.args(args).current_dir(cwd);
@@ -119,6 +135,57 @@ pub async fn git_push(
     run_git(cwd, &["push"])?;
     crate::models::emit_project_changed(&app, &project_id, "git");
     Ok(())
+}
+
+#[tauri::command]
+pub async fn git_fetch(
+    db: State<'_, DbInstances>,
+    project_id: String,
+) -> Result<(), StableError> {
+    let pool = db::sqlite_pool(&*db).await?;
+    let project = db::get_project(&pool, &project_id).await?;
+    let cwd = Path::new(&project.path);
+
+    run_git(cwd, &["fetch"])?;
+    Ok(())
+}
+
+#[tauri::command]
+pub async fn git_incoming(
+    db: State<'_, DbInstances>,
+    project_id: String,
+) -> Result<GitIncomingDto, StableError> {
+    let pool = db::sqlite_pool(&*db).await?;
+    let project = db::get_project(&pool, &project_id).await?;
+    let cwd = Path::new(&project.path);
+
+    let log = run_git(
+        cwd,
+        &["log", "HEAD..@{u}", "--format=%H|%an|%ae|%s|%ar"],
+    )
+    .unwrap_or_default();
+
+    let commits = log
+        .lines()
+        .filter(|line| !line.is_empty())
+        .filter_map(|line| {
+            let mut parts = line.splitn(5, '|');
+            let hash = parts.next()?.to_string();
+            let author = parts.next()?.to_string();
+            let author_email = parts.next()?.to_string();
+            let message = parts.next()?.to_string();
+            let relative_time = parts.next()?.to_string();
+            Some(GitIncomingCommit {
+                hash,
+                message,
+                author,
+                author_email,
+                relative_time,
+            })
+        })
+        .collect();
+
+    Ok(GitIncomingDto { commits })
 }
 
 fn split_prerelease(tag: &str) -> (&str, &str) {
