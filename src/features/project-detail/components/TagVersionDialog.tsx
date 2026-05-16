@@ -84,7 +84,7 @@ export function TagVersionDialog(props: {
               bump="patch"
               label="x.x.1 → x.x.2"
               selectedBump={selectedBump()}
-              isDiscovering={m().isDiscoveringFiles()}
+              isDiscovering={m().isDiscoveringFiles}
               previewVersionsQ={m().previewVersionsQ}
               onClick={async () => {
                 setSelectedBump("patch");
@@ -105,7 +105,7 @@ export function TagVersionDialog(props: {
               bump="minor"
               label="x.1.x → x.2.0"
               selectedBump={selectedBump()}
-              isDiscovering={m().isDiscoveringFiles()}
+              isDiscovering={m().isDiscoveringFiles}
               previewVersionsQ={m().previewVersionsQ}
               onClick={async () => {
                 setSelectedBump("minor");
@@ -126,7 +126,7 @@ export function TagVersionDialog(props: {
               bump="major"
               label="1.x.x → 2.0.0"
               selectedBump={selectedBump()}
-              isDiscovering={m().isDiscoveringFiles()}
+              isDiscovering={m().isDiscoveringFiles}
               previewVersionsQ={m().previewVersionsQ}
               onClick={async () => {
                 setSelectedBump("major");
@@ -147,7 +147,7 @@ export function TagVersionDialog(props: {
               bump="beta"
               label="x.x.x → x.x.x-beta.0"
               selectedBump={selectedBump()}
-              isDiscovering={m().isDiscoveringFiles()}
+              isDiscovering={m().isDiscoveringFiles}
               previewVersionsQ={m().previewVersionsQ}
               onClick={async () => {
                 setSelectedBump("beta");
