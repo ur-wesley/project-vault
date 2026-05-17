@@ -125,6 +125,13 @@ export const TaskEditorDialog: Component<TaskEditorDialogProps> = (props) => {
           cwd: s.dir.trim() || undefined,
         }));
 
+        const deps = kind() === "justfile"
+          ? concurrent.map((s) => s.label)
+          : depends()
+              .split(",")
+              .map((s) => s.trim())
+              .filter(Boolean);
+
         const task: TaskDto = {
           id: isEdit() ? props.existingTask!.id : `${kind()}-${n}`,
           label: n,
@@ -132,10 +139,7 @@ export const TaskEditorDialog: Component<TaskEditorDialogProps> = (props) => {
           kind: kind(),
           cwd: null,
           description: description().trim() || undefined,
-          depends: depends()
-            .split(",")
-            .map((s) => s.trim())
-            .filter(Boolean),
+          depends: deps,
           source: JSON.stringify(concurrent),
           concurrent,
         };
