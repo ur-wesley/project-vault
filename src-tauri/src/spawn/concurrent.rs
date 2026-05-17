@@ -32,6 +32,13 @@ struct TaskLogChunkPayload {
     chunk: String,
 }
 
+#[derive(Clone, serde::Serialize)]
+#[serde(rename_all = "camelCase")]
+struct TermPayload {
+    session_id: String,
+    chunk: String,
+}
+
 struct ChildHandle {
     killer: Arc<Mutex<Box<dyn ChildKiller + Send + Sync>>>,
 }
@@ -170,6 +177,13 @@ pub fn spawn_concurrent_tasks(
                                 let prefixed = format!("{} {}{}", prefix, line.trim_end(), RESET);
                                 let chunk = STANDARD.encode(prefixed.as_bytes());
                                 let _ = app_read.emit(
+                                    "embedded-terminal-data",
+                                    TermPayload {
+                                        session_id: sid.clone(),
+                                        chunk: chunk.clone(),
+                                    },
+                                );
+                                let _ = app_read.emit(
                                     "task-log-chunk",
                                     TaskLogChunkPayload {
                                         session_id: sid.clone(),
@@ -187,6 +201,13 @@ pub fn spawn_concurrent_tasks(
             if !line_buf.is_empty() {
                 let prefixed = format!("{} {}{}", prefix, line_buf.trim_end(), RESET);
                 let chunk = STANDARD.encode(prefixed.as_bytes());
+                let _ = app_read.emit(
+                    "embedded-terminal-data",
+                    TermPayload {
+                        session_id: sid.clone(),
+                        chunk: chunk.clone(),
+                    },
+                );
                 let _ = app_read.emit(
                     "task-log-chunk",
                     TaskLogChunkPayload {

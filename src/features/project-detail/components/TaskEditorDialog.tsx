@@ -257,24 +257,26 @@ export const TaskEditorDialog: Component<TaskEditorDialogProps> = (props) => {
             />
           </TextField>
 
-          {/* Concurrent toggle */}
-          <div class="flex items-center gap-2">
-            <Button
-              type="button"
-              variant={concurrentMode() ? "default" : "outline"}
-              size="sm"
-              class="h-7 gap-1.5 text-xs"
-              onClick={() => setConcurrentMode(!concurrentMode())}
-            >
-              <span class="iconify mdi--call-merge size-3.5" />
-              {t("projectDetail.taskEditor.concurrent") as string}
-            </Button>
-            <Show when={concurrentMode()}>
-              <span class="text-[11px] text-muted-foreground">
-                {t("projectDetail.taskEditor.concurrentHint") as string}
-              </span>
-            </Show>
-          </div>
+          {/* Concurrent toggle — only for justfile */}
+          <Show when={kind() === "justfile"}>
+            <div class="flex items-center gap-2">
+              <Button
+                type="button"
+                variant={concurrentMode() ? "default" : "outline"}
+                size="sm"
+                class="h-7 gap-1.5 text-xs"
+                onClick={() => setConcurrentMode(!concurrentMode())}
+              >
+                <span class="iconify mdi--call-merge size-3.5" />
+                {t("projectDetail.taskEditor.concurrent") as string}
+              </Button>
+              <Show when={concurrentMode()}>
+                <span class="text-[11px] text-muted-foreground">
+                  {t("projectDetail.taskEditor.concurrentHint") as string}
+                </span>
+              </Show>
+            </div>
+          </Show>
 
           <Show when={!concurrentMode()}>
             <TextField class="space-y-2">

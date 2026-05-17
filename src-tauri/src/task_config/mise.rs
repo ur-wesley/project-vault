@@ -143,62 +143,36 @@ pub fn write_mise_task(path: &Path, task: &TaskDto) -> Result<(), String> {
 
     let name = task.label.clone();
 
-    if let Some(ref subs) = task.concurrent {
-        // Write concurrent task as [tasks.<name>] table
-        let mut table = toml_edit::Table::new();
-        table.set_implicit(true);
-
-        if let Some(ref desc) = task.description {
-            table.insert("description", toml_edit::Item::Value(toml_edit::Value::from(desc.as_str())));
-        }
-
-        if !task.depends.is_empty() {
-            let arr: toml_edit::Array = task.depends.iter().map(|s| toml_edit::Value::from(s.as_str())).collect();
-            table.insert("depends", toml_edit::Item::Value(toml_edit::Value::Array(arr)));
-        }
-
-        // Build concurrent array
-        let mut arr = toml_edit::Array::new();
-        for sub in subs {
-            let mut entry = toml_edit::InlineTable::new();
-            entry.insert("label", toml_edit::Value::from(sub.label.as_str()));
-            let run_cmd = sub.argv.join(" ");
-            entry.insert("run", toml_edit::Value::from(run_cmd.as_str()));
-            if let Some(ref d) = sub.cwd {
-                entry.insert("dir", toml_edit::Value::from(d.as_str()));
-            }
-            arr.push(toml_edit::Value::InlineTable(entry));
-        }
-        table.insert("concurrent", toml_edit::Item::Value(toml_edit::Value::Array(arr)));
-
-        tasks_table.insert(&name, toml_edit::Item::Table(table));
-    } else {
-        // Write regular task as [tasks.<name>] table
-        let run = task.source.clone()
-            .filter(|s| !s.is_empty())
-            .or_else(|| task.argv.get(2..).map(|a| a.join(" ")))
-            .filter(|s| !s.is_empty())
-            .unwrap_or_else(|| task.label.clone());
-
-        let mut table = toml_edit::Table::new();
-        table.set_implicit(true);
-        table.insert("run", toml_edit::Item::Value(toml_edit::Value::from(run)));
-
-        if let Some(ref desc) = task.description {
-            table.insert("description", toml_edit::Item::Value(toml_edit::Value::from(desc.as_str())));
-        }
-
-        if !task.depends.is_empty() {
-            let arr: toml_edit::Array = task.depends.iter().map(|s| toml_edit::Value::from(s.as_str())).collect();
-            table.insert("depends", toml_edit::Item::Value(toml_edit::Value::Array(arr)));
-        }
-
-        if let Some(ref dir) = task.cwd {
-            table.insert("dir", toml_edit::Item::Value(toml_edit::Value::from(dir.as_str())));
-        }
-
-        tasks_table.insert(&name, toml_edit::Item::Table(table));
+    // Mise does not support custom task fields; concurrent tasks must use justfile
+    if task.concurrent.is_some() {
+        return Err("concurrent tasks are not supported in mise.toml; use justfile instead".to_string());
     }
+
+    // Write regular task as [tasks.<name>] table
+    let run = task.source.clone()
+        .filter(|s| !s.is_empty())
+        .or_else(|| task.argv.get(2..).map(|a| a.join(" ")))
+        .filter(|s| !s.is_empty())
+        .unwrap_or_else(|| task.label.clone());
+
+    let mut table = toml_edit::Table::new();
+    table.set_implicit(true);
+    table.insert("run", toml_edit::Item::Value(toml_edit::Value::from(run)));
+
+    if let Some(ref desc) = task.description {
+        table.insert("description", toml_edit::Item::Value(toml_edit::Value::from(desc.as_str())));
+    }
+
+    if !task.depends.is_empty() {
+        let arr: toml_edit::Array = task.depends.iter().map(|s| toml_edit::Value::from(s.as_str())).collect();
+        table.insert("depends", toml_edit::Item::Value(toml_edit::Value::Array(arr)));
+    }
+
+    if let Some(ref dir) = task.cwd {
+        table.insert("dir", toml_edit::Item::Value(toml_edit::Value::from(dir.as_str())));
+    }
+
+    tasks_table.insert(&name, toml_edit::Item::Table(table));
 
     std::fs::write(path, doc.to_string())
         .map_err(|e| format!("failed to write mise.toml: {}", e))?;

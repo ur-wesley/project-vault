@@ -482,9 +482,10 @@ pub fn write_session(
             .0
             .lock()
             .map_err(|e| StableError::new(codes::INTERNAL, e.to_string()))?;
-        g.get(session_id)
-            .cloned()
-            .ok_or_else(|| StableError::new(codes::NOT_FOUND, "terminal session not found"))?
+        match g.get(session_id).cloned() {
+            Some(s) => s,
+            None => return Ok(()), // concurrent task session — no-op
+        }
     };
     let mut w = sess
         .writer
@@ -507,9 +508,10 @@ pub fn resize_session(
             .0
             .lock()
             .map_err(|e| StableError::new(codes::INTERNAL, e.to_string()))?;
-        g.get(session_id)
-            .cloned()
-            .ok_or_else(|| StableError::new(codes::NOT_FOUND, "terminal session not found"))?
+        match g.get(session_id).cloned() {
+            Some(s) => s,
+            None => return Ok(()), // concurrent task session — no-op
+        }
     };
     let m = sess
         .master
