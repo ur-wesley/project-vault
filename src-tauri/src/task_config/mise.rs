@@ -144,7 +144,7 @@ pub fn write_mise_task(path: &Path, task: &TaskDto) -> Result<(), String> {
     let name = task.label.clone();
 
     if let Some(ref subs) = task.concurrent {
-        // Write concurrent task as a table with concurrent array
+        // Write concurrent task as [tasks.<name>] table
         let mut table = toml_edit::Table::new();
         table.set_implicit(true);
 
@@ -173,30 +173,31 @@ pub fn write_mise_task(path: &Path, task: &TaskDto) -> Result<(), String> {
 
         tasks_table.insert(&name, toml_edit::Item::Table(table));
     } else {
-        // Write regular task as inline table
+        // Write regular task as [tasks.<name>] table
         let run = task.source.clone()
             .filter(|s| !s.is_empty())
             .or_else(|| task.argv.get(2..).map(|a| a.join(" ")))
             .filter(|s| !s.is_empty())
             .unwrap_or_else(|| task.label.clone());
 
-        let mut inline = toml_edit::InlineTable::new();
-        inline.insert("run", toml_edit::Value::from(run));
+        let mut table = toml_edit::Table::new();
+        table.set_implicit(true);
+        table.insert("run", toml_edit::Item::Value(toml_edit::Value::from(run)));
 
         if let Some(ref desc) = task.description {
-            inline.insert("description", toml_edit::Value::from(desc.as_str()));
+            table.insert("description", toml_edit::Item::Value(toml_edit::Value::from(desc.as_str())));
         }
 
         if !task.depends.is_empty() {
             let arr: toml_edit::Array = task.depends.iter().map(|s| toml_edit::Value::from(s.as_str())).collect();
-            inline.insert("depends", toml_edit::Value::Array(arr));
+            table.insert("depends", toml_edit::Item::Value(toml_edit::Value::Array(arr)));
         }
 
         if let Some(ref dir) = task.cwd {
-            inline.insert("dir", toml_edit::Value::from(dir.as_str()));
+            table.insert("dir", toml_edit::Item::Value(toml_edit::Value::from(dir.as_str())));
         }
 
-        tasks_table.insert(&name, toml_edit::Item::Value(toml_edit::Value::InlineTable(inline)));
+        tasks_table.insert(&name, toml_edit::Item::Table(table));
     }
 
     std::fs::write(path, doc.to_string())
