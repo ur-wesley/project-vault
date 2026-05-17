@@ -1,4 +1,4 @@
-import { For, Show, createSignal } from "solid-js";
+import { For, Show, createSignal, createEffect } from "solid-js";
 import {
   AlertDialog,
   AlertDialogContent,
@@ -25,19 +25,35 @@ export function CleanProjectDialog(props: {
   const [cleanPreview, setCleanPreview] = createSignal<GitCleanPreviewDto | null>(null);
   const [cleanSelected, setCleanSelected] = createSignal<Set<string>>(new Set<string>());
   const [cleanResetTracked, setCleanResetTracked] = createSignal(false);
+  const [cleanError, setCleanError] = createSignal<string | null>(null);
 
   const onOpen = async () => {
+    console.log("[CleanProjectDialog] onOpen called");
     setCleanPreview(null);
     setCleanSelected(new Set());
     setCleanResetTracked(false);
+    setCleanError(null);
     try {
+      console.log("[CleanProjectDialog] calling cleanPreview mutation...");
       const result = await m().cleanPreview();
+      console.log("[CleanProjectDialog] cleanPreview result:", result);
       setCleanPreview(result);
       setCleanSelected(new Set(result.entries.map((e) => e.path)));
-    } catch {
-      /* onError in mutation handles toast */
+      console.log("[CleanProjectDialog] state updated, entries:", result.entries.length);
+    } catch (err: unknown) {
+      console.error("[CleanProjectDialog] cleanPreview error:", err);
+      const msg = err && typeof err === "object" && "message" in err
+        ? (err as { message: string }).message
+        : String(err);
+      setCleanError(msg);
     }
   };
+
+  createEffect(() => {
+    if (props.open) {
+      void onOpen();
+    }
+  });
 
   return (
     <AlertDialog
@@ -48,8 +64,7 @@ export function CleanProjectDialog(props: {
           setCleanPreview(null);
           setCleanSelected(new Set());
           setCleanResetTracked(false);
-        } else {
-          void onOpen();
+          setCleanError(null);
         }
       }}
     >
@@ -64,73 +79,85 @@ export function CleanProjectDialog(props: {
         </AlertDialogHeader>
         <div class="max-h-60 overflow-y-auto rounded-md border border-border/40 bg-muted/20">
           <Show
-            when={cleanPreview()}
+            when={cleanError()}
             fallback={
-              <div class="flex items-center justify-center gap-2 py-8 text-sm text-muted-foreground">
-                <span class="iconify mdi--loading animate-spin size-4" />
-                {t("projectDetail.cleanLoading") as string}
-              </div>
-            }
-          >
-            {(preview) => (
               <Show
-                when={preview().entries.length > 0}
+                when={cleanPreview()}
                 fallback={
-                  <div class="py-8 text-center text-sm text-muted-foreground">
-                    {t("projectDetail.cleanNoFiles") as string}
+                  <div class="flex items-center justify-center gap-2 py-8 text-sm text-muted-foreground">
+                    <span class="iconify mdi--loading animate-spin size-4" />
+                    {t("projectDetail.cleanLoading") as string}
                   </div>
                 }
               >
-                <For each={preview().entries}>
-                  {(entry) => {
-                    const isChild = preview().entries.some(
-                      (e) =>
-                        e.isDir &&
-                        !cleanSelected().has(e.path) &&
-                        entry.path !== e.path &&
-                        entry.path.startsWith(e.path + "/"),
-                    );
-                    return (
-                      <div
-                        class={cn(
-                          "flex items-center justify-between gap-2 border-b border-border/20 px-3 py-1.5 last:border-b-0",
-                          isChild && "opacity-40",
-                        )}
-                      >
-                        <div class="flex min-w-0 items-center gap-2">
-                          <Checkbox
-                            checked={cleanSelected().has(entry.path)}
-                            disabled={isChild}
-                            onChange={(checked) => {
-                              setCleanSelected((prev) => {
-                                const next = new Set(prev);
-                                checked
-                                  ? next.add(entry.path)
-                                  : next.delete(entry.path);
-                                return next;
-                              });
-                            }}
-                          />
-                          <span
-                            class={cn(
-                              "iconify size-3.5 shrink-0",
-                              entry.isDir
-                                ? "mdi--folder text-yellow-500"
-                                : "mdi--file text-muted-foreground",
-                            )}
-                          />
-                          <span class="truncate font-mono text-xs">
-                            {entry.path}
-                          </span>
-                        </div>
-                        <span class="shrink-0 font-mono text-[10px] text-muted-foreground">
-                          {formatBytes(entry.sizeBytes)}
-                        </span>
+                {(preview) => (
+                  <Show
+                    when={preview().entries.length > 0}
+                    fallback={
+                      <div class="py-8 text-center text-sm text-muted-foreground">
+                        {t("projectDetail.cleanNoFiles") as string}
                       </div>
-                    );
-                  }}
-                </For>
+                    }
+                  >
+                    <For each={preview().entries}>
+                      {(entry) => {
+                        const isChild = preview().entries.some(
+                          (e) =>
+                            e.isDir &&
+                            !cleanSelected().has(e.path) &&
+                            entry.path !== e.path &&
+                            entry.path.startsWith(e.path + "/"),
+                        );
+                        return (
+                          <div
+                            class={cn(
+                              "flex items-center justify-between gap-2 border-b border-border/20 px-3 py-1.5 last:border-b-0",
+                              isChild && "opacity-40",
+                            )}
+                          >
+                            <div class="flex min-w-0 items-center gap-2">
+                              <Checkbox
+                                checked={cleanSelected().has(entry.path)}
+                                disabled={isChild}
+                                onChange={(checked) => {
+                                  setCleanSelected((prev) => {
+                                    const next = new Set(prev);
+                                    checked
+                                      ? next.add(entry.path)
+                                      : next.delete(entry.path);
+                                    return next;
+                                  });
+                                }}
+                              />
+                              <span
+                                class={cn(
+                                  "iconify size-3.5 shrink-0",
+                                  entry.isDir
+                                    ? "mdi--folder text-yellow-500"
+                                    : "mdi--file text-muted-foreground",
+                                )}
+                              />
+                              <span class="truncate font-mono text-xs">
+                                {entry.path}
+                              </span>
+                            </div>
+                            <span class="shrink-0 font-mono text-[10px] text-muted-foreground">
+                              {formatBytes(entry.sizeBytes)}
+                            </span>
+                          </div>
+                        );
+                      }}
+                    </For>
+                  </Show>
+                )}
               </Show>
+            }
+          >
+            {(errMsg) => (
+              <div class="flex flex-col items-center justify-center gap-2 py-8 text-sm text-destructive">
+                <span class="iconify mdi--alert-circle size-5" />
+                <span>{errMsg()}</span>
+              </div>
             )}
           </Show>
         </div>
