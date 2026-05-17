@@ -196,6 +196,15 @@ pub fn write_justfile_task(path: &Path, task: &TaskDto) -> Result<(), String> {
         for line in command.lines() {
             content.push_str(&format!("    {}\n", line));
         }
+    } else if let Some(ref subs) = task.concurrent {
+        // Also write dependency recipes for concurrent tasks
+        for sub in subs {
+            let sub_name = &sub.label;
+            let cmd = sub.argv.join(" ");
+            content.push('\n');
+            content.push_str(&format!("{}:\n", sub_name));
+            content.push_str(&format!("    {}\n", cmd));
+        }
     }
 
     std::fs::write(path, content)
