@@ -156,11 +156,18 @@ export function useProjectGit(props: UseProjectGitProps) {
 
   const cleanPreviewMu = createMutation(() => ({
     mutationFn: async () => {
+      console.log("[cleanPreviewMu] mutationFn called, projectId:", props.projectId());
       const r = await gitCleanPreview(props.projectId());
-      if (r.isErr()) throw r.error;
+      console.log("[cleanPreviewMu] gitCleanPreview returned:", r);
+      if (r.isErr()) {
+        console.error("[cleanPreviewMu] gitCleanPreview error:", r.error);
+        throw r.error;
+      }
+      console.log("[cleanPreviewMu] success, value:", r.value);
       return r.value;
     },
     onError: (err: unknown) => {
+      console.error("[cleanPreviewMu] onError:", err);
       props.showBanner(stableErrorMessage(props.t, err as any));
     },
   }));

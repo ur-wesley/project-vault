@@ -17,5 +17,9 @@ export function mapInvokeError(e: unknown): StableError {
 }
 
 export function tauriInvoke<T>(cmd: string, args?: Record<string, unknown>): ResultAsync<T, StableError> {
-  return ResultAsync.fromPromise(invoke<T>(cmd, args), mapInvokeError);
+  console.log("[tauriInvoke] cmd:", cmd, "args:", args);
+  return ResultAsync.fromPromise(invoke<T>(cmd, args), (e) => {
+    console.error("[tauriInvoke] error for cmd:", cmd, "error:", e);
+    return mapInvokeError(e);
+  });
 }
