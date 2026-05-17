@@ -166,5 +166,6 @@ pub fn script_task(id: &str, label: &str, argv: Vec<String>) -> TaskDto {
         description: None,
         depends: Vec::new(),
         source: None,
+        concurrent: None,
     }
 }

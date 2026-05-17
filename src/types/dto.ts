@@ -13,6 +13,12 @@ export type PathDiskSpaceDto = {
   availableBytes: number;
 };
 
+export type ConcurrentTask = {
+  label: string;
+  argv: string[];
+  cwd?: string | null;
+};
+
 export type TaskDto = {
   id: string;
   label: string;
@@ -22,6 +28,7 @@ export type TaskDto = {
   description?: string;
   depends: string[];
   source?: string;
+  concurrent?: ConcurrentTask[];
 };
 
 export type ProjectTaskConfig = {
@@ -135,6 +142,7 @@ export type SpawnProjectTaskPayload = {
   acknowledgeRisk: boolean;
   sessionId?: string;
   cwd?: string | null;
+  concurrent?: ConcurrentTask[];
 };
 
 export type SpawnProjectTaskResponse = {
