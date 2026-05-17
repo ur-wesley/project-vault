@@ -5,6 +5,8 @@ pub mod task_monitor;
 #[cfg(not(any(target_os = "android", target_os = "ios")))]
 pub mod embedded;
 #[cfg(not(any(target_os = "android", target_os = "ios")))]
+pub mod concurrent;
+#[cfg(not(any(target_os = "android", target_os = "ios")))]
 pub mod ide_session;
 
 pub use resolve::use_mise_for_project;

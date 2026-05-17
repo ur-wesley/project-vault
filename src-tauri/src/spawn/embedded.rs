@@ -165,7 +165,7 @@ fn task_command_unix(
     Ok(c)
 }
 
-fn task_command(
+pub fn task_command(
     cwd: &Path,
     argv: &[String],
     use_mise: bool,
