@@ -300,24 +300,30 @@ export const TaskEditorDialog: Component<TaskEditorDialogProps> = (props) => {
                   {(sub, index) => (
                     <div class="flex gap-2 items-start rounded-md border border-border/40 bg-muted/10 p-2">
                       <div class="flex-1 space-y-1.5">
-                        <TextFieldInput
-                          placeholder={t("projectDetail.taskEditor.subTaskLabel") as string}
-                          value={sub.label}
-                          onInput={(e) => updateSubTask(index(), "label", e.currentTarget.value)}
-                          class="h-7 text-xs"
-                        />
-                        <TextFieldInput
-                          placeholder={t("projectDetail.taskEditor.subTaskCommand") as string}
-                          value={sub.command}
-                          onInput={(e) => updateSubTask(index(), "command", e.currentTarget.value)}
-                          class="h-7 text-xs"
-                        />
-                        <TextFieldInput
-                          placeholder={t("projectDetail.taskEditor.subTaskDir") as string}
-                          value={sub.dir}
-                          onInput={(e) => updateSubTask(index(), "dir", e.currentTarget.value)}
-                          class="h-7 text-xs"
-                        />
+                        <TextField>
+                          <TextFieldInput
+                            placeholder={t("projectDetail.taskEditor.subTaskLabel") as string}
+                            value={sub.label}
+                            onInput={(e) => updateSubTask(index(), "label", e.currentTarget.value)}
+                            class="h-7 text-xs"
+                          />
+                        </TextField>
+                        <TextField>
+                          <TextFieldInput
+                            placeholder={t("projectDetail.taskEditor.subTaskCommand") as string}
+                            value={sub.command}
+                            onInput={(e) => updateSubTask(index(), "command", e.currentTarget.value)}
+                            class="h-7 text-xs"
+                          />
+                        </TextField>
+                        <TextField>
+                          <TextFieldInput
+                            placeholder={t("projectDetail.taskEditor.subTaskDir") as string}
+                            value={sub.dir}
+                            onInput={(e) => updateSubTask(index(), "dir", e.currentTarget.value)}
+                            class="h-7 text-xs"
+                          />
+                        </TextField>
                       </div>
                       <Button
                         type="button"
