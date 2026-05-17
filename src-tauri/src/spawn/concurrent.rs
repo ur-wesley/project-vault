@@ -2,9 +2,9 @@
 
 use std::io::Read;
 use std::path::Path;
-use std::sync::atomic::{AtomicBool, Ordering};
+use std::sync::atomic::{AtomicBool, AtomicUsize, Ordering};
 use std::sync::{Arc, Mutex};
-use std::time::{Duration, Instant};
+use std::time::Duration;
 
 use base64::{engine::general_purpose::STANDARD, Engine as _};
 use portable_pty::{native_pty_system, ChildKiller, PtySize};
@@ -33,10 +33,6 @@ struct TaskLogChunkPayload {
 }
 
 struct ChildHandle {
-    #[allow(dead_code)]
-    label: String,
-    #[allow(dead_code)]
-    color: String,
     killer: Arc<Mutex<Box<dyn ChildKiller + Send + Sync>>>,
 }
 
@@ -81,6 +77,7 @@ pub fn spawn_concurrent_tasks(
     let pty_system = native_pty_system();
     let mut children: Vec<ChildHandle> = Vec::new();
     let stop_flag = Arc::new(AtomicBool::new(false));
+    let remaining = Arc::new(AtomicUsize::new(sub_tasks.len()));
 
     // Spawn one PTY per sub-task
     for (idx, sub) in sub_tasks.iter().enumerate() {
@@ -110,10 +107,9 @@ pub fn spawn_concurrent_tasks(
             shell_pref.as_deref(),
         )?;
 
-        let child = match pair.slave.spawn_command(cmd) {
+        let mut child = match pair.slave.spawn_command(cmd) {
             Ok(c) => c,
             Err(e) => {
-                // Cleanup already-spawned children
                 kill_all_children(&mut children);
                 return Err(StableError::new(codes::SPAWN_FAILED, e.to_string()));
             }
@@ -122,11 +118,7 @@ pub fn spawn_concurrent_tasks(
         let killer: Arc<Mutex<Box<dyn ChildKiller + Send + Sync>>> =
             Arc::new(Mutex::new(child.clone_killer()));
 
-        children.push(ChildHandle {
-            label: sub.label.clone(),
-            color: color.clone(),
-            killer: killer.clone(),
-        });
+        children.push(ChildHandle { killer: killer.clone() });
 
         // Register sub-task PID under parent session's tree
         {
@@ -155,6 +147,7 @@ pub fn spawn_concurrent_tasks(
         let stop = stop_flag.clone();
 
         std::thread::spawn(move || {
+            // Give frontend time to mount and start listening
             std::thread::sleep(Duration::from_millis(500));
             let mut reader = reader;
             let mut buf = [0u8; 4096];
@@ -170,7 +163,6 @@ pub fn spawn_concurrent_tasks(
                         let text = String::from_utf8_lossy(&buf[..n]);
                         line_buf.push_str(&text);
 
-                        // Split on newlines, emit complete lines
                         while let Some(pos) = line_buf.find('\n') {
                             let line = line_buf[..pos].to_string();
                             line_buf = line_buf[pos + 1..].to_string();
@@ -204,51 +196,40 @@ pub fn spawn_concurrent_tasks(
                 );
             }
         });
+
+        // Spawn a dedicated thread to wait on this child's exit
+        let remaining_clone = remaining.clone();
+        std::thread::spawn(move || {
+            let _ = child.wait();
+            remaining_clone.fetch_sub(1, Ordering::SeqCst);
+        });
     }
 
-    // Spawn wait thread: monitors all children, handles graceful stop
+    // Spawn wait thread: monitors remaining count, handles graceful stop
     let app_wait = app.clone();
     let sid_wait = parent_session_id.clone();
     let monitors_wait = monitors.clone();
     let map = sessions.0.clone();
 
     std::thread::spawn(move || {
-        // Poll children until all exit
-        let mut _exit_codes: Vec<i32> = Vec::new();
-        let mut remaining = children.len();
-
-        // Use a simple polling approach since portable-pty Child::wait() takes ownership
-        // We'll check periodically
-        loop {
+        // Wait until all children have exited
+        while remaining.load(Ordering::SeqCst) > 0 {
             std::thread::sleep(Duration::from_millis(200));
 
             // Check if stop was requested
-            if stop_flag.load(Ordering::Relaxed) {
-                break;
-            }
-
-            // Check how many are still alive (approximate via the polling)
-            // We rely on the exit detection below
-            if remaining == 0 {
+            if task_monitor::is_stop_requested(&monitors_wait, &sid_wait) {
+                stop_flag.store(true, Ordering::Relaxed);
+                graceful_kill_all(&mut children);
                 break;
             }
         }
 
-        // If stop was requested, perform graceful shutdown
-        if task_monitor::is_stop_requested(&monitors_wait, &sid_wait) {
-            stop_flag.store(true, Ordering::Relaxed);
-            graceful_kill_all(&mut children);
-        }
-
-        // Wait for all children to finish (they should be dead or dying)
-        let deadline = Instant::now() + Duration::from_secs(10);
-        while remaining > 0 && Instant::now() < deadline {
-            std::thread::sleep(Duration::from_millis(100));
-            // Children will exit after being killed
-            // We approximate by checking if killers report success
-            remaining = 0;
-            // Since we can't easily poll child exit status without ownership,
-            // we rely on the PTY closing naturally after kill
+        // If we broke out due to stop, wait a bit more for children to die
+        if stop_flag.load(Ordering::Relaxed) {
+            let deadline = std::time::Instant::now() + Duration::from_secs(10);
+            while remaining.load(Ordering::SeqCst) > 0 && std::time::Instant::now() < deadline {
+                std::thread::sleep(Duration::from_millis(100));
+            }
         }
 
         // Determine final state
@@ -256,9 +237,6 @@ pub fn spawn_concurrent_tasks(
         let state = if stop_requested {
             task_monitor::TASK_STATE_CANCELLED.to_string()
         } else {
-            // If any child failed, mark as error
-            // Since we can't easily get exit codes from the polling model,
-            // we default to success unless stop was requested
             task_monitor::TASK_STATE_SUCCESS.to_string()
         };
 
