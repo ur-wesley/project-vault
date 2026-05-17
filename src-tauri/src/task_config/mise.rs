@@ -2,7 +2,7 @@ use std::path::Path;
 
 use serde::{Deserialize, Serialize};
 
-use crate::models::TaskDto;
+use crate::models::{ConcurrentTask, TaskDto};
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
@@ -34,13 +34,9 @@ pub fn read_mise_tasks(path: &Path) -> Vec<TaskDto> {
     };
 
     for (name, value) in tasks_table {
-        let (run, description, depends, dir) = match value {
-            toml::Value::String(cmd) => (cmd.clone(), None, Vec::new(), None),
+        let (run, description, depends, dir, concurrent) = match value {
+            toml::Value::String(cmd) => (cmd.clone(), None, Vec::new(), None, None),
             toml::Value::Table(t) => {
-                let run = t.get("run")
-                    .and_then(|v| v.as_str())
-                    .unwrap_or("")
-                    .to_string();
                 let description = t.get("description").and_then(|v| v.as_str()).map(String::from);
                 let depends = t.get("depends")
                     .and_then(|v| match v {
@@ -54,24 +50,65 @@ pub fn read_mise_tasks(path: &Path) -> Vec<TaskDto> {
                     })
                     .unwrap_or_default();
                 let dir = t.get("dir").and_then(|v| v.as_str()).map(String::from);
-                (run, description, depends, dir)
+
+                // Check for concurrent array
+                let concurrent = t.get("concurrent").and_then(|v| {
+                    if let toml::Value::Array(arr) = v {
+                        let subs: Vec<ConcurrentTask> = arr.iter().filter_map(|entry| {
+                            if let toml::Value::Table(et) = entry {
+                                let label = et.get("label").and_then(|v| v.as_str())?.to_string();
+                                let run = et.get("run").and_then(|v| v.as_str()).unwrap_or("").to_string();
+                                if run.is_empty() { return None; }
+                                let entry_dir = et.get("dir").and_then(|v| v.as_str()).map(String::from);
+                                Some(ConcurrentTask {
+                                    label,
+                                    argv: shell_words::split(&run).unwrap_or_else(|_| vec![run]),
+                                    cwd: entry_dir,
+                                })
+                            } else {
+                                None
+                            }
+                        }).collect();
+                        if subs.is_empty() { None } else { Some(subs) }
+                    } else {
+                        None
+                    }
+                });
+
+                if concurrent.is_some() {
+                    // Concurrent task — no run field needed
+                    (String::new(), description, depends, dir, concurrent)
+                } else {
+                    let run = t.get("run")
+                        .and_then(|v| v.as_str())
+                        .unwrap_or("")
+                        .to_string();
+                    (run, description, depends, dir, None)
+                }
             }
             _ => continue,
         };
 
-        if run.is_empty() {
+        if run.is_empty() && concurrent.is_none() {
             continue;
         }
+
+        let source = if let Some(ref subs) = concurrent {
+            serde_json::to_string(subs).ok()
+        } else {
+            Some(run.clone())
+        };
 
         tasks.push(TaskDto {
             id: format!("mise-{}", name),
             label: name.clone(),
-            argv: vec!["mise".to_string(), "run".to_string(), name.clone()],
+            argv: if concurrent.is_some() { Vec::new() } else { vec!["mise".to_string(), "run".to_string(), name.clone()] },
             kind: "mise".to_string(),
             cwd: dir.clone(),
             description,
             depends,
-            source: Some(run.clone()),
+            source,
+            concurrent,
         });
     }
 
@@ -105,30 +142,62 @@ pub fn write_mise_task(path: &Path, task: &TaskDto) -> Result<(), String> {
         .ok_or("tasks is not a table")?;
 
     let name = task.label.clone();
-    let run = task.source.clone()
-        .filter(|s| !s.is_empty())
-        .or_else(|| task.argv.get(2..).map(|a| a.join(" ")))
-        .filter(|s| !s.is_empty())
-        .unwrap_or_else(|| task.label.clone());
 
-    // Build inline table for the task
-    let mut inline = toml_edit::InlineTable::new();
-    inline.insert("run", toml_edit::Value::from(run));
+    if let Some(ref subs) = task.concurrent {
+        // Write concurrent task as a table with concurrent array
+        let mut table = toml_edit::Table::new();
+        table.set_implicit(true);
 
-    if let Some(ref desc) = task.description {
-        inline.insert("description", toml_edit::Value::from(desc.as_str()));
+        if let Some(ref desc) = task.description {
+            table.insert("description", toml_edit::Item::Value(toml_edit::Value::from(desc.as_str())));
+        }
+
+        if !task.depends.is_empty() {
+            let arr: toml_edit::Array = task.depends.iter().map(|s| toml_edit::Value::from(s.as_str())).collect();
+            table.insert("depends", toml_edit::Item::Value(toml_edit::Value::Array(arr)));
+        }
+
+        // Build concurrent array
+        let mut arr = toml_edit::Array::new();
+        for sub in subs {
+            let mut entry = toml_edit::InlineTable::new();
+            entry.insert("label", toml_edit::Value::from(sub.label.as_str()));
+            let run_cmd = sub.argv.join(" ");
+            entry.insert("run", toml_edit::Value::from(run_cmd.as_str()));
+            if let Some(ref d) = sub.cwd {
+                entry.insert("dir", toml_edit::Value::from(d.as_str()));
+            }
+            arr.push(toml_edit::Value::InlineTable(entry));
+        }
+        table.insert("concurrent", toml_edit::Item::Value(toml_edit::Value::Array(arr)));
+
+        tasks_table.insert(&name, toml_edit::Item::Table(table));
+    } else {
+        // Write regular task as inline table
+        let run = task.source.clone()
+            .filter(|s| !s.is_empty())
+            .or_else(|| task.argv.get(2..).map(|a| a.join(" ")))
+            .filter(|s| !s.is_empty())
+            .unwrap_or_else(|| task.label.clone());
+
+        let mut inline = toml_edit::InlineTable::new();
+        inline.insert("run", toml_edit::Value::from(run));
+
+        if let Some(ref desc) = task.description {
+            inline.insert("description", toml_edit::Value::from(desc.as_str()));
+        }
+
+        if !task.depends.is_empty() {
+            let arr: toml_edit::Array = task.depends.iter().map(|s| toml_edit::Value::from(s.as_str())).collect();
+            inline.insert("depends", toml_edit::Value::Array(arr));
+        }
+
+        if let Some(ref dir) = task.cwd {
+            inline.insert("dir", toml_edit::Value::from(dir.as_str()));
+        }
+
+        tasks_table.insert(&name, toml_edit::Item::Value(toml_edit::Value::InlineTable(inline)));
     }
-
-    if !task.depends.is_empty() {
-        let arr: toml_edit::Array = task.depends.iter().map(|s| toml_edit::Value::from(s.as_str())).collect();
-        inline.insert("depends", toml_edit::Value::Array(arr));
-    }
-
-    if let Some(ref dir) = task.cwd {
-        inline.insert("dir", toml_edit::Value::from(dir.as_str()));
-    }
-
-    tasks_table.insert(&name, toml_edit::Item::Value(toml_edit::Value::InlineTable(inline)));
 
     std::fs::write(path, doc.to_string())
         .map_err(|e| format!("failed to write mise.toml: {}", e))?;

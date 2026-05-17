@@ -1,34 +1,45 @@
+use std::collections::HashMap;
 use std::path::Path;
 
-use crate::models::TaskDto;
+use crate::models::{ConcurrentTask, TaskDto};
+
+struct ParsedRecipe {
+    name: String,
+    description: Option<String>,
+    depends: Vec<String>,
+    body: String,
+    is_concurrent: bool,
+}
 
 pub fn read_justfile_tasks(path: &Path) -> Vec<TaskDto> {
-    let mut tasks = Vec::new();
     let content = match std::fs::read_to_string(path) {
         Ok(c) => c,
-        Err(_) => return tasks,
+        Err(_) => return Vec::new(),
     };
 
     let lines: Vec<&str> = content.lines().collect();
+    let mut recipes: Vec<ParsedRecipe> = Vec::new();
     let mut i = 0;
 
     while i < lines.len() {
         let line = lines[i].trim();
 
-        // Skip blank lines and comments that aren't descriptions
         if line.is_empty() {
             i += 1;
             continue;
         }
 
-        // Collect description comments
+        // Collect comment block before recipe
         let mut description = None;
+        let mut is_concurrent = false;
         while i < lines.len() {
             let l = lines[i].trim();
             if l.starts_with('#') {
-                let desc = l.trim_start_matches('#').trim();
-                if !desc.is_empty() {
-                    description = Some(desc.to_string());
+                let comment = l.trim_start_matches('#').trim();
+                if comment.eq_ignore_ascii_case("concurrent") {
+                    is_concurrent = true;
+                } else if !comment.is_empty() {
+                    description = Some(comment.to_string());
                 }
                 i += 1;
             } else {
@@ -47,25 +58,19 @@ pub fn read_justfile_tasks(path: &Path) -> Vec<TaskDto> {
             continue;
         }
 
-        // Check if this line looks like a recipe header
-        let colon_pos = header.find(':');
-        if colon_pos.is_none() {
-            i += 1;
-            continue;
-        }
-
-        let colon_pos = colon_pos.unwrap();
+        let colon_pos = match header.find(':') {
+            Some(p) => p,
+            None => { i += 1; continue; }
+        };
         let name_part = header[..colon_pos].trim();
         let deps_part = header[colon_pos + 1..].trim();
 
-        // Extract recipe name (ignore args for now)
         let name = name_part.split_whitespace().next().unwrap_or("").to_string();
         if name.is_empty() {
             i += 1;
             continue;
         }
 
-        // Parse dependencies
         let depends: Vec<String> = deps_part
             .split_whitespace()
             .map(|s| s.to_string())
@@ -86,21 +91,67 @@ pub fn read_justfile_tasks(path: &Path) -> Vec<TaskDto> {
             }
         }
 
-        let run = body_lines.join("\n");
-        if run.is_empty() {
-            continue;
-        }
-
-        tasks.push(TaskDto {
-            id: format!("just-{}", name),
-            label: name.clone(),
-            argv: vec!["just".to_string(), name.clone()],
-            kind: "justfile".to_string(),
-            cwd: None,
+        let body = body_lines.join("\n");
+        recipes.push(ParsedRecipe {
+            name,
             description,
             depends,
-            source: Some(run),
+            body,
+            is_concurrent,
         });
+    }
+
+    // Build lookup map for dependency body resolution
+    let recipe_map: HashMap<&str, &ParsedRecipe> = recipes
+        .iter()
+        .map(|r| (r.name.as_str(), r))
+        .collect();
+
+    // Build task list
+    let mut tasks = Vec::new();
+    for recipe in &recipes {
+        if recipe.is_concurrent && !recipe.depends.is_empty() {
+            // Concurrent recipe: resolve each dependency into a ConcurrentTask
+            let concurrent: Vec<ConcurrentTask> = recipe
+                .depends
+                .iter()
+                .filter_map(|dep| {
+                    let _dep_recipe = recipe_map.get(dep.as_str())?;
+                    Some(ConcurrentTask {
+                        label: dep.clone(),
+                        argv: vec!["just".to_string(), dep.clone()],
+                        cwd: None,
+                    })
+                })
+                .collect();
+
+            if !concurrent.is_empty() {
+                tasks.push(TaskDto {
+                    id: format!("just-{}", recipe.name),
+                    label: recipe.name.clone(),
+                    argv: Vec::new(),
+                    kind: "justfile".to_string(),
+                    cwd: None,
+                    description: recipe.description.clone(),
+                    depends: recipe.depends.clone(),
+                    source: serde_json::to_string(&concurrent).ok(),
+                    concurrent: Some(concurrent),
+                });
+            }
+        } else if !recipe.body.is_empty() {
+            // Regular recipe
+            tasks.push(TaskDto {
+                id: format!("just-{}", recipe.name),
+                label: recipe.name.clone(),
+                argv: vec!["just".to_string(), recipe.name.clone()],
+                kind: "justfile".to_string(),
+                cwd: None,
+                description: recipe.description.clone(),
+                depends: recipe.depends.clone(),
+                source: Some(recipe.body.clone()),
+                concurrent: None,
+            });
+        }
     }
 
     tasks
@@ -120,6 +171,11 @@ pub fn write_justfile_task(path: &Path, task: &TaskDto) -> Result<(), String> {
         content.push('\n');
     }
 
+    // Add concurrent annotation if applicable
+    if task.concurrent.is_some() {
+        content.push_str("# concurrent\n");
+    }
+
     // Add description comment
     if let Some(ref desc) = task.description {
         content.push_str(&format!("# {}\n", desc));
@@ -134,10 +190,12 @@ pub fn write_justfile_task(path: &Path, task: &TaskDto) -> Result<(), String> {
         content.push_str(&format!("{}: {}\n", name, deps));
     }
 
-    // Add recipe body
-    let command = task.source.as_deref().unwrap_or(&name);
-    for line in command.lines() {
-        content.push_str(&format!("    {}\n", line));
+    // Add recipe body (empty for concurrent tasks, actual command otherwise)
+    if task.concurrent.is_none() {
+        let command = task.source.as_deref().unwrap_or(&name);
+        for line in command.lines() {
+            content.push_str(&format!("    {}\n", line));
+        }
     }
 
     std::fs::write(path, content)
