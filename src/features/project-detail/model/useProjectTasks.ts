@@ -5,7 +5,7 @@ import { spawnProjectTask, stopProjectTask } from "~/services/tauri/tasks";
 import { queryKeys } from "~/services/query-keys";
 import { stableErrorMessage } from "~/lib/invoke-error";
 import { argvNeedsUserConfirmation } from "~/lib/task-risk";
-import type { ProjectDto } from "~/types/dto";
+import type { ProjectDto, ConcurrentTask } from "~/types/dto";
 
 export type UseProjectTasksProps = Readonly<{
   projectId: Accessor<string>;
@@ -92,20 +92,31 @@ export function useProjectTasks(props: UseProjectTasksProps) {
     },
   }));
 
-  const runArgv = async (project: ProjectDto, argv: string[], confirmed: boolean, cwd?: string | null) => {
-    if (argvNeedsUserConfirmation(argv) && !confirmed) {
+  const runArgv = async (
+    project: ProjectDto,
+    argv: string[],
+    confirmed: boolean,
+    cwd?: string | null,
+    concurrent?: ConcurrentTask[] | null,
+  ) => {
+    const isConcurrent = concurrent && concurrent.length > 0;
+
+    if (!isConcurrent && argvNeedsUserConfirmation(argv) && !confirmed) {
       setRisk({ project, argv, cwd });
       return;
     }
     const sessionId = crypto.randomUUID();
-    const cmd = argv.join(" ");
+    const cmd = isConcurrent
+      ? concurrent.map((s) => s.label).join(" + ")
+      : argv.join(" ");
 
     const r = await spawnProjectTask({
       projectId: project.id,
-      argv,
+      argv: isConcurrent ? [] : argv,
       acknowledgeRisk: confirmed,
       sessionId,
       cwd: cwd ?? null,
+      concurrent: isConcurrent ? concurrent : undefined,
     });
     if (r.isErr()) {
       const err = r.error;

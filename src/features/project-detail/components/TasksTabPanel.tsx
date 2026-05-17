@@ -228,7 +228,7 @@ export function TasksTabPanel(props: {
                       }
                       setRunningTaskKey(taskKey);
                       try {
-                        await m().runArgv(props.project(), task.argv, false, task.cwd);
+                        await m().runArgv(props.project(), task.argv, false, task.cwd, task.concurrent);
                       } finally {
                         setRunningTaskKey((current) => (current === taskKey ? null : current));
                       }
@@ -288,6 +288,12 @@ export function TasksTabPanel(props: {
                         <Show when={task.kind === "mise" || task.kind === "justfile"}>
                           <Badge variant="outline" round class="h-5 px-1.5 text-[9px] font-black uppercase tracking-wider border-primary/30 text-primary/70">
                             {task.kind === "mise" ? "mise" : "just"}
+                          </Badge>
+                        </Show>
+
+                        <Show when={task.concurrent && task.concurrent.length > 0}>
+                          <Badge variant="outline" round class="h-5 px-1.5 text-[9px] font-black uppercase tracking-wider border-orange-400/30 text-orange-500/80">
+                            concurrent
                           </Badge>
                         </Show>
 
