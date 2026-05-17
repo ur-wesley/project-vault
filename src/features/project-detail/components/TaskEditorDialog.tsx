@@ -300,30 +300,27 @@ export const TaskEditorDialog: Component<TaskEditorDialogProps> = (props) => {
                   {(sub, index) => (
                     <div class="flex gap-2 items-start rounded-md border border-border/40 bg-muted/10 p-2">
                       <div class="flex-1 space-y-1.5">
-                        <TextField>
-                          <TextFieldInput
-                            placeholder={t("projectDetail.taskEditor.subTaskLabel") as string}
-                            value={sub.label}
-                            onInput={(e) => updateSubTask(index(), "label", e.currentTarget.value)}
-                            class="h-7 text-xs"
-                          />
-                        </TextField>
-                        <TextField>
-                          <TextFieldInput
-                            placeholder={t("projectDetail.taskEditor.subTaskCommand") as string}
-                            value={sub.command}
-                            onInput={(e) => updateSubTask(index(), "command", e.currentTarget.value)}
-                            class="h-7 text-xs"
-                          />
-                        </TextField>
-                        <TextField>
-                          <TextFieldInput
-                            placeholder={t("projectDetail.taskEditor.subTaskDir") as string}
-                            value={sub.dir}
-                            onInput={(e) => updateSubTask(index(), "dir", e.currentTarget.value)}
-                            class="h-7 text-xs"
-                          />
-                        </TextField>
+                        <input
+                          type="text"
+                          placeholder={t("projectDetail.taskEditor.subTaskLabel") as string}
+                          value={sub.label}
+                          onInput={(e) => updateSubTask(index(), "label", e.currentTarget.value)}
+                          class="flex h-7 w-full rounded-md border border-input bg-background px-2 py-1 text-xs ring-offset-background placeholder:text-muted-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2"
+                        />
+                        <input
+                          type="text"
+                          placeholder={t("projectDetail.taskEditor.subTaskCommand") as string}
+                          value={sub.command}
+                          onInput={(e) => updateSubTask(index(), "command", e.currentTarget.value)}
+                          class="flex h-7 w-full rounded-md border border-input bg-background px-2 py-1 text-xs ring-offset-background placeholder:text-muted-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2"
+                        />
+                        <input
+                          type="text"
+                          placeholder={t("projectDetail.taskEditor.subTaskDir") as string}
+                          value={sub.dir}
+                          onInput={(e) => updateSubTask(index(), "dir", e.currentTarget.value)}
+                          class="flex h-7 w-full rounded-md border border-input bg-background px-2 py-1 text-xs ring-offset-background placeholder:text-muted-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2"
+                        />
                       </div>
                       <Button
                         type="button"
