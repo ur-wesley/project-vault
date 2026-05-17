@@ -1,4 +1,5 @@
 import { createSignal, Show, For, type Component } from "solid-js";
+import { createStore } from "solid-js/store";
 import {
   Dialog,
   DialogContent,
@@ -74,7 +75,7 @@ export const TaskEditorDialog: Component<TaskEditorDialogProps> = (props) => {
     props.existingTask?.depends.join(", ") ?? "",
   );
   const [concurrentMode, setConcurrentMode] = createSignal(isExistingConcurrent());
-  const [subTasks, setSubTasks] = createSignal<SubTaskRow[]>(
+  const [subTasks, setSubTasks] = createStore<SubTaskRow[]>(
     initSubTasks().length > 0 ? initSubTasks() : [{ label: "", command: "", dir: "" }],
   );
   const [busy, setBusy] = createSignal(false);
@@ -98,9 +99,7 @@ export const TaskEditorDialog: Component<TaskEditorDialogProps> = (props) => {
   };
 
   const updateSubTask = (index: number, field: keyof SubTaskRow, value: string) => {
-    setSubTasks((prev) =>
-      prev.map((row, i) => (i === index ? { ...row, [field]: value } : row)),
-    );
+    setSubTasks(index, field, value);
   };
 
   const handleSubmit = async () => {
@@ -112,7 +111,7 @@ export const TaskEditorDialog: Component<TaskEditorDialogProps> = (props) => {
 
     if (concurrentMode()) {
       // Validate sub-tasks
-      const validSubs = subTasks().filter((s) => s.label.trim() && s.command.trim());
+      const validSubs = subTasks.filter((s) => s.label.trim() && s.command.trim());
       if (validSubs.length === 0) {
         toast.error(t("projectDetail.taskEditor.commandRequired") as string);
         return;
@@ -296,7 +295,7 @@ export const TaskEditorDialog: Component<TaskEditorDialogProps> = (props) => {
             <div class="space-y-2">
               <span class="text-sm font-medium">{t("projectDetail.taskEditor.subTasks") as string}</span>
               <div class="space-y-2">
-                <For each={subTasks()}>
+                <For each={subTasks}>
                   {(sub, index) => (
                     <div class="flex gap-2 items-start rounded-md border border-border/40 bg-muted/10 p-2">
                       <div class="flex-1 space-y-1.5">
@@ -328,7 +327,7 @@ export const TaskEditorDialog: Component<TaskEditorDialogProps> = (props) => {
                         size="icon"
                         class="size-7 shrink-0 text-muted-foreground hover:text-destructive"
                         onClick={() => removeSubTask(index())}
-                        disabled={subTasks().length <= 1}
+                        disabled={subTasks.length <= 1}
                       >
                         <span class="iconify mdi--close size-3.5" />
                       </Button>
