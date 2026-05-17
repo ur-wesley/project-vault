@@ -4,8 +4,9 @@ use tauri_plugin_sql::DbInstances;
 
 use crate::db;
 use crate::error::{codes, StableError};
+use crate::models::ConcurrentTask;
 #[cfg(not(any(target_os = "android", target_os = "ios")))]
-use crate::spawn::embedded;
+use crate::spawn::{concurrent, embedded};
 use crate::spawn::{
     argv_needs_confirmation, open_interactive_shell, use_mise_for_project,
     EmbeddedTerminals, TaskMonitors,
@@ -20,6 +21,8 @@ pub struct SpawnProjectTaskPayload {
     pub acknowledge_risk: bool,
     pub session_id: Option<String>,
     pub cwd: Option<String>,
+    #[serde(default)]
+    pub concurrent: Option<Vec<ConcurrentTask>>,
 }
 
 #[derive(serde::Serialize)]
@@ -43,10 +46,12 @@ pub async fn spawn_project_task(
     monitor: State<'_, TaskMonitors>,
     payload: SpawnProjectTaskPayload,
 ) -> Result<SpawnProjectTaskResponse, StableError> {
-    if payload.argv.is_empty() {
+    let is_concurrent = payload.concurrent.as_ref().map_or(false, |c| !c.is_empty());
+
+    if !is_concurrent && payload.argv.is_empty() {
         return Err(StableError::new(codes::INVALID_PATH, "argv empty"));
     }
-    if argv_needs_confirmation(&payload.argv) && !payload.acknowledge_risk {
+    if !is_concurrent && argv_needs_confirmation(&payload.argv) && !payload.acknowledge_risk {
         return Err(StableError::new(
             codes::CONFIRM_REQUIRED,
             "high-risk command needs confirmation",
@@ -69,7 +74,14 @@ pub async fn spawn_project_task(
     };
 
     let use_mise = use_mise_for_project(&cwd);
-    let cmd_line = payload.argv.join(" ");
+    let cmd_line = if is_concurrent {
+        payload.concurrent.as_ref().unwrap().iter()
+            .map(|s| s.label.as_str())
+            .collect::<Vec<_>>()
+            .join(" + ")
+    } else {
+        payload.argv.join(" ")
+    };
 
     let shell_pref = {
         let custom = db::get_setting(&pool, "shell_path")
@@ -111,35 +123,69 @@ pub async fn spawn_project_task(
     }
     #[cfg(not(any(target_os = "android", target_os = "ios")))]
     {
-        if let Err(e) = embedded::spawn_task_in_pty(
-            app.clone(),
-            &terms,
-            &monitor,
-            payload.project_id.clone(),
-            Some(cmd_line.clone()),
-            session.started_at_ms,
-            &cwd,
-            &payload.argv,
-            use_mise,
-            session_id.clone(),
-            project.runtime_hint.clone(),
-            project.stack.clone(),
-            shell_pref,
-        )
-        {
-            let _ = db::update_session_runtime(
-                &pool,
-                &session_id,
-                task_monitor::TASK_STATE_ERROR,
-                None,
-                &[],
-                None,
-                Some(e.message.as_str()),
-                db::now_ms(),
-            )
-            .await;
-            let _ = db::end_session(&pool, &session_id).await;
-            return Err(e);
+        if is_concurrent {
+            // Concurrent task: spawn multiple PTYs
+            let sub_tasks = payload.concurrent.unwrap();
+            if let Err(e) = concurrent::spawn_concurrent_tasks(
+                app.clone(),
+                &terms,
+                &monitor,
+                payload.project_id.clone(),
+                session_id.clone(),
+                cmd_line.clone(),
+                session.started_at_ms,
+                &cwd,
+                &sub_tasks,
+                use_mise,
+                project.runtime_hint.clone(),
+                project.stack.clone(),
+                shell_pref,
+            ) {
+                let _ = db::update_session_runtime(
+                    &pool,
+                    &session_id,
+                    task_monitor::TASK_STATE_ERROR,
+                    None,
+                    &[],
+                    None,
+                    Some(e.message.as_str()),
+                    db::now_ms(),
+                )
+                .await;
+                let _ = db::end_session(&pool, &session_id).await;
+                return Err(e);
+            }
+        } else {
+            // Single task: spawn one PTY
+            if let Err(e) = embedded::spawn_task_in_pty(
+                app.clone(),
+                &terms,
+                &monitor,
+                payload.project_id.clone(),
+                Some(cmd_line.clone()),
+                session.started_at_ms,
+                &cwd,
+                &payload.argv,
+                use_mise,
+                session_id.clone(),
+                project.runtime_hint.clone(),
+                project.stack.clone(),
+                shell_pref,
+            ) {
+                let _ = db::update_session_runtime(
+                    &pool,
+                    &session_id,
+                    task_monitor::TASK_STATE_ERROR,
+                    None,
+                    &[],
+                    None,
+                    Some(e.message.as_str()),
+                    db::now_ms(),
+                )
+                .await;
+                let _ = db::end_session(&pool, &session_id).await;
+                return Err(e);
+            }
         }
         return Ok(SpawnProjectTaskResponse {
             session_id: response_session_id,
