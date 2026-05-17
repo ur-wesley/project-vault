@@ -236,7 +236,6 @@ export function useGithubIssues(props: UseGithubIssuesProps) {
           if (!old) return [data];
           return old.map((i) => (i.number === context.tempId ? data : i));
         });
-        void qc.invalidateQueries({ queryKey: context.queryKey });
       }
       void rawLabelsQ.refetch();
       void localIssuesQ.refetch();
@@ -299,7 +298,6 @@ export function useGithubIssues(props: UseGithubIssuesProps) {
           if (!old) return [data];
           return old.map((i) => (i.number === data.number && i.isLocal === data.isLocal ? data : i));
         });
-        void qc.invalidateQueries({ queryKey: context.queryKey });
       }
       void rawLabelsQ.refetch();
       void localIssuesQ.refetch();
@@ -319,7 +317,7 @@ export function useGithubIssues(props: UseGithubIssuesProps) {
       }
       const r = await closeIssue(g.owner, g.repo, args.number);
       if (r.isErr()) throw r.error;
-      return { number: args.number, isLocal: false } as any; 
+      return { number: args.number, isLocal: false } as ExtendedIssueRow;
     },
     onMutate: async (args) => {
       props.setMutationError(null);
@@ -352,7 +350,6 @@ export function useGithubIssues(props: UseGithubIssuesProps) {
             i.number === args.number && i.isLocal === args.isLocal ? { ...i, state: "closed" as const, isPending: false } : i,
           );
         });
-        void qc.invalidateQueries({ queryKey: context.queryKey });
       }
       void localIssuesQ.refetch();
     },
