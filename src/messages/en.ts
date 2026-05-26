@@ -423,7 +423,9 @@ const en = {
 
     taskViewOutput: "View Output",
     taskStop: "Stop Task",
+    taskRestart: "Restart Task",
     taskGroupRoot: "Root Directory",
+    closeFinishedTabs: "Close Finished Tabs",
     miseSuggestionsTitle: "Pin runtime versions",
     miseSuggestionsDesc: "Auto-detected tools for this project. Select and pin them to mise.toml.",
     misePinSelected: "Pin to mise.toml",

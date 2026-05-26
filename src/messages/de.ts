@@ -423,7 +423,9 @@ const de = {
 
     taskViewOutput: "Ausgabe ansehen",
     taskStop: "Aufgabe stoppen",
+    taskRestart: "Aufgabe neu starten",
     taskGroupRoot: "Stammverzeichnis",
+    closeFinishedTabs: "Beendete Tabs schließen",
     miseSuggestionsTitle: "Runtime-Versionen pinnen",
     miseSuggestionsDesc: "Auto-erkannte Tools für dieses Projekt. Auswählen und in mise.toml pinnen.",
     misePinSelected: "In mise.toml pinnen",

@@ -85,6 +85,20 @@ export function useProjectTerminal(props: UseProjectTerminalProps) {
     void qc.invalidateQueries({ queryKey: queryKeys.project(props.projectId()) });
   };
 
+  const closeFinishedTerminals = (activeSessionIds: Set<string>) => {
+    const toRemove = terminalInstances().filter(
+      (inst) => inst.attachSessionId && !activeSessionIds.has(inst.attachSessionId),
+    );
+    if (toRemove.length === 0) return;
+    const nextInstances = terminalInstances().filter(
+      (inst) => !toRemove.some((r) => r.id === inst.id),
+    );
+    store().setInstances(nextInstances);
+    if (nextInstances.length > 0 && !nextInstances.some((i) => i.id === activeTerminalId())) {
+      store().setActiveId(nextInstances[0]!.id);
+    }
+  };
+
   const attachToTask = (sessionId: string, label: string, focus = true) => {
     const existing = terminalInstances().find(
       (item) => item.attachSessionId === sessionId || item.sessionId === sessionId,
@@ -113,6 +127,7 @@ export function useProjectTerminal(props: UseProjectTerminalProps) {
     activeTerminalId,
     openTerminal,
     closeTerminal,
+    closeFinishedTerminals,
     selectTerminal,
     updateTerminalSessionId,
     attachToTask,

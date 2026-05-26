@@ -11,7 +11,7 @@ export type UseProjectTasksProps = Readonly<{
   projectId: Accessor<string>;
   t: (key: string, args?: any) => string;
   showBanner: (msg: string) => void;
-  attachToTask: (sessionId: string, label: string) => void;
+  attachToTask: (sessionId: string, label: string, focus?: boolean) => void;
 }>;
 
 type SessionState = "running" | "starting" | "success" | "error" | "cancelled" | "unknown";
@@ -98,6 +98,7 @@ export function useProjectTasks(props: UseProjectTasksProps) {
     confirmed: boolean,
     cwd?: string | null,
     concurrent?: ConcurrentTask[] | null,
+    focus = false,
   ) => {
     const isConcurrent = concurrent && concurrent.length > 0;
 
@@ -128,7 +129,7 @@ export function useProjectTasks(props: UseProjectTasksProps) {
       return;
     }
 
-    props.attachToTask(sessionId, cmd);
+    props.attachToTask(sessionId, cmd, focus);
 
     void qc.invalidateQueries({ queryKey: ["projects", props.projectId(), "active-sessions"] });
     void qc.invalidateQueries({ queryKey: queryKeys.projects });
@@ -142,6 +143,24 @@ export function useProjectTasks(props: UseProjectTasksProps) {
     void qc.invalidateQueries({ queryKey: ["projects", props.projectId(), "sessions-count"] });
     void qc.invalidateQueries({ queryKey: queryKeys.projects });
     void qc.invalidateQueries({ queryKey: queryKeys.project(props.projectId()) });
+  };
+
+  const restartArgv = async (
+    project: ProjectDto,
+    argv: string[],
+    cwd?: string | null,
+    concurrent?: ConcurrentTask[] | null,
+    currentSessionId?: string,
+  ) => {
+    if (currentSessionId) {
+      const r = await stopProjectTask(currentSessionId);
+      if (r.isErr()) {
+        props.showBanner(stableErrorMessage(props.t, r.error));
+        return;
+      }
+      void qc.invalidateQueries({ queryKey: ["projects", props.projectId(), "active-sessions"] });
+    }
+    await runArgv(project, argv, true, cwd, concurrent, false);
   };
 
   return {
@@ -158,6 +177,7 @@ export function useProjectTasks(props: UseProjectTasksProps) {
     setStatusFilter,
     runArgv,
     onStopTask,
+    restartArgv,
     risk,
     setRisk,
     clearSessionsMu,

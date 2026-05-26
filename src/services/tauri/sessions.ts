@@ -14,7 +14,7 @@ export function listSessionsForProject(projectId: string, limit: number, offset:
 }
 
 export function listActiveSessions(projectId: string) {
-  return tauriInvoke<SessionDto[]>("list_active_sessions", { project_id: projectId });
+  return tauriInvoke<SessionDto[]>("list_active_sessions", { projectId });
 }
 
 export function listAllActiveSessions() {

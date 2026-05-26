@@ -20,7 +20,6 @@ import {
 } from "~/components/ui/alert-dialog";
 import { Tooltip, TooltipContent, TooltipTrigger } from "~/components/ui/tooltip";
 import { useI18n } from "~/lib/i18n-context";
-import { cn } from "~/lib/utils";
 import { toast } from "solid-sonner";
 import { deleteProjectTask } from "~/services/tauri/tasks";
 import type { ProjectDto, TaskDto } from "~/types/dto";
@@ -44,6 +43,12 @@ export function TasksTabPanel(props: {
   const [deleteBusy, setDeleteBusy] = createSignal(false);
 
   const normalizeCommand = (value: string) => value.replace(/\s+/g, " ").trim();
+
+  const findTaskForSession = (command: string | null | undefined) => {
+    if (!command) return null;
+    const normalized = normalizeCommand(command);
+    return props.project().tasks.find((t) => normalizeCommand(t.argv.join(" ")) === normalized) ?? null;
+  };
 
   const taskGroups = createMemo(() => {
     const g: Record<string, any[]> = {};
@@ -179,6 +184,22 @@ export function TasksTabPanel(props: {
                       </TooltipTrigger>
                       <TooltipContent>{t("projectDetail.taskViewOutput") as string}</TooltipContent>
                     </Tooltip>
+                    <Show when={findTaskForSession(session.command)}>
+                      {(task) => (
+                        <Tooltip>
+                          <TooltipTrigger as={Button}
+                            type="button"
+                            size="icon"
+                            variant="ghost"
+                            class="size-7 text-muted-foreground hover:text-orange-500 hover:bg-orange-500/5"
+                            onClick={() => void m().restartArgv(props.project(), task().argv, task().cwd, task().concurrent, session.id)}
+                          >
+                            <span class="iconify mdi--refresh size-4" />
+                          </TooltipTrigger>
+                          <TooltipContent>{t("projectDetail.taskRestart") as string}</TooltipContent>
+                        </Tooltip>
+                      )}
+                    </Show>
                     <Tooltip>
                       <TooltipTrigger as={Button}
                         type="button"
@@ -201,11 +222,6 @@ export function TasksTabPanel(props: {
 
       <For each={taskGroups()}>
         {([name, tasks]) => {
-          const findActiveSession = (argv: string[]) => {
-            const cmd = normalizeCommand(argv.join(" "));
-            return activeSessions().find((s) => normalizeCommand(s.command ?? "") === cmd);
-          };
-
           return (
             <div class="space-y-2.5">
               <div class="flex items-center gap-2">
@@ -219,13 +235,8 @@ export function TasksTabPanel(props: {
                   {(task) => {
                     const taskKey = `${name}::${task.label}::${task.argv.join("\u0000")}`;
                     const busy = () => runningTaskKey() === taskKey;
-                    const active = () => findActiveSession(task.argv);
 
                     const handleRun = async () => {
-                      if (active()) {
-                        m().attachToTask(active()!.id, task.label);
-                        return;
-                      }
                       setRunningTaskKey(taskKey);
                       try {
                         await m().runArgv(props.project(), task.argv, false, task.cwd, task.concurrent);
@@ -239,51 +250,16 @@ export function TasksTabPanel(props: {
                         <Button
                           type="button"
                           size="sm"
-                          variant={active() ? "default" : name === (t("projectDetail.taskGroupRoot") as string) ? "default" : "secondary"}
-                          class={cn(
-                            "h-7 gap-1.5 px-3 transition-all",
-                            active() && "bg-green-600 hover:bg-green-700 shadow-sm"
-                          )}
+                          variant={name === (t("projectDetail.taskGroupRoot") as string) ? "default" : "secondary"}
+                          class="h-7 gap-1.5 px-3 transition-all"
                           disabled={busy()}
                           onClick={handleRun}
                         >
-                          <Show when={active() || busy()} fallback={<span class="iconify mdi--play size-3.5 opacity-50" />}>
+                          <Show when={busy()} fallback={<span class="iconify mdi--play size-3.5 opacity-50" />}>
                             <span class="iconify mdi--loading animate-spin size-3.5" />
                           </Show>
                           <span class="font-bold tracking-tight">{task.label}</span>
                         </Button>
-                        <Show when={active()}>
-                          <Badge variant="secondary" round class="h-7 px-2 text-[10px] font-black uppercase tracking-wider">
-                            {active()!.state}
-                          </Badge>
-                        </Show>
-
-                        <Show when={active()}>
-                          <Tooltip>
-                            <TooltipTrigger as={Button}
-                              type="button"
-                              size="icon"
-                              variant="ghost"
-                              class="size-7 text-muted-foreground hover:text-foreground hover:bg-background/50"
-                              onClick={() => m().attachToTask(active()!.id, task.label)}
-                            >
-                              <span class="iconify mdi--terminal size-4" />
-                            </TooltipTrigger>
-                            <TooltipContent>{t("projectDetail.taskViewOutput") as string}</TooltipContent>
-                          </Tooltip>
-                          <Tooltip>
-                            <TooltipTrigger as={Button}
-                              type="button"
-                              size="icon"
-                              variant="ghost"
-                              class="size-7 text-muted-foreground hover:text-destructive hover:bg-destructive/5"
-                              onClick={() => void m().onStopTask(active()!.id)}
-                            >
-                              <span class="iconify mdi--stop size-4" />
-                            </TooltipTrigger>
-                            <TooltipContent>{t("projectDetail.taskStop") as string}</TooltipContent>
-                          </Tooltip>
-                        </Show>
 
                         <Show when={task.kind === "mise" || task.kind === "justfile"}>
                           <Badge variant="outline" round class="h-5 px-1.5 text-[9px] font-black uppercase tracking-wider border-primary/30 text-primary/70">
@@ -297,7 +273,7 @@ export function TasksTabPanel(props: {
                           </Badge>
                         </Show>
 
-                        <Show when={!active() && (task.kind === "mise" || task.kind === "justfile")}>
+                        <Show when={task.kind === "mise" || task.kind === "justfile"}>
                           <DropdownMenu>
                             <DropdownMenuTrigger asChild>
                               <Button

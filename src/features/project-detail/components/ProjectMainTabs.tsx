@@ -172,8 +172,18 @@ export const ProjectMainTabs: Component<ProjectMainTabsProps> = (props) => {
                 active={m().activeDetailTab() === "terminal"}
                 instances={m().terminalInstances}
                 activeId={m().activeTerminalId}
+                finishedCount={() => {
+                  const activeIds = new Set((m().activeSessionsQ.data ?? []).map((s) => s.id));
+                  return m().terminalInstances().filter(
+                    (inst) => inst.attachSessionId && !activeIds.has(inst.attachSessionId),
+                  ).length;
+                }}
                 onOpenTerminal={(instance) => m().openTerminal(instance)}
                 onCloseTerminal={(id) => m().closeTerminal(id)}
+                onCloseFinishedTerminals={() => {
+                  const activeIds = new Set((m().activeSessionsQ.data ?? []).map((s) => s.id));
+                  m().closeFinishedTerminals(activeIds);
+                }}
                 onSelectTerminal={(id) => m().selectTerminal(id)}
                 onUpdateSessionId={(id, sessionId) =>
                   m().updateTerminalSessionId(id, sessionId)
