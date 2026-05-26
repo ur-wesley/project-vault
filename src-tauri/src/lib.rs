@@ -93,6 +93,7 @@ pub fn run() {
         .plugin(tauri_plugin_opener::init())
         .plugin(tauri_plugin_updater::Builder::new().build())
         .manage(crate::spawn::EmbeddedTerminals::default())
+        .manage(crate::spawn::TerminalBuffers::default())
         .manage(crate::spawn::ProjectIdeSessions::default())
         .manage(crate::spawn::TaskMonitors::default())
         .setup(|app| {
@@ -245,6 +246,8 @@ pub fn run() {
             commands::embedded_terminal::embedded_terminal_write,
             commands::embedded_terminal::embedded_terminal_resize,
             commands::embedded_terminal::embedded_terminal_kill,
+            commands::embedded_terminal::embedded_terminal_is_alive,
+            commands::embedded_terminal::embedded_terminal_get_buffer,
             commands::search::search_project,
             commands::search::index_project,
             commands::search::rebuild_index,

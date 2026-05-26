@@ -33,8 +33,52 @@ fn is_terminal_launcher(_path: &str) -> bool {
     false
 }
 
+const TERMINAL_BUFFER_MAX: usize = 5000;
+
 #[derive(Clone, Default)]
 pub struct EmbeddedTerminals(pub Arc<Mutex<HashMap<String, EmbeddedSession>>>);
+
+#[derive(Clone, Default)]
+pub struct TerminalBuffers(pub Arc<Mutex<HashMap<String, Vec<String>>>>);
+
+impl TerminalBuffers {
+    pub fn append(&self, session_id: &str, chunk: &str) {
+        if let Ok(mut g) = self.0.lock() {
+            let buf = g.entry(session_id.to_string()).or_insert_with(Vec::new);
+            buf.push(chunk.to_string());
+            if buf.len() > TERMINAL_BUFFER_MAX {
+                buf.remove(0);
+            }
+        }
+    }
+
+    pub fn get(&self, session_id: &str) -> Vec<String> {
+        self.0
+            .lock()
+            .ok()
+            .and_then(|g| g.get(session_id).cloned())
+            .unwrap_or_default()
+    }
+
+    pub fn clear(&self, session_id: &str) {
+        if let Ok(mut g) = self.0.lock() {
+            g.remove(session_id);
+        }
+    }
+}
+
+pub fn is_session_alive(sessions: &EmbeddedTerminals, session_id: &str) -> bool {
+    sessions
+        .0
+        .lock()
+        .ok()
+        .map(|g| g.contains_key(session_id))
+        .unwrap_or(false)
+}
+
+pub fn get_terminal_buffer(buffers: &TerminalBuffers, session_id: &str) -> Vec<String> {
+    buffers.get(session_id)
+}
 
 #[derive(Clone)]
 pub struct EmbeddedSession {
@@ -186,6 +230,7 @@ pub fn task_command(
 pub fn spawn_task_in_pty(
     app: AppHandle,
     sessions: &EmbeddedTerminals,
+    buffers: &TerminalBuffers,
     monitors: &TaskMonitors,
     project_id: String,
     command_line: Option<String>,
@@ -261,6 +306,7 @@ pub fn spawn_task_in_pty(
 
     let app_read = app.clone();
     let sid_read = stream_session_id.clone();
+    let buffers_read = buffers.clone();
     std::thread::spawn(move || {
         // Give frontend time to mount and start listening
         std::thread::sleep(std::time::Duration::from_millis(1000));
@@ -274,6 +320,7 @@ pub fn spawn_task_in_pty(
                 },
                 Ok(n) => {
                     let chunk = STANDARD.encode(&buf[..n]);
+                    buffers_read.append(&sid_read, &chunk);
                     let task_chunk = chunk.clone();
                     let _ = app_read.emit(
                         "embedded-terminal-data",
@@ -301,6 +348,7 @@ pub fn spawn_task_in_pty(
     let sid_wait = stream_session_id.clone();
     let map = sessions.0.clone();
     let monitors_wait = monitors.clone();
+    let buffers_wait = buffers.clone();
     std::thread::spawn(move || {
         let wait_res = child.wait();
         let stop_requested = task_monitor::is_stop_requested(&monitors_wait, &sid_wait);
@@ -332,6 +380,7 @@ pub fn spawn_task_in_pty(
         if let Ok(mut g) = map.lock() {
             g.remove(&sid_wait);
         }
+        buffers_wait.clear(&sid_wait);
         let _ = app_wait.emit(
             "embedded-terminal-exit",
             TermExitPayload {
@@ -382,6 +431,7 @@ fn shell_command(shell_pref: Option<&str>, cwd: &Path) -> Result<CommandBuilder,
 pub fn spawn_session(
     app: AppHandle,
     sessions: &EmbeddedTerminals,
+    buffers: &TerminalBuffers,
     cwd: std::path::PathBuf,
     shell_pref: Option<String>,
 ) -> Result<String, StableError> {
@@ -428,6 +478,7 @@ pub fn spawn_session(
 
     let app_read = app.clone();
     let sid_read = session_id.clone();
+    let buffers_read = buffers.clone();
     std::thread::spawn(move || {
         // Give the frontend a moment to mount and start listening before
         // emitting data, otherwise early chunks (e.g. the shell prompt) may
@@ -440,6 +491,7 @@ pub fn spawn_session(
                 Ok(0) => break,
                 Ok(n) => {
                     let chunk = STANDARD.encode(&buf[..n]);
+                    buffers_read.append(&sid_read, &chunk);
                     let _ = app_read.emit(
                         "embedded-terminal-data",
                         TermPayload {
@@ -456,11 +508,13 @@ pub fn spawn_session(
     let app_wait = app.clone();
     let sid_wait = session_id.clone();
     let map = sessions.0.clone();
+    let buffers_wait = buffers.clone();
     std::thread::spawn(move || {
         let _ = child.wait();
         if let Ok(mut g) = map.lock() {
             g.remove(&sid_wait);
         }
+        buffers_wait.clear(&sid_wait);
         let _ = app_wait.emit(
             "embedded-terminal-exit",
             TermExitPayload {

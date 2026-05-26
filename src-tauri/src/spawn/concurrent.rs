@@ -12,7 +12,7 @@ use tauri::{AppHandle, Emitter};
 
 use crate::error::{codes, StableError};
 use crate::models::ConcurrentTask;
-use crate::spawn::embedded::{self, EmbeddedTerminals};
+use crate::spawn::embedded::{self, EmbeddedTerminals, TerminalBuffers};
 use crate::spawn::task_monitor::{self, TaskMonitors, TaskRegisterInput};
 
 const COLORS: &[&str] = &[
@@ -46,6 +46,7 @@ struct ChildHandle {
 pub fn spawn_concurrent_tasks(
     app: AppHandle,
     sessions: &EmbeddedTerminals,
+    buffers: &TerminalBuffers,
     monitors: &TaskMonitors,
     project_id: String,
     parent_session_id: String,
@@ -152,6 +153,7 @@ pub fn spawn_concurrent_tasks(
         let label_prefix = format!("{}[{}]", " ".repeat(label_width - label.len()), label);
         let prefix = format!("{}{}{}", color, label_prefix, RESET);
         let stop = stop_flag.clone();
+        let buffers_read = buffers.clone();
 
         std::thread::spawn(move || {
             // Give frontend time to mount and start listening
@@ -176,6 +178,7 @@ pub fn spawn_concurrent_tasks(
                             if !line.is_empty() {
                                 let prefixed = format!("{} {}{}", prefix, line.trim_end(), RESET);
                                 let chunk = STANDARD.encode(prefixed.as_bytes());
+                                buffers_read.append(&sid, &chunk);
                                 let _ = app_read.emit(
                                     "embedded-terminal-data",
                                     TermPayload {
@@ -231,6 +234,7 @@ pub fn spawn_concurrent_tasks(
     let sid_wait = parent_session_id.clone();
     let monitors_wait = monitors.clone();
     let map = sessions.0.clone();
+    let buffers_wait = buffers.clone();
 
     std::thread::spawn(move || {
         // Wait until all children have exited
@@ -265,6 +269,7 @@ pub fn spawn_concurrent_tasks(
         if let Ok(mut g) = map.lock() {
             g.remove(&sid_wait);
         }
+        buffers_wait.clear(&sid_wait);
 
         let monitors_done = monitors_wait.clone();
         tauri::async_runtime::block_on(async move {

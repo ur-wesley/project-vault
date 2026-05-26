@@ -6,6 +6,9 @@ use crate::models::ShellCandidateDto;
 use crate::spawn::EmbeddedTerminals;
 
 #[cfg(not(any(target_os = "android", target_os = "ios")))]
+use crate::spawn::TerminalBuffers;
+
+#[cfg(not(any(target_os = "android", target_os = "ios")))]
 use std::path::PathBuf;
 
 #[cfg(not(any(target_os = "android", target_os = "ios")))]
@@ -32,6 +35,8 @@ pub async fn embedded_terminal_spawn(
     app: AppHandle,
     db: State<'_, DbInstances>,
     terms: State<'_, EmbeddedTerminals>,
+    #[cfg(not(any(target_os = "android", target_os = "ios")))]
+    buffers: State<'_, TerminalBuffers>,
     project_id: String,
     shell: Option<String>,
 ) -> Result<String, StableError> {
@@ -64,7 +69,7 @@ pub async fn embedded_terminal_spawn(
             }
         };
 
-        embedded::spawn_session(app, &terms, cwd, shell_pref)
+        embedded::spawn_session(app, &terms, &buffers, cwd, shell_pref)
     }
 }
 
@@ -125,5 +130,38 @@ pub async fn embedded_terminal_kill(
     #[cfg(not(any(target_os = "android", target_os = "ios")))]
     {
         embedded::kill_session(&terms, &session_id)
+    }
+}
+
+#[tauri::command]
+pub fn embedded_terminal_is_alive(
+    terms: State<'_, EmbeddedTerminals>,
+    session_id: String,
+) -> bool {
+    #[cfg(any(target_os = "android", target_os = "ios"))]
+    {
+        let _ = (terms, session_id);
+        false
+    }
+    #[cfg(not(any(target_os = "android", target_os = "ios")))]
+    {
+        embedded::is_session_alive(&terms, &session_id)
+    }
+}
+
+#[tauri::command]
+pub fn embedded_terminal_get_buffer(
+    #[cfg(not(any(target_os = "android", target_os = "ios")))]
+    buffers: State<'_, TerminalBuffers>,
+    session_id: String,
+) -> Vec<String> {
+    #[cfg(any(target_os = "android", target_os = "ios"))]
+    {
+        let _ = session_id;
+        Vec::new()
+    }
+    #[cfg(not(any(target_os = "android", target_os = "ios")))]
+    {
+        embedded::get_terminal_buffer(&buffers, &session_id)
     }
 }

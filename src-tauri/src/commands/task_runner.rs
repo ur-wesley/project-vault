@@ -11,6 +11,8 @@ use crate::spawn::{
     argv_needs_confirmation, open_interactive_shell, use_mise_for_project,
     EmbeddedTerminals, TaskMonitors,
 };
+#[cfg(not(any(target_os = "android", target_os = "ios")))]
+use crate::spawn::TerminalBuffers;
 use crate::spawn::task_monitor;
 
 #[derive(Deserialize)]
@@ -44,6 +46,8 @@ pub async fn spawn_project_task(
     db: State<'_, DbInstances>,
     terms: State<'_, EmbeddedTerminals>,
     monitor: State<'_, TaskMonitors>,
+    #[cfg(not(any(target_os = "android", target_os = "ios")))]
+    buffers: State<'_, TerminalBuffers>,
     payload: SpawnProjectTaskPayload,
 ) -> Result<SpawnProjectTaskResponse, StableError> {
     let is_concurrent = payload.concurrent.as_ref().map_or(false, |c| !c.is_empty());
@@ -129,6 +133,7 @@ pub async fn spawn_project_task(
             if let Err(e) = concurrent::spawn_concurrent_tasks(
                 app.clone(),
                 &terms,
+                &buffers,
                 &monitor,
                 payload.project_id.clone(),
                 session_id.clone(),
@@ -160,6 +165,7 @@ pub async fn spawn_project_task(
             if let Err(e) = embedded::spawn_task_in_pty(
                 app.clone(),
                 &terms,
+                &buffers,
                 &monitor,
                 payload.project_id.clone(),
                 Some(cmd_line.clone()),

@@ -17,11 +17,17 @@ pub use task_monitor::{TaskMonitorEntry, TaskMonitors};
 #[cfg(not(any(target_os = "android", target_os = "ios")))]
 pub use embedded::EmbeddedTerminals;
 #[cfg(not(any(target_os = "android", target_os = "ios")))]
+pub use embedded::TerminalBuffers;
+#[cfg(not(any(target_os = "android", target_os = "ios")))]
 pub use ide_session::ProjectIdeSessions;
 
 #[cfg(any(target_os = "android", target_os = "ios"))]
 #[derive(Clone, Default)]
 pub struct EmbeddedTerminals;
+
+#[cfg(any(target_os = "android", target_os = "ios"))]
+#[derive(Clone, Default)]
+pub struct TerminalBuffers;
 
 #[cfg(any(target_os = "android", target_os = "ios"))]
 #[derive(Clone, Default)]

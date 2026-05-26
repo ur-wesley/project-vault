@@ -12,6 +12,8 @@ use crate::error::{codes, StableError};
 use crate::fs_scope_util;
 use crate::models::ProjectDto;
 use crate::spawn::EmbeddedTerminals;
+#[cfg(not(any(target_os = "android", target_os = "ios")))]
+use crate::spawn::TerminalBuffers;
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
@@ -491,6 +493,8 @@ pub async fn run_template_command(
     app: AppHandle,
     _db: State<'_, DbInstances>,
     terms: State<'_, EmbeddedTerminals>,
+    #[cfg(not(any(target_os = "android", target_os = "ios")))]
+    buffers: State<'_, TerminalBuffers>,
     payload: RunTemplateCommandPayload,
 ) -> Result<RunTemplateCommandResultDto, StableError> {
     #[cfg(any(target_os = "android", target_os = "ios"))]
@@ -507,7 +511,7 @@ pub async fn run_template_command(
         if !cwd.is_dir() {
             return Err(StableError::new(codes::INVALID_PATH, "cwd not a directory"));
         }
-        let session_id = crate::spawn::embedded::spawn_session(app, &terms, cwd, None)?;
+        let session_id = crate::spawn::embedded::spawn_session(app, &terms, &buffers, cwd, None)?;
         // Write the command to the terminal
         let cmd = format!("{}\r", payload.command);
         crate::spawn::embedded::write_session(&terms, &session_id, &cmd)?;
