@@ -49,20 +49,24 @@ pub async fn write_project_task(
     app: AppHandle,
     db: State<'_, DbInstances>,
     payload: WriteTaskPayload,
-) -> Result<(), StableError> {
+) -> Result<Vec<TaskDto>, StableError> {
     let pool = db::sqlite_pool(&*db).await?;
     let project = db::get_project(&pool, &payload.project_id).await?;
     let path = std::path::Path::new(&project.path);
+
+    if let Some(existing) = project.tasks.iter().find(|t| t.id == payload.task.id) {
+        let _ = task_config::delete_project_task(path, existing);
+    }
+
     task_config::write_project_task(path, &payload.task)
         .map_err(|e| StableError::new(crate::error::codes::INTERNAL, e))?;
 
-    // Merge: preserve non-config tasks, refresh config-file tasks
     let config = task_config::read_project_tasks(path);
     let merged = merge_config_tasks(&project.tasks, &config.tasks);
     db::update_project_tasks(&pool, &payload.project_id, &merged).await?;
     crate::models::emit_project_changed(&app, &payload.project_id, "tasks");
 
-    Ok(())
+    Ok(merged)
 }
 
 #[tauri::command]
@@ -70,18 +74,17 @@ pub async fn delete_project_task(
     app: AppHandle,
     db: State<'_, DbInstances>,
     payload: DeleteTaskPayload,
-) -> Result<(), StableError> {
+) -> Result<Vec<TaskDto>, StableError> {
     let pool = db::sqlite_pool(&*db).await?;
     let project = db::get_project(&pool, &payload.project_id).await?;
     let path = std::path::Path::new(&project.path);
     task_config::delete_project_task(path, &payload.task)
         .map_err(|e| StableError::new(crate::error::codes::INTERNAL, e))?;
 
-    // Merge: preserve non-config tasks, refresh config-file tasks
     let config = task_config::read_project_tasks(path);
     let merged = merge_config_tasks(&project.tasks, &config.tasks);
     db::update_project_tasks(&pool, &payload.project_id, &merged).await?;
     crate::models::emit_project_changed(&app, &payload.project_id, "tasks");
 
-    Ok(())
+    Ok(merged)
 }

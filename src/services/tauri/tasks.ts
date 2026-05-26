@@ -1,4 +1,4 @@
-import type { SpawnProjectTaskPayload, SpawnProjectTaskResponse } from "~/types/dto";
+import type { SpawnProjectTaskPayload, SpawnProjectTaskResponse, TaskDto } from "~/types/dto";
 import { tauriInvoke } from "./utils";
 
 export function spawnProjectTask(payload: SpawnProjectTaskPayload) {
@@ -14,9 +14,9 @@ export function readProjectTaskConfig(projectId: string) {
 }
 
 export function writeProjectTask(projectId: string, task: unknown) {
-  return tauriInvoke<void>("write_project_task", { payload: { projectId, task } });
+  return tauriInvoke<TaskDto[]>("write_project_task", { payload: { projectId, task } });
 }
 
 export function deleteProjectTask(projectId: string, task: unknown) {
-  return tauriInvoke<void>("delete_project_task", { payload: { projectId, task } });
+  return tauriInvoke<TaskDto[]>("delete_project_task", { payload: { projectId, task } });
 }
