@@ -38,7 +38,7 @@ export type TaskEditorDialogProps = {
   projectPath: string;
   existingTask?: TaskDto | null;
   availableKinds: string[];
-  onSaved: () => void;
+  onSaved: (tasks: TaskDto[]) => void;
 };
 
 export const TaskEditorDialog: Component<TaskEditorDialogProps> = (props) => {
@@ -155,7 +155,7 @@ export const TaskEditorDialog: Component<TaskEditorDialogProps> = (props) => {
             ? (t("projectDetail.taskEditor.updated") as string)
             : (t("projectDetail.taskEditor.created") as string),
         );
-        props.onSaved();
+        props.onSaved(r.value);
         props.onOpenChange(false);
         if (!isEdit()) reset();
       } finally {
@@ -198,7 +198,7 @@ export const TaskEditorDialog: Component<TaskEditorDialogProps> = (props) => {
             ? (t("projectDetail.taskEditor.updated") as string)
             : (t("projectDetail.taskEditor.created") as string),
         );
-        props.onSaved();
+        props.onSaved(r.value);
         props.onOpenChange(false);
         if (!isEdit()) reset();
       } finally {

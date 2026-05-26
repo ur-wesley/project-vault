@@ -7,8 +7,9 @@ import { useI18n } from "~/lib/i18n-context";
 import { stableErrorMessage } from "~/lib/invoke-error";
 import { getGitHubRepoForProject, getProject, setProjectFavorite, deleteProject as deleteProjectTauri } from "~/services/tauri/projects";
 import { openProjectShell } from "~/services/tauri/terminal";
+import { syncProjectTasksInCache } from "~/lib/sync-project-tasks-cache";
 import { queryKeys } from "~/services/query-keys";
-import type { ProjectDto } from "~/types/dto";
+import type { ProjectDto, TaskDto } from "~/types/dto";
 import type { StableError } from "~/types/error";
 import type { ProjectDetailViewProps } from "../types";
 
@@ -176,6 +177,10 @@ export function createProjectDetailModel(props: ProjectDetailViewProps) {
     }
   };
 
+  const syncProjectTasks = (tasks: TaskDto[]) => {
+    syncProjectTasksInCache(qc, props.projectId, tasks);
+  };
+
   return {
     props,
     projectQ,
@@ -263,6 +268,7 @@ export function createProjectDetailModel(props: ProjectDetailViewProps) {
     onConfirmMove: move.onConfirmMove,
     resetMoveDialog: move.resetMoveDialog,
     qc,
+    syncProjectTasks,
   };
 }
 

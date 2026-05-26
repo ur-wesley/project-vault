@@ -15,6 +15,12 @@ export function useRealtimeProjects() {
         (ev) => {
           const { projectId, changeType } = ev.payload;
 
+          if (changeType === "tasks") {
+            qc.invalidateQueries({ queryKey: queryKeys.sessions(projectId) });
+            qc.invalidateQueries({ queryKey: ["projects", projectId, "active-sessions"] });
+            return;
+          }
+
           qc.invalidateQueries({ queryKey: queryKeys.projects });
           qc.invalidateQueries({ queryKey: queryKeys.project(projectId) });
 
@@ -26,10 +32,6 @@ export function useRealtimeProjects() {
           }
           if (changeType === "git" || changeType === "version-bump") {
             qc.invalidateQueries({ queryKey: queryKeys.gitStatus(projectId) });
-          }
-          if (changeType === "tasks") {
-            qc.invalidateQueries({ queryKey: queryKeys.sessions(projectId) });
-            qc.invalidateQueries({ queryKey: ["projects", projectId, "active-sessions"] });
           }
         },
       );

@@ -347,8 +347,8 @@ export function TasksTabPanel(props: {
         projectPath={props.project().path}
         existingTask={editingTask()}
         availableKinds={["mise", "justfile"]}
-        onSaved={() => {
-          void m().projectQ.refetch();
+        onSaved={(tasks) => {
+          m().syncProjectTasks(tasks);
         }}
       />
 
@@ -376,7 +376,7 @@ export function TasksTabPanel(props: {
                     return;
                   }
                   toast.success(t("projectDetail.taskEditor.deleted") as string);
-                  void m().projectQ.refetch();
+                  m().syncProjectTasks(r.value);
                 } finally {
                   setDeleteBusy(false);
                   setDeletingTask(null);
