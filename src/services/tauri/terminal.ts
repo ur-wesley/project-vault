@@ -25,6 +25,14 @@ export function embeddedTerminalKill(sessionId: string) {
   return tauriInvoke<void>("embedded_terminal_kill", { sessionId });
 }
 
+export function embeddedTerminalIsAlive(sessionId: string) {
+  return tauriInvoke<boolean>("embedded_terminal_is_alive", { sessionId });
+}
+
+export function embeddedTerminalGetBuffer(sessionId: string) {
+  return tauriInvoke<string[]>("embedded_terminal_get_buffer", { sessionId });
+}
+
 export function listAvailableShells() {
   return tauriInvoke<ShellCandidateDto[]>("list_available_shells");
 }

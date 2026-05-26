@@ -36,7 +36,7 @@ import {
   getTerminalReplay,
   clearTerminalBuffer,
 } from "./lib/terminal-buffer";
-import { embeddedTerminalKill, embeddedTerminalResize, embeddedTerminalSpawn, embeddedTerminalWrite, listAvailableShells } from "~/services/tauri/terminal";
+import { embeddedTerminalKill, embeddedTerminalResize, embeddedTerminalSpawn, embeddedTerminalWrite, embeddedTerminalIsAlive, embeddedTerminalGetBuffer, listAvailableShells } from "~/services/tauri/terminal";
 import { getSetting } from "~/services/tauri/settings";
 
 const WEB_LINK_REGEX = /https?:\/\/[^\s"<>|`{}[\]^]+/g;
@@ -119,8 +119,10 @@ export function EmbeddedTerminalPane(props: {
   active: boolean;
   instances: Accessor<readonly EmbeddedTerminalInstance[]>;
   activeId: Accessor<string | null>;
+  finishedCount: Accessor<number>;
   onOpenTerminal: (instance: Pick<EmbeddedTerminalInstance, "name" | "shell" | "icon">) => void;
   onCloseTerminal: (id: string) => void | Promise<void>;
+  onCloseFinishedTerminals: () => void;
   onSelectTerminal: (id: string) => void;
   onUpdateSessionId: (id: string, sessionId: string) => void;
   onExternalShell?: () => void;
@@ -221,7 +223,6 @@ export function EmbeddedTerminalPane(props: {
                 variant="ghost"
                 size="icon"
                 class="size-7 -ml-px rounded-l-none"
-                title={t("projectDetail.terminalNew") as string}
               >
                 <span class="iconify mdi--chevron-down size-4" />
               </DropdownMenuTrigger>
@@ -245,6 +246,22 @@ export function EmbeddedTerminalPane(props: {
               </DropdownMenuContent>
             </DropdownMenu>
           </div>
+
+          <Show when={props.finishedCount() > 0}>
+            <Tooltip>
+              <TooltipTrigger
+                as={Button}
+                type="button"
+                variant="ghost"
+                size="icon"
+                class="size-7"
+                onClick={() => props.onCloseFinishedTerminals()}
+              >
+                <span class="iconify mdi--broom size-4" />
+              </TooltipTrigger>
+              <TooltipContent>{t("projectDetail.closeFinishedTabs") as string}</TooltipContent>
+            </Tooltip>
+          </Show>
 
           <Show when={props.onToggleFullscreen}>
             <Tooltip>
@@ -467,6 +484,21 @@ function TerminalHost(props: {
         }
         sid = spawn.value;
         spawnedByThisEffect = true;
+      } else {
+        // Reconnecting to an existing session after page reload
+        const aliveResult = await embeddedTerminalIsAlive(sid);
+        if (cancelled) {
+          term.dispose();
+          return;
+        }
+        const alive = aliveResult.isOk() ? aliveResult.value : false;
+        if (!alive) {
+          // Session died while frontend was reloaded
+          sessionId = sid;
+          term.writeln("\r\n\x1b[90m" + (t("projectDetail.terminalProcessExited") as string) + "\x1b[0m");
+          setTerminalReady(true);
+          return;
+        }
       }
 
       if (cancelled) {
@@ -483,6 +515,17 @@ function TerminalHost(props: {
       setTerminalReady(true);
 
       // Replay buffered output so the terminal is not empty after remounting
+      // First try the backend buffer (survives page reload), then fall back to frontend buffer
+      if (existingSid) {
+        const bufferResult = await embeddedTerminalGetBuffer(sessionId);
+        if (cancelled) return;
+        if (bufferResult.isOk()) {
+          for (const chunk of bufferResult.value) {
+            if (!term) break;
+            term.write(decodeChunk(chunk));
+          }
+        }
+      }
       const replay = getTerminalReplay(sessionId);
       for (const chunk of replay) {
         if (!term) break;
