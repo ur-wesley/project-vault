@@ -1,12 +1,16 @@
+import { isTauri } from "@tauri-apps/api/core";
+import { listen } from "@tauri-apps/api/event";
 import { openPath } from "@tauri-apps/plugin-opener";
 import { createMutation, createQuery, useQueryClient } from "@tanstack/solid-query";
-import { createMemo } from "solid-js";
+import { createEffect, createMemo, onCleanup } from "solid-js";
 import { toast } from "solid-sonner";
 
 import { useI18n } from "~/lib/i18n-context";
+import { useWindowFocus } from "~/lib/use-window-focus";
 import { stableErrorMessage } from "~/lib/invoke-error";
 import { getGitHubRepoForProject, getProject, setProjectFavorite, deleteProject as deleteProjectTauri } from "~/services/tauri/projects";
 import { openProjectShell } from "~/services/tauri/terminal";
+import { startGitWatcher, stopGitWatcher } from "~/services/tauri/git";
 import { syncProjectTasksInCache } from "~/lib/sync-project-tasks-cache";
 import { queryKeys } from "~/services/query-keys";
 import type { ProjectDto, TaskDto } from "~/types/dto";
@@ -33,6 +37,8 @@ export function createProjectDetailModel(props: ProjectDetailViewProps) {
     toast.success(msg);
   };
 
+  const isFocused = useWindowFocus();
+
   const projectQ = createQuery(() => ({
     queryKey: queryKeys.project(props.projectId),
     queryFn: async () => {
@@ -46,6 +52,7 @@ export function createProjectDetailModel(props: ProjectDetailViewProps) {
 
   const git = useProjectGit({
     projectId: () => props.projectId,
+    isFocused,
     t: (k, a) => t(k, a) as string,
     showBanner,
     showInfoBanner,
@@ -91,6 +98,33 @@ export function createProjectDetailModel(props: ProjectDetailViewProps) {
     },
     refetchInterval: 30_000,
   }));
+
+  if (isTauri()) {
+    createEffect(() => {
+      const project = projectQ.data;
+      if (!project) return;
+
+      const path = project.path;
+      void startGitWatcher(props.projectId, path);
+
+      onCleanup(() => {
+        void stopGitWatcher(props.projectId);
+      });
+    });
+
+    createEffect(() => {
+      let unlisten: (() => void) | undefined;
+      void listen<{ projectId: string }>("git:changed", (ev) => {
+        if (ev.payload.projectId === props.projectId) {
+          void qc.invalidateQueries({ queryKey: queryKeys.gitStatus(props.projectId) });
+          void qc.invalidateQueries({ queryKey: queryKeys.gitIncoming(props.projectId) });
+          void qc.invalidateQueries({ queryKey: ["git", "preview-versions", props.projectId] });
+        }
+      }).then((fn) => { unlisten = fn; });
+
+      onCleanup(() => { unlisten?.(); });
+    });
+  }
 
   const activeDetailTab = createMemo((): string => {
     return props.detailTab();
@@ -218,6 +252,7 @@ export function createProjectDetailModel(props: ProjectDetailViewProps) {
     setStatusFilter: tasks.setStatusFilter,
     clearSessionsMu: tasks.clearSessionsMu,
     sessionPorts: events.sessionPorts,
+    sessionTunnels: events.sessionTunnels,
     idesQ: ide.idesQ,
     ghQ,
     miseToolsQ: mise.miseToolsQ,

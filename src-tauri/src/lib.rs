@@ -8,6 +8,7 @@ pub mod issues;
 #[cfg(not(any(target_os = "android", target_os = "ios")))]
 mod ide;
 pub mod location_watcher;
+pub mod git_watcher;
 pub mod models;
 pub mod project_move;
 pub mod search;
@@ -15,6 +16,7 @@ pub mod search;
 mod shells;
 mod spawn;
 pub mod task_config;
+pub mod tunnel;
 pub mod mise_tools;
 #[cfg(not(any(target_os = "android", target_os = "ios")))]
 mod tools;
@@ -96,6 +98,7 @@ pub fn run() {
         .manage(crate::spawn::TerminalBuffers::default())
         .manage(crate::spawn::ProjectIdeSessions::default())
         .manage(crate::spawn::TaskMonitors::default())
+        .manage(crate::tunnel::TunnelState::default())
         .setup(|app| {
             use tauri_plugin_cli::CliExt;
             if let Ok(matches) = app.cli().matches() {
@@ -162,6 +165,9 @@ pub fn run() {
             });
             app.manage(watcher);
 
+            let git_watcher = crate::git_watcher::GitWatcher::new(handle.clone());
+            app.manage(git_watcher);
+
             crate::search::background::start_background_scanner(handle, 15);
             Ok(())
         })
@@ -184,6 +190,8 @@ pub fn run() {
             commands::git::git_bump_version_and_tag,
             commands::git::git_clean_preview,
             commands::git::git_clean_execute,
+            commands::git::start_git_watcher,
+            commands::git::stop_git_watcher,
             commands::projects::import_project,
             commands::projects::list_projects,
             commands::projects::get_project,
@@ -265,6 +273,13 @@ pub fn run() {
             commands::issues::delete_all_local_issues,
             commands::sizes::get_location_project_sizes,
             commands::sizes::get_largest_entries,
+            tunnel::commands::check_tunnel_available,
+            tunnel::commands::trust_portless_ca,
+            tunnel::commands::start_tunnel_proxy,
+            tunnel::commands::stop_tunnel_proxy,
+            tunnel::commands::enable_tunnel,
+            tunnel::commands::disable_tunnel,
+            tunnel::commands::get_tunnel_status,
         ])
         .run(tauri::generate_context!())
         .expect("error while running tauri application");

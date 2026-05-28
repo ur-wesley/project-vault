@@ -931,3 +931,24 @@ pub async fn git_clean_execute(
     crate::models::emit_project_changed(&app, &project_id, "git-clean");
     Ok(())
 }
+
+#[tauri::command]
+pub async fn start_git_watcher(
+    git_watcher: State<'_, crate::git_watcher::GitWatcher>,
+    db: State<'_, DbInstances>,
+    project_id: String,
+) -> Result<(), StableError> {
+    let pool = db::sqlite_pool(&*db).await?;
+    let project = db::get_project(&pool, &project_id).await?;
+    git_watcher.start(&project_id, &project.path).await
+        .map_err(|e| StableError::new(codes::INTERNAL, e))
+}
+
+#[tauri::command]
+pub async fn stop_git_watcher(
+    git_watcher: State<'_, crate::git_watcher::GitWatcher>,
+    project_id: String,
+) -> Result<(), StableError> {
+    git_watcher.stop(&project_id).await;
+    Ok(())
+}

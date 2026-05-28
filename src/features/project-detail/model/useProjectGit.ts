@@ -20,6 +20,7 @@ import { stableErrorMessage } from "~/lib/invoke-error";
 
 export type UseProjectGitProps = Readonly<{
   projectId: Accessor<string>;
+  isFocused: Accessor<boolean>;
   t: (key: string, args?: any) => string;
   showBanner: (msg: string) => void;
   showInfoBanner: (msg: string) => void;
@@ -35,7 +36,8 @@ export function useProjectGit(props: UseProjectGitProps) {
       if (r.isErr()) throw new Error(r.error.message);
       return r.value;
     },
-    refetchInterval: 1000 * 60,
+    refetchInterval: props.isFocused() ? 10_000 : 1_000 * 60,
+    refetchOnWindowFocus: true,
   }));
 
   const gitIncomingQ = createQuery(() => ({
@@ -56,6 +58,7 @@ export function useProjectGit(props: UseProjectGitProps) {
     }
     await qc.invalidateQueries({ queryKey: queryKeys.gitStatus(props.projectId()) });
     await qc.invalidateQueries({ queryKey: queryKeys.gitIncoming(props.projectId()) });
+    await qc.invalidateQueries({ queryKey: ["git", "preview-versions", props.projectId()] });
   }
 
   const pullMu = createMutation(() => ({
@@ -125,6 +128,8 @@ export function useProjectGit(props: UseProjectGitProps) {
     },
     enabled: true,
     staleTime: 1000 * 60 * 5,
+    refetchInterval: props.isFocused() ? 10_000 : 1_000 * 60,
+    refetchOnWindowFocus: true,
   }));
 
   const discoverFilesMu = createMutation(() => ({

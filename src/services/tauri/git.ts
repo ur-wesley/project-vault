@@ -51,3 +51,11 @@ export function gitCleanPreview(projectId: string) {
 export function gitCleanExecute(projectId: string, resetTracked: boolean, selectedPaths: string[]) {
   return tauriInvoke<void>("git_clean_execute", { projectId, resetTracked, selectedPaths });
 }
+
+export function startGitWatcher(projectId: string, projectPath: string) {
+  return tauriInvoke<void>("start_git_watcher", { projectId, projectPath });
+}
+
+export function stopGitWatcher(projectId: string) {
+  return tauriInvoke<void>("stop_git_watcher", { projectId });
+}
