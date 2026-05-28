@@ -7,6 +7,8 @@ import { TabsContent } from "~/components/ui/tabs";
 import { TextField, TextFieldInput } from "~/components/ui/text-field";
 import type { Locale } from "~/messages";
 import { debugScanLocation } from "~/services/tauri/scanning";
+import { trustPortlessCa } from "~/services/tauri/tunnel";
+import { toast } from "solid-sonner";
 import pkg from "../../../../package.json";
 
 export type GeneralSettingsTabProps = Readonly<{
@@ -21,6 +23,13 @@ export type GeneralSettingsTabProps = Readonly<{
   setAutoCheckUpdates: (v: boolean) => void;
   autoStart: boolean;
   setAutoStart: (v: boolean) => void;
+  portlessEnabled: boolean;
+  setPortlessEnabled: (v: boolean) => void;
+  portlessProxyPort: string;
+  setPortlessProxyPort: (v: string) => void;
+  portlessTls: boolean;
+  setPortlessTls: (v: boolean) => void;
+  portlessAvailable: boolean;
   busy: boolean;
   onExport: () => void;
   onOpenAppDataDir?: () => void;
@@ -216,6 +225,119 @@ export const GeneralSettingsTab: Component<GeneralSettingsTabProps> = (props) =>
                 </Label>
               </div>
             </div>
+          </div>
+        </div>
+      </section>
+
+      <section class="space-y-4">
+        <div class="space-y-1">
+          <h3 class="text-sm font-bold uppercase tracking-wider text-primary/80">{props.t("settings.portlessTitle")}</h3>
+          <p class="text-xs text-muted-foreground">
+            {props.t("settings.portlessDescription")}
+          </p>
+        </div>
+        <div class="grid gap-6 max-w-sm">
+          <Show when={!props.portlessAvailable}>
+            <div class="rounded-md bg-muted/50 p-3">
+              <p class="text-xs text-muted-foreground">
+                {props.t("settings.portlessNotInstalled")}
+              </p>
+              <code class="mt-2 block rounded bg-muted/80 px-2 py-1 text-[10px] font-mono text-foreground/80">
+                npm install -g portless
+              </code>
+            </div>
+          </Show>
+          <div class="grid gap-2">
+            <label class="text-[10px] font-bold text-muted-foreground uppercase tracking-widest">
+              {props.t("settings.portlessToggleLabel")}
+            </label>
+            <p class="text-xs text-muted-foreground">
+              {props.t("settings.portlessToggleDescription")}
+            </p>
+            <div class="flex items-start space-x-3 pt-1">
+              <Checkbox
+                id="portless-enabled"
+                checked={props.portlessEnabled}
+                onChange={(checked) => props.setPortlessEnabled(checked)}
+              />
+              <div class="grid gap-1.5 leading-none pt-0.5">
+                <Label
+                  for="portless-enabled"
+                  class="text-sm font-medium leading-none cursor-pointer"
+                >
+                  {props.t("settings.portlessToggle")}
+                </Label>
+              </div>
+            </div>
+          </div>
+
+          <div class="grid gap-2">
+            <label class="text-[10px] font-bold text-muted-foreground uppercase tracking-widest">
+              {props.t("settings.portlessProxyPort")}
+            </label>
+            <TextField>
+              <TextFieldInput
+                type="number"
+                min={1}
+                max={65535}
+                class="bg-muted/30"
+                placeholder={props.portlessTls ? "443" : "80"}
+                value={props.portlessProxyPort}
+                onInput={(e) => props.setPortlessProxyPort(e.currentTarget.value)}
+                disabled={props.busy || !props.portlessEnabled}
+                autocomplete="off"
+              />
+            </TextField>
+            <p class="text-[10px] text-muted-foreground">
+              {props.t("settings.portlessProxyPortHint")}
+            </p>
+          </div>
+
+          <div class="grid gap-2">
+            <label class="text-[10px] font-bold text-muted-foreground uppercase tracking-widest">
+              {props.t("settings.portlessTlsLabel")}
+            </label>
+            <p class="text-xs text-muted-foreground">
+              {props.t("settings.portlessTlsDescription")}
+            </p>
+            <div class="flex items-start space-x-3 pt-1">
+              <Checkbox
+                id="portless-tls"
+                checked={props.portlessTls}
+                onChange={(checked) => props.setPortlessTls(checked)}
+                disabled={!props.portlessEnabled}
+              />
+              <div class="grid gap-1.5 leading-none pt-0.5">
+                <Label
+                  for="portless-tls"
+                  class="text-sm font-medium leading-none cursor-pointer"
+                >
+                  {props.t("settings.portlessTls")}
+                </Label>
+              </div>
+            </div>
+            <Show when={props.portlessEnabled && props.portlessTls}>
+              <Button
+                type="button"
+                variant="outline"
+                size="sm"
+                class="h-7 gap-1.5 text-xs mt-1"
+                onClick={async () => {
+                  const r = await trustPortlessCa();
+                  if (r.isErr()) {
+                    toast.error(r.error.message);
+                  } else {
+                    toast.success(props.t("settings.portlessTrustSuccess"));
+                  }
+                }}
+              >
+                <span class="iconify mdi--shield-check size-3.5" />
+                {props.t("settings.portlessTrustButton")}
+              </Button>
+              <p class="text-[10px] text-muted-foreground">
+                {props.t("settings.portlessTrustHint")}
+              </p>
+            </Show>
           </div>
         </div>
       </section>

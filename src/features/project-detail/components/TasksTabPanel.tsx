@@ -1,4 +1,4 @@
-import { For, Show, createMemo, createSignal } from "solid-js";
+import { For, Show, createEffect, createMemo, createSignal } from "solid-js";
 import { Badge } from "~/components/ui/badge";
 import { Button } from "~/components/ui/button";
 import {
@@ -22,10 +22,20 @@ import { Tooltip, TooltipContent, TooltipTrigger } from "~/components/ui/tooltip
 import { useI18n } from "~/lib/i18n-context";
 import { toast } from "solid-sonner";
 import { deleteProjectTask } from "~/services/tauri/tasks";
+import { enableTunnel, disableTunnel, getTunnelStatus } from "~/services/tauri/tunnel";
 import type { ProjectDto, TaskDto } from "~/types/dto";
 import type { ProjectDetailModel } from "../model/createProjectDetailModel";
 import { TaskEditorDialog } from "./TaskEditorDialog";
 import { MiseToolsSuggestion } from "./MiseToolsSuggestion";
+
+async function openUrl(url: string) {
+  try {
+    const opener = await import("@tauri-apps/plugin-opener");
+    await opener.openUrl(url);
+  } catch {
+    window.open(url, "_blank");
+  }
+}
 
 export function TasksTabPanel(props: {
   project: () => ProjectDto;
@@ -34,13 +44,58 @@ export function TasksTabPanel(props: {
   const { t } = useI18n();
   const m = () => props.model;
 
-  const activeCount = createMemo(() => m().activeSessionsQ.data?.length ?? 0);
-  const activeSessions = createMemo(() => m().activeSessionsQ.data ?? []);
+  const activeSessions = createMemo(() => (m().activeSessionsQ.data ?? []).filter((s) => !s.command?.startsWith("IDE: ")));
+  const activeCount = createMemo(() => activeSessions().length);
   const [runningTaskKey, setRunningTaskKey] = createSignal<string | null>(null);
   const [taskEditorOpen, setTaskEditorOpen] = createSignal(false);
   const [editingTask, setEditingTask] = createSignal<TaskDto | null>(null);
   const [deletingTask, setDeletingTask] = createSignal<TaskDto | null>(null);
   const [deleteBusy, setDeleteBusy] = createSignal(false);
+  const [tunnelRoutes, setTunnelRoutes] = createSignal<Record<string, string>>({});
+
+  const loadTunnelStatus = async () => {
+    const r = await getTunnelStatus();
+    if (r.isOk()) {
+      const routes: Record<string, string> = {};
+      for (const route of r.value.routes) {
+        routes[route.sessionId] = route.url;
+      }
+      setTunnelRoutes(routes);
+    }
+  };
+
+  const handleToggleTunnel = async (sessionId: string, port: number, taskLabel?: string) => {
+    const existingUrl = tunnelRoutes()[sessionId];
+    if (existingUrl) {
+      const r = await disableTunnel(sessionId, props.project().id);
+      if (r.isErr()) {
+        toast.error(r.error.message);
+        return;
+      }
+      setTunnelRoutes((prev) => {
+        const next = { ...prev };
+        delete next[sessionId];
+        return next;
+      });
+      toast.success("Tunnel disabled");
+    } else {
+      const projectName = props.project().path.split(/[\\/]/).pop() ?? "app";
+      const label = taskLabel?.split(": ").pop()?.toLowerCase().replace(/[^a-z0-9]/g, "-") ?? "dev";
+      const subdomain = `${projectName}-${label}`;
+      const r = await enableTunnel({
+        sessionId,
+        projectId: props.project().id,
+        port,
+        subdomain,
+      });
+      if (r.isErr()) {
+        toast.error(r.error.message);
+        return;
+      }
+      setTunnelRoutes((prev) => ({ ...prev, [sessionId]: r.value }));
+      toast.success(`Mapped to ${r.value}`);
+    }
+  };
 
   const normalizeCommand = (value: string) => value.replace(/\s+/g, " ").trim();
 
@@ -49,6 +104,12 @@ export function TasksTabPanel(props: {
     const normalized = normalizeCommand(command);
     return props.project().tasks.find((t) => normalizeCommand(t.argv.join(" ")) === normalized) ?? null;
   };
+
+  createEffect(() => {
+    if (activeSessions().length > 0) {
+      void loadTunnelStatus();
+    }
+  });
 
   const taskGroups = createMemo(() => {
     const g: Record<string, any[]> = {};
@@ -159,7 +220,7 @@ export function TasksTabPanel(props: {
                         : (t("projectDetail.taskOutputHint") as string)}
                     </p>
                     <Show when={m().sessionPorts()[session.id]?.length > 0}>
-                      <div class="mt-1 flex flex-wrap items-center gap-1">
+                      <div class="mt-1 flex flex-wrap items-center gap-1.5">
                         <span class="text-[10px] text-muted-foreground/70">{t("projectDetail.ports") as string}:</span>
                         <For each={m().sessionPorts()[session.id]}>
                           {(port) => (
@@ -168,6 +229,31 @@ export function TasksTabPanel(props: {
                             </Badge>
                           )}
                         </For>
+                        <button
+                          type="button"
+                          class={`inline-flex h-5 items-center gap-1 rounded-full border px-2 text-[10px] font-medium transition-colors ${
+                            tunnelRoutes()[session.id]
+                              ? 'border-green-500/30 bg-green-500/10 text-green-600 hover:bg-green-500/20'
+                              : 'border-border bg-muted/50 text-muted-foreground hover:border-primary/50 hover:bg-primary/5 hover:text-primary'
+                          }`}
+                          onClick={() => {
+                            const task = findTaskForSession(session.command);
+                            void handleToggleTunnel(session.id, m().sessionPorts()[session.id]![0], task?.label);
+                          }}
+                        >
+                          {tunnelRoutes()[session.id]
+                            ? (t("projectDetail.tunnelActive") as string)
+                            : (t("projectDetail.tunnelEnable") as string)}
+                        </button>
+                        <Show when={tunnelRoutes()[session.id]}>
+                          <button
+                            type="button"
+                            class="text-[9px] font-mono text-green-600 hover:underline cursor-pointer"
+                            onClick={() => void openUrl(tunnelRoutes()[session.id]!)}
+                          >
+                            {tunnelRoutes()[session.id]}
+                          </button>
+                        </Show>
                       </div>
                     </Show>
                   </div>

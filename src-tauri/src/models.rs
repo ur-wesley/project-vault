@@ -96,6 +96,7 @@ pub struct ToolCandidateDto {
     pub label: String,
     pub executable: String,
     pub version: Option<String>,
+    pub available: bool,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]

@@ -122,6 +122,13 @@ export const SettingsView: Component<SettingsViewProps> = (props) => {
                 setAutoCheckUpdates={model.setAutoCheckUpdates}
                 autoStart={model.autoStart()}
                 setAutoStart={model.setAutoStart}
+                portlessEnabled={model.portlessEnabled()}
+                setPortlessEnabled={model.setPortlessEnabled}
+                portlessProxyPort={model.portlessProxyPort()}
+                setPortlessProxyPort={model.setPortlessProxyPort}
+                portlessTls={model.portlessTls()}
+                setPortlessTls={model.setPortlessTls}
+                portlessAvailable={model.portlessAvailable()}
                 busy={model.busy()}
                 onExport={model.onExport}
                 onOpenAppDataDir={onOpenAppDataDir}

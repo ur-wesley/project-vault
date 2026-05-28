@@ -188,21 +188,33 @@ export const ToolsSettingsTab: Component<ToolsSettingsTabProps> = (props) => {
         <Show when={props.toolsQ.isLoading}>
           <p class="text-xs text-muted-foreground">{props.t("settings.systemToolsScanning")}</p>
         </Show>
-        <Show when={!props.toolsQ.isLoading && (props.toolsQ.data?.length ?? 0) === 0}>
-          <p class="text-xs text-muted-foreground">{props.t("settings.systemToolsNone")}</p>
-        </Show>
         <Show when={props.toolsQ.data && props.toolsQ.data.length > 0}>
           <div class="grid gap-2">
             <For each={props.toolsQ.data}>
               {(tool) => (
-                <div class="flex items-center gap-3 rounded-md border border-border/40 bg-muted/20 px-3 py-2">
-                  <span class={cn("iconify shrink-0 size-5", tool.id === "mise" ? "mdi--cube-outline" : tool.id === "git" ? "mdi--git" : "mdi--file-document-edit-outline")} />
+                <div class={cn(
+                  "flex items-center gap-3 rounded-md border px-3 py-2",
+                  tool.available
+                    ? "border-border/40 bg-muted/20"
+                    : "border-border/20 bg-muted/5 opacity-60"
+                )}>
+                  <span class={cn("iconify shrink-0 size-5",
+                    tool.id === "mise" ? "mdi--cube-outline" :
+                    tool.id === "git" ? "mdi--git" :
+                    tool.id === "portless" ? "mdi--lan" :
+                    "mdi--file-document-edit-outline"
+                  )} />
                   <div class="min-w-0 flex-1">
                     <p class="text-xs font-bold truncate">{tool.label}</p>
-                    <p class="text-[10px] text-muted-foreground font-mono truncate">{tool.executable}</p>
+                    <p class="text-[10px] text-muted-foreground font-mono truncate">
+                      {tool.available ? tool.executable : tool.id}
+                    </p>
                   </div>
-                  <Show when={tool.version}>
+                  <Show when={tool.available && tool.version}>
                     <span class="text-[10px] text-muted-foreground bg-muted/50 px-1.5 py-0.5 rounded">{tool.version}</span>
+                  </Show>
+                  <Show when={!tool.available}>
+                    <span class="text-[10px] text-destructive/80 bg-destructive/10 px-1.5 py-0.5 rounded">{props.t("settings.systemToolsNotDetected")}</span>
                   </Show>
                 </div>
               )}

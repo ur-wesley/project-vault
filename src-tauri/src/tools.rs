@@ -60,23 +60,40 @@ pub fn discover_tools() -> Vec<ToolCandidateDto> {
         ("git", "git", "Git", "--version"),
         ("mise", "mise", "Mise", "--version"),
         ("just", "just", "Just", "--version"),
+        ("portless", "portless", "Portless", "--version"),
     ];
 
     for (id, name, label, version_arg) in candidates {
-        if let Some(path) = path_lookup(name) {
-            let exe = path.to_string_lossy().to_string();
-            if seen.insert(exe.clone()) {
-                let version = get_version(&exe, version_arg);
+        match path_lookup(name) {
+            Some(path) => {
+                let exe = path.to_string_lossy().to_string();
+                if seen.insert(exe.clone()) {
+                    let version = get_version(&exe, version_arg);
+                    out.push(ToolCandidateDto {
+                        id: id.into(),
+                        label: label.into(),
+                        executable: exe,
+                        version,
+                        available: true,
+                    });
+                }
+            }
+            None => {
                 out.push(ToolCandidateDto {
                     id: id.into(),
                     label: label.into(),
-                    executable: exe,
-                    version,
+                    executable: String::new(),
+                    version: None,
+                    available: false,
                 });
             }
         }
     }
 
-    out.sort_by(|a, b| a.label.to_lowercase().cmp(&b.label.to_lowercase()));
+    out.sort_by(|a, b| {
+        b.available
+            .cmp(&a.available)
+            .then(a.label.to_lowercase().cmp(&b.label.to_lowercase()))
+    });
     out
 }

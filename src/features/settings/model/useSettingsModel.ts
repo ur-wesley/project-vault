@@ -10,6 +10,7 @@ import { deleteAllIndices } from "~/services/tauri/search";
 import { checkForUpdates, installUpdate } from "~/services/tauri/updates";
 import { getAutostartEnabled, setAutostartEnabled } from "~/services/tauri/autostart";
 import { getSetting, setSetting } from "~/services/tauri/settings";
+import { checkTunnelAvailable, startTunnelProxy, stopTunnelProxy } from "~/services/tauri/tunnel";
 import { GITHUB_TOKEN_SETTING_KEY, fetchGitHubViewer } from "~/services/github";
 import { runGithubDeviceSignIn } from "~/services/github-device-signin";
 import { stableErrorMessage } from "~/lib/invoke-error";
@@ -26,6 +27,9 @@ const LOCALE_KEY = "ui_locale";
 const AUTO_INDEX_KEY = "auto_index_projects";
 const AUTO_CHECK_UPDATES_KEY = "auto_check_updates";
 const AUTO_START_KEY = "auto_start";
+const PORTLESS_ENABLED_KEY = "tunnel_portless_enabled";
+const PORTLESS_PROXY_PORT_KEY = "tunnel_proxy_port";
+const PORTLESS_TLS_KEY = "tunnel_tls_enabled";
 
 export type UseSettingsModelProps = Readonly<{
   t: (key: string, args?: any) => string;
@@ -43,6 +47,10 @@ export function useSettingsModel(props: UseSettingsModelProps) {
   const [autoIndex, setAutoIndex] = createSignal(true);
   const [autoCheckUpdates, setAutoCheckUpdates] = createSignal(true);
   const [autoStart, setAutoStart] = createSignal(false);
+  const [portlessEnabled, setPortlessEnabled] = createSignal(false);
+  const [portlessProxyPort, setPortlessProxyPort] = createSignal("4200");
+  const [portlessTls, setPortlessTls] = createSignal(false);
+  const [portlessAvailable, setPortlessAvailable] = createSignal(false);
   const [githubToken, setGithubToken] = createSignal("");
   const [githubUserCode, setGithubUserCode] = createSignal("");
   const [busy, setBusy] = createSignal(false);
@@ -50,7 +58,7 @@ export function useSettingsModel(props: UseSettingsModelProps) {
   const settingsQ = createQuery(() => ({
     queryKey: ["settings", "view"] as const,
     queryFn: async () => {
-      const [sh, scan, gh, di, ds, loc, ai, au, as] = await Promise.all([
+      const [sh, scan, gh, di, ds, loc, ai, au, as, pe, pp, pt] = await Promise.all([
         getSetting(SHELL_KEY),
         getSetting(SCAN_KEY),
         getSetting(GITHUB_TOKEN_SETTING_KEY),
@@ -60,6 +68,9 @@ export function useSettingsModel(props: UseSettingsModelProps) {
         getSetting(AUTO_INDEX_KEY),
         getSetting(AUTO_CHECK_UPDATES_KEY),
         getAutostartEnabled(),
+        getSetting(PORTLESS_ENABLED_KEY),
+        getSetting(PORTLESS_PROXY_PORT_KEY),
+        getSetting(PORTLESS_TLS_KEY),
       ]);
       if (sh.isErr()) throw new Error(sh.error.message);
       if (scan.isErr()) throw new Error(scan.error.message);
@@ -69,6 +80,9 @@ export function useSettingsModel(props: UseSettingsModelProps) {
       if (loc.isErr()) throw new Error(loc.error.message);
       if (ai.isErr()) throw new Error(ai.error.message);
       if (au.isErr()) throw new Error(au.error.message);
+
+      const tunnelR = await checkTunnelAvailable();
+      setPortlessAvailable(tunnelR.isOk() ? tunnelR.value : false);
 
       return {
         shell: sh.value ?? "",
@@ -80,6 +94,9 @@ export function useSettingsModel(props: UseSettingsModelProps) {
         autoIndex: ai.value !== "false",
         autoCheckUpdates: au.value !== "false",
         autoStart: as.isOk() ? as.value : false,
+        portlessEnabled: pe.value === "true",
+        portlessProxyPort: pp.value || "",
+        portlessTls: pt.value === "true",
       };
     },
   }));
@@ -144,6 +161,9 @@ export function useSettingsModel(props: UseSettingsModelProps) {
       setAutoIndex(d.autoIndex);
       setAutoCheckUpdates(d.autoCheckUpdates);
       setAutoStart(d.autoStart);
+      setPortlessEnabled(d.portlessEnabled);
+      setPortlessProxyPort(d.portlessProxyPort);
+      setPortlessTls(d.portlessTls);
     }
   });
 
@@ -166,6 +186,9 @@ export function useSettingsModel(props: UseSettingsModelProps) {
         [AUTO_INDEX_KEY, autoIndex() ? "true" : "false"],
         [AUTO_CHECK_UPDATES_KEY, autoCheckUpdates() ? "true" : "false"],
         [AUTO_START_KEY, autoStart() ? "true" : "false"],
+        [PORTLESS_ENABLED_KEY, portlessEnabled() ? "true" : "false"],
+        [PORTLESS_PROXY_PORT_KEY, portlessProxyPort()],
+        [PORTLESS_TLS_KEY, portlessTls() ? "true" : "false"],
       ] as const) {
         const r = await setSetting(key, val);
         if (r.isErr()) {
@@ -180,6 +203,16 @@ export function useSettingsModel(props: UseSettingsModelProps) {
       void qc.invalidateQueries({
         predicate: (q) => Array.isArray(q.queryKey) && q.queryKey[0] === "github",
       });
+
+      if (portlessEnabled()) {
+        const r = await startTunnelProxy();
+        if (r.isErr()) {
+          toast.error(stableErrorMessage(props.t, r.error), { id: "settings" });
+        }
+      } else {
+        void stopTunnelProxy();
+      }
+
       toast.success(props.t("settings.saved"), { id: "settings" });
       props.onLocaleChange?.(selectedLocale());
     } finally {
@@ -343,6 +376,13 @@ export function useSettingsModel(props: UseSettingsModelProps) {
     setAutoCheckUpdates,
     autoStart,
     setAutoStart,
+    portlessEnabled,
+    setPortlessEnabled,
+    portlessProxyPort,
+    setPortlessProxyPort,
+    portlessTls,
+    setPortlessTls,
+    portlessAvailable,
     githubToken,
     setGithubToken,
     githubUserCode,

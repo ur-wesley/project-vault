@@ -30,7 +30,7 @@ export const ProjectMainTabs: Component<ProjectMainTabsProps> = (props) => {
   const sidebar = useSidebar();
   const m = () => props.model;
 
-  const activeCount = createMemo(() => m().activeSessionsQ.data?.length ?? 0);
+  const activeCount = createMemo(() => (m().activeSessionsQ.data ?? []).filter((s) => !s.command?.startsWith("IDE: ")).length);
   const [terminalFullscreen, setTerminalFullscreen] = createSignal(false);
   const [previousSidebarOpen, setPreviousSidebarOpen] = createSignal<
     boolean | null

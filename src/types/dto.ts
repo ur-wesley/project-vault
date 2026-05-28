@@ -129,6 +129,7 @@ export type ToolCandidateDto = {
   label: string;
   executable: string;
   version: string | null;
+  available: boolean;
 };
 
 export type OpenProjectIdePayload = {
