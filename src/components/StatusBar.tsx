@@ -19,6 +19,9 @@ export const StatusBar: Component<{
   projectName?: string | null;
   projectId?: string | null;
   onShowProcesses: () => void;
+  onToggleTerminal: () => void;
+  updateVersion?: string | null;
+  onOpenUpdatePopup: () => void;
 }> = (props) => {
   const { t } = useI18n();
   const hub = useEventHub();
@@ -83,7 +86,7 @@ export const StatusBar: Component<{
         <span class="truncate font-mono">{leftLabel()}</span>
       </div>
 
-      {/* Right: notifications + running count + git */}
+      {/* Right: notifications + terminal + running count + git */}
       <div class="flex shrink-0 items-center gap-3">
         {/* Notifications — auto-fade */}
         <div class="flex items-center gap-2">
@@ -96,6 +99,34 @@ export const StatusBar: Component<{
             )}
           </For>
         </div>
+
+        {/* Update download button */}
+        <Show when={props.updateVersion}>
+          <Tooltip>
+            <TooltipTrigger
+              as="button"
+              type="button"
+              class="flex items-center gap-1 rounded px-1 py-0.5 text-primary transition-colors hover:bg-primary/10"
+              onClick={() => props.onOpenUpdatePopup()}
+            >
+              <span class="iconify mdi--download-circle-outline size-3" />
+            </TooltipTrigger>
+            <TooltipContent>{t("updater.download") as string} v{props.updateVersion}</TooltipContent>
+          </Tooltip>
+        </Show>
+
+        {/* Global terminal toggle */}
+        <Tooltip>
+          <TooltipTrigger
+            as="button"
+            type="button"
+            class="flex items-center gap-1 rounded px-1 py-0.5 text-muted-foreground transition-colors hover:bg-accent hover:text-accent-foreground"
+            onClick={() => props.onToggleTerminal()}
+          >
+            <span class="iconify mdi--console size-3" />
+          </TooltipTrigger>
+          <TooltipContent>{t("globalTerminal.tooltip") as string}</TooltipContent>
+        </Tooltip>
 
         {/* Running processes */}
         <Show when={runningCount() > 0}>

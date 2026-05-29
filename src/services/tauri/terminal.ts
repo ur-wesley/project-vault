@@ -40,3 +40,10 @@ export function listAvailableShells() {
 export function listDiscoveredTools() {
   return tauriInvoke<unknown[]>("list_discovered_tools");
 }
+
+export function globalTerminalSpawn(cwd?: string, shell?: string) {
+  return tauriInvoke<string>("global_terminal_spawn", {
+    cwd: cwd ?? null,
+    shell: shell ?? null,
+  });
+}

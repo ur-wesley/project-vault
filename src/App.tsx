@@ -19,6 +19,9 @@ import { ProcessesView } from "~/features/processes";
 import { NewProjectWizardDialog } from "~/features/project-wizard";
 import { SettingsView } from "~/features/settings";
 import { StatusBar } from "~/components/StatusBar";
+import { GlobalTerminalDrawer } from "~/components/GlobalTerminalDrawer";
+import { UpdateDialog, getSkippedVersion } from "~/components/UpdateDialog";
+import { getGlobalTerminalStore } from "~/lib/global-terminal-store";
 import { useEventHub } from "~/lib/event-hub-context";
 import { useI18n } from "~/lib/i18n-context";
 import { useShortcuts } from "~/lib/shortcut-context";
@@ -75,6 +78,7 @@ function App() {
   const hub = useEventHub();
   const shortcuts = useShortcuts();
   const qc = useQueryClient();
+  const globalTerminal = getGlobalTerminalStore();
   const [librarySearch, setLibrarySearch] = createSignal("");
   const [libraryFilter, setLibraryFilter] = createSignal("all");
   const [wizardOpen, setWizardOpen] = createSignal(false);
@@ -88,6 +92,8 @@ function App() {
   const [settingsTab, setSettingsTab] = createSignal(initialUrl.settingsTab);
   const [_ghSignInBusy, setGhSignInBusy] = createSignal(false);
   const [commandPaletteOpen, setCommandPaletteOpen] = createSignal(false);
+  const [updatePopupOpen, setUpdatePopupOpen] = createSignal(false);
+  const [updateInfo, setUpdateInfo] = createSignal<import("~/services/tauri/updates").UpdateInfoDto | null>(null);
   const [pathname, setPathname] = createSignal(
     typeof window !== "undefined" ? window.location.pathname : "/"
   );
@@ -204,6 +210,8 @@ function App() {
         setSettingsTab("locations");
       } else if (payload.action === "new-project:open") {
         setWizardOpen(true);
+      } else if (payload.action === "terminal:toggle") {
+        globalTerminal.setOpen(!globalTerminal.open());
       }
     });
     onCleanup(() => listener());
@@ -332,20 +340,10 @@ function App() {
       if (r.isOk() && r.value !== "false") {
         const updateR = await checkForUpdates();
         if (updateR.isOk() && updateR.value) {
-          toast.info(`Update available: v${updateR.value.version}`, {
-            action: {
-              label: "Install",
-              onClick: () => {
-                void (async () => {
-                  const installR = await import("~/services/tauri/updates").then((m) => m.installUpdate());
-                  if (installR.isErr()) {
-                    toast.error(String(installR.error));
-                  }
-                })();
-              },
-            },
-            duration: 30000,
-          });
+          const skipped = getSkippedVersion();
+          if (skipped !== updateR.value.version) {
+            setUpdateInfo(updateR.value);
+          }
         }
       }
     })();
@@ -663,7 +661,7 @@ function App() {
         </Sidebar>
         <SidebarInset class="flex max-h-svh flex-col overflow-hidden">
           <WindowTitleBar title={windowHeaderTitle} />
-          <Toaster position="top-center" richColors />
+          <Toaster position="bottom-right" richColors />
           <div class="flex min-h-0 flex-1 flex-col overflow-hidden">
             <Show when={activeView() === "settings"}>
               <SettingsView
@@ -701,19 +699,17 @@ function App() {
             </Show>
 
             <Show when={activeView() === "project" && projectDetailId()}>
-              {(id) => (
-                <ProjectDetailView
-                  projectId={id()}
-                  detailTab={detailTab}
-                  onDetailTabChange={setDetailTab}
-                  subDetail={subDetail}
-                  onSubDetailChange={setSubDetail}
-                  onBack={() => {
-                    setActiveView("library");
-                    setProjectDetailId(null);
-                  }}
-                />
-              )}
+              <ProjectDetailView
+                projectId={projectDetailId()!}
+                detailTab={detailTab}
+                onDetailTabChange={setDetailTab}
+                subDetail={subDetail}
+                onSubDetailChange={setSubDetail}
+                onBack={() => {
+                  setActiveView("library");
+                  setProjectDetailId(null);
+                }}
+              />
             </Show>
 
             <Show when={activeView() === "processes"}>
@@ -734,8 +730,18 @@ function App() {
             projectName={titleBarProjectQ.data?.name}
             projectId={projectDetailId()}
             onShowProcesses={() => setActiveView("processes")}
+            onToggleTerminal={() => globalTerminal.setOpen(!globalTerminal.open())}
+            updateVersion={updateInfo()?.version}
+            onOpenUpdatePopup={() => setUpdatePopupOpen(true)}
           />
         </SidebarInset>
+        <GlobalTerminalDrawer />
+        <UpdateDialog
+          open={updatePopupOpen()}
+          onOpenChange={setUpdatePopupOpen}
+          updateInfo={updateInfo()}
+          onSkipped={() => setUpdateInfo(null)}
+        />
         <NewProjectWizardDialog
           open={wizardOpen()}
           onOpenChange={setWizardOpen}

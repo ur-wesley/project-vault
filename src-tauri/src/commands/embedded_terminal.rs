@@ -19,6 +19,63 @@ use crate::shells;
 use crate::spawn::embedded;
 
 #[tauri::command]
+pub async fn global_terminal_spawn(
+    app: AppHandle,
+    db: State<'_, DbInstances>,
+    terms: State<'_, EmbeddedTerminals>,
+    #[cfg(not(any(target_os = "android", target_os = "ios")))]
+    buffers: State<'_, TerminalBuffers>,
+    cwd: Option<String>,
+    shell: Option<String>,
+) -> Result<String, StableError> {
+    #[cfg(any(target_os = "android", target_os = "ios"))]
+    {
+        let _ = (app, db, terms, cwd, shell);
+        return Err(StableError::new(
+            crate::error::codes::INTERNAL,
+            "embedded terminal not available on this platform",
+        ));
+    }
+    #[cfg(not(any(target_os = "android", target_os = "ios")))]
+    {
+        let pool = db::sqlite_pool(&*db).await?;
+
+        let resolved_cwd = if let Some(c) = cwd.filter(|s| !s.trim().is_empty()) {
+            PathBuf::from(c)
+        } else {
+            let setting = db::get_setting(&pool, "global_terminal_cwd")
+                .await?
+                .filter(|s| !s.trim().is_empty());
+            if let Some(s) = setting {
+                PathBuf::from(s)
+            } else {
+                #[cfg(windows)]
+                { PathBuf::from(std::env::var("USERPROFILE").unwrap_or_else(|_| "C:\\".to_string())) }
+                #[cfg(not(windows))]
+                { PathBuf::from(std::env::var("HOME").unwrap_or_else(|_| "/".to_string())) }
+            }
+        };
+
+        let shell_pref = if let Some(s) = shell {
+            Some(s)
+        } else {
+            let custom = db::get_setting(&pool, "shell_path")
+                .await?
+                .filter(|s| !s.trim().is_empty());
+            if custom.is_some() {
+                custom
+            } else {
+                db::get_setting(&pool, "default_shell_path")
+                    .await?
+                    .filter(|s| !s.trim().is_empty())
+            }
+        };
+
+        embedded::spawn_session(app, &terms, &buffers, resolved_cwd, shell_pref)
+    }
+}
+
+#[tauri::command]
 pub fn list_available_shells() -> Result<Vec<ShellCandidateDto>, StableError> {
     #[cfg(any(target_os = "android", target_os = "ios"))]
     {

@@ -1,8 +1,8 @@
 [package]
 name = "project-vault"
-version = "0.9.2"
-description = "A Tauri App"
-authors = ["you"]
+version = "0.9.3"
+description = "Steam for dev Projects!"
+authors = ["Wesley"]
 edition = "2021"
 
 # See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
@@ -68,4 +68,3 @@ winreg = "0.56"
 
 [target.'cfg(all(unix, not(target_os = "macos")))'.dependencies]
 freedesktop-desktop-entry = { version = "0.8", default-features = false }
-

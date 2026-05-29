@@ -249,6 +249,7 @@ pub fn run() {
             commands::ide::stop_project_ide,
             commands::ide::is_project_ide_running,
             commands::embedded_terminal::embedded_terminal_spawn,
+            commands::embedded_terminal::global_terminal_spawn,
             commands::embedded_terminal::list_available_shells,
             commands::tools::list_discovered_tools,
             commands::embedded_terminal::embedded_terminal_write,
