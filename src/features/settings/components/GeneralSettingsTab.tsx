@@ -30,6 +30,8 @@ export type GeneralSettingsTabProps = Readonly<{
   portlessTls: boolean;
   setPortlessTls: (v: boolean) => void;
   portlessAvailable: boolean;
+  globalTerminalCwd: string;
+  setGlobalTerminalCwd: (v: string) => void;
   busy: boolean;
   onExport: () => void;
   onOpenAppDataDir?: () => void;
@@ -224,6 +226,34 @@ export const GeneralSettingsTab: Component<GeneralSettingsTabProps> = (props) =>
                   {props.t("settings.autoStartToggle")}
                 </Label>
               </div>
+            </div>
+          </div>
+
+          <div class="grid gap-2">
+            <label class="text-[10px] font-bold text-muted-foreground uppercase tracking-widest">
+              {props.t("settings.terminalTitle")}
+            </label>
+            <p class="text-xs text-muted-foreground">
+              {props.t("settings.terminalDescription")}
+            </p>
+            <div class="grid gap-2">
+              <label class="text-[10px] font-bold text-muted-foreground uppercase tracking-widest">
+                {props.t("settings.globalTerminalCwd")}
+              </label>
+              <TextField>
+                <TextFieldInput
+                  type="text"
+                  class="bg-muted/30 font-mono text-xs"
+                  placeholder={props.t("settings.globalTerminalCwdPlaceholder") as string}
+                  value={props.globalTerminalCwd}
+                  onInput={(e) => props.setGlobalTerminalCwd(e.currentTarget.value)}
+                  disabled={props.busy}
+                  autocomplete="off"
+                />
+              </TextField>
+              <p class="text-[10px] text-muted-foreground">
+                {props.t("settings.globalTerminalCwdDescription")}
+              </p>
             </div>
           </div>
         </div>

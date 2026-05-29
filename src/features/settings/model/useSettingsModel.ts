@@ -30,6 +30,7 @@ const AUTO_START_KEY = "auto_start";
 const PORTLESS_ENABLED_KEY = "tunnel_portless_enabled";
 const PORTLESS_PROXY_PORT_KEY = "tunnel_proxy_port";
 const PORTLESS_TLS_KEY = "tunnel_tls_enabled";
+const GLOBAL_TERMINAL_CWD_KEY = "global_terminal_cwd";
 
 export type UseSettingsModelProps = Readonly<{
   t: (key: string, args?: any) => string;
@@ -53,12 +54,13 @@ export function useSettingsModel(props: UseSettingsModelProps) {
   const [portlessAvailable, setPortlessAvailable] = createSignal(false);
   const [githubToken, setGithubToken] = createSignal("");
   const [githubUserCode, setGithubUserCode] = createSignal("");
+  const [globalTerminalCwd, setGlobalTerminalCwd] = createSignal("");
   const [busy, setBusy] = createSignal(false);
 
   const settingsQ = createQuery(() => ({
     queryKey: ["settings", "view"] as const,
     queryFn: async () => {
-      const [sh, scan, gh, di, ds, loc, ai, au, as, pe, pp, pt] = await Promise.all([
+      const [sh, scan, gh, di, ds, loc, ai, au, as, pe, pp, pt, gtc] = await Promise.all([
         getSetting(SHELL_KEY),
         getSetting(SCAN_KEY),
         getSetting(GITHUB_TOKEN_SETTING_KEY),
@@ -71,6 +73,7 @@ export function useSettingsModel(props: UseSettingsModelProps) {
         getSetting(PORTLESS_ENABLED_KEY),
         getSetting(PORTLESS_PROXY_PORT_KEY),
         getSetting(PORTLESS_TLS_KEY),
+        getSetting(GLOBAL_TERMINAL_CWD_KEY),
       ]);
       if (sh.isErr()) throw new Error(sh.error.message);
       if (scan.isErr()) throw new Error(scan.error.message);
@@ -97,6 +100,7 @@ export function useSettingsModel(props: UseSettingsModelProps) {
         portlessEnabled: pe.value === "true",
         portlessProxyPort: pp.value || "",
         portlessTls: pt.value === "true",
+        globalTerminalCwd: gtc.value ?? "",
       };
     },
   }));
@@ -164,6 +168,7 @@ export function useSettingsModel(props: UseSettingsModelProps) {
       setPortlessEnabled(d.portlessEnabled);
       setPortlessProxyPort(d.portlessProxyPort);
       setPortlessTls(d.portlessTls);
+      setGlobalTerminalCwd(d.globalTerminalCwd);
     }
   });
 
@@ -189,6 +194,7 @@ export function useSettingsModel(props: UseSettingsModelProps) {
         [PORTLESS_ENABLED_KEY, portlessEnabled() ? "true" : "false"],
         [PORTLESS_PROXY_PORT_KEY, portlessProxyPort()],
         [PORTLESS_TLS_KEY, portlessTls() ? "true" : "false"],
+        [GLOBAL_TERMINAL_CWD_KEY, globalTerminalCwd()],
       ] as const) {
         const r = await setSetting(key, val);
         if (r.isErr()) {
@@ -343,7 +349,7 @@ export function useSettingsModel(props: UseSettingsModelProps) {
           id: "settings",
           duration: 30000,
           action: {
-            label: "Install",
+            label: props.t("updater.install"),
             onClick: () => void onInstallUpdate(),
           },
         },
@@ -386,6 +392,8 @@ export function useSettingsModel(props: UseSettingsModelProps) {
     githubToken,
     setGithubToken,
     githubUserCode,
+    globalTerminalCwd,
+    setGlobalTerminalCwd,
     busy,
     onSave,
     onGithubDeviceSignIn,

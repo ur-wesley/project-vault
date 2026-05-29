@@ -129,6 +129,8 @@ export const SettingsView: Component<SettingsViewProps> = (props) => {
                 portlessTls={model.portlessTls()}
                 setPortlessTls={model.setPortlessTls}
                 portlessAvailable={model.portlessAvailable()}
+                globalTerminalCwd={model.globalTerminalCwd()}
+                setGlobalTerminalCwd={model.setGlobalTerminalCwd}
                 busy={model.busy()}
                 onExport={model.onExport}
                 onOpenAppDataDir={onOpenAppDataDir}
