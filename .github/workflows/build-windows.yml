@@ -47,8 +47,19 @@ jobs:
         id: changelog
         shell: bash
         run: |
-          # Generate changelog into a file, avoiding commit/tag operations
-          npx changelogen@latest --no-commit --no-tag > CHANGELOG_RAW.txt
+          # Find the previous tag to compare against
+          PREV_TAG=$(git tag --sort=-v:refname | grep -E '^v[0-9]+\.[0-9]+\.[0-9]+$' | sed -n 2p)
+          CURRENT_TAG="${{ github.ref_name }}"
+          echo "Comparing $PREV_TAG...$CURRENT_TAG"
+
+          # Generate changelog from previous tag to current, avoiding commit/tag operations
+          if [ -n "$PREV_TAG" ] && [ "$PREV_TAG" != "$CURRENT_TAG" ]; then
+            npx changelogen@latest --from "$PREV_TAG" --no-commit --no-tag > CHANGELOG_RAW.txt
+          else
+            # First release — no previous tag exists
+            npx changelogen@latest --no-commit --no-tag > CHANGELOG_RAW.txt
+          fi
+
           # Extract markdown starting from the first '##' line
           sed -n '/^## /,$p' CHANGELOG_RAW.txt > CHANGELOG_BODY.md
           # Set as output
