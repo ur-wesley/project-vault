@@ -524,6 +524,11 @@ const de = {
     shortcutsResetAll: "Alle zurücksetzen",
     shortcutsNone: "Keins",
     shortcutsPressKeys: "Tasten drücken…",
+    terminalTitle: "Terminal",
+    terminalDescription: "Konfigurieren Sie das Arbeitsverzeichnis des globalen Terminals.",
+    globalTerminalCwd: "Standard-Terminalpfad",
+    globalTerminalCwdPlaceholder: "Leer lassen für Home-Verzeichnis",
+    globalTerminalCwdDescription: "Arbeitsverzeichnis für das globale Terminal. Leer lassen, um das Home-Verzeichnis zu verwenden.",
   },
   window: {
     close: "Schließen",
@@ -542,6 +547,29 @@ const de = {
     kill: "Prozess beenden",
     killAll: "Alle beenden",
     killAllConfirm: "Sicher?",
+  },
+  globalTerminal: {
+    title: "Terminal",
+    tooltip: "Terminal umschalten",
+    newTab: "Neues Terminal",
+    defaultShell: "Standard-Shell",
+  },
+  shortcuts: {
+    commandPalette: "Befehlspalette öffnen",
+    settings: "Einstellungen öffnen",
+    locations: "Bibliotheksstandorte öffnen",
+    sidebar: "Seitenleiste umschalten",
+    newProject: "Neues Projekt",
+    terminal: "Terminal umschalten",
+  },
+  updater: {
+    available: "Update verfügbar",
+    newVersion: "Eine neue Version (v{version}) ist verfügbar.",
+    install: "Installieren",
+    installRestarting: "Update wird installiert… Die App startet neu.",
+    installFailed: "Update konnte nicht installiert werden",
+    skipVersion: "Diese Version überspringen",
+    download: "Update herunterladen",
   },
 };
 

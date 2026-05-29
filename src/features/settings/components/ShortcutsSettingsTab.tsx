@@ -140,7 +140,7 @@ export const ShortcutsSettingsTab: Component<ShortcutsSettingsTabProps> = (props
           {([action, keys]) => (
             <div class="flex items-center justify-between px-4 py-3 border-b last:border-b-0">
               <span class="text-sm">
-                {SHORTCUT_ACTION_LABELS[action] ?? action}
+                {props.t(SHORTCUT_ACTION_LABELS[action] ?? action)}
               </span>
               <Show
                 when={editing() === action}

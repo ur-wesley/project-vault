@@ -524,6 +524,11 @@ const en = {
     shortcutsResetAll: "Reset All",
     shortcutsNone: "None",
     shortcutsPressKeys: "Press keys…",
+    terminalTitle: "Terminal",
+    terminalDescription: "Configure the global terminal working directory.",
+    globalTerminalCwd: "Default terminal path",
+    globalTerminalCwdPlaceholder: "Leave empty for home directory",
+    globalTerminalCwdDescription: "Working directory for the global terminal. Leave empty to use your home directory.",
   },
   window: {
     close: "Close",
@@ -542,6 +547,29 @@ const en = {
     kill: "Kill process",
     killAll: "Kill all",
     killAllConfirm: "Sure?",
+  },
+  globalTerminal: {
+    title: "Terminal",
+    tooltip: "Toggle Terminal",
+    newTab: "New Terminal",
+    defaultShell: "Default Shell",
+  },
+  shortcuts: {
+    commandPalette: "Open Command Palette",
+    settings: "Open Settings",
+    locations: "Open Library Locations",
+    sidebar: "Toggle Sidebar",
+    newProject: "New Project",
+    terminal: "Toggle Terminal",
+  },
+  updater: {
+    available: "Update available",
+    newVersion: "A new version (v{version}) is available.",
+    install: "Install",
+    installRestarting: "Installing update… The app will restart.",
+    installFailed: "Failed to install update",
+    skipVersion: "Skip this version",
+    download: "Download update",
   },
 };
 
