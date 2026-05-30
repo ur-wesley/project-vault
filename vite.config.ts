@@ -40,4 +40,12 @@ export default defineConfig(async () => ({
       "~": path.resolve(__dirname, "./src"),
     },
   },
+  build: {
+    rollupOptions: {
+      input: {
+        main: path.resolve(__dirname, "index.html"),
+        "screenshot-overlay": path.resolve(__dirname, "screenshot-overlay.html"),
+      },
+    },
+  },
 }));

@@ -8,6 +8,7 @@ import { TextField, TextFieldInput } from "~/components/ui/text-field";
 import type { Locale } from "~/messages";
 import { debugScanLocation } from "~/services/tauri/scanning";
 import { trustPortlessCa } from "~/services/tauri/tunnel";
+import { pickScreenshotDirectory } from "~/services/tauri/screenshot";
 import { toast } from "solid-sonner";
 import pkg from "../../../../package.json";
 
@@ -32,6 +33,8 @@ export type GeneralSettingsTabProps = Readonly<{
   portlessAvailable: boolean;
   globalTerminalCwd: string;
   setGlobalTerminalCwd: (v: string) => void;
+  screenshotSaveDir: string;
+  setScreenshotSaveDir: (v: string) => void;
   busy: boolean;
   onExport: () => void;
   onOpenAppDataDir?: () => void;
@@ -253,6 +256,51 @@ export const GeneralSettingsTab: Component<GeneralSettingsTabProps> = (props) =>
               </TextField>
               <p class="text-[10px] text-muted-foreground">
                 {props.t("settings.globalTerminalCwdDescription")}
+              </p>
+            </div>
+          </div>
+
+          <div class="grid gap-2">
+            <label class="text-[10px] font-bold text-muted-foreground uppercase tracking-widest">
+              {props.t("settings.screenshotTitle")}
+            </label>
+            <p class="text-xs text-muted-foreground">
+              {props.t("settings.screenshotDescription")}
+            </p>
+            <div class="grid gap-2">
+              <label class="text-[10px] font-bold text-muted-foreground uppercase tracking-widest">
+                {props.t("settings.screenshotSaveDir")}
+              </label>
+              <div class="flex gap-2">
+                <TextField class="flex-1">
+                  <TextFieldInput
+                    type="text"
+                    class="bg-muted/30 font-mono text-xs"
+                    placeholder={props.t("settings.screenshotSaveDirPlaceholder") as string}
+                    value={props.screenshotSaveDir}
+                    readOnly
+                    disabled={props.busy}
+                  />
+                </TextField>
+                <Button
+                  type="button"
+                  variant="outline"
+                  size="sm"
+                  class="h-9 text-xs"
+                  disabled={props.busy}
+                  onClick={async () => {
+                    const r = await pickScreenshotDirectory();
+                    if (r.isOk() && r.value) {
+                      props.setScreenshotSaveDir(r.value);
+                    }
+                  }}
+                >
+                  <span class="iconify mdi--folder-open mr-1.5 h-4 w-4" />
+                  {props.t("settings.screenshotPickDir")}
+                </Button>
+              </div>
+              <p class="text-[10px] text-muted-foreground">
+                {props.t("settings.screenshotSaveDirDescription")}
               </p>
             </div>
           </div>

@@ -6,7 +6,8 @@ export type ShortcutAction =
   | "locations:open"
   | "sidebar:toggle"
   | "new-project:open"
-  | "terminal:toggle";
+  | "terminal:toggle"
+  | "screenshot:capture";
 
 export const SHORTCUT_SETTING_KEY = "shortcut_registry_v1";
 
@@ -17,6 +18,7 @@ export const DEFAULT_SHORTCUTS: Record<ShortcutAction, string[]> = {
   "sidebar:toggle": ["Control", "b"],
   "new-project:open": [],
   "terminal:toggle": ["Control", "`"],
+  "screenshot:capture": ["Control", "Shift", "s"],
 };
 
 export const SHORTCUT_ACTION_LABELS: Record<ShortcutAction, string> = {
@@ -26,6 +28,7 @@ export const SHORTCUT_ACTION_LABELS: Record<ShortcutAction, string> = {
   "sidebar:toggle": "shortcuts.sidebar",
   "new-project:open": "shortcuts.newProject",
   "terminal:toggle": "shortcuts.terminal",
+  "screenshot:capture": "shortcuts.screenshot",
 };
 
 export async function loadShortcutRegistry(): Promise<Record<ShortcutAction, string[]>> {

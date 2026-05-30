@@ -77,5 +77,23 @@ export const StackIconSafelist: Component = () => (
     <span class="iconify mdi--arrow-down" />
     <span class="iconify mdi--upload" />
     <span class="iconify mdi--download" />
+
+    {/* Screenshot Icons */}
+    <span class="iconify mdi--camera" />
+    <span class="iconify mdi--cog-outline" />
+    <span class="iconify mdi--monitor-screenshot" />
+    <span class="iconify mdi--monitor" />
+    <span class="iconify mdi--monitor-multiple" />
+    <span class="iconify mdi--crop" />
+    <span class="iconify mdi--application-outline" />
+    <span class="iconify mdi--arrow-top-right" />
+    <span class="iconify mdi--rectangle-outline" />
+    <span class="iconify mdi--draw" />
+    <span class="iconify mdi--format-text" />
+    <span class="iconify mdi--marker" />
+    <span class="iconify mdi--undo" />
+    <span class="iconify mdi--redo" />
+    <span class="iconify mdi--clipboard-text-multiple" />
+    <span class="iconify mdi--content-save" />
   </div>
 );

@@ -70,6 +70,9 @@ import "./App.css";
 
 import { SidebarHeaderSearch } from "~/components/SidebarHeaderSearch";
 import { SidebarToggleListener } from "~/components/SidebarToggleListener";
+import { useScreenshot } from "~/features/screenshot";
+import AnnotationEditor from "~/features/screenshot/components/AnnotationEditor";
+import SourceSelector from "~/features/screenshot/components/SourceSelector";
 
 type ProjectFilterOption = { value: string; label: string; textValue: string };
 
@@ -79,6 +82,7 @@ function App() {
   const shortcuts = useShortcuts();
   const qc = useQueryClient();
   const globalTerminal = getGlobalTerminalStore();
+  const screenshot = useScreenshot();
   const [librarySearch, setLibrarySearch] = createSignal("");
   const [libraryFilter, setLibraryFilter] = createSignal("all");
   const [wizardOpen, setWizardOpen] = createSignal(false);
@@ -212,6 +216,8 @@ function App() {
         setWizardOpen(true);
       } else if (payload.action === "terminal:toggle") {
         globalTerminal.setOpen(!globalTerminal.open());
+      } else if (payload.action === "screenshot:capture") {
+        void screenshot.selectSource({ type: "region" }, (k, a) => t(k, a) as string);
       }
     });
     onCleanup(() => listener());
@@ -647,6 +653,18 @@ function App() {
                   variant="ghost"
                   size="icon"
                   class="size-7 shrink-0 text-sidebar-foreground/60 hover:text-sidebar-foreground"
+                  onClick={() => void screenshot.openSelector((k, a) => t(k, a) as string)}
+                >
+                  <span class="iconify mdi--camera size-4" />
+                </TooltipTrigger>
+                <TooltipContent>{t("screenshot.tooltip")}</TooltipContent>
+              </Tooltip>
+              <Tooltip>
+                <TooltipTrigger
+                  as={Button}
+                  variant="ghost"
+                  size="icon"
+                  class="size-7 shrink-0 text-sidebar-foreground/60 hover:text-sidebar-foreground"
                   onClick={() => {
                     setActiveView("settings");
                     setSettingsTab("general");
@@ -752,6 +770,22 @@ function App() {
             setSubDetail(null);
           }}
         />
+        <Show when={screenshot.appState() === "selecting"}>
+          <SourceSelector
+            screens={screenshot.screens()}
+            windows={screenshot.windows()}
+            onSelect={(source) => void screenshot.selectSource(source, (k, a) => t(k, a) as string)}
+            onClose={() => screenshot.close()}
+          />
+        </Show>
+        <Show when={screenshot.appState() === "editing" && screenshot.imageData()}>
+          <AnnotationEditor
+            imageData={screenshot.imageData()!}
+            onClose={() => screenshot.close()}
+            onSave={(data) => void screenshot.save(data, (k, a) => t(k, a) as string)}
+            onCopy={(data) => void screenshot.copyToClipboard(data, (k, a) => t(k, a) as string)}
+          />
+        </Show>
       </SidebarProvider>
     </CommandPalette>
   );

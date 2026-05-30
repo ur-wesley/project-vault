@@ -31,6 +31,7 @@ const PORTLESS_ENABLED_KEY = "tunnel_portless_enabled";
 const PORTLESS_PROXY_PORT_KEY = "tunnel_proxy_port";
 const PORTLESS_TLS_KEY = "tunnel_tls_enabled";
 const GLOBAL_TERMINAL_CWD_KEY = "global_terminal_cwd";
+const SCREENSHOT_SAVE_DIR_KEY = "screenshot_save_dir";
 
 export type UseSettingsModelProps = Readonly<{
   t: (key: string, args?: any) => string;
@@ -55,12 +56,13 @@ export function useSettingsModel(props: UseSettingsModelProps) {
   const [githubToken, setGithubToken] = createSignal("");
   const [githubUserCode, setGithubUserCode] = createSignal("");
   const [globalTerminalCwd, setGlobalTerminalCwd] = createSignal("");
+  const [screenshotSaveDir, setScreenshotSaveDir] = createSignal("");
   const [busy, setBusy] = createSignal(false);
 
   const settingsQ = createQuery(() => ({
     queryKey: ["settings", "view"] as const,
     queryFn: async () => {
-      const [sh, scan, gh, di, ds, loc, ai, au, as, pe, pp, pt, gtc] = await Promise.all([
+      const [sh, scan, gh, di, ds, loc, ai, au, as, pe, pp, pt, gtc, ssd] = await Promise.all([
         getSetting(SHELL_KEY),
         getSetting(SCAN_KEY),
         getSetting(GITHUB_TOKEN_SETTING_KEY),
@@ -74,6 +76,7 @@ export function useSettingsModel(props: UseSettingsModelProps) {
         getSetting(PORTLESS_PROXY_PORT_KEY),
         getSetting(PORTLESS_TLS_KEY),
         getSetting(GLOBAL_TERMINAL_CWD_KEY),
+        getSetting(SCREENSHOT_SAVE_DIR_KEY),
       ]);
       if (sh.isErr()) throw new Error(sh.error.message);
       if (scan.isErr()) throw new Error(scan.error.message);
@@ -101,6 +104,7 @@ export function useSettingsModel(props: UseSettingsModelProps) {
         portlessProxyPort: pp.value || "",
         portlessTls: pt.value === "true",
         globalTerminalCwd: gtc.value ?? "",
+        screenshotSaveDir: ssd.value ?? "",
       };
     },
   }));
@@ -169,6 +173,7 @@ export function useSettingsModel(props: UseSettingsModelProps) {
       setPortlessProxyPort(d.portlessProxyPort);
       setPortlessTls(d.portlessTls);
       setGlobalTerminalCwd(d.globalTerminalCwd);
+      setScreenshotSaveDir(d.screenshotSaveDir);
     }
   });
 
@@ -195,6 +200,7 @@ export function useSettingsModel(props: UseSettingsModelProps) {
         [PORTLESS_PROXY_PORT_KEY, portlessProxyPort()],
         [PORTLESS_TLS_KEY, portlessTls() ? "true" : "false"],
         [GLOBAL_TERMINAL_CWD_KEY, globalTerminalCwd()],
+        [SCREENSHOT_SAVE_DIR_KEY, screenshotSaveDir()],
       ] as const) {
         const r = await setSetting(key, val);
         if (r.isErr()) {
@@ -394,6 +400,8 @@ export function useSettingsModel(props: UseSettingsModelProps) {
     githubUserCode,
     globalTerminalCwd,
     setGlobalTerminalCwd,
+    screenshotSaveDir,
+    setScreenshotSaveDir,
     busy,
     onSave,
     onGithubDeviceSignIn,

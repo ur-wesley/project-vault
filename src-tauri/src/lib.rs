@@ -31,6 +31,7 @@ pub fn run() {
     tauri::Builder::default()
         .plugin(tauri_plugin_window_state::Builder::new().build())
         .plugin(tauri_plugin_store::Builder::new().build())
+        .plugin(tauri_plugin_global_shortcut::Builder::new().build())
         .plugin(
             SqlPluginBuilder::default()
                 .add_migrations(
@@ -264,6 +265,15 @@ pub fn run() {
             commands::search::delete_index,
             commands::search::delete_all_indices,
             commands::search::update_index_for_file,
+            commands::screenshot::list_screens,
+            commands::screenshot::list_windows,
+            commands::screenshot::get_desktop_bounds,
+            commands::screenshot::capture_screen,
+            commands::screenshot::capture_all_screens,
+            commands::screenshot::capture_window,
+            commands::screenshot::capture_region,
+            commands::screenshot::save_screenshot,
+            commands::screenshot::pick_screenshot_directory,
             commands::updater::check_for_updates,
             commands::updater::install_update,
             commands::issues::list_issues,

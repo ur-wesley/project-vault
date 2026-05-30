@@ -131,6 +131,8 @@ export const SettingsView: Component<SettingsViewProps> = (props) => {
                 portlessAvailable={model.portlessAvailable()}
                 globalTerminalCwd={model.globalTerminalCwd()}
                 setGlobalTerminalCwd={model.setGlobalTerminalCwd}
+                screenshotSaveDir={model.screenshotSaveDir()}
+                setScreenshotSaveDir={model.setScreenshotSaveDir}
                 busy={model.busy()}
                 onExport={model.onExport}
                 onOpenAppDataDir={onOpenAppDataDir}

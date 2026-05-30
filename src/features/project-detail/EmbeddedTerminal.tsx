@@ -217,8 +217,8 @@ export function EmbeddedTerminalPane(props: {
         </div>
       </div>
 
-      <div class="min-h-0 flex-1 p-3">
-        <div class="relative h-full overflow-hidden rounded-sm" style={{ "background-color": "#111111" }}>
+      <div class="min-h-0 flex-1 p-3 flex flex-col">
+        <div class="relative flex-1 min-h-0 overflow-hidden rounded-sm flex flex-col" style={{ "background-color": "#111111" }}>
           <For each={props.instances()}>
             {(inst) => (
               <TerminalHost

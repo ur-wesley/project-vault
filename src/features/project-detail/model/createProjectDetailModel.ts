@@ -8,7 +8,7 @@ import { toast } from "solid-sonner";
 import { useI18n } from "~/lib/i18n-context";
 import { useWindowFocus } from "~/lib/use-window-focus";
 import { stableErrorMessage } from "~/lib/invoke-error";
-import { getGitHubRepoForProject, getProject, setProjectFavorite, deleteProject as deleteProjectTauri } from "~/services/tauri/projects";
+import { getGitHubRepoForProject, getProject, setProjectFavorite, deleteProject as deleteProjectTauri, refreshProject } from "~/services/tauri/projects";
 import { openProjectShell } from "~/services/tauri/terminal";
 import { startGitWatcher, stopGitWatcher } from "~/services/tauri/git";
 import { syncProjectTasksInCache } from "~/lib/sync-project-tasks-cache";
@@ -116,6 +116,8 @@ export function createProjectDetailModel(props: ProjectDetailViewProps) {
       let unlisten: (() => void) | undefined;
       void listen<{ projectId: string }>("git:changed", (ev) => {
         if (ev.payload.projectId === props.projectId) {
+          void refreshProject(props.projectId);
+          void qc.invalidateQueries({ queryKey: queryKeys.githubRepo(props.projectId) });
           void qc.invalidateQueries({ queryKey: queryKeys.gitStatus(props.projectId) });
           void qc.invalidateQueries({ queryKey: queryKeys.gitIncoming(props.projectId) });
           void qc.invalidateQueries({ queryKey: ["git", "preview-versions", props.projectId] });

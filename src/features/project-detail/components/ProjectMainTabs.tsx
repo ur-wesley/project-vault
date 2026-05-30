@@ -166,7 +166,7 @@ export const ProjectMainTabs: Component<ProjectMainTabsProps> = (props) => {
               m().activeDetailTab() !== "terminal" && "hidden",
             )}
           >
-            <div class="min-h-0 flex-1">
+            <div class="min-h-0 flex-1 flex flex-col">
               <EmbeddedTerminalPane
                 projectId={props.project().id}
                 active={m().activeDetailTab() === "terminal"}

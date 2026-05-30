@@ -119,6 +119,7 @@ fn is_git_meta_path(path: &Path, git_dir: &Path) -> bool {
             || dominated == "index"
             || dominated == "COMMIT_EDITMSG"
             || dominated == "packed-refs"
+            || dominated == "config"
             || dominated.starts_with("refs/")
             || dominated.starts_with("FETCH_")
             || dominated.starts_with("pull")

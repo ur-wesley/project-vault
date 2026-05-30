@@ -8,6 +8,7 @@ pub mod locations;
 pub mod project_wizard;
 pub mod projects;
 pub mod scan;
+pub mod screenshot;
 pub mod search;
 pub mod sessions;
 pub mod settings;

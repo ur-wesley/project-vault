@@ -5,6 +5,24 @@
   "windows": ["main"],
   "permissions": [
     "core:default",
+    "core:webview:allow-create-webview-window",
+    "core:window:allow-set-size",
+    "core:window:allow-set-position",
+    "core:window:allow-set-decorations",
+    "core:window:allow-set-fullscreen",
+    "core:window:allow-set-always-on-top",
+    "core:window:allow-set-focus",
+    "core:window:allow-set-ignore-cursor-events",
+    "core:window:allow-center",
+    "core:window:allow-show",
+    "core:window:allow-hide",
+    "core:window:allow-destroy",
+    "core:window:allow-inner-size",
+    "core:window:allow-outer-position",
+    "core:event:default",
+    "core:event:allow-emit",
+    "core:event:allow-emit-to",
+    "core:event:allow-listen",
     "opener:default",
     {
       "identifier": "opener:allow-open-path",
@@ -40,6 +58,12 @@
     "core:window:allow-set-title",
     "clipboard:default",
     "clipboard:allow-read-text",
-    "window-state:default"
+    "clipboard:allow-write-image-binary",
+    "clipboard:allow-read-image-binary",
+    "clipboard:allow-write-image-base64",
+    "window-state:default",
+    "global-shortcut:allow-register",
+    "global-shortcut:allow-unregister",
+    "global-shortcut:allow-is-registered"
   ]
 }
