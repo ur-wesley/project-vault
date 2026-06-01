@@ -102,6 +102,11 @@ pub fn run() {
         .manage(crate::spawn::TaskMonitors::default())
         .manage(crate::tunnel::TunnelState::default())
         .setup(|app| {
+            let p_dir = crate::commands::plugins::plugins_dir(app.handle());
+            if !p_dir.is_dir() {
+                let _ = std::fs::create_dir_all(&p_dir);
+            }
+
             use tauri_plugin_cli::CliExt;
             if let Ok(matches) = app.cli().matches() {
                 let db_instances = app.state::<tauri_plugin_sql::DbInstances>();
@@ -293,6 +298,10 @@ pub fn run() {
             tunnel::commands::disable_tunnel,
             tunnel::commands::get_tunnel_status,
             lua::ui::resolve_plugin_ui,
+            commands::plugins::list_plugin_commands,
+            commands::plugins::execute_plugin_command,
+            commands::plugins::list_plugins,
+            commands::plugins::toggle_plugin,
         ])
         .manage(lua::ui::UiBridge::default())
         .run(tauri::generate_context!())

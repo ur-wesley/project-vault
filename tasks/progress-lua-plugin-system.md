@@ -20,7 +20,7 @@
 - [x] Implement `vault.ui` async bridge in Rust (`show_input_box`, `show_quick_pick`)
 - [x] Create `resolve_plugin_ui` Tauri command
 - [x] Create `PluginUiBridge.tsx` SolidJS component
-- [ ] Mount `PluginUiBridge` in `App.tsx`
+- [x] Mount `PluginUiBridge` in `App.tsx`
 - [ ] Implement `execute_plugin_command` in Rust
 - [ ] Implement `list_plugins` and `toggle_plugin` for management
 - [ ] Integrate plugin commands into `CommandPalette.tsx`

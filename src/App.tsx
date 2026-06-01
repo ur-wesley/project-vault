@@ -516,6 +516,7 @@ function App() {
         setSubDetail(null);
         setProjectDetailId(p.id);
       }}
+      activeProjectId={projectDetailId()}
     >
       <PluginUiBridge />
       <SidebarProvider>

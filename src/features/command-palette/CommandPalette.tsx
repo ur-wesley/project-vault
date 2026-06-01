@@ -1,5 +1,6 @@
 import { createQuery, useQueryClient } from "@tanstack/solid-query";
 import { For, Show, createEffect, createMemo, createSignal, onCleanup, type ParentProps } from "solid-js";
+import { isTauri, invoke } from "@tauri-apps/api/core";
 
 import { StackIcon } from "~/components/StackIcon";
 import {
@@ -29,6 +30,7 @@ export type CommandPaletteProps = ParentProps<{
   onSelectProject?: (project: ProjectDto) => void;
   open?: boolean;
   onOpenChange?: (open: boolean) => void;
+  activeProjectId?: string | null;
 }>;
 
 export function CommandPalette(props: CommandPaletteProps) {
@@ -59,6 +61,33 @@ export function CommandPalette(props: CommandPaletteProps) {
       return r.value;
     },
   }));
+
+  const pluginCmdsQ = createQuery(() => ({
+    queryKey: ["plugin", "commands"] as const,
+    queryFn: async () => {
+      if (!isTauri()) return [];
+      try {
+        const list = await invoke<any[]>("list_plugin_commands");
+        return list;
+      } catch (e) {
+        console.error("Failed to load plugin commands", e);
+        return [];
+      }
+    },
+    enabled: open(),
+  }));
+
+  const executePluginCommand = async (pluginId: string, commandId: string) => {
+    setOpen(false);
+    try {
+      const context = {
+        projectId: props.activeProjectId ?? null,
+      };
+      await invoke("execute_plugin_command", { pluginId, commandId, context });
+    } catch (e) {
+      console.error("Failed to execute plugin command", e);
+    }
+  };
 
   const recent = createMemo(() => {
     const list = q.data ?? [];
@@ -157,6 +186,25 @@ export function CommandPalette(props: CommandPaletteProps) {
       });
     }
 
+    // Plugin Commands
+    for (const cmd of pluginCmdsQ.data ?? []) {
+      const isProjectScope = cmd.scope === "project";
+      if (isProjectScope && !props.activeProjectId) {
+        continue;
+      }
+      const score = fuzzyScore(s, cmd.title);
+      if (score > 0) {
+        items.push({
+          id: `plugin-cmd-${cmd.pluginId}-${cmd.id}`,
+          label: cmd.title,
+          detail: `Plugin: ${cmd.pluginId}`,
+          icon: "mdi--toy-brick-outline",
+          score,
+          onSelect: () => void executePluginCommand(cmd.pluginId, cmd.id),
+        });
+      }
+    }
+
     // Projects
     for (const p of allProjects()) {
       const score = Math.max(
@@ -253,6 +301,31 @@ export function CommandPalette(props: CommandPaletteProps) {
                   {t("commandPalette.settings") as string}
                 </CommandItem>
               </CommandGroup>
+              <Show when={(pluginCmdsQ.data ?? []).length > 0}>
+                <CommandSeparator />
+                <CommandGroup heading={t("commandPalette.pluginCommands") as string ?? "Plugin Commands"}>
+                  <For each={pluginCmdsQ.data ?? []}>
+                    {(cmd) => {
+                      const isProjectScope = cmd.scope === "project";
+                      if (isProjectScope && !props.activeProjectId) {
+                        return null;
+                      }
+                      return (
+                        <CommandItem
+                          value={`plugin-cmd-${cmd.pluginId}-${cmd.id}`}
+                          onSelect={() => void executePluginCommand(cmd.pluginId, cmd.id)}
+                        >
+                          <span class="flex min-w-0 flex-1 items-center gap-2">
+                            <span class="iconify shrink-0 size-4 mdi--toy-brick-outline" />
+                            <span class="min-w-0 truncate">{cmd.title}</span>
+                          </span>
+                          <CommandShortcut>{cmd.pluginId}</CommandShortcut>
+                        </CommandItem>
+                      );
+                    }}
+                  </For>
+                </CommandGroup>
+              </Show>
               <Show when={recent().length > 0}>
                 <CommandSeparator />
                 <CommandGroup heading={t("commandPalette.recent") as string}>
