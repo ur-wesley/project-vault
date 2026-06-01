@@ -37,7 +37,7 @@ import { listAllProcesses } from "~/services/tauri/sessions";
 import { checkForUpdates } from "~/services/tauri/updates";
 import { stopAllProjectProcesses } from "~/services/tauri/processes";
 import { queryKeys } from "~/services/query-keys";
-import { isTauri } from "@tauri-apps/api/core";
+import { isTauri, invoke } from "@tauri-apps/api/core";
 import { getCurrentWindow } from "@tauri-apps/api/window";
 import { listen } from "@tauri-apps/api/event";
 import { openUrl } from "@tauri-apps/plugin-opener";
@@ -220,6 +220,25 @@ function App() {
         globalTerminal.setOpen(!globalTerminal.open());
       } else if (payload.action === "screenshot:capture") {
         void screenshot.selectSource({ type: "region" }, (k, a) => t(k, a) as string);
+      } else if (payload.action.startsWith("plugin:")) {
+        const parts = payload.action.split(":");
+        if (parts.length >= 3) {
+          const pluginId = parts[1];
+          const commandId = parts.slice(2).join(":");
+          void (async () => {
+            try {
+              await invoke("execute_plugin_command", {
+                pluginId,
+                commandId,
+                context: {
+                  projectId: projectDetailId() ?? null,
+                },
+              });
+            } catch (e) {
+              console.error(`Failed to execute plugin command ${commandId} from hotkey:`, e);
+            }
+          })();
+        }
       }
     });
     onCleanup(() => listener());
@@ -375,12 +394,54 @@ function App() {
       });
     })();
 
+    let unlistenOpenProjectFile: (() => void) | undefined;
+    void (async () => {
+      if (!isTauri()) return;
+      unlistenOpenProjectFile = await listen<{ projectId: string; filePath: string; line: number }>(
+        "plugin:open-project-file",
+        (event) => {
+          const { projectId, filePath, line } = event.payload;
+          setActiveView("project");
+          setProjectDetailId(projectId);
+          if (filePath && filePath !== "") {
+            setDetailTab("files");
+            setSubDetail(`${filePath}::${line}`);
+          } else {
+            setDetailTab("readme");
+            setSubDetail(null);
+          }
+        }
+      );
+    })();
+
+    let unlistenNotification: (() => void) | undefined;
+    void (async () => {
+      if (!isTauri()) return;
+      unlistenNotification = await listen<{ level: string; message: string }>(
+        "plugin:notification",
+        (event) => {
+          const { level, message } = event.payload;
+          if (level === "success") {
+            toast.success(message);
+          } else if (level === "error") {
+            toast.error(message);
+          } else if (level === "warn") {
+            toast.warning(message);
+          } else {
+            toast.info(message);
+          }
+        }
+      );
+    })();
+
     onCleanup(() => {
       window.removeEventListener("popstate", onPopState);
       window.removeEventListener("keydown", preventDefaultShortcuts);
       window.removeEventListener("contextmenu", preventContextMenu);
       window.removeEventListener("mousedown", onMouseDown);
       unlistenClose?.();
+      unlistenOpenProjectFile?.();
+      unlistenNotification?.();
     });
   });
 
@@ -518,7 +579,7 @@ function App() {
       }}
       activeProjectId={projectDetailId()}
     >
-      <PluginUiBridge />
+      <PluginUiBridge projectId={projectDetailId()} />
       <SidebarProvider>
         <SidebarToggleListener />
         <StackIconSafelist />

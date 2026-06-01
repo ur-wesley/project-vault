@@ -209,9 +209,31 @@ function FileTreeFolderFromParent(props: {
   );
 }
 
-export function FileTree(props: { rootPath: string; projectId: string }) {
+export function FileTree(props: {
+  rootPath: string;
+  projectId: string;
+  subDetail?: string | null;
+  onSubDetailChange?: (sub: string | null) => void;
+}) {
   const { t } = useI18n();
   const [selectedPath, setSelectedPath] = createSignal<string | null>(null);
+
+  createEffect(() => {
+    const sub = props.subDetail;
+    if (sub) {
+      if (sub.includes("::")) {
+        const [filePath, lineStr] = sub.split("::");
+        const line = parseInt(lineStr || "0", 10);
+        setSelectedPath(filePath);
+        setPreviewPath(filePath);
+        setScrollToLine(Number.isFinite(line) ? line : 0);
+      } else {
+        setSelectedPath(sub);
+        setPreviewPath(sub);
+        setScrollToLine(0);
+      }
+    }
+  });
   const [scrollToLine, setScrollToLine] = createSignal(0);
   const [searchQuery, setSearchQuery] = createSignal("");
   const [activeQuery, setActiveQuery] = createSignal("");
@@ -331,17 +353,20 @@ export function FileTree(props: { rootPath: string; projectId: string }) {
   const onResultClick = (path: string, line: number) => {
     setPreviewPath(path);
     setScrollToLine(line);
+    props.onSubDetailChange?.(`${path}::${line}`);
   };
 
   const onBackToResults = () => {
     setPreviewPath(null);
     setScrollToLine(0);
+    props.onSubDetailChange?.(null);
   };
 
   const onFileTreeClick = (path: string) => {
     setSelectedPath(path);
     setPreviewPath(path);
     setScrollToLine(0);
+    props.onSubDetailChange?.(path);
   };
 
   return (

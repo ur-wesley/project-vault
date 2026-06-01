@@ -491,8 +491,12 @@ pub async fn create_project_from_template(
                 StableError::new(codes::INTERNAL, format!("create project directory: {}", e))
             })?;
 
-            lua.globals().set("project_name", display.to_string()).map_err(mlua::Error::external)?;
-            lua.globals().set("project_root", root.to_string_lossy().to_string()).map_err(mlua::Error::external)?;
+            lua.globals().set("project_name", display.to_string()).map_err(|e| {
+                StableError::new(codes::INTERNAL, format!("lua globals: {e}"))
+            })?;
+            lua.globals().set("project_root", root.to_string_lossy().to_string()).map_err(|e| {
+                StableError::new(codes::INTERNAL, format!("lua globals: {e}"))
+            })?;
 
             // Execute the script
             lua.load(script_content).exec().map_err(|e| {

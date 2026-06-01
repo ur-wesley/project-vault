@@ -24,8 +24,16 @@ mod tools;
 
 
 
-use tauri::Manager;
+use tauri::{Manager, Emitter};
 use tauri_plugin_sql::{Builder as SqlPluginBuilder, Migration, MigrationKind};
+
+const BUNDLED_PLUGINS: &[(&str, &str)] = &[
+    ("search-all-projects", include_str!("../bundled_plugins/search-all-projects/init.luau")),
+    ("fzf-project-files", include_str!("../bundled_plugins/fzf-project-files/init.luau")),
+    ("catppuccin-theme", include_str!("../bundled_plugins/catppuccin-theme/init.luau")),
+    ("harpoon", include_str!("../bundled_plugins/harpoon/init.luau")),
+    ("mise", include_str!("../bundled_plugins/mise/init.luau")),
+];
 
 #[cfg_attr(mobile, tauri::mobile_entry_point)]
 pub fn run() {
@@ -106,6 +114,81 @@ pub fn run() {
             if !p_dir.is_dir() {
                 let _ = std::fs::create_dir_all(&p_dir);
             }
+
+            // Write bundled plugins
+            for (plugin_name, content) in BUNDLED_PLUGINS {
+                let plugin_dir = p_dir.join(plugin_name);
+                if !plugin_dir.is_dir() {
+                    let _ = std::fs::create_dir_all(&plugin_dir);
+                }
+                // Clean up old .lua file if it exists to avoid stale duplicates
+                let old_init_path = plugin_dir.join("init.lua");
+                if old_init_path.is_file() {
+                    let _ = std::fs::remove_file(old_init_path);
+                }
+                let init_path = plugin_dir.join("init.luau");
+                let _ = std::fs::write(init_path, content);
+            }
+
+            // Write type-definitions file to the plugins root for IDE autocomplete and compiler resolution
+            let old_d_lua_path = p_dir.join("vault.d.lua");
+            if old_d_lua_path.is_file() {
+                let _ = std::fs::remove_file(old_d_lua_path);
+            }
+            let old_d_luau_path = p_dir.join("vault.d.luau");
+            if old_d_luau_path.is_file() {
+                let _ = std::fs::remove_file(old_d_luau_path);
+            }
+            let vault_luau_path = p_dir.join("vault.luau");
+            let _ = std::fs::write(vault_luau_path, include_str!("../bundled_plugins/vault.luau"));
+
+            // Spawn plugins file watcher for hot-reloading
+            let handle_for_watcher = app.handle().clone();
+            let p_dir_for_watcher = p_dir.clone();
+            tauri::async_runtime::spawn(async move {
+                use notify::{Watcher, RecursiveMode, EventKind};
+                let (tx, mut rx) = tokio::sync::mpsc::channel(100);
+                
+                let mut watcher = match notify::recommended_watcher(move |res| {
+                    if let Ok(event) = res {
+                        let _ = tx.blocking_send(event);
+                    }
+                }) {
+                    Ok(w) => w,
+                    Err(e) => {
+                        eprintln!("[watcher] Failed to create plugin watcher: {:?}", e);
+                        return;
+                    }
+                };
+
+                if let Err(e) = watcher.watch(&p_dir_for_watcher, RecursiveMode::Recursive) {
+                    eprintln!("[watcher] Failed to watch plugin dir: {:?}", e);
+                    return;
+                }
+
+                // Keep the watcher alive in this thread/task
+                let _watcher_holder = watcher;
+
+                // Debounce map/state to avoid double reloading
+                let mut last_reload = std::time::Instant::now();
+                while let Some(event) = rx.recv().await {
+                    let is_luau = event.paths.iter().any(|p| {
+                        p.extension().and_then(|ext| ext.to_str()) == Some("luau")
+                    });
+                    if is_luau {
+                        match event.kind {
+                            EventKind::Create(_) | EventKind::Modify(_) | EventKind::Remove(_) => {
+                                if last_reload.elapsed() > std::time::Duration::from_millis(500) {
+                                    println!("[watcher] Plugin changes detected. Requesting frontend reload.");
+                                    let _ = handle_for_watcher.emit("plugin:reload", ());
+                                    last_reload = std::time::Instant::now();
+                                }
+                            }
+                            _ => {}
+                        }
+                    }
+                }
+            });
 
             use tauri_plugin_cli::CliExt;
             if let Ok(matches) = app.cli().matches() {

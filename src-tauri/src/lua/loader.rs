@@ -1,4 +1,4 @@
-use std::path::{Path, PathBuf};
+use std::path::PathBuf;
 use serde::{Deserialize, Serialize};
 use crate::lua::engine::LuaEngine;
 use mlua::LuaSerdeExt;
@@ -11,6 +11,8 @@ pub struct PluginCommandMetadata {
     pub scope: String, // "global" or "project"
     #[serde(default)]
     pub plugin_id: String,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub locales: Option<serde_json::Value>,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
@@ -20,8 +22,17 @@ pub struct PluginInfo {
     pub name: String,
     pub description: Option<String>,
     pub version: Option<String>,
+    pub category: Option<String>,
     pub enabled: bool,
     pub commands: Vec<PluginCommandMetadata>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub locales: Option<serde_json::Value>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub options: Option<serde_json::Value>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub active_option: Option<String>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub config: Option<serde_json::Value>,
 }
 
 pub struct PluginManager {
@@ -59,7 +70,7 @@ impl PluginManager {
                 continue;
             }
 
-            let init_path = path.join("init.lua");
+            let init_path = path.join("init.luau");
             if !init_path.is_file() {
                 continue;
             }
@@ -67,11 +78,16 @@ impl PluginManager {
             if let Ok(lua) = LuaEngine::create_instance() {
                 if let Ok(content) = std::fs::read_to_string(&init_path) {
                     if let Ok(mlua::Value::Table(table)) = lua.load(&content).eval() {
-                        if let Ok(mut cmds) = table.get::<_, Vec<PluginCommandMetadata>>("commands") {
-                            for cmd in &mut cmds {
-                                cmd.plugin_id = plugin_id.clone();
+                        let locales = table.get::<mlua::Value>("locales").ok()
+                            .and_then(|v| lua.from_value::<serde_json::Value>(v).ok());
+                        if let Ok(cmds_val) = table.get::<mlua::Value>("commands") {
+                            if let Ok(mut cmds) = lua.from_value::<Vec<PluginCommandMetadata>>(cmds_val) {
+                                for cmd in &mut cmds {
+                                    cmd.plugin_id = plugin_id.clone();
+                                    cmd.locales = locales.clone();
+                                }
+                                commands.extend(cmds);
                             }
-                            commands.extend(cmds);
                         }
                     }
                 }
@@ -103,7 +119,7 @@ impl PluginManager {
                 None => continue,
             };
 
-            let init_path = path.join("init.lua");
+            let init_path = path.join("init.luau");
             if !init_path.is_file() {
                 continue;
             }
@@ -111,13 +127,26 @@ impl PluginManager {
             if let Ok(lua) = LuaEngine::create_instance() {
                 if let Ok(content) = std::fs::read_to_string(&init_path) {
                     if let Ok(mlua::Value::Table(table)) = lua.load(&content).eval() {
-                        let name = table.get::<_, String>("name").unwrap_or_else(|_| plugin_id.clone());
-                        let description = table.get::<_, String>("description").ok();
-                        let version = table.get::<_, String>("version").ok();
+                        let name = table.get::<String>("name").unwrap_or_else(|_| plugin_id.clone());
+                        let description = table.get::<String>("description").ok();
+                        let version = table.get::<String>("version").ok();
+                        let category = table.get::<String>("category").ok();
+                        let locales = table.get::<mlua::Value>("locales").ok()
+                            .and_then(|v| lua.from_value::<serde_json::Value>(v).ok());
+                        let options = table.get::<mlua::Value>("options").ok()
+                            .and_then(|v| lua.from_value::<serde_json::Value>(v).ok());
+                        let config = table.get::<mlua::Value>("config").ok()
+                            .and_then(|v| lua.from_value::<serde_json::Value>(v).ok());
                         
-                        let mut commands = table.get::<_, Vec<PluginCommandMetadata>>("commands").unwrap_or_default();
-                        for cmd in &mut commands {
-                            cmd.plugin_id = plugin_id.clone();
+                        let mut commands = Vec::new();
+                        if let Ok(cmds_val) = table.get::<mlua::Value>("commands") {
+                            if let Ok(mut cmds) = lua.from_value::<Vec<PluginCommandMetadata>>(cmds_val) {
+                                for cmd in &mut cmds {
+                                    cmd.plugin_id = plugin_id.clone();
+                                    cmd.locales = locales.clone();
+                                }
+                                commands = cmds;
+                            }
                         }
 
                         let enabled = !disabled_ids.contains(&plugin_id);
@@ -126,8 +155,13 @@ impl PluginManager {
                             name,
                             description,
                             version,
+                            category,
                             enabled,
                             commands,
+                            locales,
+                            options,
+                            active_option: None,
+                            config,
                         });
                     }
                 }
@@ -137,7 +171,7 @@ impl PluginManager {
         plugins
     }
 
-    pub fn execute_plugin_command(
+    pub async fn execute_plugin_command(
         &self,
         app: tauri::AppHandle,
         bridge: crate::lua::ui::UiBridge,
@@ -145,48 +179,93 @@ impl PluginManager {
         command_id: &str,
         context: serde_json::Value,
     ) -> Result<(), crate::error::StableError> {
-        let init_path = self.plugins_dir.join(plugin_id).join("init.lua");
+        let init_path = self.plugins_dir.join(plugin_id).join("init.luau");
         if !init_path.is_file() {
             return Err(crate::error::StableError::new(
                 crate::error::codes::NOT_FOUND,
-                format!("plugin '{}' or its init.lua not found", plugin_id),
+                format!("plugin '{}' or its init.luau not found", plugin_id),
             ));
         }
 
-        let content = std::fs::read_to_string(&init_path).map_err(|e| {
-            crate::error::StableError::new(crate::error::codes::INTERNAL, format!("read init.lua: {}", e))
-        })?;
+        let (tx, rx) = tokio::sync::oneshot::channel();
+        
+        let app_c = app.clone();
+        let bridge_c = bridge.clone();
+        let plugin_id_c = plugin_id.to_string();
+        let command_id_c = command_id.to_string();
+        let context_c = context.clone();
+        let init_path_c = init_path.clone();
 
-        let lua = LuaEngine::create_instance_with_context(Some(app), Some(bridge)).map_err(|e| {
-            crate::error::StableError::new(crate::error::codes::INTERNAL, format!("lua engine setup: {}", e))
-        })?;
-
-        let plugin_val: mlua::Value = lua.load(&content).eval().map_err(|e| {
-            crate::error::StableError::new(crate::error::codes::INTERNAL, format!("lua init error: {}", e))
-        })?;
-
-        if let mlua::Value::Table(plugin_table) = plugin_val {
-            if let Ok(execute_fn) = plugin_table.get::<_, mlua::Function>("execute") {
-                let context_lua = lua.to_value(&context).map_err(|e| {
-                    crate::error::StableError::new(crate::error::codes::INTERNAL, format!("serialize context: {}", e))
+        std::thread::spawn(move || {
+            let res = (|| {
+                let content = std::fs::read_to_string(&init_path_c).map_err(|e| {
+                    crate::error::StableError::new(crate::error::codes::INTERNAL, format!("read init.luau: {}", e))
                 })?;
-                
-                let _: () = execute_fn.call((command_id, context_lua)).map_err(|e| {
-                    crate::error::StableError::new(crate::error::codes::INTERNAL, format!("lua execution error: {}", e))
+
+                let lua = LuaEngine::create_instance_with_context(Some(app_c), Some(bridge_c), Some(plugin_id_c.clone())).map_err(|e| {
+                    crate::error::StableError::new(crate::error::codes::INTERNAL, format!("lua engine setup: {}", e))
                 })?;
-                
-                Ok(())
-            } else {
-                Err(crate::error::StableError::new(
-                    crate::error::codes::NOT_FOUND,
-                    format!("plugin '{}' does not define an 'execute' function", plugin_id),
-                ))
-            }
-        } else {
-            Err(crate::error::StableError::new(
-                crate::error::codes::INVALID_PATH,
-                format!("plugin '{}' init.lua must return a table", plugin_id),
-            ))
+
+                let plugin_val: mlua::Value = lua.load(&content).eval().map_err(|e| {
+                    crate::error::StableError::new(crate::error::codes::INTERNAL, format!("lua init error: {}", e))
+                })?;
+
+                if let mlua::Value::Table(plugin_table) = plugin_val {
+                    if let Ok(execute_fn) = plugin_table.get::<mlua::Function>("execute") {
+                        let context_lua = lua.to_value(&context_c).map_err(|e| {
+                            crate::error::StableError::new(crate::error::codes::INTERNAL, format!("serialize context: {}", e))
+                        })?;
+                        
+                        tauri::async_runtime::block_on(async move {
+                            execute_fn.call_async::<()>((command_id_c, context_lua)).await.map_err(|e| {
+                                crate::error::StableError::new(crate::error::codes::INTERNAL, format!("lua execution error: {}", e))
+                            })
+                        })?;
+                        
+                        Ok(())
+                    } else {
+                        Err(crate::error::StableError::new(
+                            crate::error::codes::NOT_FOUND,
+                            format!("plugin '{}' does not define an 'execute' function", plugin_id_c),
+                        ))
+                    }
+                } else {
+                    Err(crate::error::StableError::new(
+                        crate::error::codes::INVALID_PATH,
+                        format!("plugin '{}' init.luau must return a table", plugin_id_c),
+                    ))
+                }
+            })();
+            let _ = tx.send(res);
+        });
+
+        rx.await.map_err(|e| {
+            crate::error::StableError::new(crate::error::codes::INTERNAL, format!("oneshot channel error: {}", e))
+        })?
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use crate::lua::engine::LuaEngine;
+
+    #[test]
+    fn test_bundled_plugins_parse() {
+        for (name, content) in crate::BUNDLED_PLUGINS {
+            let lua = LuaEngine::create_instance().unwrap();
+            let res: mlua::Result<mlua::Value> = lua.load(*content).eval();
+            assert!(
+                res.is_ok(),
+                "Failed to parse bundled plugin '{}': {:?}",
+                name,
+                res.err()
+            );
+            let val = res.unwrap();
+            assert!(
+                matches!(val, mlua::Value::Table(_)),
+                "Bundled plugin '{}' must return a table",
+                name
+            );
         }
     }
 }

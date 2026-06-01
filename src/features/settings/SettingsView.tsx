@@ -18,6 +18,7 @@ import { ToolsSettingsTab } from "./components/ToolsSettingsTab";
 import { AccountsSettingsTab } from "./components/AccountsSettingsTab";
 import { ShortcutsSettingsTab } from "./components/ShortcutsSettingsTab";
 import { TemplatesSettingsTab } from "./components/TemplatesSettingsTab";
+import { PluginsSettingsTab } from "./components/PluginsSettingsTab";
 
 async function safeConfirm(message: string): Promise<boolean> {
   if (isTauri()) {
@@ -105,6 +106,9 @@ export const SettingsView: Component<SettingsViewProps> = (props) => {
               <TabsTrigger value="templates" class="flex-1 font-semibold text-xs uppercase tracking-wider">
                 {t("settings.tabTemplates") as string}
               </TabsTrigger>
+              <TabsTrigger value="plugins" class="flex-1 font-semibold text-xs uppercase tracking-wider">
+                {t("settings.tabPlugins") as string ?? "Plugins"}
+              </TabsTrigger>
               <TabsTrigger value="accounts" class="flex-1 font-semibold text-xs uppercase tracking-wider">
                 {t("settings.tabAccounts") as string}
               </TabsTrigger>
@@ -165,6 +169,10 @@ export const SettingsView: Component<SettingsViewProps> = (props) => {
 
               <TabsContent value="templates" class="outline-none animate-in fade-in duration-300">
                 <TemplatesSettingsTab t={tAny} />
+              </TabsContent>
+
+              <TabsContent value="plugins" class="outline-none animate-in fade-in duration-300">
+                <PluginsSettingsTab t={tAny} />
               </TabsContent>
 
               <AccountsSettingsTab

@@ -34,7 +34,7 @@ export type CommandPaletteProps = ParentProps<{
 }>;
 
 export function CommandPalette(props: CommandPaletteProps) {
-  const { t } = useI18n();
+  const { t, locale } = useI18n();
   const hub = useEventHub();
   const qc = useQueryClient();
   const [internalOpen, setInternalOpen] = createSignal(false);
@@ -87,6 +87,12 @@ export function CommandPalette(props: CommandPaletteProps) {
     } catch (e) {
       console.error("Failed to execute plugin command", e);
     }
+  };
+
+  const getCommandTitle = (cmd: any) => {
+    const activeLocale = locale();
+    const localMap = cmd.locales?.[activeLocale] || cmd.locales?.["en"];
+    return localMap?.[`command.${cmd.id}`] || cmd.title;
   };
 
   const recent = createMemo(() => {
@@ -192,11 +198,12 @@ export function CommandPalette(props: CommandPaletteProps) {
       if (isProjectScope && !props.activeProjectId) {
         continue;
       }
-      const score = fuzzyScore(s, cmd.title);
+      const title = getCommandTitle(cmd);
+      const score = fuzzyScore(s, title);
       if (score > 0) {
         items.push({
           id: `plugin-cmd-${cmd.pluginId}-${cmd.id}`,
-          label: cmd.title,
+          label: title,
           detail: `Plugin: ${cmd.pluginId}`,
           icon: "mdi--toy-brick-outline",
           score,
@@ -310,6 +317,7 @@ export function CommandPalette(props: CommandPaletteProps) {
                       if (isProjectScope && !props.activeProjectId) {
                         return null;
                       }
+                      const title = getCommandTitle(cmd);
                       return (
                         <CommandItem
                           value={`plugin-cmd-${cmd.pluginId}-${cmd.id}`}
@@ -317,7 +325,7 @@ export function CommandPalette(props: CommandPaletteProps) {
                         >
                           <span class="flex min-w-0 flex-1 items-center gap-2">
                             <span class="iconify shrink-0 size-4 mdi--toy-brick-outline" />
-                            <span class="min-w-0 truncate">{cmd.title}</span>
+                            <span class="min-w-0 truncate">{title}</span>
                           </span>
                           <CommandShortcut>{cmd.pluginId}</CommandShortcut>
                         </CommandItem>

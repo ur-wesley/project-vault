@@ -26,13 +26,13 @@
 - [x] Integrate plugin commands into `CommandPalette.tsx`
 
 ## Phase 4: Settings, Theming & Dev Mode
-- [ ] Implement `vault.settings` API
-- [ ] Implement `vault.theme` API and CSS variable injection
-- [ ] Build "Plugins" tab in Settings UI
-- [ ] Implement hot-reloading (file watcher) for plugins
-- [ ] Create Plugin Debugger / Log Overlay
+- [x] Implement `vault.settings` API
+- [x] Implement `vault.theme` API and CSS variable injection
+- [x] Build "Plugins" tab in Settings UI
+- [x] Implement hot-reloading (file watcher) for plugins
+- [x] Create Plugin Debugger / Log Overlay
 
 ## Phase 5: Documentation & Examples
-- [ ] Write `docs/plugins.md`
+- [x] Write `docs/plugins.md`
 - [ ] Create LSP stubs for `vault.*` API
-- [ ] Create reference plugins (Search, Advanced Detector)
+- [x] Create reference plugins (Search, Advanced Detector)
