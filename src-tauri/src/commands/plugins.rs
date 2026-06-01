@@ -1,6 +1,6 @@
 use std::collections::HashSet;
 use std::path::PathBuf;
-use tauri::{AppHandle, Manager, State};
+use tauri::{AppHandle, Manager, State, Emitter};
 use tauri_plugin_sql::DbInstances;
 
 use crate::db;
@@ -45,14 +45,22 @@ pub async fn list_plugin_commands(
 #[tauri::command]
 pub async fn execute_plugin_command(
     app: AppHandle,
+    db: State<'_, DbInstances>,
     bridge: State<'_, UiBridge>,
     plugin_id: String,
     command_id: String,
     context: serde_json::Value,
 ) -> Result<(), StableError> {
+    let disabled = get_disabled_plugins(&*db).await?;
+    if disabled.contains(&plugin_id) {
+        return Err(StableError::new(
+            crate::error::codes::INTERNAL,
+            format!("Cannot execute command for deactivated plugin '{}'", plugin_id),
+        ));
+    }
     let p_dir = plugins_dir(&app);
     let manager = PluginManager::new(p_dir);
-    manager.execute_plugin_command(app, (*bridge).clone(), &plugin_id, &command_id, context)
+    manager.execute_plugin_command(app, (*bridge).clone(), &plugin_id, &command_id, context).await
 }
 
 #[tauri::command]
@@ -63,7 +71,17 @@ pub async fn list_plugins(
     let p_dir = plugins_dir(&app);
     let manager = PluginManager::new(p_dir);
     let disabled = get_disabled_plugins(&*db).await?;
-    Ok(manager.list_plugins(&disabled))
+    let mut list = manager.list_plugins(&disabled);
+
+    let pool = db::sqlite_pool(&*db).await?;
+    for p in &mut list {
+        let scoped_key = format!("plugin:{}:active_flavor", p.id);
+        if let Ok(Some(val)) = db::get_setting(&pool, &scoped_key).await {
+            p.active_option = Some(val);
+        }
+    }
+
+    Ok(list)
 }
 
 #[tauri::command]
@@ -77,7 +95,14 @@ pub async fn toggle_plugin(
     if enabled {
         disabled.remove(&plugin_id);
     } else {
-        disabled.insert(plugin_id);
+        disabled.insert(plugin_id.clone());
     }
-    save_disabled_plugins(&*db, &disabled).await
+    save_disabled_plugins(&*db, &disabled).await?;
+
+    let _ = app.emit("plugin:status-changed", serde_json::json!({
+        "pluginId": plugin_id,
+        "enabled": enabled
+    }));
+
+    Ok(())
 }
