@@ -410,9 +410,12 @@ const AnnotationEditor: Component<AnnotationEditorProps> = (props) => {
       redo();
     } else if (e.key === "Escape") {
       props.onClose();
-    } else if (e.ctrlKey && e.key === "s") {
+    } else if (e.ctrlKey && e.key.toLowerCase() === "s") {
       e.preventDefault();
       handleSave();
+    } else if (e.ctrlKey && e.key.toLowerCase() === "c") {
+      e.preventDefault();
+      handleCopy();
     }
   };
 

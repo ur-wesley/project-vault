@@ -117,9 +117,10 @@ function openOverlayWindow(
         const data = screenshotService.base64ToUint8Array(event.payload.base64);
         try {
           await screenshotService.copyPngToClipboard(data);
-          toast.success("Copied to clipboard");
+          toast.success(strings["screenshot.copied"] ?? "Copied to clipboard");
         } catch (e) {
-          toast.error(`Failed to copy: ${String(e)}`);
+          const errMsg = strings["screenshot.copyFailed"] ?? "Failed to copy: {message}";
+          toast.error(errMsg.replace("{message}", String(e)));
         }
         settle(null);
       },
@@ -210,6 +211,8 @@ export function useScreenshot() {
         "screenshot.toolRectangle",
         "screenshot.toolDraw",
         "screenshot.toolHighlight",
+        "screenshot.copied",
+        "screenshot.copyFailed",
       ]) {
         strings[key] = t(key);
       }

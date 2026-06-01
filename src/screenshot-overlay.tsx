@@ -466,6 +466,16 @@ function ScreenshotOverlay() {
       return;
     }
     if (e.ctrlKey && e.key === "z" && !e.shiftKey && mode() === "annotate") { e.preventDefault(); undoAnnot(); }
+    if (e.ctrlKey && e.key.toLowerCase() === "s") {
+      e.preventDefault();
+      void handleSave();
+      return;
+    }
+    if (e.ctrlKey && e.key.toLowerCase() === "c") {
+      e.preventDefault();
+      void handleCopy();
+      return;
+    }
   }
 
   // --- Cursor ---
