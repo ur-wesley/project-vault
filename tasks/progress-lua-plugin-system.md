@@ -21,9 +21,9 @@
 - [x] Create `resolve_plugin_ui` Tauri command
 - [x] Create `PluginUiBridge.tsx` SolidJS component
 - [x] Mount `PluginUiBridge` in `App.tsx`
-- [ ] Implement `execute_plugin_command` in Rust
-- [ ] Implement `list_plugins` and `toggle_plugin` for management
-- [ ] Integrate plugin commands into `CommandPalette.tsx`
+- [x] Implement `execute_plugin_command` in Rust
+- [x] Implement `list_plugins` and `toggle_plugin` for management
+- [x] Integrate plugin commands into `CommandPalette.tsx`
 
 ## Phase 4: Settings, Theming & Dev Mode
 - [ ] Implement `vault.settings` API
