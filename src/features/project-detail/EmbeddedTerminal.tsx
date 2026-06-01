@@ -228,6 +228,11 @@ export function EmbeddedTerminalPane(props: {
                 spawnFn={(shell) => embeddedTerminalSpawn(props.projectId, shell)}
                 onSessionId={(id, sid) => props.onUpdateSessionId(id, sid)}
                 onError={(err) => toast.error(err)}
+                onProcessExit={(id, hasContent) => {
+                  if (!hasContent) {
+                    void props.onCloseTerminal(id);
+                  }
+                }}
               />
             )}
           </For>

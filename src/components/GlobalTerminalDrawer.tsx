@@ -271,6 +271,11 @@ export function GlobalTerminalDrawer() {
                   onError={(err) => {
                     if (err) toast.error(err);
                   }}
+                  onProcessExit={(id, hasContent) => {
+                    if (!hasContent) {
+                      void closeInstance(id);
+                    }
+                  }}
                 />
               )}
             </For>
