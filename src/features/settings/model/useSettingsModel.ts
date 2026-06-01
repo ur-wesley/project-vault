@@ -86,6 +86,11 @@ export function useSettingsModel(props: UseSettingsModelProps) {
       if (loc.isErr()) throw new Error(loc.error.message);
       if (ai.isErr()) throw new Error(ai.error.message);
       if (au.isErr()) throw new Error(au.error.message);
+      if (pe.isErr()) throw new Error(pe.error.message);
+      if (pp.isErr()) throw new Error(pp.error.message);
+      if (pt.isErr()) throw new Error(pt.error.message);
+      if (gtc.isErr()) throw new Error(gtc.error.message);
+      if (ssd.isErr()) throw new Error(ssd.error.message);
 
       const tunnelR = await checkTunnelAvailable();
       setPortlessAvailable(tunnelR.isOk() ? tunnelR.value : false);

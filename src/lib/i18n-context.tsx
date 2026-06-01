@@ -29,14 +29,14 @@ export const I18nProvider: ParentComponent = (props) => {
     return i18n.flatten(messages[loc] || messages.en);
   });
 
-  const t = i18n.translator(dict, (str, args) => {
+  const t = i18n.translator(dict, ((str: any, args: any) => {
     if (typeof str !== "string") return str;
     if (!args) return str;
     return str.replace(/{([\w.]+)}/g, (match, key) => {
       const val = args[key];
       return val !== undefined ? String(val) : match;
     });
-  });
+  }) as any);
   
   const setLocale = (l: Locale) => mutate(l);
 

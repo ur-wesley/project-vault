@@ -70,8 +70,8 @@ export const GeneralSettingsTab: Component<GeneralSettingsTabProps> = (props) =>
         return;
       }
       const data = r.value;
-      const rawLines = data.raw.map(d => `  [RAW] ${d.name} | stack=${d.stack} | tags=[${d.tags.join(", ")}] | path=${d.root}`);
-      const filteredLines = data.filtered.map(d => `  [OUT] ${d.name} | stack=${d.stack} | tags=[${d.tags.join(", ")}] | path=${d.root}`);
+      const rawLines = data.raw.map((d: any) => `  [RAW] ${d.name} | stack=${d.stack} | tags=[${d.tags?.join(", ") ?? ""}] | path=${d.root}`);
+      const filteredLines = data.filtered.map((d: any) => `  [OUT] ${d.name} | stack=${d.stack} | tags=[${d.tags?.join(", ") ?? ""}] | path=${d.root}`);
       setDebugResult(
         `Raw drafts: ${data.raw.length}\n${rawLines.join("\n")}\n\n` +
         `Filtered: ${data.filtered.length} | monorepos=${data.monoreposExpanded} | warnings=${data.workspaceWarnings}\n` +

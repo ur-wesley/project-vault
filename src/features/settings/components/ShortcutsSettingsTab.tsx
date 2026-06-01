@@ -50,10 +50,18 @@ interface ShortcutsSettingsTabProps {
 export const ShortcutsSettingsTab: Component<ShortcutsSettingsTabProps> = (props) => {
   const shortcuts = useShortcuts();
   const keysHeld = useKeyDownList();
+  let recordingRef: HTMLDivElement | undefined;
   const [editing, setEditing] = createSignal<ShortcutAction | null>(null);
   const [recordingKeys, setRecordingKeys] = createSignal<string[]>([]);
   const [peakKeys, setPeakKeys] = createSignal<string[]>([]);
   const [busy, setBusy] = createSignal(false);
+
+  createEffect(() => {
+    if (editing()) {
+      setTimeout(() => recordingRef?.focus(), 0);
+    }
+  });
+
   const startRecording = (action: ShortcutAction) => {
     shortcuts.setRecording(true);
     setEditing(action);

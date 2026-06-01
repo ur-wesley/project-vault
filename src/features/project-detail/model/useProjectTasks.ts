@@ -6,6 +6,7 @@ import { queryKeys } from "~/services/query-keys";
 import { stableErrorMessage } from "~/lib/invoke-error";
 import { argvNeedsUserConfirmation } from "~/lib/task-risk";
 import type { ProjectDto, ConcurrentTask } from "~/types/dto";
+import type { StableError } from "~/types/error";
 
 export type UseProjectTasksProps = Readonly<{
   projectId: Accessor<string>;

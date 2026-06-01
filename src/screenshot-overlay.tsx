@@ -152,7 +152,9 @@ function ScreenshotOverlay() {
     }
 
     if (dragMode.type === "move") {
-      setSel((prev) => prev ? { ...prev, x: mx - dragMode.offsetX, y: my - dragMode.offsetY } : null);
+      const ox = dragMode.offsetX;
+      const oy = dragMode.offsetY;
+      setSel((prev) => prev ? { ...prev, x: mx - ox, y: my - oy } : null);
       return;
     }
 

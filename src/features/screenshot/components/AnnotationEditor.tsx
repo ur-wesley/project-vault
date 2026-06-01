@@ -440,7 +440,7 @@ const AnnotationEditor: Component<AnnotationEditorProps> = (props) => {
         redraw();
       }
     };
-    const blob = new Blob([props.imageData], { type: "image/png" });
+    const blob = new Blob([props.imageData as any], { type: "image/png" });
     img.src = URL.createObjectURL(blob);
   });
 
