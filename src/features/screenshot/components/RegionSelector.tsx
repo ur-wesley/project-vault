@@ -156,7 +156,7 @@ const RegionSelector: Component<RegionSelectorProps> = (props) => {
         drawOverlay();
       }
     };
-    const blob = new Blob([props.screenImageData], { type: "image/png" });
+    const blob = new Blob([props.screenImageData as any], { type: "image/png" });
     img.src = URL.createObjectURL(blob);
   });
 

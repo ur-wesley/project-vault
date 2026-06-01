@@ -1,11 +1,11 @@
-use std::path::Path;
+use std::path::{Path, PathBuf};
 use std::sync::Arc;
 
 use crate::discovery::detectors::{
     CMakeDetector, CargoTomlDetector, ComposerDetector, CsProjDetector, DenoDetector,
     GemfileDetector, GitDetector, GoModDetector, GoWorkDetector, GradleDetector, JustfileDetector,
     MavenDetector, MixExsDetector, PackageJsonDetector, PnpmWorkspaceDetector, PythonDetector,
-    SolutionDetector, SwiftPackageDetector, MiseDetector,
+    SolutionDetector, SwiftPackageDetector, MiseDetector, LuaProjectDetector,
 };
 use crate::discovery::draft::ProjectDraft;
 use crate::discovery::ProjectDetector;
@@ -15,7 +15,7 @@ pub struct DetectorRegistry {
 }
 
 impl DetectorRegistry {
-    pub fn standard() -> Self {
+    pub fn standard(detectors_dir: PathBuf) -> Self {
         let mut detectors: Vec<Arc<dyn ProjectDetector>> = vec![
             Arc::new(GitDetector),
             Arc::new(MiseDetector),
@@ -36,6 +36,7 @@ impl DetectorRegistry {
             Arc::new(CsProjDetector),
             Arc::new(PythonDetector),
             Arc::new(CMakeDetector),
+            Arc::new(LuaProjectDetector::new(detectors_dir)),
         ];
         detectors.sort_by(|a, b| b.priority().cmp(&a.priority()));
         Self { detectors }

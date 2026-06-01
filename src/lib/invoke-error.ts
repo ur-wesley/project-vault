@@ -1,6 +1,6 @@
 import type { StableError } from "~/types/error";
 
-export function stableErrorMessage(t: (key: string) => unknown, err: StableError): string {
+export function stableErrorMessage(t: any, err: StableError): string {
   const key = `errors.${err.code}`;
   const tr = t(key);
   const generic = typeof tr === "string" && tr !== key ? tr : null;

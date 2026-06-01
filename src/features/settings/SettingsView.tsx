@@ -18,6 +18,7 @@ import { ToolsSettingsTab } from "./components/ToolsSettingsTab";
 import { AccountsSettingsTab } from "./components/AccountsSettingsTab";
 import { ShortcutsSettingsTab } from "./components/ShortcutsSettingsTab";
 import { TemplatesSettingsTab } from "./components/TemplatesSettingsTab";
+import { PluginsSettingsTab } from "./components/PluginsSettingsTab";
 
 async function safeConfirm(message: string): Promise<boolean> {
   if (isTauri()) {
@@ -38,8 +39,9 @@ export type SettingsViewProps = Readonly<{
 
 export const SettingsView: Component<SettingsViewProps> = (props) => {
   const { t, locale } = useI18n();
+  const tAny = (k: any, a?: any) => t(k, a) as string;
   const model = useSettingsModel({
-    t: (k, a) => t(k, a) as string,
+    t: tAny,
     locale,
     onLocaleChange: props.onLocaleChange,
   });
@@ -48,7 +50,7 @@ export const SettingsView: Component<SettingsViewProps> = (props) => {
     if (!isTauri()) return;
     const r = await getAppDataDir();
     if (r.isErr()) {
-      window.alert(stableErrorMessage(t, r.error));
+      window.alert(stableErrorMessage(tAny, r.error));
       return;
     }
     try {
@@ -104,6 +106,9 @@ export const SettingsView: Component<SettingsViewProps> = (props) => {
               <TabsTrigger value="templates" class="flex-1 font-semibold text-xs uppercase tracking-wider">
                 {t("settings.tabTemplates") as string}
               </TabsTrigger>
+              <TabsTrigger value="plugins" class="flex-1 font-semibold text-xs uppercase tracking-wider">
+                {t("settings.tabPlugins") as string ?? "Plugins"}
+              </TabsTrigger>
               <TabsTrigger value="accounts" class="flex-1 font-semibold text-xs uppercase tracking-wider">
                 {t("settings.tabAccounts") as string}
               </TabsTrigger>
@@ -111,7 +116,7 @@ export const SettingsView: Component<SettingsViewProps> = (props) => {
 
             <div class="flex-1 overflow-y-auto px-1 pr-2 scrollbar-none">
               <GeneralSettingsTab
-                t={(k, a) => t(k, a) as string}
+                t={tAny}
                 selectedLocale={model.selectedLocale()}
                 setSelectedLocale={model.setSelectedLocale}
                 scanMinutes={model.scanMinutes()}
@@ -145,7 +150,7 @@ export const SettingsView: Component<SettingsViewProps> = (props) => {
               </TabsContent>
 
               <ToolsSettingsTab
-                t={(k) => t(k) as string}
+                t={tAny}
                 busy={model.busy()}
                 idesQ={model.idesQ}
                 shellsQ={model.shellsQ}
@@ -159,15 +164,19 @@ export const SettingsView: Component<SettingsViewProps> = (props) => {
               />
 
               <TabsContent value="shortcuts" class="outline-none animate-in fade-in duration-300">
-                <ShortcutsSettingsTab t={(k) => t(k) as string} />
+                <ShortcutsSettingsTab t={tAny} />
               </TabsContent>
 
               <TabsContent value="templates" class="outline-none animate-in fade-in duration-300">
-                <TemplatesSettingsTab t={(k, a) => t(k, a) as string} />
+                <TemplatesSettingsTab t={tAny} />
+              </TabsContent>
+
+              <TabsContent value="plugins" class="outline-none animate-in fade-in duration-300">
+                <PluginsSettingsTab t={tAny} />
               </TabsContent>
 
               <AccountsSettingsTab
-                t={(k) => t(k) as string}
+                t={tAny}
                 busy={model.busy()}
                 ghViewerQ={model.ghViewerQ}
                 ghDeviceReadyQ={model.ghDeviceReadyQ}

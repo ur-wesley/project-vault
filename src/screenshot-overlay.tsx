@@ -152,7 +152,9 @@ function ScreenshotOverlay() {
     }
 
     if (dragMode.type === "move") {
-      setSel((prev) => prev ? { ...prev, x: mx - dragMode.offsetX, y: my - dragMode.offsetY } : null);
+      const ox = dragMode.offsetX;
+      const oy = dragMode.offsetY;
+      setSel((prev) => prev ? { ...prev, x: mx - ox, y: my - oy } : null);
       return;
     }
 
@@ -464,6 +466,16 @@ function ScreenshotOverlay() {
       return;
     }
     if (e.ctrlKey && e.key === "z" && !e.shiftKey && mode() === "annotate") { e.preventDefault(); undoAnnot(); }
+    if (e.ctrlKey && e.key.toLowerCase() === "s") {
+      e.preventDefault();
+      void handleSave();
+      return;
+    }
+    if (e.ctrlKey && e.key.toLowerCase() === "c") {
+      e.preventDefault();
+      void handleCopy();
+      return;
+    }
   }
 
   // --- Cursor ---

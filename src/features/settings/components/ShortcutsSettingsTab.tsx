@@ -1,5 +1,6 @@
-import { For, Show, createEffect, createSignal, on, type Component } from "solid-js";
+import { For, Show, createEffect, createSignal, createResource, on, type Component } from "solid-js";
 import { useKeyDownList } from "@solid-primitives/keyboard";
+import { invoke } from "@tauri-apps/api/core";
 import { Button } from "~/components/ui/button";
 import {
   type ShortcutAction,
@@ -9,6 +10,7 @@ import {
   formatShortcut,
 } from "~/lib/shortcut-registry";
 import { useShortcuts } from "~/lib/shortcut-context";
+import { useI18n } from "~/lib/i18n-context";
 
 function normalizeKey(key: string): string {
   const lower = key.toLowerCase();
@@ -47,13 +49,70 @@ interface ShortcutsSettingsTabProps {
   t: (key: string) => string;
 }
 
+interface PluginCommandMetadata {
+  id: string;
+  title: string;
+  scope: string;
+  pluginId: string;
+  locales?: any;
+}
+
 export const ShortcutsSettingsTab: Component<ShortcutsSettingsTabProps> = (props) => {
   const shortcuts = useShortcuts();
+  const { locale } = useI18n();
   const keysHeld = useKeyDownList();
+  let recordingRef: HTMLDivElement | undefined;
   const [editing, setEditing] = createSignal<ShortcutAction | null>(null);
   const [recordingKeys, setRecordingKeys] = createSignal<string[]>([]);
   const [peakKeys, setPeakKeys] = createSignal<string[]>([]);
   const [busy, setBusy] = createSignal(false);
+
+  const [pluginCommands] = createResource(async () => {
+    try {
+      return await invoke<PluginCommandMetadata[]>("list_plugin_commands");
+    } catch {
+      return [];
+    }
+  });
+
+  const getPluginCommandLabel = (cmd: PluginCommandMetadata) => {
+    const activeLocale = locale();
+    const localMap = cmd.locales?.[activeLocale] || cmd.locales?.["en"];
+    return localMap?.[`command.${cmd.id}`] || cmd.title;
+  };
+
+  const allActions = () => {
+    const list: { action: string; label: string; keys: string[] }[] = [];
+    
+    // Core actions first
+    for (const [action, labelKey] of Object.entries(SHORTCUT_ACTION_LABELS)) {
+      list.push({
+        action,
+        label: props.t(labelKey),
+        keys: shortcuts.bindings()[action] || [],
+      });
+    }
+    
+    // Plugin commands next
+    const cmds = pluginCommands() || [];
+    for (const cmd of cmds) {
+      const action = `plugin:${cmd.pluginId}:${cmd.id}`;
+      list.push({
+        action,
+        label: getPluginCommandLabel(cmd),
+        keys: shortcuts.bindings()[action] || [],
+      });
+    }
+    
+    return list;
+  };
+
+  createEffect(() => {
+    if (editing()) {
+      setTimeout(() => recordingRef?.focus(), 0);
+    }
+  });
+
   const startRecording = (action: ShortcutAction) => {
     shortcuts.setRecording(true);
     setEditing(action);
@@ -136,11 +195,11 @@ export const ShortcutsSettingsTab: Component<ShortcutsSettingsTabProps> = (props
       </div>
 
       <div class="rounded-md border">
-        <For each={Object.entries(shortcuts.bindings()) as [ShortcutAction, string[]][]}>
-          {([action, keys]) => (
+        <For each={allActions()}>
+          {({ action, label, keys }) => (
             <div class="flex items-center justify-between px-4 py-3 border-b last:border-b-0">
               <span class="text-sm">
-                {props.t(SHORTCUT_ACTION_LABELS[action] ?? action)}
+                {label}
               </span>
               <Show
                 when={editing() === action}

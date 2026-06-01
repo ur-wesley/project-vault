@@ -150,6 +150,8 @@ export const ProjectMainTabs: Component<ProjectMainTabsProps> = (props) => {
             <FileTree
               rootPath={props.project().path}
               projectId={props.project().id}
+              subDetail={m().props.subDetail()}
+              onSubDetailChange={m().props.onSubDetailChange}
             />
           </TabsContent>
           <TabsContent

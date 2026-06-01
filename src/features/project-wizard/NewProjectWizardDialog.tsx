@@ -150,7 +150,7 @@ export function NewProjectWizardDialog(props: {
       templateId: tid,
     });
     if (r.isErr()) {
-      toast.error(stableErrorMessage(t, r.error), { id: "wizard" });
+      toast.error(stableErrorMessage(t as any, r.error), { id: "wizard" });
       setBusy(false);
       return;
     }
@@ -169,7 +169,7 @@ export function NewProjectWizardDialog(props: {
 
       const runR = await runTemplateCommand({ command: cmd, cwd });
       if (runR.isErr()) {
-        toast.error(stableErrorMessage(t, runR.error), { id: "wizard" });
+        toast.error(stableErrorMessage(t as any, runR.error), { id: "wizard" });
         setBusy(false);
         return;
       }

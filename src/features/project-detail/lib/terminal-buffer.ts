@@ -25,3 +25,30 @@ export function getTerminalReplay(sessionId: string): readonly string[] {
 export function clearTerminalBuffer(sessionId: string): void {
   buffers.delete(sessionId);
 }
+
+export function hasTerminalContent(sessionId: string): boolean {
+  const buf = buffers.get(sessionId);
+  if (!buf || buf.length === 0) {
+    return false;
+  }
+  // Match ANSI escape sequences
+  const ansiRegex = /[\u001b\u009b][[()#;?]*(?:[0-9]{1,4}(?:;[0-9]{0,4})*)?[0-9A-ORZcf-nqry=><]/g;
+  for (const chunk of buf) {
+    try {
+      const decoded = atob(chunk);
+      // Remove ANSI escape sequences
+      let clean = decoded.replace(ansiRegex, "");
+      // Remove control characters (\x00-\x1F, \x7F-\x9F)
+      clean = clean.replace(/[\x00-\x1F\x7F-\x9F]/g, "");
+      // Trim whitespace
+      clean = clean.trim();
+      if (clean.length > 0) {
+        return true;
+      }
+    } catch {
+      return true; // Fallback to true if decoding fails to prevent accidental cleanup of useful data
+    }
+  }
+  return false;
+}
+

@@ -37,10 +37,11 @@ import { listAllProcesses } from "~/services/tauri/sessions";
 import { checkForUpdates } from "~/services/tauri/updates";
 import { stopAllProjectProcesses } from "~/services/tauri/processes";
 import { queryKeys } from "~/services/query-keys";
-import { isTauri } from "@tauri-apps/api/core";
+import { isTauri, invoke } from "@tauri-apps/api/core";
 import { getCurrentWindow } from "@tauri-apps/api/window";
 import { listen } from "@tauri-apps/api/event";
 import { openUrl } from "@tauri-apps/plugin-opener";
+import { ask } from "@tauri-apps/plugin-dialog";
 import { Avatar, AvatarFallback, AvatarImage } from "~/components/ui/avatar";
 import { Button } from "~/components/ui/button";
 import { Toaster } from "~/components/ui/sonner";
@@ -73,6 +74,7 @@ import { SidebarToggleListener } from "~/components/SidebarToggleListener";
 import { useScreenshot } from "~/features/screenshot";
 import AnnotationEditor from "~/features/screenshot/components/AnnotationEditor";
 import SourceSelector from "~/features/screenshot/components/SourceSelector";
+import { PluginUiBridge } from "~/components/PluginUiBridge";
 
 type ProjectFilterOption = { value: string; label: string; textValue: string };
 
@@ -218,6 +220,25 @@ function App() {
         globalTerminal.setOpen(!globalTerminal.open());
       } else if (payload.action === "screenshot:capture") {
         void screenshot.selectSource({ type: "region" }, (k, a) => t(k, a) as string);
+      } else if (payload.action.startsWith("plugin:")) {
+        const parts = payload.action.split(":");
+        if (parts.length >= 3) {
+          const pluginId = parts[1];
+          const commandId = parts.slice(2).join(":");
+          void (async () => {
+            try {
+              await invoke("execute_plugin_command", {
+                pluginId,
+                commandId,
+                context: {
+                  projectId: projectDetailId() ?? null,
+                },
+              });
+            } catch (e) {
+              console.error(`Failed to execute plugin command ${commandId} from hotkey:`, e);
+            }
+          })();
+        }
       }
     });
     onCleanup(() => listener());
@@ -354,11 +375,73 @@ function App() {
       }
     })();
 
+    // Confirm before closing when tasks are running
+    let unlistenClose: (() => void) | undefined;
+    void (async () => {
+      if (!isTauri()) return;
+      const win = getCurrentWindow();
+      unlistenClose = await win.onCloseRequested(async (event) => {
+        const count = runningProcessCount();
+        if (count > 0) {
+          const confirmed = await ask(
+            t("processes.closeConfirm", { count: String(count) }) as string,
+            { title: t("app.title") as string, kind: "warning" },
+          );
+          if (!confirmed) {
+            event.preventDefault();
+          }
+        }
+      });
+    })();
+
+    let unlistenOpenProjectFile: (() => void) | undefined;
+    void (async () => {
+      if (!isTauri()) return;
+      unlistenOpenProjectFile = await listen<{ projectId: string; filePath: string; line: number }>(
+        "plugin:open-project-file",
+        (event) => {
+          const { projectId, filePath, line } = event.payload;
+          setActiveView("project");
+          setProjectDetailId(projectId);
+          if (filePath && filePath !== "") {
+            setDetailTab("files");
+            setSubDetail(`${filePath}::${line}`);
+          } else {
+            setDetailTab("readme");
+            setSubDetail(null);
+          }
+        }
+      );
+    })();
+
+    let unlistenNotification: (() => void) | undefined;
+    void (async () => {
+      if (!isTauri()) return;
+      unlistenNotification = await listen<{ level: string; message: string }>(
+        "plugin:notification",
+        (event) => {
+          const { level, message } = event.payload;
+          if (level === "success") {
+            toast.success(message);
+          } else if (level === "error") {
+            toast.error(message);
+          } else if (level === "warn") {
+            toast.warning(message);
+          } else {
+            toast.info(message);
+          }
+        }
+      );
+    })();
+
     onCleanup(() => {
       window.removeEventListener("popstate", onPopState);
       window.removeEventListener("keydown", preventDefaultShortcuts);
       window.removeEventListener("contextmenu", preventContextMenu);
       window.removeEventListener("mousedown", onMouseDown);
+      unlistenClose?.();
+      unlistenOpenProjectFile?.();
+      unlistenNotification?.();
     });
   });
 
@@ -494,7 +577,9 @@ function App() {
         setSubDetail(null);
         setProjectDetailId(p.id);
       }}
+      activeProjectId={projectDetailId()}
     >
+      <PluginUiBridge projectId={projectDetailId()} />
       <SidebarProvider>
         <SidebarToggleListener />
         <StackIconSafelist />

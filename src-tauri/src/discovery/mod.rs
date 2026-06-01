@@ -16,6 +16,14 @@ pub use registry::DetectorRegistry;
 pub use walk::{
     collect_projects_under_root, filter_workspaces_and_outermost, filter_outermost_projects,
 };
+use tauri::Manager;
+
+pub fn detectors_dir(app: &tauri::AppHandle) -> std::path::PathBuf {
+    app.path()
+        .app_data_dir()
+        .unwrap_or_else(|_| std::path::PathBuf::from("."))
+        .join("detectors")
+}
 
 pub trait ProjectDetector: Send + Sync {
     fn id(&self) -> &'static str;

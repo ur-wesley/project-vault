@@ -1,7 +1,8 @@
 import { For, Show, createMemo, createSignal, onCleanup, type Component } from "solid-js";
-
+import { invoke } from "@tauri-apps/api/core";
 import { useI18n } from "~/lib/i18n-context";
 import { useEventHub } from "~/lib/event-hub-context";
+import { pluginFooterSegments, type PluginFooterColor } from "~/lib/plugin-footer";
 import { getGitStatus } from "~/services/tauri/git";
 import { listAllProcesses } from "~/services/tauri/sessions";
 import { createQuery } from "@tanstack/solid-query";
@@ -78,6 +79,31 @@ export const StatusBar: Component<{
     return props.pathname || "/";
   });
 
+  // Color mappings for plugin footer segment variants
+  const footerColorClass = (color: PluginFooterColor) => {
+    switch (color) {
+      case "success":  return "text-emerald-400 bg-emerald-500/10 hover:bg-emerald-500/20";
+      case "warning":  return "text-amber-400   bg-amber-500/10   hover:bg-amber-500/20";
+      case "error":    return "text-red-400     bg-red-500/10     hover:bg-red-500/20";
+      case "primary":  return "text-primary     bg-primary/10     hover:bg-primary/20";
+      case "muted":    return "text-muted-foreground/60 bg-transparent hover:bg-accent";
+      default:         return "text-foreground/70 bg-transparent hover:bg-accent";
+    }
+  };
+
+  const handleFooterSegmentClick = async (pluginId: string, command?: string) => {
+    if (!command) return;
+    try {
+      await invoke("execute_plugin_command", {
+        pluginId,
+        commandId: command,
+        context: { projectId: props.projectId ?? null },
+      });
+    } catch (e) {
+      console.error("[plugin footer] command failed:", e);
+    }
+  };
+
   return (
     <div class="flex h-6 shrink-0 items-center justify-between border-t border-border/40 bg-background/50 px-2 text-[11px] tabular-nums backdrop-blur-md">
       {/* Left: path or project name */}
@@ -85,6 +111,32 @@ export const StatusBar: Component<{
         <span class="iconify mdi--routes size-3 shrink-0 opacity-60" />
         <span class="truncate font-mono">{leftLabel()}</span>
       </div>
+
+      {/* Centre: plugin footer segments */}
+      <Show when={pluginFooterSegments().length > 0}>
+        <div class="flex min-w-0 flex-1 items-center gap-1 overflow-x-auto px-2 scrollbar-none">
+          <For each={pluginFooterSegments()}>
+            {(seg) => (
+              <Tooltip>
+                <TooltipTrigger
+                  as={seg.command ? "button" : "span"}
+                  type={seg.command ? "button" : undefined}
+                  onClick={() => seg.command && handleFooterSegmentClick(seg.pluginId, seg.command)}
+                  class={`flex shrink-0 items-center gap-1 rounded px-1.5 py-0.5 text-[10px] transition-colors ${footerColorClass(seg.color)} ${seg.command ? "cursor-pointer" : "cursor-default"}`}
+                >
+                  <Show when={seg.icon}>
+                    <span class={`iconify ${seg.icon} size-3`} />
+                  </Show>
+                  <span class="font-mono">{seg.text}</span>
+                </TooltipTrigger>
+                <Show when={seg.tooltip}>
+                  <TooltipContent>{seg.tooltip}</TooltipContent>
+                </Show>
+              </Tooltip>
+            )}
+          </For>
+        </div>
+      </Show>
 
       {/* Right: notifications + terminal + running count + git */}
       <div class="flex shrink-0 items-center gap-3">

@@ -22,6 +22,7 @@ import {
   appendTerminalChunk,
   getTerminalReplay,
   clearTerminalBuffer,
+  hasTerminalContent,
 } from "~/features/project-detail/lib/terminal-buffer";
 import {
   embeddedTerminalKill,
@@ -100,9 +101,10 @@ export function TerminalHost(props: {
   instance: TerminalHostInstance;
   activeId: Accessor<string | null>;
   isActivePane: boolean;
-  spawnFn: (shell?: string) => Promise<Result<string, Error>>;
+  spawnFn: (shell?: string) => PromiseLike<Result<string, any>>;
   onSessionId: (id: string, sessionId: string) => void;
   onError: (msg: string | null) => void;
+  onProcessExit?: (id: string, hasContent: boolean) => void;
 }) {
   const active = createMemo(() => props.isActivePane && props.activeId() === props.instance.id);
   const { t } = useI18n();
@@ -254,6 +256,13 @@ export function TerminalHost(props: {
         const alive = aliveResult.isOk() ? aliveResult.value : false;
         if (!alive) {
           sessionId = sid;
+          const hasContent = hasTerminalContent(sid);
+          if (!hasContent) {
+            props.onProcessExit?.(instanceId, false);
+            term.dispose();
+            term = null;
+            return;
+          }
           term.writeln("\r\n\x1b[90m" + (t("projectDetail.terminalProcessExited") as string) + "\x1b[0m");
           setTerminalReady(true);
           return;
@@ -310,7 +319,12 @@ export function TerminalHost(props: {
 
       unExit = await listen<{ sessionId: string }>("embedded-terminal-exit", (ev) => {
         if (ev.payload.sessionId !== sessionId || !term) return;
+        const hasContent = hasTerminalContent(ev.payload.sessionId);
         clearTerminalBuffer(ev.payload.sessionId);
+        if (!hasContent) {
+          props.onProcessExit?.(instanceId, false);
+          return;
+        }
         term.writeln("\r\n\x1b[90m" + (t("projectDetail.terminalProcessExited") as string) + "\x1b[0m");
       });
 

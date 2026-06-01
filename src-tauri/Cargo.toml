@@ -55,6 +55,7 @@ thiserror = "1"
 notify = "6.1"
 tempfile = "3"
 shell-words = "1"
+mlua = { version = "0.10.1", features = ["luau", "serialize", "async"] }
 zstd-sys = "=2.0.9"
 xcap = "0.9"
 image = { version = "0.25", default-features = false, features = ["png"] }
