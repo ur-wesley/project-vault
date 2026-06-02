@@ -25,6 +25,7 @@ import { getGlobalTerminalStore } from "~/lib/global-terminal-store";
 import { useEventHub } from "~/lib/event-hub-context";
 import { useI18n } from "~/lib/i18n-context";
 import { useShortcuts } from "~/lib/shortcut-context";
+import { installWebviewShortcutBlocker } from "~/lib/webview-shortcut-blocker";
 import { rescanAllLibraryFolders } from "~/lib/rescan-library";
 import { stableErrorMessage } from "~/lib/invoke-error";
 import { GITHUB_TOKEN_SETTING_KEY, fetchGitHubViewer } from "~/services/github";
@@ -175,13 +176,21 @@ function App() {
 
   // Auto-refresh projects when IDE closes
   createEffect(() => {
+    let active = true;
     let unlisten: (() => void) | undefined;
-    void (async () => {
-      unlisten = await listen<{ projectId: string; running: boolean }>("ide-state-changed", () => {
-        void qc.invalidateQueries({ queryKey: queryKeys.projects });
-      });
-    })();
-    onCleanup(() => unlisten?.());
+    void listen<{ projectId: string; running: boolean }>("ide-state-changed", () => {
+      void qc.invalidateQueries({ queryKey: queryKeys.projects });
+    }).then((fn) => {
+      if (active) {
+        unlisten = fn;
+      } else {
+        fn();
+      }
+    });
+    onCleanup(() => {
+      active = false;
+      unlisten?.();
+    });
   });
 
   createEffect(() => {
@@ -332,15 +341,6 @@ function App() {
       setPathname(window.location.pathname);
     };
 
-    const preventDefaultShortcuts = (e: KeyboardEvent) => {
-      if (e.ctrlKey && e.key === "p") {
-        e.preventDefault();
-      }
-      if (e.ctrlKey && e.key === "s") {
-        e.preventDefault();
-      }
-    };
-
     const preventContextMenu = (e: MouseEvent) => {
       e.preventDefault();
     };
@@ -356,9 +356,9 @@ function App() {
     };
 
     window.addEventListener("popstate", onPopState);
-    window.addEventListener("keydown", preventDefaultShortcuts);
     window.addEventListener("contextmenu", preventContextMenu);
     window.addEventListener("mousedown", onMouseDown);
+    const removeShortcutBlocker = installWebviewShortcutBlocker();
 
     // Auto-check for updates on startup if enabled
     void (async () => {
@@ -375,12 +375,12 @@ function App() {
       }
     })();
 
+    let active = true;
+
     // Confirm before closing when tasks are running
     let unlistenClose: (() => void) | undefined;
-    void (async () => {
-      if (!isTauri()) return;
-      const win = getCurrentWindow();
-      unlistenClose = await win.onCloseRequested(async (event) => {
+    if (isTauri()) {
+      void getCurrentWindow().onCloseRequested(async (event) => {
         const count = runningProcessCount();
         if (count > 0) {
           const confirmed = await ask(
@@ -391,13 +391,18 @@ function App() {
             event.preventDefault();
           }
         }
+      }).then((fn) => {
+        if (active) {
+          unlistenClose = fn;
+        } else {
+          fn();
+        }
       });
-    })();
+    }
 
     let unlistenOpenProjectFile: (() => void) | undefined;
-    void (async () => {
-      if (!isTauri()) return;
-      unlistenOpenProjectFile = await listen<{ projectId: string; filePath: string; line: number }>(
+    if (isTauri()) {
+      void listen<{ projectId: string; filePath: string; line: number }>(
         "plugin:open-project-file",
         (event) => {
           const { projectId, filePath, line } = event.payload;
@@ -411,37 +416,23 @@ function App() {
             setSubDetail(null);
           }
         }
-      );
-    })();
-
-    let unlistenNotification: (() => void) | undefined;
-    void (async () => {
-      if (!isTauri()) return;
-      unlistenNotification = await listen<{ level: string; message: string }>(
-        "plugin:notification",
-        (event) => {
-          const { level, message } = event.payload;
-          if (level === "success") {
-            toast.success(message);
-          } else if (level === "error") {
-            toast.error(message);
-          } else if (level === "warn") {
-            toast.warning(message);
-          } else {
-            toast.info(message);
-          }
+      ).then((fn) => {
+        if (active) {
+          unlistenOpenProjectFile = fn;
+        } else {
+          fn();
         }
-      );
-    })();
+      });
+    }
 
     onCleanup(() => {
+      active = false;
       window.removeEventListener("popstate", onPopState);
-      window.removeEventListener("keydown", preventDefaultShortcuts);
       window.removeEventListener("contextmenu", preventContextMenu);
       window.removeEventListener("mousedown", onMouseDown);
+      removeShortcutBlocker();
       unlistenClose?.();
       unlistenOpenProjectFile?.();
-      unlistenNotification?.();
     });
   });
 

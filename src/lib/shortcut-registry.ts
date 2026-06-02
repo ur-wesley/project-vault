@@ -6,9 +6,8 @@ export type ShortcutAction =
   | "locations:open"
   | "sidebar:toggle"
   | "new-project:open"
-  | "terminal:toggle"
   | "screenshot:capture"
-  | (string & {});
+  | "notification-center:toggle";
 
 export const SHORTCUT_SETTING_KEY = "shortcut_registry_v1";
 
@@ -18,26 +17,39 @@ export const DEFAULT_SHORTCUTS: Record<ShortcutAction, string[]> = {
   "locations:open": ["Control", "Shift", "l"],
   "sidebar:toggle": ["Control", "b"],
   "new-project:open": [],
-  "terminal:toggle": ["Control", "`"],
   "screenshot:capture": ["Control", "Shift", "s"],
+  "notification-center:toggle": ["Control", "Shift", "n"],
 };
 
-export const SHORTCUT_ACTION_LABELS: Record<string, string> = {
-  "command-palette:open": "shortcuts.commandPalette",
-  "settings:open": "shortcuts.settings",
-  "locations:open": "shortcuts.locations",
-  "sidebar:toggle": "shortcuts.sidebar",
-  "new-project:open": "shortcuts.newProject",
-  "terminal:toggle": "shortcuts.terminal",
-  "screenshot:capture": "shortcuts.screenshot",
+export const SHORTCUT_ACTION_LABEL_KEYS: Record<ShortcutAction, string> = {
+  "command-palette:open": "settings.shortcutsLabelCommandPalette",
+  "settings:open": "settings.shortcutsLabelSettings",
+  "locations:open": "settings.shortcutsLabelLocations",
+  "sidebar:toggle": "settings.shortcutsLabelSidebar",
+  "new-project:open": "settings.shortcutsLabelNewProject",
+  "screenshot:capture": "settings.shortcutsLabelScreenshot",
+  "notification-center:toggle": "settings.shortcutsLabelNotificationCenter",
 };
 
-export async function loadShortcutRegistry(): Promise<Record<ShortcutAction, string[]>> {
+export function isGlobalHotkeyAction(action: string): boolean {
+  return action === "screenshot:capture";
+}
+
+export function isAppShortcutAction(action: string): boolean {
+  return !isGlobalHotkeyAction(action);
+}
+
+export async function loadShortcutRegistry(): Promise<Record<string, string[]>> {
   const r = await getSetting(SHORTCUT_SETTING_KEY);
   if (r.isErr()) return { ...DEFAULT_SHORTCUTS };
   try {
     const parsed = JSON.parse(r.value ?? "{}") as Record<string, string[]>;
-    const merged: Record<ShortcutAction, string[]> = { ...DEFAULT_SHORTCUTS, ...parsed };
+    const merged: Record<string, string[]> = { ...DEFAULT_SHORTCUTS };
+    for (const key of Object.keys(parsed)) {
+      if (Array.isArray(parsed[key])) {
+        merged[key] = parsed[key]!;
+      }
+    }
     return merged;
   } catch {
     return { ...DEFAULT_SHORTCUTS };
@@ -45,7 +57,7 @@ export async function loadShortcutRegistry(): Promise<Record<ShortcutAction, str
 }
 
 export async function saveShortcutRegistry(
-  registry: Record<ShortcutAction, string[]>,
+  registry: Record<string, string[]>,
 ): Promise<void> {
   const r = await setSetting(SHORTCUT_SETTING_KEY, JSON.stringify(registry));
   if (r.isErr()) throw new Error(r.error.message);

@@ -9,6 +9,7 @@ import { I18nProvider } from "./lib/i18n-context";
 import { ShortcutProvider } from "./lib/shortcut-context";
 import { useRealtimeProjects } from "./lib/use-realtime-projects";
 import { LivePlaytimeProvider } from "./lib/live-playtime-context";
+import { NotificationCenterProvider } from "./lib/notification-center";
 import { queryKeys } from "./services/query-keys";
 
 const queryClient = new QueryClient({
@@ -49,9 +50,11 @@ render(
         <EventHubProvider>
           <ShortcutProvider>
             <I18nProvider>
-              <LivePlaytimeProvider>
-                <App />
-              </LivePlaytimeProvider>
+              <NotificationCenterProvider>
+                <LivePlaytimeProvider>
+                  <App />
+                </LivePlaytimeProvider>
+              </NotificationCenterProvider>
             </I18nProvider>
           </ShortcutProvider>
         </EventHubProvider>

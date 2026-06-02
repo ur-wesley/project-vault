@@ -3,11 +3,12 @@ import { useKeyDownList } from "@solid-primitives/keyboard";
 import { invoke } from "@tauri-apps/api/core";
 import { Button } from "~/components/ui/button";
 import {
-  type ShortcutAction,
   DEFAULT_SHORTCUTS,
-  SHORTCUT_ACTION_LABELS,
+  SHORTCUT_ACTION_LABEL_KEYS,
   saveShortcutRegistry,
   formatShortcut,
+  isGlobalHotkeyAction,
+  type ShortcutAction,
 } from "~/lib/shortcut-registry";
 import { useShortcuts } from "~/lib/shortcut-context";
 import { useI18n } from "~/lib/i18n-context";
@@ -57,12 +58,19 @@ interface PluginCommandMetadata {
   locales?: any;
 }
 
+interface ShortcutRow {
+  action: string;
+  label: string;
+  keys: string[];
+  group: "app" | "hotkey";
+}
+
 export const ShortcutsSettingsTab: Component<ShortcutsSettingsTabProps> = (props) => {
   const shortcuts = useShortcuts();
   const { locale } = useI18n();
   const keysHeld = useKeyDownList();
   let recordingRef: HTMLDivElement | undefined;
-  const [editing, setEditing] = createSignal<ShortcutAction | null>(null);
+  const [editing, setEditing] = createSignal<string | null>(null);
   const [recordingKeys, setRecordingKeys] = createSignal<string[]>([]);
   const [peakKeys, setPeakKeys] = createSignal<string[]>([]);
   const [busy, setBusy] = createSignal(false);
@@ -81,29 +89,56 @@ export const ShortcutsSettingsTab: Component<ShortcutsSettingsTabProps> = (props
     return localMap?.[`command.${cmd.id}`] || cmd.title;
   };
 
-  const allActions = () => {
-    const list: { action: string; label: string; keys: string[] }[] = [];
-    
-    // Core actions first
-    for (const [action, labelKey] of Object.entries(SHORTCUT_ACTION_LABELS)) {
+  const appRows = (): ShortcutRow[] => {
+    const list: ShortcutRow[] = [];
+    const knownAppActions: ShortcutAction[] = [
+      "command-palette:open",
+      "settings:open",
+      "locations:open",
+      "sidebar:toggle",
+      "new-project:open",
+      "screenshot:capture",
+    ];
+    for (const action of knownAppActions) {
+      const labelKey = SHORTCUT_ACTION_LABEL_KEYS[action];
       list.push({
         action,
-        label: props.t(labelKey),
-        keys: shortcuts.bindings()[action] || [],
+        label: labelKey ? (props.t(labelKey) ?? action) : action,
+        keys: shortcuts.bindings()[action] ?? [],
+        group: "app",
       });
     }
-    
-    // Plugin commands next
+    return list;
+  };
+
+  const hotkeyRows = (): ShortcutRow[] => {
+    const list: ShortcutRow[] = [];
+    const all = shortcuts.bindings();
+
+    for (const action of Object.keys(all)) {
+      if (!action.startsWith("plugin:")) continue;
+      const labelKey =
+        SHORTCUT_ACTION_LABEL_KEYS[action as ShortcutAction] ?? null;
+      list.push({
+        action,
+        label: labelKey ? (props.t(labelKey) ?? action) : action,
+        keys: all[action] ?? [],
+        group: "hotkey",
+      });
+    }
+
     const cmds = pluginCommands() || [];
     for (const cmd of cmds) {
       const action = `plugin:${cmd.pluginId}:${cmd.id}`;
+      if (all[action]) continue;
       list.push({
         action,
         label: getPluginCommandLabel(cmd),
-        keys: shortcuts.bindings()[action] || [],
+        keys: [],
+        group: "hotkey",
       });
     }
-    
+
     return list;
   };
 
@@ -113,7 +148,7 @@ export const ShortcutsSettingsTab: Component<ShortcutsSettingsTabProps> = (props
     }
   });
 
-  const startRecording = (action: ShortcutAction) => {
+  const startRecording = (action: string) => {
     shortcuts.setRecording(true);
     setEditing(action);
     setRecordingKeys([]);
@@ -127,7 +162,7 @@ export const ShortcutsSettingsTab: Component<ShortcutsSettingsTabProps> = (props
     setPeakKeys([]);
   };
 
-  const saveBinding = async (action: ShortcutAction, keys: string[]) => {
+  const saveBinding = async (action: string, keys: string[]) => {
     setBusy(true);
     try {
       const next = { ...shortcuts.bindings(), [action]: keys };
@@ -142,7 +177,17 @@ export const ShortcutsSettingsTab: Component<ShortcutsSettingsTabProps> = (props
   const resetAll = async () => {
     setBusy(true);
     try {
-      await saveShortcutRegistry({ ...DEFAULT_SHORTCUTS });
+      const next: Record<string, string[]> = { ...shortcuts.bindings() };
+      for (const action of Object.keys(next)) {
+        if (isGlobalHotkeyAction(action)) {
+          next[action] = DEFAULT_SHORTCUTS[action as ShortcutAction] ?? [];
+        } else if (action in DEFAULT_SHORTCUTS) {
+          next[action] = DEFAULT_SHORTCUTS[action as ShortcutAction] ?? [];
+        } else {
+          next[action] = [];
+        }
+      }
+      await saveShortcutRegistry(next);
       shortcuts.reload();
     } finally {
       setBusy(false);
@@ -156,13 +201,11 @@ export const ShortcutsSettingsTab: Component<ShortcutsSettingsTabProps> = (props
       if (current.length > 0) {
         const normalized = current.map(normalizeKey);
         setRecordingKeys(normalized);
-        // Track the largest combo held during this recording session
         setPeakKeys((prevPeak) => {
           if (normalized.length > prevPeak.length) return normalized;
           return prevPeak;
         });
       } else if ((prev?.length ?? 0) > 0) {
-        // All keys released — commit the peak combo
         const final = peakKeys();
         if (final.length === 1 && final[0] === "Escape") {
           stopRecording();
@@ -175,11 +218,45 @@ export const ShortcutsSettingsTab: Component<ShortcutsSettingsTabProps> = (props
     })
   );
 
+  const renderRow = (row: ShortcutRow) => (
+    <div class="flex items-center justify-between px-4 py-3 border-b last:border-b-0">
+      <span class="text-sm">{row.label}</span>
+      <Show
+        when={editing() === row.action}
+        fallback={
+          <button
+            type="button"
+            disabled={busy()}
+            class="flex h-8 min-w-[6rem] items-center justify-center rounded border bg-muted px-3 text-xs font-mono font-medium transition-colors hover:bg-muted/80 disabled:opacity-50"
+            onClick={() => startRecording(row.action)}
+          >
+            {row.keys.length > 0
+              ? formatShortcut(row.keys)
+              : props.t("settings.shortcutsNone")}
+          </button>
+        }
+      >
+        <div
+          ref={recordingRef}
+          class="flex h-8 min-w-[6rem] items-center justify-center rounded border border-primary bg-primary/5 px-3 text-xs font-mono font-medium text-primary animate-pulse outline-none"
+          tabindex={0}
+          onBlur={() => stopRecording()}
+        >
+          {recordingKeys().length > 0
+            ? formatShortcut(recordingKeys())
+            : props.t("settings.shortcutsPressKeys")}
+        </div>
+      </Show>
+    </div>
+  );
+
   return (
     <div class="space-y-6 animate-in fade-in duration-300">
       <div class="flex items-center justify-between">
         <div>
-          <h3 class="text-sm font-semibold">{props.t("settings.shortcutsTitle")}</h3>
+          <h3 class="text-sm font-semibold">
+            {props.t("settings.shortcutsTitle")}
+          </h3>
           <p class="text-xs text-muted-foreground mt-1">
             {props.t("settings.shortcutsDescription")}
           </p>
@@ -194,41 +271,30 @@ export const ShortcutsSettingsTab: Component<ShortcutsSettingsTabProps> = (props
         </Button>
       </div>
 
-      <div class="rounded-md border">
-        <For each={allActions()}>
-          {({ action, label, keys }) => (
-            <div class="flex items-center justify-between px-4 py-3 border-b last:border-b-0">
-              <span class="text-sm">
-                {label}
-              </span>
-              <Show
-                when={editing() === action}
-                fallback={
-                  <button
-                    type="button"
-                    disabled={busy()}
-                    class="flex h-8 min-w-[6rem] items-center justify-center rounded border bg-muted px-3 text-xs font-mono font-medium transition-colors hover:bg-muted/80 disabled:opacity-50"
-                    onClick={() => startRecording(action)}
-                  >
-                    {keys.length > 0 ? formatShortcut(keys) : props.t("settings.shortcutsNone")}
-                  </button>
-                }
-              >
-                <div
-                  ref={recordingRef}
-                  class="flex h-8 min-w-[6rem] items-center justify-center rounded border border-primary bg-primary/5 px-3 text-xs font-mono font-medium text-primary animate-pulse outline-none"
-                  tabindex={0}
-                  onBlur={() => stopRecording()}
-                >
-                  {recordingKeys().length > 0
-                    ? formatShortcut(recordingKeys())
-                    : props.t("settings.shortcutsPressKeys")}
-                </div>
-              </Show>
-            </div>
-          )}
-        </For>
-      </div>
+      <section class="space-y-2">
+        <header>
+          <h4 class="text-xs font-semibold uppercase tracking-wider text-muted-foreground">
+            {props.t("settings.shortcutsAppSection")}
+          </h4>
+        </header>
+        <div class="rounded-md border">
+          <For each={appRows()}>{(row) => renderRow(row)}</For>
+        </div>
+      </section>
+
+      <section class="space-y-2">
+        <header>
+          <h4 class="text-xs font-semibold uppercase tracking-wider text-muted-foreground">
+            {props.t("settings.shortcutsHotkeySection")}
+          </h4>
+          <p class="text-[10px] text-muted-foreground mt-0.5">
+            {props.t("settings.shortcutsHotkeyDescription")}
+          </p>
+        </header>
+        <div class="rounded-md border">
+          <For each={hotkeyRows()}>{(row) => renderRow(row)}</For>
+        </div>
+      </section>
     </div>
   );
 };

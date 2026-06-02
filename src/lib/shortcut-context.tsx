@@ -10,45 +10,51 @@ import {
 } from "solid-js";
 import { useEventHub } from "./event-hub-context";
 import {
-  type ShortcutAction,
   loadShortcutRegistry,
   DEFAULT_SHORTCUTS,
   formatShortcut,
+  isGlobalHotkeyAction,
 } from "./shortcut-registry";
 import { register, unregister, isRegistered } from "@tauri-apps/plugin-global-shortcut";
 import { isTauri } from "@tauri-apps/api/core";
 
-
 interface ShortcutContextValue {
-  bindings: () => Record<ShortcutAction, string[]>;
+  bindings: () => Record<string, string[]>;
   reload: () => void;
-  format: (action: ShortcutAction) => string;
+  format: (action: string) => string;
   isRecording: () => boolean;
   setRecording: (v: boolean) => void;
 }
 
 const ShortcutCtx = createContext<ShortcutContextValue>();
 
-function ShortcutListener(props: { keys: string[]; onPress: () => void; enabled: () => boolean }) {
+function ShortcutListener(props: {
+  keys: string[];
+  onPress: () => void;
+  enabled: () => boolean;
+}) {
   createEffect(() => {
     if (props.keys.length === 0) return;
 
     const target = props.keys.map((k) => k.toLowerCase());
+    const targetSet = new Set(target);
 
     const handler = (e: KeyboardEvent) => {
       if (!props.enabled()) return;
 
-      const held: string[] = [];
-      if (e.ctrlKey) held.push("control");
-      if (e.altKey) held.push("alt");
-      if (e.shiftKey) held.push("shift");
-      if (e.metaKey) held.push("meta");
+      const heldSet = new Set<string>();
+      if (e.ctrlKey) heldSet.add("control");
+      if (e.altKey) heldSet.add("alt");
+      if (e.shiftKey) heldSet.add("shift");
+      if (e.metaKey) heldSet.add("meta");
 
       const key = e.key.toLowerCase();
-      if (!held.includes(key)) held.push(key);
+      heldSet.add(key);
 
-      const allHeld = target.every((k) => held.includes(k));
-      if (!allHeld) return;
+      const exact =
+        heldSet.size === targetSet.size &&
+        target.every((k) => heldSet.has(k));
+      if (!exact) return;
 
       e.preventDefault();
       props.onPress();
@@ -60,10 +66,23 @@ function ShortcutListener(props: { keys: string[]; onPress: () => void; enabled:
   return null;
 }
 
+function keysToTauriShortcut(keys: string[]): string {
+  return keys
+    .map((k) => {
+      const lower = k.toLowerCase();
+      if (lower === "control") return "Ctrl";
+      if (lower === "meta") return "Super";
+      if (lower === "alt") return "Alt";
+      if (lower === "shift") return "Shift";
+      return k.toUpperCase();
+    })
+    .join("+");
+}
+
 export const ShortcutProvider: ParentComponent = (props) => {
   const hub = useEventHub();
   const [registry] = createResource(loadShortcutRegistry);
-  const [bindings, setBindings] = createSignal<Record<ShortcutAction, string[]>>({
+  const [bindings, setBindings] = createSignal<Record<string, string[]>>({
     ...DEFAULT_SHORTCUTS,
   });
   const [isRecording, setRecording] = createSignal(false);
@@ -73,68 +92,107 @@ export const ShortcutProvider: ParentComponent = (props) => {
     if (data) setBindings(data);
   });
 
-  let lastGlobalShortcut: string | null = null;
-
-  function keysToTauriShortcut(keys: string[]): string {
-    return keys
-      .map((k) => {
-        const lower = k.toLowerCase();
-        if (lower === "control") return "Ctrl";
-        if (lower === "meta") return "Super";
-        if (lower === "alt") return "Alt";
-        if (lower === "shift") return "Shift";
-        return k.toUpperCase();
-      })
-      .join("+");
-  }
+  const registeredShortcuts = new Map<string, string>();
+  let queue: Promise<void> = Promise.resolve();
+  let generation = 0;
 
   createEffect(() => {
-    const keys = bindings()["screenshot:capture"];
     if (!isTauri()) return;
+    const current = bindings();
+    const globalActions = Object.keys(current).filter(isGlobalHotkeyAction);
+    const myGen = ++generation;
 
-    void (async () => {
-      // 1. Unregister the old shortcut if there was one
-      if (lastGlobalShortcut) {
+    const desired = new Map<string, string>();
+    const seen = new Set<string>();
+    for (const action of globalActions) {
+      const keys = current[action] ?? [];
+      if (keys.length === 0) continue;
+      const shortcutStr = keysToTauriShortcut(keys);
+      if (!shortcutStr) continue;
+      if (seen.has(shortcutStr)) continue;
+      seen.add(shortcutStr);
+      desired.set(shortcutStr, action);
+    }
+
+    queue = queue.then(async () => {
+      if (myGen !== generation) return;
+
+      const toUnregister: string[] = [];
+      for (const [shortcut, action] of registeredShortcuts) {
+        if (desired.get(shortcut) !== action) {
+          toUnregister.push(shortcut);
+        }
+      }
+
+      for (const shortcut of toUnregister) {
+        if (myGen !== generation) return;
         try {
-          if (await isRegistered(lastGlobalShortcut)) {
-            await unregister(lastGlobalShortcut);
-            console.log("[ShortcutContext] Unregistered global shortcut:", lastGlobalShortcut);
+          if (await isRegistered(shortcut)) {
+            await unregister(shortcut);
           }
         } catch (e) {
-          console.error("Failed to unregister global shortcut:", e);
+          console.error(
+            "[ShortcutContext] Failed to unregister global shortcut:",
+            shortcut,
+            e,
+          );
         }
-        lastGlobalShortcut = null;
+        registeredShortcuts.delete(shortcut);
       }
 
-      // 2. Register the new shortcut if valid
-      if (keys && keys.length > 0) {
-        const shortcutStr = keysToTauriShortcut(keys);
+      if (myGen !== generation) return;
+
+      for (const [shortcut, action] of desired) {
+        if (myGen !== generation) return;
+        if (registeredShortcuts.has(shortcut)) continue;
+
         try {
-          await register(shortcutStr, (event) => {
-            if (event.state === "Pressed") {
-              hub.emit("shortcut:action", { action: "screenshot:capture" });
-            }
-          });
-          lastGlobalShortcut = shortcutStr;
-          console.log("[ShortcutContext] Registered global shortcut:", shortcutStr);
+          if (await isRegistered(shortcut)) {
+            await unregister(shortcut);
+          }
         } catch (e) {
-          console.error("[ShortcutContext] Failed to register global shortcut:", shortcutStr, e);
+          console.warn(
+            "[ShortcutContext] Failed to unregister stale shortcut:",
+            shortcut,
+            e,
+          );
+        }
+
+        try {
+          const ok = await register(shortcut, (event: { state: string }) => {
+            if (event.state === "Pressed") {
+              hub.emit("shortcut:action", { action });
+            }
+          }).then(
+            () => true,
+            (e) => {
+              console.error(
+                "[ShortcutContext] Failed to register global shortcut:",
+                shortcut,
+                e,
+              );
+              return false;
+            },
+          );
+          if (ok) registeredShortcuts.set(shortcut, action);
+        } catch (e) {
+          console.error(
+            "[ShortcutContext] Failed to register global shortcut:",
+            shortcut,
+            e,
+          );
         }
       }
-    })();
+    });
   });
 
   onCleanup(() => {
-    if (isTauri() && lastGlobalShortcut) {
-      void (async () => {
-        try {
-          if (await isRegistered(lastGlobalShortcut!)) {
-            await unregister(lastGlobalShortcut!);
-          }
-        } catch {
-          // ignore
-        }
-      })();
+    if (!isTauri()) return;
+    generation++;
+    const leftovers = Array.from(registeredShortcuts.keys());
+    registeredShortcuts.clear();
+    if (leftovers.length > 0) {
+      void unregister(leftovers).catch(() => undefined);
     }
   });
 
@@ -142,17 +200,25 @@ export const ShortcutProvider: ParentComponent = (props) => {
     void loadShortcutRegistry().then((r) => setBindings(r));
   };
 
-  const format = (action: ShortcutAction) => {
+  const format = (action: string) => {
     return formatShortcut(bindings()[action] ?? []);
   };
 
+  const usesGlobalHotkey = (action: string) => {
+    if (!isTauri()) return false;
+    if (!isGlobalHotkeyAction(action)) return false;
+    const keys = bindings()[action] ?? [];
+    return keys.length > 0;
+  };
+
   return (
-    <ShortcutCtx.Provider value={{ bindings, reload, format, isRecording, setRecording }}>
-      <For each={Object.entries(bindings()) as [ShortcutAction, string[]][]}>
+    <ShortcutCtx.Provider
+      value={{ bindings, reload, format, isRecording, setRecording }}
+    >
+      <For each={Object.entries(bindings())}>
         {([action, keys]) => {
           if (keys.length === 0) return null;
-          // Skip local event listener for screenshot:capture on Tauri to prevent double triggers
-          if (action === "screenshot:capture" && isTauri()) return null;
+          if (usesGlobalHotkey(action)) return null;
           return (
             <ShortcutListener
               keys={keys}
