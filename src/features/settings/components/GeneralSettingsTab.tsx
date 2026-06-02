@@ -10,6 +10,7 @@ import { debugScanLocation } from "~/services/tauri/scanning";
 import { trustPortlessCa } from "~/services/tauri/tunnel";
 import { pickScreenshotDirectory } from "~/services/tauri/screenshot";
 import { toast } from "solid-sonner";
+import { notify } from "~/lib/notification-center";
 import pkg from "../../../../package.json";
 
 export type GeneralSettingsTabProps = Readonly<{
@@ -405,7 +406,12 @@ export const GeneralSettingsTab: Component<GeneralSettingsTabProps> = (props) =>
                   if (r.isErr()) {
                     toast.error(r.error.message);
                   } else {
-                    toast.success(props.t("settings.portlessTrustSuccess"));
+                    notify({
+                      severity: "success",
+                      title: props.t("settings.portlessTrustSuccess"),
+                      source: "Portless",
+                      system: "auto",
+                    });
                   }
                 }}
               >

@@ -19,6 +19,7 @@ import { AccountsSettingsTab } from "./components/AccountsSettingsTab";
 import { ShortcutsSettingsTab } from "./components/ShortcutsSettingsTab";
 import { TemplatesSettingsTab } from "./components/TemplatesSettingsTab";
 import { PluginsSettingsTab } from "./components/PluginsSettingsTab";
+import { NotificationSettingsTab } from "./components/NotificationSettingsTab";
 
 async function safeConfirm(message: string): Promise<boolean> {
   if (isTauri()) {
@@ -112,6 +113,9 @@ export const SettingsView: Component<SettingsViewProps> = (props) => {
               <TabsTrigger value="accounts" class="flex-1 font-semibold text-xs uppercase tracking-wider">
                 {t("settings.tabAccounts") as string}
               </TabsTrigger>
+              <TabsTrigger value="notifications" class="flex-1 font-semibold text-xs uppercase tracking-wider">
+                {t("settings.tabNotifications") as string}
+              </TabsTrigger>
             </TabsList>
 
             <div class="flex-1 overflow-y-auto px-1 pr-2 scrollbar-none">
@@ -186,6 +190,10 @@ export const SettingsView: Component<SettingsViewProps> = (props) => {
                 githubToken={model.githubToken()}
                 setGithubToken={model.setGithubToken}
               />
+
+              <TabsContent value="notifications" class="outline-none animate-in fade-in duration-300">
+                <NotificationSettingsTab />
+              </TabsContent>
             </div>
           </Tabs>
 

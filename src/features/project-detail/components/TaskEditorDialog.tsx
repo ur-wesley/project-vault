@@ -23,6 +23,7 @@ import {
 import { useI18n } from "~/lib/i18n-context";
 import type { TaskDto, ConcurrentTask } from "~/types/dto";
 import { toast } from "solid-sonner";
+import { notify } from "~/lib/notification-center";
 import { writeProjectTask } from "~/services/tauri/tasks";
 
 type SubTaskRow = {
@@ -150,11 +151,14 @@ export const TaskEditorDialog: Component<TaskEditorDialogProps> = (props) => {
           return;
         }
 
-        toast.success(
-          isEdit()
+        notify({
+          severity: "success",
+          title: isEdit()
             ? (t("projectDetail.taskEditor.updated") as string)
             : (t("projectDetail.taskEditor.created") as string),
-        );
+          source: "Tasks",
+          system: "auto",
+        });
         props.onSaved(r.value);
         props.onOpenChange(false);
         if (!isEdit()) reset();
@@ -193,11 +197,14 @@ export const TaskEditorDialog: Component<TaskEditorDialogProps> = (props) => {
           return;
         }
 
-        toast.success(
-          isEdit()
+        notify({
+          severity: "success",
+          title: isEdit()
             ? (t("projectDetail.taskEditor.updated") as string)
             : (t("projectDetail.taskEditor.created") as string),
-        );
+          source: "Tasks",
+          system: "auto",
+        });
         props.onSaved(r.value);
         props.onOpenChange(false);
         if (!isEdit()) reset();

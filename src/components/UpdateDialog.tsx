@@ -3,6 +3,7 @@ import { marked } from "marked";
 import DOMPurify from "dompurify";
 import { toast } from "solid-sonner";
 import { useI18n } from "~/lib/i18n-context";
+import { notify } from "~/lib/notification-center";
 import { Button } from "~/components/ui/button";
 import {
   Dialog,
@@ -58,7 +59,12 @@ export const UpdateDialog: Component<{
       if (r.isErr()) {
         toast.error(stableErrorMessage(t, r.error));
       } else {
-        toast.success(t("updater.installRestarting"));
+        notify({
+          severity: "info",
+          title: t("updater.installRestarting") as string,
+          source: "Updater",
+          system: "auto",
+        });
       }
     } catch (e) {
       toast.error(`${t("updater.installFailed")}: ${String(e)}`);

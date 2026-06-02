@@ -10,6 +10,7 @@ import { formatBytes } from "~/lib/format-bytes";
 import { FilePreview } from "./components/FilePreview";
 import { SearchResultItem } from "./components/SearchResultItem";
 import { toast } from "solid-sonner";
+import { notify } from "~/lib/notification-center";
 import { queryKeys } from "~/services/query-keys";
 import { Popover, PopoverContent, PopoverTrigger } from "~/components/ui/popover";
 import { Tooltip, TooltipContent, TooltipTrigger } from "~/components/ui/tooltip";
@@ -320,7 +321,12 @@ export function FileTree(props: {
         toast.error(r.error.message);
         return;
       }
-      toast.success(t("projectDetail.indexProject") as string);
+      notify({
+        severity: "success",
+        title: t("projectDetail.indexProject") as string,
+        source: "Search",
+        system: "auto",
+      });
       void indexMetaQ.refetch();
     } finally {
       setIndexBusy(false);
@@ -335,7 +341,12 @@ export function FileTree(props: {
         toast.error(r.error.message);
         return;
       }
-      toast.success(t("projectDetail.rebuildIndex") as string);
+      notify({
+        severity: "success",
+        title: t("projectDetail.rebuildIndex") as string,
+        source: "Search",
+        system: "auto",
+      });
       void indexMetaQ.refetch();
     } finally {
       setIndexBusy(false);

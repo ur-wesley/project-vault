@@ -83,7 +83,7 @@ impl LuaEngine {
                     Ok(())
                 })?,
             )?;
-            
+
             let app_info = app.clone();
             notification.set(
                 "info",
@@ -119,11 +119,67 @@ impl LuaEngine {
                     Ok(())
                 })?,
             )?;
+
+            // vault.notification.show — rich notification with title, source, and actions.
+            // Frontend mirrors it into the NotificationCenter; an action's `command` is
+            // a `plugin:<pluginId>:<commandId>` string the front-end dispatches via
+            // execute_plugin_command. `pluginId` is auto-prepended from the engine
+            // context, so plugins only need to pass the local command id.
+            let app_show = app.clone();
+            let plugin_id_show = plugin_id.clone();
+            notification.set(
+                "show",
+                lua.create_function(move |lua, opts_val: mlua::Value| {
+                    #[derive(serde::Deserialize)]
+                    struct ActionOpts {
+                        id: String,
+                        label: String,
+                        primary: Option<bool>,
+                        command: Option<String>,
+                    }
+                    #[derive(serde::Deserialize)]
+                    struct ShowOpts {
+                        severity: Option<String>,
+                        title: String,
+                        message: Option<String>,
+                        source: Option<String>,
+                        actions: Option<Vec<ActionOpts>>,
+                    }
+                    let opts: ShowOpts = lua.from_value(opts_val)?;
+                    let pid = plugin_id_show.clone().unwrap_or_else(|| "unknown".to_string());
+                    let actions: Vec<serde_json::Value> = opts
+                        .actions
+                        .unwrap_or_default()
+                        .into_iter()
+                        .map(|a| {
+                            let full_command = a
+                                .command
+                                .map(|c| format!("plugin:{}:{}", pid, c));
+                            serde_json::json!({
+                                "id": a.id,
+                                "label": a.label,
+                                "primary": a.primary.unwrap_or(false),
+                                "command": full_command,
+                            })
+                        })
+                        .collect();
+                    let _ = app_show.emit("plugin:notification-rich", serde_json::json!({
+                        "pluginId": pid,
+                        "severity": opts.severity.unwrap_or_else(|| "info".to_string()),
+                        "title": opts.title,
+                        "message": opts.message,
+                        "source": opts.source,
+                        "actions": actions,
+                    }));
+                    Ok(())
+                })?,
+            )?;
         } else {
             notification.set("success", lua.create_function(|_, _: String| Ok(()))?)?;
             notification.set("info", lua.create_function(|_, _: String| Ok(()))?)?;
             notification.set("error", lua.create_function(|_, _: String| Ok(()))?)?;
             notification.set("warn", lua.create_function(|_, _: String| Ok(()))?)?;
+            notification.set("show", lua.create_function(|_, _: mlua::Value| Ok(()))?)?;
         }
         vault.set("notification", notification)?;
 
@@ -666,7 +722,7 @@ mod tests {
     #[test]
     fn test_vault_parsers() {
         let lua = LuaEngine::create_instance().unwrap();
-        
+
         // JSON
         let json_val: mlua::Value = lua.load(r#"return vault.json.parse('{"a": 1, "b": [true, null]}')"#).eval().unwrap();
         let json_str: String = lua.load(r#"return vault.json.stringify({x = 10, y = "abc"})"#).eval().unwrap();
@@ -677,5 +733,21 @@ mod tests {
         let toml_val: mlua::Value = lua.load(r#"return vault.toml.parse('name = "vault"\nversion = 1')"#).eval().unwrap();
         let toml_str: String = lua.load(r#"return vault.toml.stringify({p = { q = 1 }})"#).eval().unwrap();
         assert!(toml_str.contains("q = 1"));
+    }
+
+    #[test]
+    fn test_vault_notification_show() {
+        // Without an app handle, show() is a no-op — just ensure it doesn't error.
+        let lua = LuaEngine::create_instance().unwrap();
+        lua.load(
+            r#"vault.notification.show({
+                severity = "success",
+                title = "Hello",
+                message = "World",
+                actions = { { id = "a1", label = "View", command = "do_thing" } },
+            })"#,
+        )
+        .exec()
+        .unwrap();
     }
 }

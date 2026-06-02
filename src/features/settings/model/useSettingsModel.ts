@@ -8,6 +8,7 @@ import { listDiscoveredIdes } from "~/services/tauri/ide";
 import { listAvailableShells, listDiscoveredTools } from "~/services/tauri/terminal";
 import { deleteAllIndices } from "~/services/tauri/search";
 import { checkForUpdates, installUpdate } from "~/services/tauri/updates";
+import { notify } from "~/lib/notification-center";
 import { getAutostartEnabled, setAutostartEnabled } from "~/services/tauri/autostart";
 import { getSetting, setSetting } from "~/services/tauri/settings";
 import { checkTunnelAvailable, startTunnelProxy, stopTunnelProxy } from "~/services/tauri/tunnel";
@@ -315,7 +316,12 @@ export function useSettingsModel(props: UseSettingsModelProps) {
       const count = await rescanAllLibraryFolders();
       void qc.invalidateQueries({ queryKey: queryKeys.projects });
       void qc.invalidateQueries({ queryKey: queryKeys.locations });
-      toast.success(props.t("settings.rebuildDatabaseSuccess", { count }), { id: "settings" });
+      notify({
+        severity: "success",
+        title: props.t("settings.rebuildDatabaseSuccess", { count }) as string,
+        source: "Library",
+        system: "auto",
+      });
     } catch (e) {
       toast.error(props.t("settings.rebuildDatabaseError", { message: String(e) }), { id: "settings" });
     } finally {

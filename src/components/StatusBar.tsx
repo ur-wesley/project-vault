@@ -1,18 +1,14 @@
-import { For, Show, createMemo, createSignal, onCleanup, type Component } from "solid-js";
+import { For, Show, createMemo, onCleanup, type Component } from "solid-js";
 import { invoke } from "@tauri-apps/api/core";
 import { useI18n } from "~/lib/i18n-context";
 import { useEventHub } from "~/lib/event-hub-context";
+import { useNotificationCenter } from "~/lib/notification-center";
 import { pluginFooterSegments, type PluginFooterColor } from "~/lib/plugin-footer";
-import { getGitStatus } from "~/services/tauri/git";
 import { listAllProcesses } from "~/services/tauri/sessions";
 import { createQuery } from "@tanstack/solid-query";
 import { isTauri } from "@tauri-apps/api/core";
 import { Tooltip, TooltipContent, TooltipTrigger } from "~/components/ui/tooltip";
-
-type Notification = {
-  id: number;
-  message: string;
-};
+import { NotificationCenter } from "~/components/NotificationCenter";
 
 export const StatusBar: Component<{
   activeView: "library" | "project" | "processes" | "settings";
@@ -26,9 +22,7 @@ export const StatusBar: Component<{
 }> = (props) => {
   const { t } = useI18n();
   const hub = useEventHub();
-
-  const [notifications, setNotifications] = createSignal<Notification[]>([]);
-  let nextId = 0;
+  const center = useNotificationCenter();
 
   const processesQ = createQuery(() => ({
     queryKey: ["processes", "all"] as const,
@@ -41,34 +35,19 @@ export const StatusBar: Component<{
     enabled: isTauri(),
   }));
 
-  const gitQ = createQuery(() => ({
-    queryKey: ["git", "status", props.projectId] as const,
-    queryFn: async () => {
-      if (!props.projectId) return null;
-      const r = await getGitStatus(props.projectId);
-      if (r.isErr()) throw new Error(r.error.message);
-      return r.value;
-    },
-    enabled: props.activeView === "project" && props.projectId != null && isTauri(),
-    staleTime: 5000,
-  }));
-
   const runningCount = createMemo(() =>
     (processesQ.data ?? []).filter((p) => p.state === "running" || p.state === "starting").length,
   );
 
-  const addNotification = (message: string) => {
-    const id = nextId++;
-    setNotifications((prev) => [...prev, { id, message }]);
-    window.setTimeout(() => {
-      setNotifications((prev) => prev.filter((n) => n.id !== id));
-    }, 4000);
-  };
-
   const unsub = hub.on("scan:complete", (payload) => {
-    addNotification(
-      `Library updated${payload.projectCount > 0 ? ` · ${payload.projectCount} projects` : ""}`,
-    );
+    center.notify({
+      severity: "info",
+      title: "Library updated",
+      body: payload.projectCount > 0 ? `${payload.projectCount} projects` : undefined,
+      source: "Library",
+      durationMs: 5000,
+      system: "auto",
+    });
   });
   onCleanup(unsub);
 
@@ -138,20 +117,8 @@ export const StatusBar: Component<{
         </div>
       </Show>
 
-      {/* Right: notifications + terminal + running count + git */}
-      <div class="flex shrink-0 items-center gap-3">
-        {/* Notifications — auto-fade */}
-        <div class="flex items-center gap-2">
-          <For each={notifications()}>
-            {(n) => (
-              <span class="flex items-center gap-1 rounded bg-primary/10 px-1.5 py-0.5 text-[10px] text-primary transition-opacity duration-500">
-                <span class="iconify mdi--information-outline size-3" />
-                {n.message}
-              </span>
-            )}
-          </For>
-        </div>
-
+      {/* Right: update + terminal + running count + bell (flush to right border) */}
+      <div class="flex shrink-0 items-center gap-3 -mr-2 pr-0">
         {/* Update download button */}
         <Show when={props.updateVersion}>
           <Tooltip>
@@ -172,7 +139,7 @@ export const StatusBar: Component<{
           <TooltipTrigger
             as="button"
             type="button"
-            class="flex items-center gap-1 rounded px-1 py-0.5 text-muted-foreground transition-colors hover:bg-accent hover:text-accent-foreground"
+            class="flex items-center gap-1 rounded px-1 py-0.5 text-muted-foreground transition-colors hover:bg-accent hover:text-foreground"
             onClick={() => props.onToggleTerminal()}
           >
             <span class="iconify mdi--console size-3" />
@@ -196,27 +163,8 @@ export const StatusBar: Component<{
           </Tooltip>
         </Show>
 
-        {/* Git status */}
-        <Show when={props.activeView === "project" && gitQ.data}>
-          <div class="flex items-center gap-1 text-muted-foreground">
-            <span class="iconify mdi--source-branch size-3" />
-            <span class="font-mono">{gitQ.data!.branch}</span>
-            <Show when={gitQ.data!.version}>
-              <span class="rounded bg-muted px-1 py-0 text-[9px] font-mono text-muted-foreground/70">
-                {gitQ.data!.version}
-              </span>
-            </Show>
-            <Show when={gitQ.data!.isDirty}>
-              <span class="text-primary">●</span>
-            </Show>
-            <Show when={gitQ.data!.ahead > 0}>
-              <span class="font-mono text-emerald-500">↑{gitQ.data!.ahead}</span>
-            </Show>
-            <Show when={gitQ.data!.behind > 0}>
-              <span class="font-mono text-amber-500">↓{gitQ.data!.behind}</span>
-            </Show>
-          </div>
-        </Show>
+        {/* Notification center (bell) — rightmost, flush on hover */}
+        <NotificationCenter projectId={props.projectId} />
       </div>
     </div>
   );

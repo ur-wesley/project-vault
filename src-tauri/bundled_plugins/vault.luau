@@ -22,6 +22,33 @@ export type VaultNotification = {
     warn: (message: string) -> (),
     --- Shows an error toast notification.
     error: (message: string) -> (),
+
+    --- Options for a rich, persistent notification entry in the app's Notification Center.
+    --- Use this for events that should stay visible until the user dismisses them.
+    show: (options: VaultNotificationShowOptions) -> (),
+}
+
+--- A clickable action attached to a rich notification.
+--- `command` is a local command id — the engine automatically scopes it to the plugin
+--- namespace when dispatching through `execute_plugin_command`.
+export type VaultNotificationAction = {
+    id: string,
+    label: string,
+    primary: boolean?,
+    command: string?,
+}
+
+export type VaultNotificationShowOptions = {
+    --- Severity: "info" | "success" | "warn" | "error" (default: "info").
+    severity: ("info" | "success" | "warn" | "error")?,
+    --- Required headline shown in the notification center.
+    title: string,
+    --- Optional secondary body text.
+    message: string?,
+    --- Optional source label, e.g. "Plugins" or the plugin name. Defaults to the plugin id.
+    source: string?,
+    --- Optional clickable actions.
+    actions: { VaultNotificationAction }?,
 }
 
 export type VaultFS = {

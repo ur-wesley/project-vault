@@ -8,6 +8,7 @@ import { toast } from "solid-sonner";
 import { useI18n } from "~/lib/i18n-context";
 import { useWindowFocus } from "~/lib/use-window-focus";
 import { stableErrorMessage } from "~/lib/invoke-error";
+import { notify } from "~/lib/notification-center";
 import { getGitHubRepoForProject, getProject, setProjectFavorite, deleteProject as deleteProjectTauri, refreshProject } from "~/services/tauri/projects";
 import { openProjectShell } from "~/services/tauri/terminal";
 import { startGitWatcher, stopGitWatcher } from "~/services/tauri/git";
@@ -188,7 +189,12 @@ export function createProjectDetailModel(props: ProjectDetailViewProps) {
       });
       void qc.invalidateQueries({ queryKey: queryKeys.projects });
       void qc.removeQueries({ queryKey: queryKeys.project(variables.id) });
-      toast.success(t("projectDetail.projectDeleted") as string);
+      notify({
+        severity: "success",
+        title: t("projectDetail.projectDeleted") as string,
+        source: "Projects",
+        system: "auto",
+      });
       props.onBack();
     },
     onError: (err: unknown) => {

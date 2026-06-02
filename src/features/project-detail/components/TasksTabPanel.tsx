@@ -21,6 +21,7 @@ import {
 import { Tooltip, TooltipContent, TooltipTrigger } from "~/components/ui/tooltip";
 import { useI18n } from "~/lib/i18n-context";
 import { toast } from "solid-sonner";
+import { notify } from "~/lib/notification-center";
 import { deleteProjectTask } from "~/services/tauri/tasks";
 import { enableTunnel, disableTunnel, getTunnelStatus } from "~/services/tauri/tunnel";
 import type { ProjectDto, TaskDto } from "~/types/dto";
@@ -77,7 +78,12 @@ export function TasksTabPanel(props: {
         delete next[sessionId];
         return next;
       });
-      toast.success("Tunnel disabled");
+      notify({
+        severity: "success",
+        title: "Tunnel disabled",
+        source: "Tunnel",
+        system: "auto",
+      });
     } else {
       const projectName = props.project().path.split(/[\\/]/).pop() ?? "app";
       const label = taskLabel?.split(": ").pop()?.toLowerCase().replace(/[^a-z0-9]/g, "-") ?? "dev";
@@ -93,7 +99,12 @@ export function TasksTabPanel(props: {
         return;
       }
       setTunnelRoutes((prev) => ({ ...prev, [sessionId]: r.value }));
-      toast.success(`Mapped to ${r.value}`);
+      notify({
+        severity: "success",
+        title: `Mapped to ${r.value}`,
+        source: "Tunnel",
+        system: "auto",
+      });
     }
   };
 
@@ -437,7 +448,12 @@ export function TasksTabPanel(props: {
                     toast.error(r.error.message);
                     return;
                   }
-                  toast.success(t("projectDetail.taskEditor.deleted") as string);
+                  notify({
+                    severity: "success",
+                    title: t("projectDetail.taskEditor.deleted") as string,
+                    source: "Tasks",
+                    system: "auto",
+                  });
                   m().syncProjectTasks(r.value);
                 } finally {
                   setDeleteBusy(false);
