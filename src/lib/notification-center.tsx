@@ -11,6 +11,7 @@ import {
 import { listen, type UnlistenFn } from "@tauri-apps/api/event";
 import { invoke } from "@tauri-apps/api/core";
 import { isTauri } from "@tauri-apps/api/core";
+import { toast, type ExternalToast } from "solid-sonner";
 import { useWindowFocus } from "~/lib/use-window-focus";
 import { sendOsNotification } from "~/services/tauri/notifications";
 import { getSetting, setSetting } from "~/services/tauri/settings";
@@ -49,6 +50,8 @@ export type NotificationItem = {
   systemSent: boolean;
   /** Resolves to "auto" | "always" | "never". */
   system: "auto" | "always" | "never";
+  persist?: boolean;
+  toast?: boolean;
 };
 
 export type NotifyOptions = {
@@ -62,6 +65,8 @@ export type NotifyOptions = {
   progress?: NotificationProgress;
   durationMs?: number;
   system?: "auto" | "always" | "never";
+  persist?: boolean;
+  toast?: boolean;
 };
 
 export type NotificationCenterApi = {
@@ -129,6 +134,8 @@ function newItem(id: string, opts: NotifyOptions): NotificationItem {
     durationMs: opts.durationMs,
     systemSent: false,
     system: opts.system ?? "auto",
+    persist: opts.persist,
+    toast: opts.toast,
   };
 }
 
@@ -167,7 +174,7 @@ export const NotificationCenterProvider: ParentComponent = (props) => {
 
   const maybeSendOs = (item: NotificationItem) => {
     if (item.system === "never") return;
-    if (!systemEnabled()) return;
+    if (item.system !== "always" && !systemEnabled()) return;
     if (item.system === "auto" && isFocused()) return;
     if (item.systemSent) return;
     void sendOsNotification(item.title, item.body);
@@ -181,18 +188,66 @@ export const NotificationCenterProvider: ParentComponent = (props) => {
     const existing = items().find((i) => i.id === id);
     const next = existing ? { ...existing, ...newItem(id, opts), read: existing.read } : newItem(id, opts);
 
-    setItems((prev) => {
-      const without = prev.filter((p) => p.id !== id);
-      const merged = [next, ...without];
-      if (merged.length > MAX_ITEMS) merged.length = MAX_ITEMS;
-      return merged;
-    });
+    if (opts.persist === true) {
+      setItems((prev) => {
+        const without = prev.filter((p) => p.id !== id);
+        const merged = [next, ...without];
+        if (merged.length > MAX_ITEMS) merged.length = MAX_ITEMS;
+        return merged;
+      });
 
-    if (next.durationMs && next.durationMs > 0) {
-      const removeId = id;
-      window.setTimeout(() => {
-        setItems((prev) => prev.filter((p) => p.id !== removeId));
-      }, next.durationMs);
+      if (next.durationMs && next.durationMs > 0) {
+        const removeId = id;
+        window.setTimeout(() => {
+          setItems((prev) => prev.filter((p) => p.id !== removeId));
+        }, next.durationMs);
+      }
+    }
+
+    if (opts.toast !== false) {
+      const severity = opts.severity ?? "info";
+      const toastOpts: ExternalToast = {
+        id,
+        description: opts.body,
+        duration: opts.durationMs,
+      };
+
+      if (opts.actions && opts.actions.length > 0) {
+        const first = opts.actions[0];
+        toastOpts.action = {
+          label: first.label,
+          onClick: () => {
+            if (first.run) {
+              void first.run();
+            } else if (first.command) {
+              void runNotificationActionCommand(first.command);
+            }
+          },
+        };
+        if (opts.actions.length > 1) {
+          const second = opts.actions[1];
+          toastOpts.cancel = {
+            label: second.label,
+            onClick: () => {
+              if (second.run) {
+                void second.run();
+              } else if (second.command) {
+                void runNotificationActionCommand(second.command);
+              }
+            },
+          };
+        }
+      }
+
+      if (severity === "success") {
+        toast.success(opts.title, toastOpts);
+      } else if (severity === "error") {
+        toast.error(opts.title, toastOpts);
+      } else if (severity === "warning") {
+        toast.warning(opts.title, toastOpts);
+      } else {
+        toast.info(opts.title, toastOpts);
+      }
     }
 
     maybeSendOs(next);
@@ -201,6 +256,7 @@ export const NotificationCenterProvider: ParentComponent = (props) => {
 
   const dismiss: NotificationCenterApi["dismiss"] = (id) => {
     setItems((prev) => prev.filter((p) => p.id !== id));
+    toast.dismiss(id);
   };
 
   const markAllRead: NotificationCenterApi["markAllRead"] = () => {
@@ -232,6 +288,7 @@ export const NotificationCenterProvider: ParentComponent = (props) => {
         source: "Plugin",
         durationMs: 5000,
         system: "auto",
+        persist: false,
       });
     }).then((fn) => unlistens.push(fn));
 
@@ -242,8 +299,9 @@ export const NotificationCenterProvider: ParentComponent = (props) => {
       message?: string;
       source?: string;
       actions?: { id: string; label: string; primary?: boolean; command?: string }[];
+      persist?: boolean;
     }>("plugin:notification-rich", (event) => {
-      const { pluginId, severity, title, message, source, actions } = event.payload;
+      const { pluginId, severity, title, message, source, actions, persist } = event.payload;
       const sev = (
         severity === "success" ? "success" :
         severity === "error" ? "error" :
@@ -262,6 +320,7 @@ export const NotificationCenterProvider: ParentComponent = (props) => {
           command: a.command,
         })),
         system: "auto",
+        persist: persist ?? false,
       });
     }).then((fn) => unlistens.push(fn));
 

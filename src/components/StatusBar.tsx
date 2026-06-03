@@ -42,9 +42,9 @@ export const StatusBar: Component<{
   const unsub = hub.on("scan:complete", (payload) => {
     center.notify({
       severity: "info",
-      title: "Library updated",
-      body: payload.projectCount > 0 ? `${payload.projectCount} projects` : undefined,
-      source: "Library",
+      title: t("library.scanCompleteTitle") as string,
+      body: payload.projectCount > 0 ? (t("library.scanCompleteBody", { count: payload.projectCount }) as string) : undefined,
+      source: t("library.scanCompleteSource") as string,
       durationMs: 5000,
       system: "auto",
     });

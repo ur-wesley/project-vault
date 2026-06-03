@@ -83,27 +83,30 @@ const NotificationRow: Component<{
   onDismiss: () => void;
 }> = (props) => {
   const { t } = useI18n();
+  const iconName = () => props.item.icon || SEVERITY_ICON[props.item.severity];
+
   return (
     <div
       class={cn(
-        "group relative flex gap-2.5 rounded-md border border-transparent p-2.5 text-left transition-colors hover:border-border/40 hover:bg-accent/30",
+        "group relative flex flex-col gap-1.5 rounded-md border border-transparent p-2.5 text-left transition-colors hover:border-border/40 hover:bg-accent/30",
         !props.item.read && "bg-accent/15",
       )}
     >
-      <div class={cn("mt-0.5 flex size-7 shrink-0 items-center justify-center rounded-md", SEVERITY_BG[props.item.severity])}>
-        <span class={cn("iconify size-4", SEVERITY_ICON[props.item.severity], SEVERITY_COLOR[props.item.severity])} />
-      </div>
-      <div class="flex min-w-0 flex-1 flex-col gap-0.5">
-        <div class="flex items-baseline gap-2">
-          <span class="truncate text-xs font-medium leading-snug text-foreground">{props.item.title}</span>
-          <Show when={!props.item.read}>
-            <span class="inline-flex h-1.5 w-1.5 shrink-0 rounded-full bg-primary" aria-hidden="true" />
-          </Show>
-          <span class="ml-auto shrink-0 font-mono text-[10px] text-muted-foreground/70">{formatTime(props.item.createdAt)}</span>
+      {/* Header Row: Icon, App Name/Source, Unread Badge, Time */}
+      <div class="flex items-center gap-1.5 text-[10px] uppercase tracking-wide text-muted-foreground/60">
+        <div class={cn("flex size-5 shrink-0 items-center justify-center rounded-md", SEVERITY_BG[props.item.severity])}>
+          <span class={cn("iconify size-3", iconName(), SEVERITY_COLOR[props.item.severity])} />
         </div>
-        <Show when={props.item.source}>
-          <span class="text-[10px] uppercase tracking-wide text-muted-foreground/60">{props.item.source}</span>
+        <span class="font-medium truncate">{props.item.source ?? (t("notificationCenter.sourceSystem") as string)}</span>
+        <Show when={!props.item.read}>
+          <span class="inline-flex h-1.5 w-1.5 shrink-0 rounded-full bg-primary" aria-hidden="true" />
         </Show>
+        <span class="ml-auto font-mono text-[9px] text-muted-foreground/70">{formatTime(props.item.createdAt)}</span>
+      </div>
+
+      {/* Title & Body Content */}
+      <div class="flex min-w-0 flex-col gap-0.5 pl-0.5">
+        <span class="truncate text-xs font-semibold leading-snug text-foreground">{props.item.title}</span>
         <Show when={props.item.body}>
           <p class="whitespace-pre-wrap text-xs leading-snug text-muted-foreground">{props.item.body}</p>
         </Show>
@@ -140,6 +143,7 @@ const NotificationRow: Component<{
           </div>
         </Show>
       </div>
+
       <button
         type="button"
         aria-label={t("common.dismiss") as string}
