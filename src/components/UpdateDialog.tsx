@@ -82,7 +82,7 @@ export const UpdateDialog: Component<{
 
   return (
     <Dialog open={props.open} onOpenChange={props.onOpenChange}>
-      <DialogContent class="max-w-sm">
+      <DialogContent class="sm:max-w-lg">
         <DialogHeader>
           <DialogTitle class="flex items-center gap-2">
             <span class="iconify mdi--download-circle-outline size-5 text-primary" />
@@ -96,9 +96,9 @@ export const UpdateDialog: Component<{
         </DialogHeader>
 
         <Show when={props.updateInfo?.notes}>
-          <div class="max-h-48 overflow-y-auto rounded-md bg-muted/30 p-3 prose prose-sm dark:prose-invert !text-xs">
-            <Show when={notesHtml()} fallback={<p class="animate-pulse text-muted-foreground text-xs">{t("common.rendering") as string}</p>}>
-              <article class="markdown-body !bg-transparent !p-0 !text-xs" innerHTML={notesHtml()!} />
+          <div class="max-h-80 overflow-y-auto rounded-md bg-muted/30 p-4 prose prose-sm dark:prose-invert">
+            <Show when={notesHtml()} fallback={<p class="animate-pulse text-muted-foreground text-sm">{t("common.rendering") as string}</p>}>
+              <article class="markdown-body !bg-transparent !p-0 !text-sm" innerHTML={notesHtml()!} />
             </Show>
           </div>
         </Show>
