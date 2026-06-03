@@ -19,6 +19,24 @@ import {
 import { Button } from "~/components/ui/button";
 import { TextField, TextFieldInput, TextFieldLabel } from "~/components/ui/text-field";
 import { useI18n } from "~/lib/i18n-context";
+import { FilePreview } from "~/features/project-detail/components/FilePreview";
+
+interface BridgeQuickPickItem {
+  id: string;
+  label: string;
+  detail?: string;
+  icon?: string;
+  filePath?: string;
+  lineNumber?: number;
+}
+
+interface BridgeQuickPickOptions {
+  id: string;
+  title: string;
+  items: BridgeQuickPickItem[];
+  fuzzy?: boolean;
+  preview?: boolean;
+}
 
 interface FormField {
   id: string;
@@ -42,11 +60,7 @@ export function PluginUiBridge(props: { projectId?: string | null }) {
   const [inputValue, setInputValue] = createSignal("");
 
   // ── Quick pick state ───────────────────────────────────────────────────────
-  const [quickPick, setQuickPick] = createSignal<{
-    id: string;
-    title: string;
-    items: { id: string; label: string; detail?: string; icon?: string }[];
-  } | null>(null);
+  const [quickPick, setQuickPick] = createSignal<BridgeQuickPickOptions | null>(null);
   const [qpSearch, setQpSearch] = createSignal("");
   const [qpSelectedIdx, setQpSelectedIdx] = createSignal(0);
   let qpListRef: HTMLDivElement | undefined;
@@ -68,16 +82,83 @@ export function PluginUiBridge(props: { projectId?: string | null }) {
     }
   });
 
-  // Filtered items — case-insensitive substring on label and detail
+  // Helper for fuzzy matching
+  const fuzzyMatch = (str: string, query: string): number | null => {
+    const strLen = str.length;
+    const queryLen = query.length;
+    if (queryLen === 0) return 0;
+    if (queryLen > strLen) return null;
+
+    let sIdx = 0;
+    let qIdx = 0;
+    let score = 0;
+    let consecutive = 0;
+
+    while (sIdx < strLen && qIdx < queryLen) {
+      const sChar = str[sIdx].toLowerCase();
+      const qChar = query[qIdx].toLowerCase();
+
+      if (sChar === qChar) {
+        let charScore = 1;
+        if (consecutive > 0) {
+          charScore += consecutive * 2;
+        }
+        if (sIdx === 0) {
+          charScore += 5;
+        } else {
+          const prevChar = str[sIdx - 1];
+          if (prevChar === "/" || prevChar === "\\" || prevChar === "_" || prevChar === "-" || prevChar === ".") {
+            charScore += 5;
+          }
+        }
+        score += charScore;
+        consecutive++;
+        qIdx++;
+      } else {
+        consecutive = 0;
+      }
+      sIdx++;
+    }
+
+    if (qIdx >= queryLen) {
+      score -= strLen * 0.1;
+      return score;
+    }
+    return null;
+  };
+
+  // Filtered items — case-insensitive substring or fuzzy match on label and detail
   const filteredQpItems = createMemo(() => {
     const items = quickPick()?.items ?? [];
     const q = qpSearch().toLowerCase().trim();
     if (!q) return items;
-    return items.filter(
-      (item) =>
+
+    if (quickPick()?.fuzzy) {
+      const scored: { item: BridgeQuickPickItem; score: number }[] = [];
+      for (const item of items) {
+        const labelScore = fuzzyMatch(item.label, q);
+        const detailScore = item.detail ? fuzzyMatch(item.detail, q) : null;
+        
+        if (labelScore !== null || detailScore !== null) {
+          const score = Math.max(labelScore ?? -9999, detailScore ?? -9999);
+          scored.push({ item, score });
+        }
+      }
+      
+      scored.sort((a, b) => b.score - a.score);
+      return scored.map((x) => x.item);
+    } else {
+      return items.filter(
+        (item) =>
           item.label.toLowerCase().includes(q) ||
           (item.detail?.toLowerCase().includes(q) ?? false),
-    );
+      );
+    }
+  });
+
+  const currentItem = createMemo(() => {
+    const items = filteredQpItems();
+    return items[qpSelectedIdx()] ?? null;
   });
 
   // Clamp selected index when filter changes
@@ -140,9 +221,15 @@ export function PluginUiBridge(props: { projectId?: string | null }) {
         setInputValue("");
       }));
 
-      unlistens.push(await listen<[string, { title: string; items: any[] }]>("plugin:show-quick-pick", (event) => {
+      unlistens.push(await listen<[string, { title: string; items: any[]; fuzzy?: boolean; preview?: boolean }]>("plugin:show-quick-pick", (event) => {
         const [id, options] = event.payload;
-        setQuickPick({ id, title: options.title, items: options.items });
+        setQuickPick({
+          id,
+          title: options.title,
+          items: options.items,
+          fuzzy: options.fuzzy,
+          preview: options.preview,
+        });
       }));
 
       unlistens.push(await listen<[string, { title: string; fields: FormField[] }]>("plugin:show-form", (event) => {
@@ -387,91 +474,115 @@ export function PluginUiBridge(props: { projectId?: string | null }) {
 
       {/* Quick Pick Dialog — custom implementation with full keyboard control */}
       <Dialog open={!!quickPick()} onOpenChange={(open) => !open && resolveQuickPick(null)}>
-        <DialogContent class="gap-0 p-0 sm:max-w-[550px]" hideCloseButton onKeyDown={handleQpKeyDown}>
-          {/* Search bar */}
-          <div class="flex items-center border-b px-3">
-            <svg
-              xmlns="http://www.w3.org/2000/svg"
-              viewBox="0 0 24 24"
-              fill="none"
-              stroke="currentColor"
-              stroke-width="2"
-              stroke-linecap="round"
-              stroke-linejoin="round"
-              class="mr-2 size-4 shrink-0 opacity-50"
-            >
-              <path d="M10 10m-7 0a7 7 0 1 0 14 0a7 7 0 1 0 -14 0" />
-              <path d="M21 21l-6 -6" />
-            </svg>
-            <input
-              class="flex h-11 w-full bg-transparent py-3 text-sm outline-none placeholder:text-muted-foreground"
-              placeholder={quickPick()?.title ?? t("common.search")}
-              value={qpSearch()}
-              onInput={(e) => {
-                setQpSearch(e.currentTarget.value);
-                setQpSelectedIdx(0);
-              }}
-              autofocus
-            />
-            <span class="ml-2 shrink-0 rounded border border-border/60 bg-muted px-1.5 py-0.5 font-mono text-[10px] text-muted-foreground">
-              ↵ {t("settings.pluginsUiSelectHint")}
-            </span>
-          </div>
+        <DialogContent
+          class={`gap-0 p-0 transition-all duration-200 overflow-hidden ${
+            quickPick()?.preview
+              ? "sm:max-w-[1100px] sm:h-[580px] flex flex-row"
+              : "sm:max-w-[550px]"
+          }`}
+          hideCloseButton
+          onKeyDown={handleQpKeyDown}
+        >
+          <div class={`flex flex-col ${quickPick()?.preview ? "w-[40%] min-w-[380px] border-r border-border/40 h-full" : "w-full"}`}>
+            {/* Search bar */}
+            <div class="flex items-center border-b px-3 shrink-0">
+              <svg
+                xmlns="http://www.w3.org/2000/svg"
+                viewBox="0 0 24 24"
+                fill="none"
+                stroke="currentColor"
+                stroke-width="2"
+                stroke-linecap="round"
+                stroke-linejoin="round"
+                class="mr-2 size-4 shrink-0 opacity-50"
+              >
+                <path d="M10 10m-7 0a7 7 0 1 0 14 0a7 7 0 1 0 -14 0" />
+                <path d="M21 21l-6 -6" />
+              </svg>
+              <input
+                class="flex h-11 w-full bg-transparent py-3 text-sm outline-none placeholder:text-muted-foreground"
+                placeholder={quickPick()?.title ?? t("common.search")}
+                value={qpSearch()}
+                onInput={(e) => {
+                  setQpSearch(e.currentTarget.value);
+                  setQpSelectedIdx(0);
+                }}
+                autofocus
+              />
+              <span class="ml-2 shrink-0 rounded border border-border/60 bg-muted px-1.5 py-0.5 font-mono text-[10px] text-muted-foreground">
+                ↵ {t("settings.pluginsUiSelectHint")}
+              </span>
+            </div>
 
-          {/* Item list */}
-          <div ref={qpListRef} class="max-h-[320px] overflow-y-auto p-1">
-            <Show
-              when={filteredQpItems().length > 0}
-              fallback={
-                <div class="py-8 text-center text-sm text-muted-foreground">
-                  {t("settings.pluginsUiNoResults")}
-                </div>
-              }
+            {/* Item list */}
+            <div
+              ref={qpListRef}
+              class={`overflow-y-auto p-1 ${
+                quickPick()?.preview ? "flex-1" : "max-h-[320px]"
+              }`}
             >
-              {/* Group heading */}
-              <Show when={quickPick()?.title}>
-                <div class="px-2 py-1.5 text-xs font-medium text-muted-foreground">
-                  {quickPick()?.title}
-                </div>
-              </Show>
+              <Show
+                when={filteredQpItems().length > 0}
+                fallback={
+                  <div class="py-8 text-center text-sm text-muted-foreground">
+                    {t("settings.pluginsUiNoResults")}
+                  </div>
+                }
+              >
+                {/* Group heading */}
+                <Show when={quickPick()?.title}>
+                  <div class="px-2 py-1.5 text-xs font-medium text-muted-foreground">
+                    {quickPick()?.title}
+                  </div>
+                </Show>
 
-              <For each={filteredQpItems()}>
-                {(item, idx) => (
-                  <button
-                    data-qp-item
-                    type="button"
-                    class={`flex w-full cursor-default select-none items-center gap-2 rounded-sm px-4 py-2 text-left text-sm outline-none transition-colors ${
-                      idx() === qpSelectedIdx()
-                        ? "bg-accent text-accent-foreground"
-                        : "text-foreground hover:bg-accent/50"
-                    }`}
-                    onClick={() => resolveQuickPick(item.id)}
-                    onPointerMove={() => setQpSelectedIdx(idx())}
-                  >
-                    <Show when={item.icon}>
-                      <span class={`iconify ${item.icon} size-4 shrink-0 opacity-70`} />
-                    </Show>
-                    <div class="flex min-w-0 flex-col">
-                      <span class="truncate font-medium">{item.label}</span>
-                      <Show when={item.detail}>
-                        <span class="truncate text-xs text-muted-foreground">{item.detail}</span>
+                <For each={filteredQpItems().slice(0, Math.max(100, qpSelectedIdx() + 20))}>
+                  {(item, idx) => (
+                    <button
+                      data-qp-item
+                      type="button"
+                      class={`flex w-full cursor-default select-none items-center gap-2 rounded-sm px-4 py-2 text-left text-sm outline-none transition-colors ${
+                        idx() === qpSelectedIdx()
+                          ? "bg-accent text-accent-foreground"
+                          : "text-foreground hover:bg-accent/50"
+                      }`}
+                      onClick={() => resolveQuickPick(item.id)}
+                      onPointerMove={() => setQpSelectedIdx(idx())}
+                    >
+                      <Show when={item.icon}>
+                        <span class={`iconify ${item.icon} size-4 shrink-0 opacity-70`} />
                       </Show>
-                    </div>
-                    <Show when={idx() === qpSelectedIdx()}>
-                      <span class="ml-auto shrink-0 text-xs text-muted-foreground opacity-60">↵</span>
-                    </Show>
-                  </button>
-                )}
-              </For>
-            </Show>
+                      <div class="flex min-w-0 flex-col">
+                        <span class="truncate font-medium">{item.label}</span>
+                        <Show when={item.detail}>
+                          <span class="truncate text-xs text-muted-foreground">{item.detail}</span>
+                        </Show>
+                      </div>
+                      <Show when={idx() === qpSelectedIdx()}>
+                        <span class="ml-auto shrink-0 text-xs text-muted-foreground opacity-60">↵</span>
+                      </Show>
+                    </button>
+                  )}
+                </For>
+              </Show>
+            </div>
+
+            {/* Footer hint bar */}
+            <div class="flex items-center gap-3 border-t border-border/50 px-3 py-1.5 text-[10px] text-muted-foreground/70 shrink-0">
+              <span><kbd class="font-mono">↑↓</kbd> {t("settings.pluginsUiNavHint")}</span>
+              <span><kbd class="font-mono">Home</kbd>/<kbd class="font-mono">End</kbd> {t("settings.pluginsUiJumpHint")}</span>
+              <span><kbd class="font-mono">Esc</kbd> {t("settings.pluginsUiCloseHint")}</span>
+            </div>
           </div>
 
-          {/* Footer hint bar */}
-          <div class="flex items-center gap-3 border-t border-border/50 px-3 py-1.5 text-[10px] text-muted-foreground/70">
-            <span><kbd class="font-mono">↑↓</kbd> {t("settings.pluginsUiNavHint")}</span>
-            <span><kbd class="font-mono">Home</kbd>/<kbd class="font-mono">End</kbd> {t("settings.pluginsUiJumpHint")}</span>
-            <span><kbd class="font-mono">Esc</kbd> {t("settings.pluginsUiCloseHint")}</span>
-          </div>
+          <Show when={quickPick()?.preview}>
+            <div class="flex-1 h-full min-w-0 bg-muted/5">
+              <FilePreview
+                path={currentItem()?.filePath ?? null}
+                scrollToLine={currentItem()?.lineNumber}
+              />
+            </div>
+          </Show>
         </DialogContent>
       </Dialog>
       {/* Dynamic Form Dialog */}
