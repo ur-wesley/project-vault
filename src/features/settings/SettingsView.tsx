@@ -91,32 +91,34 @@ export const SettingsView: Component<SettingsViewProps> = (props) => {
             onChange={props.onTabChange}
             class="flex flex-1 flex-col overflow-hidden"
           >
-            <TabsList class="mb-6 w-full flex bg-muted/40 p-1">
-              <TabsTrigger value="general" class="flex-1 font-semibold text-xs uppercase tracking-wider">
-                {t("settings.tabGeneral") as string}
-              </TabsTrigger>
-              <TabsTrigger value="locations" class="flex-1 font-semibold text-xs uppercase tracking-wider">
-                {t("settings.tabLocations") as string}
-              </TabsTrigger>
-              <TabsTrigger value="tools" class="flex-1 font-semibold text-xs uppercase tracking-wider">
-                {t("settings.tabTools") as string}
-              </TabsTrigger>
-              <TabsTrigger value="shortcuts" class="flex-1 font-semibold text-xs uppercase tracking-wider">
-                {t("settings.tabShortcuts") as string}
-              </TabsTrigger>
-              <TabsTrigger value="templates" class="flex-1 font-semibold text-xs uppercase tracking-wider">
-                {t("settings.tabTemplates") as string}
-              </TabsTrigger>
-              <TabsTrigger value="plugins" class="flex-1 font-semibold text-xs uppercase tracking-wider">
-                {t("settings.tabPlugins") as string ?? "Plugins"}
-              </TabsTrigger>
-              <TabsTrigger value="accounts" class="flex-1 font-semibold text-xs uppercase tracking-wider">
-                {t("settings.tabAccounts") as string}
-              </TabsTrigger>
-              <TabsTrigger value="notifications" class="flex-1 font-semibold text-xs uppercase tracking-wider">
-                {t("settings.tabNotifications") as string}
-              </TabsTrigger>
-            </TabsList>
+            <div class="mb-6 min-w-0 shrink-0 overflow-x-auto overflow-y-hidden">
+              <TabsList class="inline-flex w-max min-w-full justify-start bg-muted/40 p-1">
+                <TabsTrigger value="general" class="shrink-0 font-semibold text-xs uppercase tracking-wider">
+                  {t("settings.tabGeneral") as string}
+                </TabsTrigger>
+                <TabsTrigger value="locations" class="shrink-0 font-semibold text-xs uppercase tracking-wider">
+                  {t("settings.tabLocations") as string}
+                </TabsTrigger>
+                <TabsTrigger value="tools" class="shrink-0 font-semibold text-xs uppercase tracking-wider">
+                  {t("settings.tabTools") as string}
+                </TabsTrigger>
+                <TabsTrigger value="shortcuts" class="shrink-0 font-semibold text-xs uppercase tracking-wider">
+                  {t("settings.tabShortcuts") as string}
+                </TabsTrigger>
+                <TabsTrigger value="templates" class="shrink-0 font-semibold text-xs uppercase tracking-wider">
+                  {t("settings.tabTemplates") as string}
+                </TabsTrigger>
+                <TabsTrigger value="plugins" class="shrink-0 font-semibold text-xs uppercase tracking-wider">
+                  {t("settings.tabPlugins") as string ?? "Plugins"}
+                </TabsTrigger>
+                <TabsTrigger value="accounts" class="shrink-0 font-semibold text-xs uppercase tracking-wider">
+                  {t("settings.tabAccounts") as string}
+                </TabsTrigger>
+                <TabsTrigger value="notifications" class="shrink-0 font-semibold text-xs uppercase tracking-wider">
+                  {t("settings.tabNotifications") as string}
+                </TabsTrigger>
+              </TabsList>
+            </div>
 
             <div class="flex-1 overflow-y-auto px-1 pr-2 scrollbar-none">
               <GeneralSettingsTab

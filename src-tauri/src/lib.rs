@@ -1,4 +1,5 @@
 mod commands;
+mod notifications;
 pub mod db;
 pub mod discovery;
 mod disk_volume;
@@ -111,6 +112,11 @@ pub fn run() {
         .manage(crate::spawn::TaskMonitors::default())
         .manage(crate::tunnel::TunnelState::default())
         .setup(|app| {
+            #[cfg(windows)]
+            if let Err(e) = crate::notifications::register_windows_notifications(app.handle()) {
+                eprintln!("[notifications] Windows registration failed: {e}");
+            }
+
             let p_dir = crate::commands::plugins::plugins_dir(app.handle());
             if !p_dir.is_dir() {
                 let _ = std::fs::create_dir_all(&p_dir);
@@ -322,6 +328,7 @@ pub fn run() {
             commands::github_device::start_github_device_flow,
             commands::github_device::wait_github_device_flow,
             commands::github_remote::get_github_repo_for_project,
+            commands::notifications::show_system_notification,
             commands::settings::get_setting,
             commands::settings::set_setting,
             commands::settings::list_settings,
@@ -382,10 +389,12 @@ pub fn run() {
             tunnel::commands::disable_tunnel,
             tunnel::commands::get_tunnel_status,
             lua::ui::resolve_plugin_ui,
+            lua::ui::set_active_project,
             commands::plugins::list_plugin_commands,
             commands::plugins::execute_plugin_command,
             commands::plugins::list_plugins,
             commands::plugins::toggle_plugin,
+            commands::plugins::get_tab_decorations,
         ])
         .manage(lua::ui::UiBridge::default())
         .run(tauri::generate_context!())

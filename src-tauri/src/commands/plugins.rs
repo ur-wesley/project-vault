@@ -106,3 +106,18 @@ pub async fn toggle_plugin(
 
     Ok(())
 }
+
+#[tauri::command]
+pub async fn get_tab_decorations(
+    app: AppHandle,
+    db: State<'_, DbInstances>,
+    bridge: State<'_, UiBridge>,
+    project_id: String,
+    tab_id: String,
+    element_ids: Vec<String>,
+) -> Result<std::collections::HashMap<String, crate::lua::loader::ElementDecorations>, StableError> {
+    let p_dir = plugins_dir(&app);
+    let manager = PluginManager::new(p_dir);
+    let disabled = get_disabled_plugins(&*db).await?;
+    Ok(manager.get_tab_decorations(app, (*bridge).clone(), &disabled, project_id, tab_id, element_ids).await)
+}

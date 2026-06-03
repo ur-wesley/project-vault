@@ -49,6 +49,8 @@ export type VaultNotificationShowOptions = {
     source: string?,
     --- Optional clickable actions.
     actions: { VaultNotificationAction }?,
+    --- Whether to persist this entry in the Notification Center (default: false).
+    persist: boolean?,
 }
 
 export type VaultFS = {
@@ -83,6 +85,24 @@ export type VaultTOML = {
 export type VaultProjects = {
     --- Returns a JSON-serialized list of all active projects in the vault.
     list: () -> string,
+    --- Returns a JSON-serialized string of a single project's details by ID.
+    get: (projectId: string) -> string,
+    --- Returns the active project ID or nil if no project is open.
+    get_active: () -> string?,
+    --- Runs a project-specific task command by its label.
+    run_task: (projectId: string, taskLabel: string) -> (),
+    --- Runs a custom command with optional arguments, working directory, and concurrency option.
+    run_argv: (projectId: string, argv: { string }, cwd: string?, concurrent: boolean?) -> (),
+    --- Stops a running task session.
+    stop_task: (sessionId: string) -> (),
+    --- Returns a JSON-serialized list of active sessions for a project.
+    get_active_sessions: (projectId: string) -> string,
+    --- Returns the JSON-serialized git status for a project.
+    get_git_status: (projectId: string) -> string,
+    --- Returns JSON-serialized playtime aggregates for a project.
+    get_dev_time: (projectId: string) -> string,
+    --- Sets whether the project is a favorite.
+    set_favorite: (projectId: string, favorite: boolean) -> (),
 }
 
 export type VaultSettings = {
@@ -144,6 +164,38 @@ export type FooterSegmentOptions = {
     color: FooterColor?,
 }
 
+-- Form field definition
+export type FormField = {
+    id: string,
+    label: string,
+    fieldType: "text" | "number" | "boolean" | "select" | "textarea",
+    placeholder: string?,
+    defaultValue: any?,
+    options: { { id: string, label: string } }?,
+    required: boolean?,
+    pattern: string?,
+    validationMessage: string?,
+    min: number?,
+    max: number?,
+    step: number?,
+}
+
+export type FormOptions = {
+    title: string,
+    fields: { FormField },
+}
+
+-- Header widget definition
+export type HeaderWidgetOptions = {
+    id: string,
+    type: "button" | "badge" | "text",
+    text: string,
+    icon: string?,
+    tooltip: string?,
+    command: string?,
+    color: FooterColor?,
+}
+
 export type VaultUI = {
     --- Prompts the user with a text input box. Returns the entered string or nil if cancelled.
     show_input_box: (options: InputBoxOptions) -> string?,
@@ -156,8 +208,13 @@ export type VaultUI = {
     set_footer: (options: FooterSegmentOptions) -> (),
     --- Removes a footer segment by its id.
     clear_footer: (id: string) -> (),
+    --- Renders a custom form with input validation. Returns a table of { field_id = value } or nil if cancelled.
+    show_form: (options: FormOptions) -> { [string]: any }?,
+    --- Adds or updates a widget in the project detail header.
+    set_header_widget: (options: HeaderWidgetOptions) -> (),
+    --- Removes a widget from the project detail header by its id.
+    clear_header_widget: (id: string) -> (),
 }
-
 
 export type VaultMise = {
     --- Returns a JSON-serialized list of MiseTool for the given project.
@@ -168,6 +225,28 @@ export type VaultMise = {
     pin_tools: (projectId: string, toolsJson: string) -> (),
     --- Asynchronously runs `mise install` in the project directory.
     install_tools: (projectId: string) -> (),
+}
+
+export type VaultGit = {
+    --- Runs an arbitrary Git command in the project directory and returns capture output.
+    run: (projectId: string, args: { string }) -> { success: boolean, stdout: string, stderr: string },
+    --- Gets Git status details for the project.
+    get_status: (projectId: string) -> string,
+}
+
+export type VaultGithub = {
+    --- Performs an authenticated GitHub REST API request using current session credentials.
+    request: (method: string, path: string, bodyJson: string?) -> string,
+}
+
+export type VaultProcess = {
+    --- Spawns a background process and waits for execution.
+    spawn: (command: string, args: { string }, cwd: string?) -> { success: boolean, stdout: string, stderr: string },
+}
+
+export type VaultEvent = {
+    --- Publishes a cross-feature event to the frontend event bus.
+    publish: (event: string, payloadJson: string) -> (),
 }
 
 -- ─── Root Vault type ─────────────────────────────────────────────────────────
@@ -184,6 +263,10 @@ export type Vault = {
     i18n: VaultI18n,
     ui: VaultUI,
     mise: VaultMise,
+    git: VaultGit,
+    github: VaultGithub,
+    process: VaultProcess,
+    event: VaultEvent,
 }
 
 -- This module is never required at runtime (vault is injected as a global).

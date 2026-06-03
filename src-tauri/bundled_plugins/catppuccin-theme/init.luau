@@ -35,6 +35,15 @@ local plugin = {
         { id = "dracula", label = "Dracula (Vampire)" },
         { id = "nord", label = "Nord (Arctic Frost)" }
     },
+    config = {
+        {
+            key = "primary_color",
+            type = "color",
+            label = "Primary Color Override",
+            description = "Override the theme's primary accent color. Leave empty to use preset default.",
+            default = ""
+        }
+    },
     locales = {
         en = {
             name = "Community Themes Injector",
@@ -290,6 +299,27 @@ local presets: {[string]: PresetItem} = {
     }
 }
 
+-- Helper to apply the active theme and any custom settings (e.g. primary color override)
+local function apply_current_theme()
+    local flavor = vault.settings.get("active_flavor")
+    local primary_color = vault.settings.get("primary_color")
+    
+    local css = ""
+    if flavor and flavor ~= "" then
+        local preset = presets[flavor]
+        if preset then
+            css = preset.css
+        end
+    end
+    
+    if primary_color and primary_color ~= "" then
+        local override = string.format("\n:root, .dark, [data-kb-theme=\"dark\"] {\n    --primary: %s !important;\n    --sidebar-primary: %s !important;\n}", primary_color, primary_color)
+        css = css .. override
+    end
+    
+    vault.theme.inject_css(css)
+end
+
 -- Translation helper
 local function t(locale: string, key: string, args: {[string]: string}?): string
     local dict = plugin.locales[locale] or plugin.locales["en"] or {}
@@ -304,14 +334,9 @@ end
 
 function plugin.execute(command_id: string, context: PluginCommandContext?)
     if command_id == "init" then
-        local flavor = vault.settings.get("active_flavor")
-        if flavor then
-            local preset = presets[flavor]
-            if preset then
-                vault.theme.inject_css(preset.css)
-                vault.log.info("Initialized theme preset: " .. flavor)
-            end
-        end
+        apply_current_theme()
+        local flavor = vault.settings.get("active_flavor") or "default"
+        vault.log.info("Initialized theme preset: " .. flavor)
     elseif command_id == "apply_theme" then
         local selected = nil
         if context and context.flavor then
@@ -341,16 +366,18 @@ function plugin.execute(command_id: string, context: PluginCommandContext?)
             return
         end
 
-        local preset = presets[selected]
-        if preset then
-            vault.theme.inject_css(preset.css)
-            vault.settings.set("active_flavor", selected)
-            local locale = vault.i18n.get_locale()
-            vault.notification.success(t(locale, "success_msg", { flavor = preset.label }))
-        elseif selected == "default" then
-            vault.theme.inject_css("")
+        if selected == "default" then
             vault.settings.set("active_flavor", "")
+            apply_current_theme()
             vault.notification.success("Reset theme preset back to default.")
+        else
+            local preset = presets[selected]
+            if preset then
+                vault.settings.set("active_flavor", selected)
+                apply_current_theme()
+                local locale = vault.i18n.get_locale()
+                vault.notification.success(t(locale, "success_msg", { flavor = preset.label }))
+            end
         end
     end
 end

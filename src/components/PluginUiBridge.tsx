@@ -3,6 +3,13 @@ import { listen } from "@tauri-apps/api/event";
 import { invoke } from "@tauri-apps/api/core";
 import { upsertFooterSegment, removeFooterSegment, clearPluginFooterSegments, type PluginFooterColor } from "~/lib/plugin-footer";
 import {
+  upsertHeaderWidget,
+  removeHeaderWidget,
+  clearPluginHeaderWidgets,
+  clearAllHeaderWidgets,
+  type PluginHeaderWidget,
+} from "~/lib/plugin-header-widgets";
+import {
   Dialog,
   DialogContent,
   DialogHeader,
@@ -12,6 +19,21 @@ import {
 import { Button } from "~/components/ui/button";
 import { TextField, TextFieldInput, TextFieldLabel } from "~/components/ui/text-field";
 import { useI18n } from "~/lib/i18n-context";
+
+interface FormField {
+  id: string;
+  label: string;
+  fieldType: "text" | "number" | "boolean" | "select" | "textarea";
+  placeholder?: string;
+  defaultValue?: any;
+  options?: { id: string; label: string }[];
+  required?: boolean;
+  pattern?: string;
+  validationMessage?: string;
+  min?: number;
+  max?: number;
+  step?: number;
+}
 
 export function PluginUiBridge(props: { projectId?: string | null }) {
   const { t } = useI18n();
@@ -29,6 +51,15 @@ export function PluginUiBridge(props: { projectId?: string | null }) {
   const [qpSelectedIdx, setQpSelectedIdx] = createSignal(0);
   let qpListRef: HTMLDivElement | undefined;
 
+  // ── Dynamic Form state ─────────────────────────────────────────────────────
+  const [formDialog, setFormDialog] = createSignal<{
+    id: string;
+    title: string;
+    fields: FormField[];
+  } | null>(null);
+  const [formValues, setFormValues] = createSignal<Record<string, any>>({});
+  const [formErrors, setFormErrors] = createSignal<Record<string, string>>({});
+
   // Reset search + selection when a new quick pick opens
   createEffect(() => {
     if (quickPick()) {
@@ -44,8 +75,8 @@ export function PluginUiBridge(props: { projectId?: string | null }) {
     if (!q) return items;
     return items.filter(
       (item) =>
-        item.label.toLowerCase().includes(q) ||
-        (item.detail?.toLowerCase().includes(q) ?? false),
+          item.label.toLowerCase().includes(q) ||
+          (item.detail?.toLowerCase().includes(q) ?? false),
     );
   });
 
@@ -99,101 +130,125 @@ export function PluginUiBridge(props: { projectId?: string | null }) {
   // ── Plugin lifecycle ───────────────────────────────────────────────────────
   const [enabledPlugins, setEnabledPlugins] = createSignal<string[]>([]);
 
-  onMount(async () => {
-    const unlistenInput = await listen<[string, { title: string; placeholder?: string }]>("plugin:show-input", (event) => {
-      const [id, options] = event.payload;
-      setInputBox({ id, title: options.title, placeholder: options.placeholder });
-      setInputValue("");
-    });
+  onMount(() => {
+    const unlistens: (() => void)[] = [];
 
-    const unlistenQuickPick = await listen<[string, { title: string; items: any[] }]>("plugin:show-quick-pick", (event) => {
-      const [id, options] = event.payload;
-      setQuickPick({ id, title: options.title, items: options.items });
-    });
+    void (async () => {
+      unlistens.push(await listen<[string, { title: string; placeholder?: string }]>("plugin:show-input", (event) => {
+        const [id, options] = event.payload;
+        setInputBox({ id, title: options.title, placeholder: options.placeholder });
+        setInputValue("");
+      }));
 
-    const unlistenInjectCss = await listen<{ pluginId: string; css: string }>("plugin:inject-css", (event) => {
-      const { pluginId, css } = event.payload;
-      const styleId = `plugin-style-${pluginId}`;
-      let styleEl = document.getElementById(styleId) as HTMLStyleElement | null;
-      if (!styleEl) {
-        styleEl = document.createElement("style");
-        styleEl.id = styleId;
-        document.head.appendChild(styleEl);
-      }
-      styleEl.textContent = css;
-    });
+      unlistens.push(await listen<[string, { title: string; items: any[] }]>("plugin:show-quick-pick", (event) => {
+        const [id, options] = event.payload;
+        setQuickPick({ id, title: options.title, items: options.items });
+      }));
 
-    const unlistenStatusChanged = await listen<{ pluginId: string; enabled: boolean }>("plugin:status-changed", async (event) => {
-      const { pluginId, enabled } = event.payload;
-      if (enabled) {
-        setEnabledPlugins((prev) => {
-          if (prev.includes(pluginId)) return prev;
-          return [...prev, pluginId];
-        });
-        try {
-          await invoke("execute_plugin_command", {
-            pluginId,
-            commandId: "init",
-            context: {},
-          });
-        } catch (initErr) {
-          console.debug(`No custom init sequence for plugin: ${pluginId}`, initErr);
+      unlistens.push(await listen<[string, { title: string; fields: FormField[] }]>("plugin:show-form", (event) => {
+        const [id, options] = event.payload;
+        const initialValues: Record<string, any> = {};
+        for (const f of options.fields) {
+          initialValues[f.id] = f.defaultValue !== undefined ? f.defaultValue : (f.fieldType === "boolean" ? false : "");
         }
-      } else {
-        setEnabledPlugins((prev) => prev.filter((id) => id !== pluginId));
-        // Remove style tag
+        setFormValues(initialValues);
+        setFormErrors({});
+        setFormDialog({ id, title: options.title, fields: options.fields });
+      }));
+
+      unlistens.push(await listen<{ pluginId: string; css: string }>("plugin:inject-css", (event) => {
+        const { pluginId, css } = event.payload;
         const styleId = `plugin-style-${pluginId}`;
-        document.getElementById(styleId)?.remove();
-        // Clear all registered footer segments
-        clearPluginFooterSegments(pluginId);
-      }
-    });
+        let styleEl = document.getElementById(styleId) as HTMLStyleElement | null;
+        if (!styleEl) {
+          styleEl = document.createElement("style");
+          styleEl.id = styleId;
+          document.head.appendChild(styleEl);
+        }
+        styleEl.textContent = css;
+      }));
 
-    const unlistenSetFooter = await listen<{
-      pluginId: string;
-      id: string;
-      text: string;
-      icon?: string;
-      tooltip?: string;
-      command?: string;
-      color: PluginFooterColor;
-    }>("plugin:set-footer", (event) => {
-      upsertFooterSegment(event.payload);
-    });
-
-    const unlistenClearFooter = await listen<{ pluginId: string; id: string }>("plugin:clear-footer", (event) => {
-      removeFooterSegment(event.payload.pluginId, event.payload.id);
-    });
-
-    // Run startup init for all enabled plugins
-    try {
-      const pluginsList = await invoke<{ id: string; enabled: boolean }[]>("list_plugins");
-      setEnabledPlugins(pluginsList.filter((p) => p.enabled).map((p) => p.id));
-      for (const p of pluginsList) {
-        if (p.enabled) {
+      unlistens.push(await listen<{ pluginId: string; enabled: boolean }>("plugin:status-changed", async (event) => {
+        const { pluginId, enabled } = event.payload;
+        if (enabled) {
+          setEnabledPlugins((prev) => {
+            if (prev.includes(pluginId)) return prev;
+            return [...prev, pluginId];
+          });
           try {
             await invoke("execute_plugin_command", {
-              pluginId: p.id,
+              pluginId,
               commandId: "init",
               context: {},
             });
           } catch (initErr) {
-            // Silence warnings for plugins without custom init routines
-            console.debug(`No custom init sequence for plugin: ${p.id}`, initErr);
+            console.debug(`No custom init sequence for plugin: ${pluginId}`, initErr);
+          }
+        } else {
+          setEnabledPlugins((prev) => prev.filter((id) => id !== pluginId));
+          const styleId = `plugin-style-${pluginId}`;
+          document.getElementById(styleId)?.remove();
+          clearPluginFooterSegments(pluginId);
+          clearPluginHeaderWidgets(pluginId);
+        }
+      }));
+
+      unlistens.push(await listen<{
+        pluginId: string;
+        id: string;
+        text: string;
+        icon?: string;
+        tooltip?: string;
+        command?: string;
+        color: PluginFooterColor;
+      }>("plugin:set-footer", (event) => {
+        upsertFooterSegment(event.payload);
+      }));
+
+      unlistens.push(await listen<{ pluginId: string; id: string }>("plugin:clear-footer", (event) => {
+        removeFooterSegment(event.payload.pluginId, event.payload.id);
+      }));
+
+      unlistens.push(await listen<{
+        pluginId: string;
+        id: string;
+        type: "button" | "badge" | "text";
+        text: string;
+        icon?: string;
+        tooltip?: string;
+        command?: string;
+        color: PluginFooterColor;
+      }>("plugin:set-header-widget", (event) => {
+        upsertHeaderWidget(event.payload);
+      }));
+
+      unlistens.push(await listen<{ pluginId: string; id: string }>("plugin:clear-header-widget", (event) => {
+        removeHeaderWidget(event.payload.pluginId, event.payload.id);
+      }));
+
+      try {
+        const pluginsList = await invoke<{ id: string; enabled: boolean }[]>("list_plugins");
+        setEnabledPlugins(pluginsList.filter((p) => p.enabled).map((p) => p.id));
+        for (const p of pluginsList) {
+          if (p.enabled) {
+            try {
+              await invoke("execute_plugin_command", {
+                pluginId: p.id,
+                commandId: "init",
+                context: {},
+              });
+            } catch (initErr) {
+              console.debug(`No custom init sequence for plugin: ${p.id}`, initErr);
+            }
           }
         }
+      } catch (e) {
+        console.error("Failed to run startup plugin initializations:", e);
       }
-    } catch (e) {
-      console.error("Failed to run startup plugin initializations:", e);
-    }
+    })();
 
     onCleanup(() => {
-      unlistenInput();
-      unlistenQuickPick();
-      unlistenInjectCss();
-      unlistenStatusChanged();
-      unlistenSetFooter();
-      unlistenClearFooter();
+      for (const fn of unlistens) fn();
     });
   });
 
@@ -201,6 +256,11 @@ export function PluginUiBridge(props: { projectId?: string | null }) {
   createEffect(() => {
     const projectId = props.projectId ?? null;
     const plugins = enabledPlugins();
+    // Update backend active project ID
+    invoke("set_active_project", { projectId }).catch(console.error);
+    // Clear project header widgets
+    clearAllHeaderWidgets();
+
     if (plugins.length === 0) return;
     for (const pluginId of plugins) {
       invoke("execute_plugin_command", {
@@ -226,6 +286,74 @@ export function PluginUiBridge(props: { projectId?: string | null }) {
     if (!current) return;
     await invoke("resolve_plugin_ui", { id: current.id, value });
     setQuickPick(null);
+  };
+
+  const validateForm = () => {
+    const errors: Record<string, string> = {};
+    const values = formValues();
+    const dialog = formDialog();
+    if (!dialog) return false;
+
+    for (const field of dialog.fields) {
+      const val = values[field.id];
+
+      // Required check
+      if (field.required) {
+        if (val === undefined || val === null || val === "" || (field.fieldType === "boolean" && val === false)) {
+          errors[field.id] = `${field.label} is required`;
+          continue;
+        }
+      }
+
+      // Pattern check (Regex)
+      if (field.pattern && (field.fieldType === "text" || field.fieldType === "textarea")) {
+        const strVal = String(val || "");
+        if (strVal) {
+          try {
+            const rx = new RegExp(field.pattern);
+            if (!rx.test(strVal)) {
+              errors[field.id] = field.validationMessage || `${field.label} is invalid`;
+              continue;
+            }
+          } catch {
+            // ignore invalid regexes
+          }
+        }
+      }
+
+      // Number checks
+      if (field.fieldType === "number" && val !== undefined && val !== null && val !== "") {
+        const num = Number(val);
+        if (Number.isNaN(num)) {
+          errors[field.id] = "Must be a number";
+          continue;
+        }
+        if (field.min !== undefined && num < field.min) {
+          errors[field.id] = `Min value is ${field.min}`;
+          continue;
+        }
+        if (field.max !== undefined && num > field.max) {
+          errors[field.id] = `Max value is ${field.max}`;
+          continue;
+        }
+      }
+    }
+
+    setFormErrors(errors);
+    return Object.keys(errors).length === 0;
+  };
+
+  const resolveForm = async (submit: boolean) => {
+    const current = formDialog();
+    if (!current) return;
+    if (submit) {
+      if (!validateForm()) return; // Stop if invalid
+      await invoke("resolve_plugin_ui", { id: current.id, value: formValues() });
+    } else {
+      await invoke("resolve_plugin_ui", { id: current.id, value: null });
+    }
+    setFormDialog(null);
+    setFormErrors({});
   };
 
   // ── Render ─────────────────────────────────────────────────────────────────
@@ -344,6 +472,100 @@ export function PluginUiBridge(props: { projectId?: string | null }) {
             <span><kbd class="font-mono">Home</kbd>/<kbd class="font-mono">End</kbd> {t("settings.pluginsUiJumpHint")}</span>
             <span><kbd class="font-mono">Esc</kbd> {t("settings.pluginsUiCloseHint")}</span>
           </div>
+        </DialogContent>
+      </Dialog>
+      {/* Dynamic Form Dialog */}
+      <Dialog open={!!formDialog()} onOpenChange={(open) => !open && resolveForm(false)}>
+        <DialogContent class="sm:max-w-[500px]">
+          <DialogHeader>
+            <DialogTitle>{formDialog()?.title}</DialogTitle>
+          </DialogHeader>
+          <div class="py-4 space-y-4 max-h-[60vh] overflow-y-auto pr-2 scrollbar-thin">
+            <For each={formDialog()?.fields}>
+              {(field) => (
+                <div class="flex flex-col gap-1.5">
+                  <Show when={field.fieldType !== "boolean"}>
+                    <label class="text-xs font-bold tracking-tight text-foreground/80">
+                      {field.label}
+                      <Show when={field.required}>
+                        <span class="text-destructive ml-0.5">*</span>
+                      </Show>
+                    </label>
+                  </Show>
+                  
+                  <Show when={field.fieldType === "text" || field.fieldType === "number"}>
+                    <input
+                      type={field.fieldType === "number" ? "number" : "text"}
+                      placeholder={field.placeholder}
+                      min={field.min}
+                      max={field.max}
+                      step={field.step}
+                      value={formValues()[field.id] ?? ""}
+                      onInput={(e) => setFormValues((prev) => ({ 
+                        ...prev, 
+                        [field.id]: field.fieldType === "number" ? (e.currentTarget.value === "" ? "" : Number(e.currentTarget.value)) : e.currentTarget.value 
+                      }))}
+                      class={`flex h-9 w-full rounded-md border bg-background px-3 py-1.5 text-xs placeholder:text-muted-foreground focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-primary ${
+                        formErrors()[field.id] ? "border-destructive focus-visible:ring-destructive" : "border-border/60"
+                      }`}
+                    />
+                  </Show>
+
+                  <Show when={field.fieldType === "textarea"}>
+                    <textarea
+                      placeholder={field.placeholder}
+                      value={formValues()[field.id] ?? ""}
+                      onInput={(e) => setFormValues((prev) => ({ ...prev, [field.id]: e.currentTarget.value }))}
+                      class={`flex min-h-[80px] w-full rounded-md border bg-background px-3 py-2 text-xs placeholder:text-muted-foreground focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-primary ${
+                        formErrors()[field.id] ? "border-destructive focus-visible:ring-destructive" : "border-border/60"
+                      }`}
+                    />
+                  </Show>
+
+                  <Show when={field.fieldType === "select"}>
+                    <select
+                      value={formValues()[field.id] ?? ""}
+                      onChange={(e) => setFormValues((prev) => ({ ...prev, [field.id]: e.target.value }))}
+                      class="flex h-9 w-full rounded-md border border-border/60 bg-background px-3 py-1.5 text-xs focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-primary"
+                    >
+                      <For each={field.options}>
+                        {(opt) => (
+                          <option value={opt.id} class="bg-background text-foreground text-xs">
+                            {opt.label}
+                          </option>
+                        )}
+                      </For>
+                    </select>
+                  </Show>
+
+                  <Show when={field.fieldType === "boolean"}>
+                    <label class="flex items-center gap-2 text-xs font-bold text-foreground/80 cursor-pointer py-1.5">
+                      <input
+                        type="checkbox"
+                        checked={!!formValues()[field.id]}
+                        onChange={(e) => setFormValues((prev) => ({ ...prev, [field.id]: e.target.checked }))}
+                        class="rounded border border-border/60 bg-background text-primary focus:ring-primary size-4"
+                      />
+                      <span>{field.label}</span>
+                      <Show when={field.required}>
+                        <span class="text-destructive ml-0.5">*</span>
+                      </Show>
+                    </label>
+                  </Show>
+
+                  <Show when={formErrors()[field.id]}>
+                    <span class="text-[10px] font-medium text-destructive">
+                      {formErrors()[field.id]}
+                    </span>
+                  </Show>
+                </div>
+              )}
+            </For>
+          </div>
+          <DialogFooter>
+            <Button variant="ghost" onClick={() => resolveForm(false)}>{t("common.cancel")}</Button>
+            <Button onClick={() => resolveForm(true)}>{t("settings.pluginsUiOk")}</Button>
+          </DialogFooter>
         </DialogContent>
       </Dialog>
     </>

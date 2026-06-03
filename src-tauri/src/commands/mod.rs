@@ -5,6 +5,7 @@ pub mod github_remote;
 pub mod ide;
 pub mod issues;
 pub mod locations;
+pub mod notifications;
 pub mod project_wizard;
 pub mod projects;
 pub mod scan;

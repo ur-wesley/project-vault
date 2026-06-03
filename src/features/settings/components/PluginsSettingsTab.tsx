@@ -109,6 +109,12 @@ const PluginConfigSection: Component<{
         }
       }
     }
+    if (field.type === "color") {
+      const str = String(val).trim();
+      if (str !== "" && !/^#[0-9A-Fa-f]{6}$/.test(str) && !/^#[0-9A-Fa-f]{3}$/.test(str)) {
+        return "Must be a valid hex color (e.g. #ff0000)";
+      }
+    }
     return "";
   };
 
@@ -119,6 +125,12 @@ const PluginConfigSection: Component<{
     } else if (field.type === "number") {
       val = Number(rawVal);
       if (isNaN(val)) val = rawVal;
+    } else if (field.type === "color") {
+      let str = String(rawVal).trim();
+      if (str !== "" && !str.startsWith("#") && /^[0-9A-Fa-f]{3,6}$/.test(str)) {
+        str = "#" + str;
+      }
+      val = str;
     }
 
     const err = validateField(field, val);
@@ -211,6 +223,37 @@ const PluginConfigSection: Component<{
                           value={currentVal() === undefined ? "" : String(currentVal())}
                           onInput={(e) => handleChange(field, e.currentTarget.value)}
                         />
+                      </Show>
+
+                      <Show when={field.type === "color"}>
+                        <div class="flex items-center gap-2">
+                          <div class="relative flex items-center justify-center w-6 h-6 rounded border border-muted/40 overflow-hidden bg-muted/10 hover:border-muted/80 transition-colors">
+                            <input
+                              type="color"
+                              id={`config-${props.pluginId}-${field.key}`}
+                              class="absolute inset-0 opacity-0 cursor-pointer w-full h-full"
+                              value={currentVal() || "#ffffff"}
+                              onInput={(e) => handleChange(field, e.currentTarget.value)}
+                            />
+                            <Show 
+                              when={currentVal() && currentVal() !== ""}
+                              fallback={<span class="iconify mdi--palette size-3.5 text-muted-foreground/60" />}
+                            >
+                              <div 
+                                class="w-4 h-4 rounded-sm border border-black/10 shadow-sm animate-in fade-in duration-200"
+                                style={{ "background-color": currentVal() }}
+                              />
+                            </Show>
+                          </div>
+                          <input
+                            type="text"
+                            class="bg-background text-xs rounded border border-muted/40 px-2 py-0.5 focus:outline-none w-[80px] text-right font-mono"
+                            class:border-rose-500={currentErr() !== "" && currentErr() !== undefined}
+                            value={currentVal() === undefined ? "" : String(currentVal())}
+                            onInput={(e) => handleChange(field, e.currentTarget.value)}
+                            placeholder="#HEX"
+                          />
+                        </div>
                       </Show>
                     </div>
                   </div>
@@ -457,29 +500,34 @@ export const PluginsSettingsTab: Component<PluginsSettingsTabProps> = (props) =>
     }
   };
 
-  onMount(async () => {
-    await fetchPlugins();
+  onMount(() => {
+    let unlistenReload: (() => void) | undefined;
+    let unlistenLog: (() => void) | undefined;
 
-    const unlistenReload = await listen("plugin:reload", () => {
-      void fetchPlugins();
-    });
+    void (async () => {
+      await fetchPlugins();
 
-    const unlistenLog = await listen<{ pluginId: string; level: "info" | "error"; message: string }>("plugin:log", (event) => {
-      const timestamp = new Date().toLocaleTimeString();
-      setLogs((prev) => [
-        ...prev,
-        {
-          pluginId: event.payload.pluginId,
-          level: event.payload.level,
-          message: event.payload.message,
-          timestamp,
-        },
-      ].slice(-300)); // Keep last 300 logs
-    });
+      unlistenReload = await listen("plugin:reload", () => {
+        void fetchPlugins();
+      });
+
+      unlistenLog = await listen<{ pluginId: string; level: "info" | "error"; message: string }>("plugin:log", (event) => {
+        const timestamp = new Date().toLocaleTimeString();
+        setLogs((prev) => [
+          ...prev,
+          {
+            pluginId: event.payload.pluginId,
+            level: event.payload.level,
+            message: event.payload.message,
+            timestamp,
+          },
+        ].slice(-300));
+      });
+    })();
 
     onCleanup(() => {
-      unlistenReload();
-      unlistenLog();
+      unlistenReload?.();
+      unlistenLog?.();
     });
   });
 

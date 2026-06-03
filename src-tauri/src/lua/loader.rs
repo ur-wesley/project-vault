@@ -35,6 +35,25 @@ pub struct PluginInfo {
     pub config: Option<serde_json::Value>,
 }
 
+#[derive(Debug, Clone, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct DecorationItem {
+    pub icon: Option<String>,
+    pub label: Option<String>,
+    pub color: Option<String>,
+    pub tooltip: Option<String>,
+    pub command: Option<String>,
+    #[serde(default)]
+    pub plugin_id: String,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize, Default)]
+#[serde(rename_all = "camelCase")]
+pub struct ElementDecorations {
+    pub before: Option<Vec<DecorationItem>>,
+    pub after: Option<Vec<DecorationItem>>,
+}
+
 pub struct PluginManager {
     pub plugins_dir: PathBuf,
 }
@@ -242,6 +261,110 @@ impl PluginManager {
         rx.await.map_err(|e| {
             crate::error::StableError::new(crate::error::codes::INTERNAL, format!("oneshot channel error: {}", e))
         })?
+    }
+
+    pub async fn get_tab_decorations(
+        &self,
+        app: tauri::AppHandle,
+        bridge: crate::lua::ui::UiBridge,
+        disabled_ids: &std::collections::HashSet<String>,
+        project_id: String,
+        tab_id: String,
+        element_ids: Vec<String>,
+    ) -> std::collections::HashMap<String, ElementDecorations> {
+        let mut merged: std::collections::HashMap<String, ElementDecorations> = std::collections::HashMap::new();
+        if !self.plugins_dir.is_dir() {
+            return merged;
+        }
+
+        let entries = match std::fs::read_dir(&self.plugins_dir) {
+            Ok(e) => e,
+            Err(_) => return merged,
+        };
+
+        for entry in entries.flatten() {
+            let path = entry.path();
+            if !path.is_dir() {
+                continue;
+            }
+
+            let plugin_id = match path.file_name().and_then(|s| s.to_str()) {
+                Some(id) => id.to_string(),
+                None => continue,
+            };
+
+            if disabled_ids.contains(&plugin_id) {
+                continue;
+            }
+
+            let init_path = path.join("init.luau");
+            if !init_path.is_file() {
+                continue;
+            }
+
+            let app_c = app.clone();
+            let bridge_c = bridge.clone();
+            let plugin_id_c = plugin_id.clone();
+            let init_path_c = init_path.clone();
+            let project_id_c = project_id.clone();
+            let tab_id_c = tab_id.clone();
+            let element_ids_c = element_ids.clone();
+
+            let (tx, rx) = tokio::sync::oneshot::channel();
+
+            std::thread::spawn(move || {
+                let res = (|| {
+                    let content = std::fs::read_to_string(&init_path_c).ok()?;
+                    let lua = LuaEngine::create_instance_with_context(Some(app_c), Some(bridge_c), Some(plugin_id_c.clone())).ok()?;
+                    let plugin_val: mlua::Value = lua.load(&content).eval().ok()?;
+                    if let mlua::Value::Table(plugin_table) = plugin_val {
+                        if let Ok(get_decs_fn) = plugin_table.get::<mlua::Function>("get_decorations") {
+                            let ids_lua = lua.to_value(&element_ids_c).ok()?;
+                            let res_lua: mlua::Value = tauri::async_runtime::block_on(async move {
+                                get_decs_fn.call_async::<mlua::Value>((project_id_c, tab_id_c, ids_lua)).await.ok()
+                            })?;
+                            let decs_map: std::collections::HashMap<String, ElementDecorations> = lua.from_value(res_lua).ok()?;
+                            return Some(decs_map);
+                        }
+                    }
+                    None
+                })();
+                let _ = tx.send(res);
+            });
+
+            if let Ok(Some(decs_map)) = rx.await {
+                for (el_id, mut dec) in decs_map {
+                    if let Some(ref mut before) = dec.before {
+                        for item in before {
+                            item.plugin_id = plugin_id.clone();
+                        }
+                    }
+                    if let Some(ref mut after) = dec.after {
+                        for item in after {
+                            item.plugin_id = plugin_id.clone();
+                        }
+                    }
+
+                    let entry = merged.entry(el_id).or_insert_with(ElementDecorations::default);
+                    if let Some(mut b) = dec.before {
+                        if let Some(ref mut eb) = entry.before {
+                            eb.append(&mut b);
+                        } else {
+                            entry.before = Some(b);
+                        }
+                    }
+                    if let Some(mut a) = dec.after {
+                        if let Some(ref mut ea) = entry.after {
+                            ea.append(&mut a);
+                        } else {
+                            entry.after = Some(a);
+                        }
+                    }
+                }
+            }
+        }
+
+        merged
     }
 }
 

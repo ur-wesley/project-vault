@@ -1,6 +1,6 @@
 [package]
 name = "project-vault"
-version = "0.9.4"
+version = "0.10.1"
 description = "Steam for dev Projects!"
 authors = ["Wesley"]
 edition = "2021"
@@ -22,6 +22,7 @@ tauri = { version = "2", features = [] }
 tauri-plugin-opener = "2"
 tauri-plugin-updater = "2"
 tauri-plugin-notification = "2"
+notify-rust = "4"
 serde = { version = "1", features = ["derive"] }
 serde_json = "1"
 tauri-plugin-fs = "2"
@@ -70,6 +71,18 @@ tauri-plugin-window-state = "2"
 
 [target.'cfg(windows)'.dependencies]
 winreg = "0.56"
+tauri-winrt-notification = "0.7"
+windows-registry = "0.5"
+windows = { version = "0.58", features = [
+  "Win32_Foundation",
+  "Win32_UI_Shell",
+  "Win32_System_Com",
+  "Win32_System_Ole",
+  "Win32_System_Variant",
+  "Win32_System_Com_StructuredStorage",
+  "Win32_UI_Shell_PropertiesSystem",
+  "Win32_Storage_EnhancedStorage",
+] }
 
 [target.'cfg(all(unix, not(target_os = "macos")))'.dependencies]
 freedesktop-desktop-entry = { version = "0.8", default-features = false }
