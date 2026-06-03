@@ -19,6 +19,8 @@ pub struct QuickPickItem {
     pub label: String,
     pub detail: Option<String>,
     pub icon: Option<String>,
+    pub file_path: Option<String>,
+    pub line_number: Option<u32>,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
@@ -26,6 +28,8 @@ pub struct QuickPickItem {
 pub struct QuickPickOptions {
     pub title: String,
     pub items: Vec<QuickPickItem>,
+    pub fuzzy: Option<bool>,
+    pub preview: Option<bool>,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]

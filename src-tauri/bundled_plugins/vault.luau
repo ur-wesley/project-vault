@@ -133,6 +133,10 @@ export type QuickPickItem = {
     detail: string?,
     --- Optional Iconify icon name, e.g. "mdi--star-outline".
     icon: string?,
+    --- Optional absolute file path for previews.
+    filePath: string?,
+    --- Optional line number to highlight/scroll to in preview.
+    lineNumber: number?,
 }
 
 export type InputBoxOptions = {
@@ -143,6 +147,8 @@ export type InputBoxOptions = {
 export type QuickPickOptions = {
     title: string,
     items: { QuickPickItem },
+    fuzzy: boolean?,
+    preview: boolean?,
 }
 
 --- Color variant for a plugin footer segment.
