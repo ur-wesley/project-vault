@@ -138,56 +138,6 @@ local function scan_folder(project_id: string, project_name: string, base_path: 
 	end
 end
 
--- Highly optimized fuzzy-matching and scoring algorithm
-local function fuzzy_match(str: string, query: string): number?
-	local str_len = #str
-	local query_len = #query
-	if query_len == 0 then
-		return 0
-	end
-	if query_len > str_len then
-		return nil
-	end
-
-	local s_idx = 1
-	local q_idx = 1
-	local score = 0
-	local consecutive = 0
-
-	while s_idx <= str_len and q_idx <= query_len do
-		local s_char = str:sub(s_idx, s_idx):lower()
-		local q_char = query:sub(q_idx, q_idx):lower()
-
-		if s_char == q_char then
-			local char_score = 1
-			-- Bonus for consecutive character matches
-			if consecutive > 0 then
-				char_score = char_score + consecutive * 2
-			end
-			-- Bonus for starting matches or folder boundary matches
-			if s_idx == 1 or str:sub(s_idx - 1, s_idx - 1) == "/" then
-				char_score = char_score + 5
-			end
-
-			score = score + char_score
-			consecutive = consecutive + 1
-			q_idx = q_idx + 1
-		else
-			consecutive = 0
-		end
-		s_idx = s_idx + 1
-	end
-
-	-- Verify all query characters were matched in order
-	if q_idx > query_len then
-		-- Path length penalty to rank closer/shorter matches higher
-		score = score - (str_len * 0.1)
-		return score
-	else
-		return nil
-	end
-end
-
 -- Extension-to-icon mapping for premium aesthetics
 local extension_icons: { [string]: string } = {
 	rs = "mdi--language-rust",
@@ -250,19 +200,7 @@ function plugin.execute(command_id: string, context: PluginCommandContext?)
 			return
 		end
 
-		-- 2. Ask user for a search input query first
-		local query = vault.ui.show_input_box({
-			title = t(locale, "dialog_title"),
-			placeholder = t(locale, "dialog_placeholder"),
-		})
-
-		-- Exit if cancelled (clicked escape or cancel button)
-		if not query then
-			vault.log.info(t(locale, "cancel_msg"))
-			return
-		end
-
-		-- 3. Scan folders
+		-- 2. Scan folders
 		local results: { FileItem } = {}
 		for _, project in ipairs(projects) do
 			vault.log.info(t(locale, "scanning_msg", { name = project.name }))
@@ -283,80 +221,30 @@ function plugin.execute(command_id: string, context: PluginCommandContext?)
 			return
 		end
 
-		-- 4. Fuzzy match, rank, and score items
-		local matched_results: { FileItem } = {}
-		local title = ""
-
-		if query == "" then
-			-- No query entered (just hit enter) -> Show first 300 files
-			local limit = math.min(#results, 300)
-			for i = 1, limit do
-				table.insert(matched_results, results[i])
-			end
-			title = t(locale, "results_empty_title", { count = tostring(#matched_results) })
-		else
-			-- Fuzzy match & score all files
-			type ScoredItem = { item: FileItem, score: number }
-			local scored_items: { ScoredItem } = {}
-			
-			for _, res in ipairs(results) do
-				local score = fuzzy_match(res.relativePath, query)
-				if score then
-					table.insert(scored_items, {
-						item = res,
-						score = score,
-					})
-				end
-			end
-
-			-- Sort by score descending
-			table.sort(scored_items, function(a, b)
-				return a.score > b.score
-			end)
-
-			-- Take the top 300 matched files
-			local limit = math.min(#scored_items, 300)
-			for i = 1, limit do
-				table.insert(matched_results, scored_items[i].item)
-			end
-			title = t(locale, "results_title", { query = query, count = tostring(#matched_results) })
-		end
-
-		-- If zero matches found for the query
-		if #matched_results == 0 then
-			vault.ui.show_quick_pick({
-				title = title,
-				items = {
-					{
-						id = "no_matches",
-						label = "No matches found",
-						detail = "Try a different search term.",
-					},
-				},
-			})
-			return
-		end
-
-		-- 5. Prepare QuickPick options
+		-- 3. Prepare QuickPick options with file path and line numbers
 		local items: { QuickPickItem } = {}
-		for i, res in ipairs(matched_results) do
+		for i, res in ipairs(results) do
 			table.insert(items, {
 				id = tostring(i),
 				label = get_basename(res.path),
 				detail = "[" .. res.projectName .. "] " .. res.relativePath,
 				icon = get_icon(res.path),
+				filePath = res.path,
+				lineNumber = 1,
 			})
 		end
 
 		local selected = vault.ui.show_quick_pick({
-			title = title,
+			title = t(locale, "dialog_title"),
 			items = items,
+			fuzzy = true,
+			preview = true,
 		})
 
 		if selected then
 			local idx = tonumber(selected)
-			if idx and matched_results[idx] then
-				local res = matched_results[idx]
+			if idx and results[idx] then
+				local res = results[idx]
 				vault.ui.open_project_file(res.projectId, res.path, 1)
 			end
 		end
