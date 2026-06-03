@@ -19,8 +19,8 @@ export function getProject(id: string) {
   return tauriInvoke<ProjectDto>("get_project", { id });
 }
 
-export function refreshProject(id: string) {
-  return tauriInvoke<ProjectDto>("refresh_project", { id });
+export function refreshProject(projectId: string) {
+  return tauriInvoke<ProjectDto>("refresh_project", { projectId });
 }
 
 export function getProjectLanguages(projectId: string) {
