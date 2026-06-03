@@ -119,17 +119,26 @@ export function useProjectGit(props: UseProjectGitProps) {
     },
   }));
 
+  const isGitRepository = () => gitStatusQ.isSuccess && gitStatusQ.data != null;
+
   const previewVersionsQ = createQuery(() => ({
     queryKey: ["git", "preview-versions", props.projectId()] as const,
     queryFn: async () => {
       const r = await gitPreviewVersions(props.projectId());
-      if (r.isErr()) throw new Error(r.error.message);
+      if (r.isErr()) {
+        if (r.error.code === "INVALID_PATH") return null;
+        throw r.error;
+      }
       return r.value;
     },
-    enabled: true,
+    enabled: isGitRepository(),
+    retry: false,
     staleTime: 1000 * 60 * 5,
-    refetchInterval: props.isFocused() ? 10_000 : 1_000 * 60,
-    refetchOnWindowFocus: true,
+    refetchInterval: (() => {
+      if (!isGitRepository()) return false;
+      return props.isFocused() ? 10_000 : 1_000 * 60;
+    })(),
+    refetchOnWindowFocus: isGitRepository(),
   }));
 
   const discoverFilesMu = createMutation(() => ({
@@ -201,7 +210,10 @@ export function useProjectGit(props: UseProjectGitProps) {
     initMutate: () => initMu.mutate(),
     tagAndPushMutate: (bump: "patch" | "minor" | "major" | "beta") => tagMu.mutate(bump),
     previewVersionsQ,
-    fetchPreviewVersions: () => previewVersionsQ.refetch(),
+    fetchPreviewVersions: () => {
+      if (!isGitRepository()) return Promise.resolve();
+      return previewVersionsQ.refetch();
+    },
     discoverVersionFiles: (bump: "patch" | "minor" | "major" | "beta") => discoverFilesMu.mutateAsync(bump),
     bumpVersionAndTag: (payload: { bump: "patch" | "minor" | "major" | "beta"; files: string[] }) => bumpVersionMu.mutate(payload),
     isPulling: () => pullMu.isPending,

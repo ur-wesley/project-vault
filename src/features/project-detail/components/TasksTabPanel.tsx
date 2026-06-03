@@ -1,6 +1,9 @@
 import { For, Show, createEffect, createMemo, createSignal } from "solid-js";
 import { Badge } from "~/components/ui/badge";
 import { Button } from "~/components/ui/button";
+import { invoke } from "@tauri-apps/api/core";
+import { cn } from "~/lib/utils";
+import { fetchTabDecorations, getElementDecorations, decorationsVersion } from "~/lib/plugin-decorations";
 import {
   DropdownMenu,
   DropdownMenuContent,
@@ -122,6 +125,17 @@ export function TasksTabPanel(props: {
     }
   });
 
+  createEffect(() => {
+    decorationsVersion();
+    const projectId = props.project().id;
+    const taskLabels = props.project().tasks.map((t) => t.label);
+    if (taskLabels.length > 0) {
+      void fetchTabDecorations(projectId, "tasks", taskLabels);
+    }
+  });
+
+  const decs = (label: string) => getElementDecorations(props.project().id, "tasks", label);
+
   const taskGroups = createMemo(() => {
     const g: Record<string, any[]> = {};
     for (const task of props.project().tasks) {
@@ -129,7 +143,7 @@ export function TasksTabPanel(props: {
       const groupName = parts.length > 1 ? parts[0]! : (t("projectDetail.taskGroupRoot") as string);
       const label = parts.length > 1 ? parts.slice(1).join(": ") : task.label;
       if (!g[groupName]) g[groupName] = [];
-      g[groupName]!.push({ ...task, label });
+      g[groupName]!.push({ ...task, label, originalLabel: task.label });
     }
     return Object.entries(g);
   });
@@ -341,9 +355,35 @@ export function TasksTabPanel(props: {
                         setRunningTaskKey((current) => (current === taskKey ? null : current));
                       }
                     };
-
                     return (
                       <div class="flex items-center gap-1 rounded-md border border-border/40 bg-muted/10 p-1 transition-colors hover:bg-muted/20">
+                        {/* Before Task Decorations */}
+                        <For each={decs(task.originalLabel).before}>
+                          {(dec) => (
+                            <Tooltip>
+                              <TooltipTrigger>
+                                <span 
+                                  class={cn("iconify size-3.5 shrink-0 cursor-pointer mx-0.5", dec.icon)} 
+                                  style={{ color: dec.color }}
+                                  onClick={(e) => {
+                                    e.stopPropagation();
+                                    if (dec.command) {
+                                      void invoke("execute_plugin_command", {
+                                        pluginId: dec.pluginId,
+                                        commandId: dec.command,
+                                        context: { projectId: props.project().id, elementId: task.originalLabel }
+                                      });
+                                    }
+                                  }}
+                                />
+                              </TooltipTrigger>
+                              <Show when={dec.tooltip}>
+                                <TooltipContent>{dec.tooltip}</TooltipContent>
+                              </Show>
+                            </Tooltip>
+                          )}
+                        </For>
+
                         <Button
                           type="button"
                           size="sm"
@@ -369,6 +409,37 @@ export function TasksTabPanel(props: {
                             concurrent
                           </Badge>
                         </Show>
+
+                        {/* After Task Decorations */}
+                        <For each={decs(task.originalLabel).after}>
+                          {(dec) => (
+                            <Tooltip>
+                              <TooltipTrigger>
+                                <Badge 
+                                  class={cn("h-4 px-1 text-[8px] font-bold cursor-pointer ml-1", dec.color?.startsWith("bg-") ? dec.color : "bg-primary/10 text-primary border-primary/20")}
+                                  onClick={(e) => {
+                                    e.stopPropagation();
+                                    if (dec.command) {
+                                      void invoke("execute_plugin_command", {
+                                        pluginId: dec.pluginId,
+                                        commandId: dec.command,
+                                        context: { projectId: props.project().id, elementId: task.originalLabel }
+                                      });
+                                    }
+                                  }}
+                                >
+                                  <Show when={dec.icon}>
+                                    <span class={cn("iconify mr-0.5 size-2.5", dec.icon)} />
+                                  </Show>
+                                  {dec.label}
+                                </Badge>
+                              </TooltipTrigger>
+                              <Show when={dec.tooltip}>
+                                <TooltipContent>{dec.tooltip}</TooltipContent>
+                              </Show>
+                            </Tooltip>
+                          )}
+                        </For>
 
                         <Show when={task.kind === "mise" || task.kind === "justfile"}>
                           <DropdownMenu>

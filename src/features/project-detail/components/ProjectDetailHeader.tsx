@@ -2,6 +2,8 @@ import { createQuery } from "@tanstack/solid-query";
 import { isTauri } from "@tauri-apps/api/core";
 import { openUrl } from "@tauri-apps/plugin-opener";
 import { For, Show, createMemo, createSignal, type Component } from "solid-js";
+import { pluginHeaderWidgets } from "~/lib/plugin-header-widgets";
+import { invoke } from "@tauri-apps/api/core";
 
 import { Portal } from "solid-js/web";
 
@@ -85,7 +87,7 @@ export const ProjectDetailHeader: Component<ProjectDetailHeaderProps> = (
             getLivePlaytimeMs(p().id, p().totalPlaytimeMs)(),
           );
           return (
-            <div class="flex items-center justify-between gap-6 px-4 py-3">
+            <div class="flex items-start justify-between gap-6 px-4 py-3">
               <div class="flex min-w-0 flex-1 flex-col gap-2">
                 <div class="flex items-center gap-3 min-w-0">
                   <div class="flex items-center gap-2 shrink-0">
@@ -215,7 +217,69 @@ export const ProjectDetailHeader: Component<ProjectDetailHeaderProps> = (
                 </div>
               </div>
 
-              <div class="flex flex-col items-center gap-1 shrink-0 self-center">
+              <div class="flex shrink-0 flex-col items-end gap-1 self-start">
+                <div class="flex items-center gap-2">
+                <Show when={pluginHeaderWidgets().length > 0}>
+                  <div class="flex items-center gap-1.5">
+                    <For each={pluginHeaderWidgets()}>
+                      {(w) => {
+                        const executeWidget = async () => {
+                          if (w.command) {
+                            await invoke("execute_plugin_command", {
+                              pluginId: w.pluginId,
+                              commandId: w.command,
+                              context: { projectId: p().id },
+                            });
+                          }
+                        };
+
+                        const colorClass = () => {
+                          switch (w.color) {
+                            case "success": return "bg-green-500/10 text-green-500 border-green-500/30 hover:bg-green-500/20";
+                            case "warning": return "bg-yellow-500/10 text-yellow-500 border-yellow-500/30 hover:bg-yellow-500/20";
+                            case "error": return "bg-red-500/10 text-red-500 border-red-500/30 hover:bg-red-500/20";
+                            case "primary": return "bg-primary/10 text-primary border-primary/30 hover:bg-primary/20";
+                            case "muted": return "bg-muted/10 text-muted-foreground border-border/40 hover:bg-muted/20";
+                            default: return "bg-background text-foreground border-border/60 hover:bg-muted/10";
+                          }
+                        };
+
+                        return (
+                          <Tooltip>
+                            <TooltipTrigger>
+                              <Show
+                                when={w.type === "button"}
+                                fallback={
+                                  <span class={cn("inline-flex items-center gap-1.5 rounded-full border px-2.5 py-0.5 text-[10px] font-bold cursor-default", colorClass())}>
+                                    <Show when={w.icon}>
+                                      <span class={cn("iconify size-3.5", w.icon)} />
+                                    </Show>
+                                    {w.text}
+                                  </span>
+                                }
+                              >
+                                <button
+                                  type="button"
+                                  onClick={executeWidget}
+                                  class={cn("flex h-7 items-center gap-1.5 rounded-full border px-3 text-[10px] font-bold transition-all active:scale-95", colorClass())}
+                                >
+                                  <Show when={w.icon}>
+                                    <span class={cn("iconify size-3.5", w.icon)} />
+                                  </Show>
+                                  {w.text}
+                                </button>
+                              </Show>
+                            </TooltipTrigger>
+                            <Show when={w.tooltip}>
+                              <TooltipContent>{w.tooltip}</TooltipContent>
+                            </Show>
+                          </Tooltip>
+                        );
+                      }}
+                    </For>
+                  </div>
+                </Show>
+
                 <Show when={(m().idesQ.data?.length ?? 0) > 0}>
                   <div class="flex items-center rounded-full bg-primary/10 p-0.5 shadow-sm ring-1 ring-primary/20 transition-all hover:ring-primary/40">
                     <Show
@@ -302,13 +366,14 @@ export const ProjectDetailHeader: Component<ProjectDetailHeaderProps> = (
                     </DropdownMenu>
                   </div>
                 </Show>
-                <div class="flex items-center gap-2 px-3">
+                </div>
+                <div class="flex items-center gap-1.5 text-[10px] font-medium leading-tight text-muted-foreground/70">
                   <Tooltip>
                     <TooltipTrigger
                       as="div"
-                      class="flex items-center gap-1.5 text-[10px] font-bold uppercase tracking-tight text-muted-foreground/80"
+                      class="flex items-center gap-1 tabular-nums"
                     >
-                      <span class="iconify mdi--clock-outline size-3" />
+                      <span class="iconify mdi--clock-outline size-3 shrink-0" />
                       {formatWorktime(livePlaytimeMs())}
                     </TooltipTrigger>
                     <TooltipContent>
@@ -316,17 +381,14 @@ export const ProjectDetailHeader: Component<ProjectDetailHeaderProps> = (
                     </TooltipContent>
                   </Tooltip>
                   <Show when={p().lastOpenedAtMs}>
-                    <Separator
-                      orientation="vertical"
-                      class="h-2.5 opacity-40"
-                    />
-                    <div class="text-[10px] font-bold uppercase tracking-tight text-muted-foreground/60">
+                    <span class="text-muted-foreground/40">·</span>
+                    <span class="truncate tabular-nums">
                       {
                         t("projectDetail.lastStartedRelative", {
                           time: formatRelativeTime(p().lastOpenedAtMs),
                         }) as string
                       }
-                    </div>
+                    </span>
                   </Show>
                 </div>
               </div>

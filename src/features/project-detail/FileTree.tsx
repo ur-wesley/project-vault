@@ -14,6 +14,9 @@ import { notify } from "~/lib/notification-center";
 import { queryKeys } from "~/services/query-keys";
 import { Popover, PopoverContent, PopoverTrigger } from "~/components/ui/popover";
 import { Tooltip, TooltipContent, TooltipTrigger } from "~/components/ui/tooltip";
+import { Badge } from "~/components/ui/badge";
+import { invoke } from "@tauri-apps/api/core";
+import { fetchTabDecorations, getElementDecorations, decorationsVersion } from "~/lib/plugin-decorations";
 import type { SearchHitDto } from "~/types/dto";
 
 const SKIP = new Set([
@@ -62,7 +65,18 @@ async function countFilesRecursively(absPath: string): Promise<number> {
   return count;
 }
 
+const getRelativePath = (abs: string, root: string) => {
+  if (abs === root) return "";
+  let rel = abs.substring(root.length);
+  if (rel.startsWith("/") || rel.startsWith("\\")) {
+    rel = rel.substring(1);
+  }
+  return rel.replace(/\\/g, "/");
+};
+
 function Folder(props: {
+  projectId: string;
+  rootPath: string;
   absPath: string;
   label: string;
   depth: number;
@@ -76,11 +90,23 @@ function Folder(props: {
 
   createEffect(() => {
     if (!open()) return;
+    decorationsVersion();
     void (async () => {
       try {
         const list = await readDir(props.absPath);
-        setItems(list.filter((e) => !SKIP.has(e.name)).sort(sortEntries));
+        const sorted = list.filter((e) => !SKIP.has(e.name)).sort(sortEntries);
+        setItems(sorted);
         setLoadErr(null);
+
+        // Fetch decorations in batch for child paths
+        const relPaths = sorted.map((e) => {
+          const suffix = props.absPath.endsWith("/") || props.absPath.endsWith("\\") ? "" : "/";
+          const childAbs = `${props.absPath}${suffix}${e.name}`;
+          return getRelativePath(childAbs, props.rootPath);
+        });
+        if (relPaths.length > 0) {
+          void fetchTabDecorations(props.projectId, "files", relPaths);
+        }
       } catch (e) {
         setLoadErr(String(e));
         setItems([]);
@@ -96,6 +122,9 @@ function Folder(props: {
       setRecursiveCount(count);
     })();
   });
+
+  const relFolder = () => getRelativePath(props.absPath, props.rootPath);
+  const decs = () => getElementDecorations(props.projectId, "files", relFolder());
 
   return (
     <div class="font-mono text-[11px]">
@@ -113,7 +142,67 @@ function Folder(props: {
           <span class="iconify mdi--chevron-right h-3 w-3" />
         </span>
         <span class="iconify mdi--folder h-3.5 w-3.5 text-blue-400/80" />
+        
+        {/* Before Folder Decorations */}
+        <For each={decs().before}>
+          {(dec) => (
+            <Tooltip>
+              <TooltipTrigger>
+                <span 
+                  class={cn("iconify size-3.5 shrink-0 cursor-pointer", dec.icon)} 
+                  style={{ color: dec.color }}
+                  onClick={(e) => {
+                    e.stopPropagation();
+                    if (dec.command) {
+                      void invoke("execute_plugin_command", {
+                        pluginId: dec.pluginId,
+                        commandId: dec.command,
+                        context: { projectId: props.projectId, elementId: relFolder() }
+                      });
+                    }
+                  }}
+                />
+              </TooltipTrigger>
+              <Show when={dec.tooltip}>
+                <TooltipContent>{dec.tooltip}</TooltipContent>
+              </Show>
+            </Tooltip>
+          )}
+        </For>
+
         <span class="min-w-0 truncate text-foreground/90">{props.label}</span>
+
+        {/* After Folder Decorations */}
+        <For each={decs().after}>
+          {(dec) => (
+            <Tooltip>
+              <TooltipTrigger>
+                <Badge 
+                  class={cn("h-4 px-1 text-[8px] font-bold cursor-pointer ml-1", dec.color?.startsWith("bg-") ? dec.color : "bg-primary/10 text-primary border-primary/20")}
+                  onClick={(e) => {
+                    e.stopPropagation();
+                    if (dec.command) {
+                      void invoke("execute_plugin_command", {
+                        pluginId: dec.pluginId,
+                        commandId: dec.command,
+                        context: { projectId: props.projectId, elementId: relFolder() }
+                      });
+                    }
+                  }}
+                >
+                  <Show when={dec.icon}>
+                    <span class={cn("iconify mr-0.5 size-2.5", dec.icon)} />
+                  </Show>
+                  {dec.label}
+                </Badge>
+              </TooltipTrigger>
+              <Show when={dec.tooltip}>
+                <TooltipContent>{dec.tooltip}</TooltipContent>
+              </Show>
+            </Tooltip>
+          )}
+        </For>
+
         <Show when={recursiveCount() != null}>
           <span class="text-[9px] text-muted-foreground/60 ml-0.5">
             · {recursiveCount()}
@@ -130,6 +219,8 @@ function Folder(props: {
               when={e.isDirectory}
               fallback={
                 <FileItem
+                  projectId={props.projectId}
+                  rootPath={props.rootPath}
                   parentAbs={props.absPath}
                   name={e.name}
                   depth={props.depth + 1}
@@ -139,6 +230,8 @@ function Folder(props: {
               }
             >
               <FileTreeFolderFromParent
+                projectId={props.projectId}
+                rootPath={props.rootPath}
                 parentAbs={props.absPath}
                 name={e.name}
                 depth={props.depth + 1}
@@ -154,6 +247,8 @@ function Folder(props: {
 }
 
 function FileItem(props: {
+  projectId: string;
+  rootPath: string;
   parentAbs: string;
   name: string;
   depth: number;
@@ -166,6 +261,8 @@ function FileItem(props: {
   });
 
   const isSelected = () => absPath() === props.selected;
+  const relFile = () => absPath() ? getRelativePath(absPath()!, props.rootPath) : "";
+  const decs = () => getElementDecorations(props.projectId, "files", relFile());
 
   return (
     <div
@@ -179,12 +276,73 @@ function FileItem(props: {
       onClick={() => absPath() && props.onClick(absPath()!)}
     >
       <span class="iconify mdi--file-outline h-3.5 w-3.5 shrink-0 opacity-60" />
+
+      {/* Before File Decorations */}
+      <For each={decs().before}>
+        {(dec) => (
+          <Tooltip>
+            <TooltipTrigger>
+              <span 
+                class={cn("iconify size-3.5 shrink-0 cursor-pointer", dec.icon)} 
+                style={{ color: dec.color }}
+                onClick={(e) => {
+                  e.stopPropagation();
+                  if (dec.command) {
+                    void invoke("execute_plugin_command", {
+                      pluginId: dec.pluginId,
+                      commandId: dec.command,
+                      context: { projectId: props.projectId, elementId: relFile() }
+                    });
+                  }
+                }}
+              />
+            </TooltipTrigger>
+            <Show when={dec.tooltip}>
+              <TooltipContent>{dec.tooltip}</TooltipContent>
+            </Show>
+          </Tooltip>
+        )}
+      </For>
+
       <span class="truncate">{props.name}</span>
+
+      {/* After File Decorations */}
+      <For each={decs().after}>
+        {(dec) => (
+          <Tooltip>
+            <TooltipTrigger>
+              <Badge 
+                class={cn("h-4 px-1 text-[8px] font-bold cursor-pointer ml-1", dec.color?.startsWith("bg-") ? dec.color : "bg-primary/10 text-primary border-primary/20")}
+                onClick={(e) => {
+                  e.stopPropagation();
+                  if (dec.command) {
+                    void invoke("execute_plugin_command", {
+                      pluginId: dec.pluginId,
+                      commandId: dec.command,
+                      context: { projectId: props.projectId, elementId: relFile() }
+                    });
+                  }
+                }}
+              >
+                <Show when={dec.icon}>
+                  <span class={cn("iconify mr-0.5 size-2.5", dec.icon)} />
+                </Show>
+                {dec.label}
+              </Badge>
+            </TooltipTrigger>
+            <Show when={dec.tooltip}>
+              <TooltipContent>{dec.tooltip}</TooltipContent>
+            </Show>
+          </Tooltip>
+        )}
+      </For>
     </div>
   );
 }
 
 function FileTreeFolderFromParent(props: {
+  projectId: string;
+  rootPath: string;
   parentAbs: string;
   name: string;
   depth: number;
@@ -199,6 +357,8 @@ function FileTreeFolderFromParent(props: {
     <Show when={absPath()}>
       {(p) => (
         <Folder
+          projectId={props.projectId}
+          rootPath={props.rootPath}
           absPath={p()}
           label={props.name}
           depth={props.depth}
@@ -486,6 +646,8 @@ export function FileTree(props: {
 
         <div class="flex-1 overflow-auto">
           <Folder
+            projectId={props.projectId}
+            rootPath={props.rootPath}
             absPath={props.rootPath}
             label={label()}
             depth={0}
