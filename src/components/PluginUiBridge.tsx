@@ -301,7 +301,7 @@ export function PluginUiBridge(props: {
     const unlistenShowForm = await listen<[string, { title: string; fields: any[] }]>("plugin:show-form", (event) => {
       const [id, options] = event.payload;
       setFormDialog({ id, title: options.title, fields: options.fields });
-      const defaults: Record<string, string> = {};
+      const defaults: Record<string, any> = {};
       for (const field of options.fields) {
         defaults[field.id] = field.defaultValue ?? "";
       }
@@ -312,75 +312,39 @@ export function PluginUiBridge(props: {
     try {
       const pluginsList = await invoke<{ id: string; enabled: boolean }[]>("list_plugins");
       setEnabledPlugins(pluginsList.filter((p) => p.enabled).map((p) => p.id));
-      for (const p of pluginsList) {
-        if (p.enabled) {
-        } else {
-          setEnabledPlugins((prev) => prev.filter((id) => id !== pluginId));
-          const styleId = `plugin-style-${pluginId}`;
-          document.getElementById(styleId)?.remove();
-          clearPluginFooterSegments(pluginId);
-          clearPluginHeaderWidgets(pluginId);
-        }
-      }));
+    } catch (e) {
+      console.error("Failed to run startup plugin initializations:", e);
+    }
 
-      unlistens.push(await listen<{
-        pluginId: string;
-        id: string;
-        text: string;
-        icon?: string;
-        tooltip?: string;
-        command?: string;
-        color: PluginFooterColor;
-        position?: "left" | "right";
-      }>("plugin:set-footer", (event) => {
-        upsertFooterSegment(event.payload);
-      }));
+    // Register all event listeners
+    unlistens.push(await listen<{ pluginId: string; id: string; text: string; icon?: string; tooltip?: string; command?: string; color: PluginFooterColor; position?: "left" | "right" }>("plugin:set-footer", (event) => {
+      upsertFooterSegment(event.payload);
+    }));
 
-      unlistens.push(await listen<{ pluginId: string; id: string }>("plugin:clear-footer", (event) => {
-        removeFooterSegment(event.payload.pluginId, event.payload.id);
-      }));
+    unlistens.push(await listen<{ pluginId: string; id: string }>("plugin:clear-footer", (event) => {
+      removeFooterSegment(event.payload.pluginId, event.payload.id);
+    }));
 
-      unlistens.push(await listen<{ pluginId: string; title: string; content: string }>("plugin:show-markdown-dialog", (event) => {
-        setMarkdownDialog(event.payload);
-      }));
+    unlistens.push(await listen<{ pluginId: string; title: string; content: string }>("plugin:show-markdown-dialog", (event) => {
+      setMarkdownDialog(event.payload);
+    }));
 
-      unlistens.push(await listen<{
-        pluginId: string;
-        id: string;
-        type: "button" | "badge" | "text";
-        text: string;
-        icon?: string;
-        tooltip?: string;
-        command?: string;
-        color: PluginFooterColor;
-      }>("plugin:set-header-widget", (event) => {
-        upsertHeaderWidget(event.payload);
-      }));
+    unlistens.push(await listen<{
+      pluginId: string;
+      id: string;
+      type: "button" | "badge" | "text";
+      text: string;
+      icon?: string;
+      tooltip?: string;
+      command?: string;
+      color: PluginFooterColor;
+    }>("plugin:set-header-widget", (event) => {
+      upsertHeaderWidget(event.payload);
+    }));
 
-      unlistens.push(await listen<{ pluginId: string; id: string }>("plugin:clear-header-widget", (event) => {
-        removeHeaderWidget(event.payload.pluginId, event.payload.id);
-      }));
-
-      try {
-        const pluginsList = await invoke<{ id: string; enabled: boolean }[]>("list_plugins");
-        setEnabledPlugins(pluginsList.filter((p) => p.enabled).map((p) => p.id));
-        for (const p of pluginsList) {
-          if (p.enabled) {
-            try {
-              await invoke("execute_plugin_command", {
-                pluginId: p.id,
-                commandId: "init",
-                context: {},
-              });
-            } catch (initErr) {
-              console.debug(`No custom init sequence for plugin: ${p.id}`, initErr);
-            }
-          }
-        }
-      } catch (e) {
-        console.error("Failed to run startup plugin initializations:", e);
-      }
-    })();
+    unlistens.push(await listen<{ pluginId: string; id: string }>("plugin:clear-header-widget", (event) => {
+      removeHeaderWidget(event.payload.pluginId, event.payload.id);
+    }));
 
     onCleanup(() => {
       for (const fn of unlistens) fn();
