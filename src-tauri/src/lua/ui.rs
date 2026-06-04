@@ -63,7 +63,6 @@ pub struct FormOptions {
     pub fields: Vec<FormField>,
 }
 
-
 pub struct PendingUiResponse {
     pub tx: oneshot::Sender<serde_json::Value>,
 }
@@ -152,16 +151,15 @@ pub async fn show_form(
     options: FormOptions,
 ) -> Result<Option<serde_json::Value>, StableError> {
     tokio::time::sleep(std::time::Duration::from_millis(150)).await;
-
     let id = uuid::Uuid::new_v4().to_string();
     let (tx, rx) = oneshot::channel();
-    
+
     bridge.register(id.clone(), tx);
-    
+
     app.emit("plugin:show-form", (id, options)).map_err(|e| StableError::new(crate::error::codes::INTERNAL, e.to_string()))?;
-    
+
     let res = rx.await.map_err(|e| StableError::new(crate::error::codes::INTERNAL, e.to_string()))?;
-    
+
     if res.is_null() {
         Ok(None)
     } else {

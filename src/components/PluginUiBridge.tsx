@@ -67,6 +67,21 @@ export function PluginUiBridge(props: {
   const [inputBox, setInputBox] = createSignal<{ id: string; title: string; placeholder?: string } | null>(null);
   const [inputValue, setInputValue] = createSignal("");
 
+  // ── Form state ─────────────────────────────────────────────────────────────
+  const [formDialog, setFormDialog] = createSignal<{
+    id: string;
+    title: string;
+    fields: {
+      id: string;
+      type: "text" | "select";
+      label: string;
+      placeholder?: string;
+      default?: string;
+      options?: { id: string; label: string }[];
+    }[];
+  } | null>(null);
+  const [formValues, setFormValues] = createSignal<Record<string, string>>({});
+
   // ── Quick pick state ───────────────────────────────────────────────────────
   const [quickPick, setQuickPick] = createSignal<BridgeQuickPickOptions | null>(null);
   const [qpSearch, setQpSearch] = createSignal("");
@@ -270,15 +285,50 @@ export function PluginUiBridge(props: {
             if (prev.includes(pluginId)) return prev;
             return [...prev, pluginId];
           });
-          try {
-            await invoke("execute_plugin_command", {
-              pluginId,
-              commandId: "init",
-              context: {},
-            });
-          } catch (initErr) {
-            console.debug(`No custom init sequence for plugin: ${pluginId}`, initErr);
-          }
+        } else {
+          setEnabledPlugins((prev) => prev.filter((id) => id !== pluginId));
+          const styleId = `plugin-style-${pluginId}`;
+          document.getElementById(styleId)?.remove();
+        }
+      }));
+
+    const unlistenSetFooter = await listen<{
+      pluginId: string;
+      id: string;
+      text: string;
+      icon?: string;
+      tooltip?: string;
+      command?: string;
+      color: PluginFooterColor;
+      position?: "left" | "right";
+    }>("plugin:set-footer", (event) => {
+      upsertFooterSegment(event.payload);
+    });
+
+    const unlistenClearFooter = await listen<{ pluginId: string; id: string }>("plugin:clear-footer", (event) => {
+      removeFooterSegment(event.payload.pluginId, event.payload.id);
+    });
+
+    const unlistenMarkdown = await listen<{ pluginId: string; title: string; content: string }>("plugin:show-markdown-dialog", (event) => {
+      setMarkdownDialog(event.payload);
+    });
+
+    const unlistenShowForm = await listen<[string, { title: string; fields: any[] }]>("plugin:show-form", (event) => {
+      const [id, options] = event.payload;
+      setFormDialog({ id, title: options.title, fields: options.fields });
+      const defaults: Record<string, string> = {};
+      for (const field of options.fields) {
+        defaults[field.id] = field.default ?? "";
+      }
+      setFormValues(defaults);
+    });
+
+    // Run startup init for all enabled plugins
+    try {
+      const pluginsList = await invoke<{ id: string; enabled: boolean }[]>("list_plugins");
+      setEnabledPlugins(pluginsList.filter((p) => p.enabled).map((p) => p.id));
+      for (const p of pluginsList) {
+        if (p.enabled) {
         } else {
           setEnabledPlugins((prev) => prev.filter((id) => id !== pluginId));
           const styleId = `plugin-style-${pluginId}`;
@@ -401,6 +451,24 @@ export function PluginUiBridge(props: {
         }
       }, 150);
     })();
+  });
+
+  // Notify all enabled plugins when the active project workspace/view state changes
+  createEffect(() => {
+    const projectId = props.projectId ?? null;
+    const detailTab = props.detailTab ?? null;
+    const subDetail = props.subDetail ?? null;
+    const plugins = enabledPlugins();
+    if (plugins.length === 0) return;
+    for (const pluginId of plugins) {
+      invoke("execute_plugin_command", {
+        pluginId,
+        commandId: "project_state_changed",
+        context: { projectId, detailTab, subDetail },
+      }).catch(() => {
+        // Silence: most plugins won't implement project_state_changed
+      });
+    }
   });
 
   // ── Resolve helpers ────────────────────────────────────────────────────────
