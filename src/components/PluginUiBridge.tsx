@@ -67,21 +67,6 @@ export function PluginUiBridge(props: {
   const [inputBox, setInputBox] = createSignal<{ id: string; title: string; placeholder?: string } | null>(null);
   const [inputValue, setInputValue] = createSignal("");
 
-  // ── Form state ─────────────────────────────────────────────────────────────
-  const [formDialog, setFormDialog] = createSignal<{
-    id: string;
-    title: string;
-    fields: {
-      id: string;
-      type: "text" | "select";
-      label: string;
-      placeholder?: string;
-      default?: string;
-      options?: { id: string; label: string }[];
-    }[];
-  } | null>(null);
-  const [formValues, setFormValues] = createSignal<Record<string, string>>({});
-
   // ── Quick pick state ───────────────────────────────────────────────────────
   const [quickPick, setQuickPick] = createSignal<BridgeQuickPickOptions | null>(null);
   const [qpSearch, setQpSearch] = createSignal("");
@@ -318,7 +303,7 @@ export function PluginUiBridge(props: {
       setFormDialog({ id, title: options.title, fields: options.fields });
       const defaults: Record<string, string> = {};
       for (const field of options.fields) {
-        defaults[field.id] = field.default ?? "";
+        defaults[field.id] = field.defaultValue ?? "";
       }
       setFormValues(defaults);
     });
