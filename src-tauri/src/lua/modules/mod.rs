@@ -20,5 +20,7 @@ pub mod serialization;
 pub mod ui_ext;
 pub mod git;
 pub mod github;
-pub mod process;
 pub mod event;
+pub mod process;
+pub mod shell;
+

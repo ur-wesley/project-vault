@@ -52,6 +52,7 @@ impl LuaEngine {
         modules::github::register(&lua, &vault, &ctx)?;
         modules::process::register(&lua, &vault, &ctx)?;
         modules::event::register(&lua, &vault, &ctx)?;
+        modules::shell::register(&lua, &vault, &ctx)?;
 
         lua.globals().set("vault", vault.clone())?;
 

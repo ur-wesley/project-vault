@@ -62,6 +62,7 @@ pub fn register(lua: &Lua, vault: &Table, ctx: &ModuleContext) -> Result<()> {
                     tooltip: Option<String>,
                     command: Option<String>,
                     color: Option<String>,
+                    position: Option<String>,
                 }
                 let opts: FooterOptions = lua.from_value(options_val)?;
                 let pid = plugin_id_footer.clone().unwrap_or_else(|| "unknown".to_string());
@@ -73,6 +74,21 @@ pub fn register(lua: &Lua, vault: &Table, ctx: &ModuleContext) -> Result<()> {
                     "tooltip": opts.tooltip,
                     "command": opts.command,
                     "color": opts.color.unwrap_or_else(|| "default".to_string()),
+                    "position": opts.position.unwrap_or_else(|| "left".to_string()),
+                }));
+                Ok(())
+            })?,
+        )?;
+
+        let app_c4 = app.clone();
+        let plugin_id_md = ctx.plugin_id.clone().unwrap_or_else(|| "unknown".to_string());
+        ui.set(
+            "show_markdown_dialog",
+            lua.create_function(move |_, (title, content): (String, String)| {
+                let _ = app_c4.emit("plugin:show-markdown-dialog", serde_json::json!({
+                    "pluginId": plugin_id_md,
+                    "title": title,
+                    "content": content
                 }));
                 Ok(())
             })?,

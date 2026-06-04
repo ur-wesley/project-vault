@@ -47,6 +47,7 @@ pub async fn execute_plugin_command(
     app: AppHandle,
     db: State<'_, DbInstances>,
     bridge: State<'_, UiBridge>,
+    runtime: State<'_, crate::lua::LuaRuntimeState>,
     plugin_id: String,
     command_id: String,
     context: serde_json::Value,
@@ -59,8 +60,18 @@ pub async fn execute_plugin_command(
         ));
     }
     let p_dir = plugins_dir(&app);
-    let manager = PluginManager::new(p_dir);
-    manager.execute_plugin_command(app, (*bridge).clone(), &plugin_id, &command_id, context).await
+    let (tx, rx) = tokio::sync::oneshot::channel();
+    runtime.send(crate::lua::LuaTask::ExecuteCommand {
+        plugins_dir: p_dir,
+        app,
+        bridge: (*bridge).clone(),
+        plugin_id,
+        command_id,
+        context,
+        tx,
+    }).map_err(|e| StableError::new(crate::error::codes::INTERNAL, format!("failed to send lua command: {}", e)))?;
+
+    rx.await.map_err(|e| StableError::new(crate::error::codes::INTERNAL, format!("oneshot channel recv: {}", e)))?
 }
 
 #[tauri::command]
@@ -112,12 +123,24 @@ pub async fn get_tab_decorations(
     app: AppHandle,
     db: State<'_, DbInstances>,
     bridge: State<'_, UiBridge>,
+    runtime: State<'_, crate::lua::LuaRuntimeState>,
     project_id: String,
     tab_id: String,
     element_ids: Vec<String>,
 ) -> Result<std::collections::HashMap<String, crate::lua::loader::ElementDecorations>, StableError> {
     let p_dir = plugins_dir(&app);
-    let manager = PluginManager::new(p_dir);
     let disabled = get_disabled_plugins(&*db).await?;
-    Ok(manager.get_tab_decorations(app, (*bridge).clone(), &disabled, project_id, tab_id, element_ids).await)
+    let (tx, rx) = tokio::sync::oneshot::channel();
+    runtime.send(crate::lua::LuaTask::GetDecorations {
+        plugins_dir: p_dir,
+        app,
+        bridge: (*bridge).clone(),
+        disabled_ids: disabled,
+        project_id,
+        tab_id,
+        element_ids,
+        tx,
+    }).map_err(|e| StableError::new(crate::error::codes::INTERNAL, format!("failed to send lua get_decorations: {}", e)))?;
+
+    Ok(rx.await.map_err(|e| StableError::new(crate::error::codes::INTERNAL, format!("oneshot channel recv: {}", e)))?)
 }

@@ -63,6 +63,7 @@ pub struct FormOptions {
     pub fields: Vec<FormField>,
 }
 
+
 pub struct PendingUiResponse {
     pub tx: oneshot::Sender<serde_json::Value>,
 }
@@ -114,6 +115,7 @@ pub async fn show_input_box(
     bridge: &UiBridge,
     options: InputBoxOptions,
 ) -> Result<Option<String>, StableError> {
+    tokio::time::sleep(std::time::Duration::from_millis(150)).await;
     let id = uuid::Uuid::new_v4().to_string();
     let (tx, rx) = oneshot::channel();
     
@@ -131,6 +133,7 @@ pub async fn show_quick_pick(
     bridge: &UiBridge,
     options: QuickPickOptions,
 ) -> Result<Option<String>, StableError> {
+    tokio::time::sleep(std::time::Duration::from_millis(150)).await;
     let id = uuid::Uuid::new_v4().to_string();
     let (tx, rx) = oneshot::channel();
     
@@ -148,6 +151,8 @@ pub async fn show_form(
     bridge: &UiBridge,
     options: FormOptions,
 ) -> Result<Option<serde_json::Value>, StableError> {
+    tokio::time::sleep(std::time::Duration::from_millis(150)).await;
+
     let id = uuid::Uuid::new_v4().to_string();
     let (tx, rx) = oneshot::channel();
     
