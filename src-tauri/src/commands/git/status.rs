@@ -43,7 +43,7 @@ pub async fn get_git_status(
     let project = db::get_project(&pool, &project_id).await?;
     let cwd = Path::new(&project.path);
 
-    if !cwd.join(".git").exists() {
+    if !super::utils::is_git_repo(cwd) {
         return Ok(None);
     }
 

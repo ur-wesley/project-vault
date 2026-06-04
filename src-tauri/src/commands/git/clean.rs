@@ -18,7 +18,7 @@ pub async fn git_clean_preview(
     let cwd = Path::new(&project.path);
     eprintln!("[git_clean_preview] cwd={}", cwd.display());
 
-    if !cwd.join(".git").exists() {
+    if !super::utils::is_git_repo(cwd) {
         eprintln!("[git_clean_preview] not a git repo");
         return Err(StableError::new(codes::INTERNAL, "not a git repository"));
     }
@@ -83,7 +83,7 @@ pub async fn git_clean_execute(
     let project = db::get_project(&pool, &project_id).await?;
     let cwd = Path::new(&project.path);
 
-    if !cwd.join(".git").exists() {
+    if !super::utils::is_git_repo(cwd) {
         return Err(StableError::new(codes::INTERNAL, "not a git repository"));
     }
 

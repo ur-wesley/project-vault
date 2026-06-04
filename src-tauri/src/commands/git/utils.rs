@@ -80,3 +80,40 @@ pub fn dir_size(path: &Path) -> u64 {
     }
     total
 }
+
+pub fn resolve_git_dir(cwd: &Path) -> Option<std::path::PathBuf> {
+    let mut current = cwd;
+    loop {
+        let git = current.join(".git");
+        if git.is_dir() {
+            return Some(git);
+        }
+        if git.is_file() {
+            if let Ok(text) = std::fs::read_to_string(&git) {
+                for line in text.lines() {
+                    if let Some(rest) = line.trim().strip_prefix("gitdir: ") {
+                        let p = Path::new(rest.trim());
+                        let resolved = if p.is_absolute() {
+                            p.to_path_buf()
+                        } else {
+                            current.join(p)
+                        };
+                        if resolved.is_dir() {
+                            return Some(resolved);
+                        }
+                    }
+                }
+            }
+        }
+        match current.parent() {
+            Some(parent) => current = parent,
+            None => break,
+        }
+    }
+    None
+}
+
+pub fn is_git_repo(cwd: &Path) -> bool {
+    resolve_git_dir(cwd).is_some()
+}
+

@@ -1,22 +1,21 @@
-use std::collections::HashMap;
-use std::path::Path;
+use std::collections::{HashMap, HashSet};
+use std::path::{Path, PathBuf};
 use std::sync::atomic::{AtomicBool, Ordering};
 use std::sync::Arc;
-use std::time::{Duration, Instant};
+use std::time::{Duration, SystemTime};
 
-use notify::{Event, EventKind, RecommendedWatcher, RecursiveMode, Watcher};
 use serde_json::json;
 use tauri::{AppHandle, Emitter};
 use tokio::sync::Mutex;
 
 struct WatcherEntry {
-    _watcher: RecommendedWatcher,
     alive: Arc<AtomicBool>,
+    projects: Arc<std::sync::Mutex<HashSet<String>>>,
 }
 
 pub struct GitWatcher {
     app: AppHandle,
-    watchers: Arc<Mutex<HashMap<String, Arc<WatcherEntry>>>>,
+    watchers: Arc<Mutex<HashMap<PathBuf, Arc<WatcherEntry>>>>,
 }
 
 impl GitWatcher {
@@ -28,100 +27,110 @@ impl GitWatcher {
     }
 
     pub async fn start(&self, project_id: &str, project_path: &str) -> Result<(), String> {
+        // First, stop watching this project_id on any existing watchers
         self.stop(project_id).await;
 
-        let git_dir = Path::new(project_path).join(".git");
-        if !git_dir.exists() {
-            return Err(format!("no .git directory at {project_path}"));
+        let git_dir = crate::commands::git::utils::resolve_git_dir(Path::new(project_path))
+            .ok_or_else(|| format!("no git directory found for {project_path}"))?;
+        
+        let git_dir_canonical = std::fs::canonicalize(&git_dir)
+            .unwrap_or_else(|_| git_dir.clone());
+
+        let mut map = self.watchers.lock().await;
+
+        if let Some(entry) = map.get(&git_dir_canonical) {
+            // Already watching this git directory! Just subscribe the new project ID.
+            entry.projects.lock().unwrap().insert(project_id.to_string());
+            entry.alive.store(true, Ordering::Relaxed);
+            return Ok(());
         }
 
         let pid = project_id.to_string();
-        let debounce_dir = git_dir.clone();
         let alive = Arc::new(AtomicBool::new(true));
         let alive_clone = alive.clone();
+        
+        let projects = Arc::new(std::sync::Mutex::new(HashSet::new()));
+        projects.lock().unwrap().insert(pid);
+        let projects_clone = projects.clone();
 
-        let mut watcher = notify::recommended_watcher({
-            let app = self.app.clone();
-            let pid = pid.clone();
-            let alive = alive_clone.clone();
-            let mut last_event = Instant::now();
+        let app = self.app.clone();
+        let target_git_dir = git_dir_canonical.clone();
 
-            move |res: Result<Event, notify::Error>| {
-                if let Ok(event) = res {
-                    match event.kind {
-                        EventKind::Modify(_) | EventKind::Create(_) | EventKind::Remove(_) => {}
-                        _ => return,
+        // Spawn a safe, lightweight polling task instead of using notify OS file hooks
+        tokio::spawn(async move {
+            let mut last_mtime = get_git_mtime(&target_git_dir).await;
+            
+            while alive_clone.load(Ordering::Relaxed) {
+                tokio::time::sleep(Duration::from_millis(1500)).await;
+                
+                if !alive_clone.load(Ordering::Relaxed) {
+                    break;
+                }
+                
+                let current_mtime = get_git_mtime(&target_git_dir).await;
+                if current_mtime != last_mtime {
+                    last_mtime = current_mtime;
+                    
+                    let pids: Vec<String> = projects_clone.lock().unwrap().iter().cloned().collect();
+                    for pid in pids {
+                        let _ = app.emit("git:changed", json!({ "projectId": pid }));
                     }
-
-                    let dominated = event
-                        .paths
-                        .iter()
-                        .any(|p| is_git_meta_path(p, &debounce_dir));
-                    if !dominated {
-                        return;
-                    }
-
-                    let now = Instant::now();
-                    if now.duration_since(last_event) < Duration::from_millis(500) {
-                        return;
-                    }
-                    last_event = now;
-
-                    if !alive.load(Ordering::Relaxed) {
-                        return;
-                    }
-
-                    let app = app.clone();
-                    let pid = pid.clone();
-                    let alive = alive.clone();
-                    tauri::async_runtime::spawn(async move {
-                        tokio::time::sleep(Duration::from_millis(500)).await;
-                        if alive.load(Ordering::Relaxed) {
-                            let _ = app.emit("git:changed", json!({ "projectId": pid }));
-                        }
-                    });
                 }
             }
-        })
-        .map_err(|e| format!("failed to create git watcher: {e}"))?;
-
-        let watch_path = if git_dir.is_dir() { &git_dir } else { Path::new(project_path) };
-        watcher
-            .watch(watch_path, RecursiveMode::Recursive)
-            .map_err(|e| format!("failed to watch git dir: {e}"))?;
-
-        let entry = Arc::new(WatcherEntry {
-            _watcher: watcher,
-            alive,
         });
 
-        let mut map = self.watchers.lock().await;
-        map.insert(pid, entry);
+        let entry = Arc::new(WatcherEntry {
+            alive,
+            projects,
+        });
+
+        map.insert(git_dir_canonical, entry);
 
         Ok(())
     }
 
     pub async fn stop(&self, project_id: &str) {
         let mut map = self.watchers.lock().await;
-        if let Some(entry) = map.remove(project_id) {
-            entry.alive.store(false, Ordering::Relaxed);
+        let mut to_remove = Vec::new();
+
+        for (path, entry) in map.iter() {
+            let mut projs = entry.projects.lock().unwrap();
+            projs.remove(project_id);
+            if projs.is_empty() {
+                to_remove.push(path.clone());
+                entry.alive.store(false, Ordering::Relaxed);
+            }
+        }
+
+        for path in to_remove {
+            map.remove(&path);
         }
     }
 }
 
-fn is_git_meta_path(path: &Path, git_dir: &Path) -> bool {
-    if !path.starts_with(git_dir) {
-        return false;
+async fn get_git_mtime(git_dir: &Path) -> Option<SystemTime> {
+    let mut max_time = None;
+    if !git_dir.exists() {
+        return None;
     }
-    path.file_name().map_or(false, |name| {
-        let dominated = name.to_string_lossy();
-        dominated == "HEAD"
-            || dominated == "index"
-            || dominated == "COMMIT_EDITMSG"
-            || dominated == "packed-refs"
-            || dominated == "config"
-            || dominated.starts_with("refs/")
-            || dominated.starts_with("FETCH_")
-            || dominated.starts_with("pull")
-    })
+
+    // Fast walkthrough of git directory metadata, skipping large objects and hooks subdirectories
+    let walker = walkdir::WalkDir::new(git_dir)
+        .into_iter()
+        .filter_entry(|e| {
+            let name = e.file_name().to_string_lossy();
+            name != "objects" && name != "hooks" && name != "info" && name != "logs"
+        });
+
+    for entry in walker.filter_map(Result::ok) {
+        if entry.file_type().is_file() {
+            if let Ok(meta) = entry.metadata() {
+                if let Ok(mtime) = meta.modified() {
+                    max_time = Some(max_time.map_or(mtime, |max| std::cmp::max(max, mtime)));
+                }
+            }
+        }
+    }
+    
+    max_time
 }

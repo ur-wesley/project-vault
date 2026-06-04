@@ -35,7 +35,7 @@ pub async fn git_preview_versions(
     let cwd = Path::new(&project.path);
     println!("[git_preview_versions] cwd: {:?}", cwd);
 
-    if !cwd.join(".git").exists() {
+    if !super::utils::is_git_repo(cwd) {
         return Err(StableError::new(codes::INVALID_PATH, "not a git repository"));
     }
 
@@ -74,7 +74,7 @@ pub async fn git_tag_and_push(
     let project = db::get_project(&pool, &project_id).await?;
     let cwd = Path::new(&project.path);
 
-    if !cwd.join(".git").exists() {
+    if !super::utils::is_git_repo(cwd) {
         return Err(StableError::new(codes::INVALID_PATH, "not a git repository"));
     }
 

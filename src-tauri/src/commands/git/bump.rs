@@ -41,7 +41,7 @@ pub async fn git_discover_version_files(
     let project = db::get_project(&pool, &project_id).await?;
     let cwd = Path::new(&project.path);
 
-    if !cwd.join(".git").exists() {
+    if !super::utils::is_git_repo(cwd) {
         return Err(StableError::new(codes::INVALID_PATH, "not a git repository"));
     }
 
@@ -77,7 +77,7 @@ pub async fn git_bump_version_and_tag(
     let project = db::get_project(&pool, &project_id).await?;
     let cwd = Path::new(&project.path);
 
-    if !cwd.join(".git").exists() {
+    if !super::utils::is_git_repo(cwd) {
         return Err(StableError::new(codes::INVALID_PATH, "not a git repository"));
     }
 
