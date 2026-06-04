@@ -13,6 +13,7 @@ export type PluginFooterSegment = {
   /** Plugin command id to execute when the segment is clicked */
   command?: string;
   color: PluginFooterColor;
+  position?: "left" | "right";
 };
 
 // Global store — shared between PluginUiBridge (writes) and StatusBar (reads).

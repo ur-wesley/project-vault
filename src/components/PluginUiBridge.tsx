@@ -20,6 +20,7 @@ import { Button } from "~/components/ui/button";
 import { TextField, TextFieldInput, TextFieldLabel } from "~/components/ui/text-field";
 import { useI18n } from "~/lib/i18n-context";
 import { FilePreview } from "~/features/project-detail/components/FilePreview";
+import { IssueMarkdown } from "~/features/project-detail/components/IssueMarkdown";
 
 interface BridgeQuickPickItem {
   id: string;
@@ -53,8 +54,15 @@ interface FormField {
   step?: number;
 }
 
-export function PluginUiBridge(props: { projectId?: string | null }) {
+export function PluginUiBridge(props: {
+  projectId?: string | null;
+  detailTab?: string | null;
+  subDetail?: string | null;
+}) {
   const { t } = useI18n();
+  // ── Markdown dialog state ──────────────────────────────────────────────────
+  const [markdownDialog, setMarkdownDialog] = createSignal<{ pluginId: string; title: string; content: string } | null>(null);
+
   // ── Input box state ────────────────────────────────────────────────────────
   const [inputBox, setInputBox] = createSignal<{ id: string; title: string; placeholder?: string } | null>(null);
   const [inputValue, setInputValue] = createSignal("");
@@ -288,12 +296,17 @@ export function PluginUiBridge(props: { projectId?: string | null }) {
         tooltip?: string;
         command?: string;
         color: PluginFooterColor;
+        position?: "left" | "right";
       }>("plugin:set-footer", (event) => {
         upsertFooterSegment(event.payload);
       }));
 
       unlistens.push(await listen<{ pluginId: string; id: string }>("plugin:clear-footer", (event) => {
         removeFooterSegment(event.payload.pluginId, event.payload.id);
+      }));
+
+      unlistens.push(await listen<{ pluginId: string; title: string; content: string }>("plugin:show-markdown-dialog", (event) => {
+        setMarkdownDialog(event.payload);
       }));
 
       unlistens.push(await listen<{
@@ -339,25 +352,55 @@ export function PluginUiBridge(props: { projectId?: string | null }) {
     });
   });
 
-  // Notify all enabled plugins when the active project changes
+  let lastProjectId: string | null | undefined = undefined;
+  let activeProjectIdAtLastTrigger: string | null | undefined = undefined;
+  let pluginCommandTimeoutId: any = null;
+
+  // Notify all enabled plugins when the active project or its view state changes
   createEffect(() => {
     const projectId = props.projectId ?? null;
+    const detailTab = props.detailTab ?? null;
+    const subDetail = props.subDetail ?? null;
     const plugins = enabledPlugins();
-    // Update backend active project ID
-    invoke("set_active_project", { projectId }).catch(console.error);
-    // Clear project header widgets
-    clearAllHeaderWidgets();
 
-    if (plugins.length === 0) return;
-    for (const pluginId of plugins) {
-      invoke("execute_plugin_command", {
-        pluginId,
-        commandId: "project_focus",
-        context: { projectId },
-      }).catch(() => {
-        // Silence: most plugins won't implement project_focus
-      });
-    }
+    onCleanup(() => {
+      if (pluginCommandTimeoutId) {
+        clearTimeout(pluginCommandTimeoutId);
+      }
+    });
+
+    void (async () => {
+      // 1. Immediately update backend active project (fast, no Luau VM)
+      if (projectId !== lastProjectId) {
+        lastProjectId = projectId;
+        await invoke("set_active_project", { projectId }).catch(console.error);
+        clearAllHeaderWidgets();
+      }
+
+      // 2. Debounce the heavy Luau plugin commands to avoid thread-spawning heap corruption
+      pluginCommandTimeoutId = setTimeout(() => {
+        if (plugins.length > 0) {
+          const projectChanged = projectId !== activeProjectIdAtLastTrigger;
+          activeProjectIdAtLastTrigger = projectId;
+
+          for (const pluginId of plugins) {
+            if (projectChanged) {
+              invoke("execute_plugin_command", {
+                pluginId,
+                commandId: "project_focus",
+                context: { projectId },
+              }).catch(() => {});
+            }
+
+            invoke("execute_plugin_command", {
+              pluginId,
+              commandId: "project_state_changed",
+              context: { projectId, detailTab, subDetail },
+            }).catch(() => {});
+          }
+        }
+      }, 150);
+    })();
   });
 
   // ── Resolve helpers ────────────────────────────────────────────────────────
@@ -679,6 +722,40 @@ export function PluginUiBridge(props: { projectId?: string | null }) {
           </DialogFooter>
         </DialogContent>
       </Dialog>
+
+      {/* Markdown Reader Dialog */}
+      <Dialog open={!!markdownDialog()} onOpenChange={(open) => {
+        if (!open) {
+          const current = markdownDialog();
+          if (current) {
+            invoke("execute_plugin_command", {
+              pluginId: current.pluginId,
+              commandId: "markdown_dialog_closed",
+              context: {},
+            }).catch(() => {});
+          }
+          setMarkdownDialog(null);
+        }
+      }}>
+        <DialogContent class="max-h-[85vh] overflow-y-auto overflow-x-hidden sm:max-w-[750px]">
+          <DialogHeader>
+            <DialogTitle>{markdownDialog()?.title}</DialogTitle>
+          </DialogHeader>
+          <div class="py-4">
+            <Show when={markdownDialog()}>
+              {(dialog) => (
+                <div class="mx-auto w-full max-w-3xl prose prose-sm dark:prose-invert prose-headings:m-0 pv-markdown-dialog-content">
+                  <IssueMarkdown content={dialog().content} />
+                </div>
+              )}
+            </Show>
+          </div>
+          <DialogFooter>
+            <Button onClick={() => setMarkdownDialog(null)}>{t("common.close") || "Close"}</Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
     </>
   );
 }

@@ -12,7 +12,6 @@ import { NotificationCenter } from "~/components/NotificationCenter";
 
 export const StatusBar: Component<{
   activeView: "library" | "project" | "processes" | "settings";
-  pathname: string;
   projectName?: string | null;
   projectId?: string | null;
   onShowProcesses: () => void;
@@ -51,12 +50,14 @@ export const StatusBar: Component<{
   });
   onCleanup(unsub);
 
-  const leftLabel = createMemo(() => {
-    if (props.activeView === "project" && props.projectName) {
-      return props.projectName;
-    }
-    return props.pathname || "/";
-  });
+
+  const leftSegments = createMemo(() =>
+    pluginFooterSegments().filter((s) => s.position !== "right"),
+  );
+
+  const rightSegments = createMemo(() =>
+    pluginFooterSegments().filter((s) => s.position === "right"),
+  );
 
   // Color mappings for plugin footer segment variants
   const footerColorClass = (color: PluginFooterColor) => {
@@ -85,40 +86,62 @@ export const StatusBar: Component<{
 
   return (
     <div class="flex h-6 shrink-0 items-center justify-between border-t border-border/40 bg-background/50 px-2 text-[11px] tabular-nums backdrop-blur-md">
-      {/* Left: path or project name */}
-      <div class="flex min-w-0 items-center gap-1.5 text-muted-foreground">
-        <span class="iconify mdi--routes size-3 shrink-0 opacity-60" />
-        <span class="truncate font-mono">{leftLabel()}</span>
+      {/* Left: path or project name + left segments */}
+      <div class="flex min-w-0 flex-1 items-center gap-3">
+
+        <Show when={leftSegments().length > 0}>
+          <div class="flex items-center gap-1 overflow-x-auto scrollbar-none">
+            <For each={leftSegments()}>
+              {(seg) => (
+                <Tooltip>
+                  <TooltipTrigger
+                    as={seg.command ? "button" : "span"}
+                    type={seg.command ? "button" : undefined}
+                    onClick={() => seg.command && handleFooterSegmentClick(seg.pluginId, seg.command)}
+                    class={`flex shrink-0 items-center gap-1 rounded px-1.5 py-0.5 text-[10px] transition-colors ${footerColorClass(seg.color)} ${seg.command ? "cursor-pointer" : "cursor-default"}`}
+                  >
+                    <Show when={seg.icon}>
+                      <span class={`iconify ${seg.icon} size-3`} />
+                    </Show>
+                    <span class="font-mono">{seg.text}</span>
+                  </TooltipTrigger>
+                  <Show when={seg.tooltip}>
+                    <TooltipContent>{seg.tooltip}</TooltipContent>
+                  </Show>
+                </Tooltip>
+              )}
+            </For>
+          </div>
+        </Show>
       </div>
 
-      {/* Centre: plugin footer segments */}
-      <Show when={pluginFooterSegments().length > 0}>
-        <div class="flex min-w-0 flex-1 items-center gap-1 overflow-x-auto px-2 scrollbar-none">
-          <For each={pluginFooterSegments()}>
-            {(seg) => (
-              <Tooltip>
-                <TooltipTrigger
-                  as={seg.command ? "button" : "span"}
-                  type={seg.command ? "button" : undefined}
-                  onClick={() => seg.command && handleFooterSegmentClick(seg.pluginId, seg.command)}
-                  class={`flex shrink-0 items-center gap-1 rounded px-1.5 py-0.5 text-[10px] transition-colors ${footerColorClass(seg.color)} ${seg.command ? "cursor-pointer" : "cursor-default"}`}
-                >
-                  <Show when={seg.icon}>
-                    <span class={`iconify ${seg.icon} size-3`} />
-                  </Show>
-                  <span class="font-mono">{seg.text}</span>
-                </TooltipTrigger>
-                <Show when={seg.tooltip}>
-                  <TooltipContent>{seg.tooltip}</TooltipContent>
-                </Show>
-              </Tooltip>
-            )}
-          </For>
-        </div>
-      </Show>
-
-      {/* Right: update + terminal + running count + bell (flush to right border) */}
+      {/* Right: right segments + update + terminal + running count + bell (flush to right border) */}
       <div class="flex shrink-0 items-center gap-3 -mr-2 pr-0">
+        <Show when={rightSegments().length > 0}>
+          <div class="flex items-center gap-1">
+            <For each={rightSegments()}>
+              {(seg) => (
+                <Tooltip>
+                  <TooltipTrigger
+                    as={seg.command ? "button" : "span"}
+                    type={seg.command ? "button" : undefined}
+                    onClick={() => seg.command && handleFooterSegmentClick(seg.pluginId, seg.command)}
+                    class={`flex shrink-0 items-center gap-1 rounded px-1.5 py-0.5 text-[10px] transition-colors ${footerColorClass(seg.color)} ${seg.command ? "cursor-pointer" : "cursor-default"}`}
+                  >
+                    <Show when={seg.icon}>
+                      <span class={`iconify ${seg.icon} size-3`} />
+                    </Show>
+                    <span class="font-mono">{seg.text}</span>
+                  </TooltipTrigger>
+                  <Show when={seg.tooltip}>
+                    <TooltipContent>{seg.tooltip}</TooltipContent>
+                  </Show>
+                </Tooltip>
+              )}
+            </For>
+          </div>
+        </Show>
+
         {/* Update download button */}
         <Show when={props.updateVersion}>
           <Tooltip>

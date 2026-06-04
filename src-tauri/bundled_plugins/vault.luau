@@ -168,6 +168,52 @@ export type FooterSegmentOptions = {
     command: string?,
     --- Visual color variant (default: "default").
     color: FooterColor?,
+    --- Optional position alignment: "left" or "right" (default: "left").
+    position: ("left" | "right")?,
+}
+
+export type GitCommit = {
+    hash: string,
+    author: string,
+    email: string,
+    subject: string,
+    date: string,
+    relativeDate: string,
+}
+
+export type GitStatus = {
+    branch: string,
+    ahead: number,
+    behind: number,
+    isDirty: boolean,
+    hasUpstream: boolean,
+    version: string?,
+}
+
+export type VaultGit = {
+    --- Returns a JSON-serialized list of last commits for the given project.
+    log: (projectId: string, maxCount: number?) -> string,
+    --- Returns the current git status for the project as a JSON-serialized string, or nil.
+    status: (projectId: string) -> string?,
+}
+
+export type FormFieldOption = {
+    id: string,
+    label: string,
+}
+
+export type FormField = {
+    id: string,
+    type: "text" | "select",
+    label: string,
+    placeholder: string?,
+    default: string?,
+    options: { FormFieldOption }?,
+}
+
+export type FormOptions = {
+    title: string,
+    fields: { FormField },
 }
 
 -- Form field definition
@@ -207,6 +253,8 @@ export type VaultUI = {
     show_input_box: (options: InputBoxOptions) -> string?,
     --- Renders a searchable Quick Pick list. Returns the selected item id or nil if cancelled.
     show_quick_pick: (options: QuickPickOptions) -> string?,
+    --- Renders a beautiful multi-input form dialog. Returns a key-value dictionary of values, or nil if cancelled.
+    show_form: (options: FormOptions) -> { [string]: string }?,
     --- Navigates the UI to a project, opening a specific file and line.
     open_project_file: (projectId: string, filePath: string, line: number?) -> (),
     --- Creates or updates a persistent segment in the app footer/status bar.
@@ -220,6 +268,8 @@ export type VaultUI = {
     set_header_widget: (options: HeaderWidgetOptions) -> (),
     --- Removes a widget from the project detail header by its id.
     clear_header_widget: (id: string) -> (),
+    --- Renders a beautiful markdown viewer dialog modal with the given raw markdown content.
+    show_markdown_dialog: (title: string, markdownContent: string) -> (),
 }
 
 export type VaultMise = {
@@ -238,6 +288,10 @@ export type VaultGit = {
     run: (projectId: string, args: { string }) -> { success: boolean, stdout: string, stderr: string },
     --- Gets Git status details for the project.
     get_status: (projectId: string) -> string,
+    --- Returns a JSON-serialized list of last commits for the given project.
+    log: (projectId: string, maxCount: number?) -> string,
+    --- Returns the current git status for the project as a JSON-serialized string, or nil.
+    status: (projectId: string) -> string?,
 }
 
 export type VaultGithub = {
@@ -253,6 +307,29 @@ export type VaultProcess = {
 export type VaultEvent = {
     --- Publishes a cross-feature event to the frontend event bus.
     publish: (event: string, payloadJson: string) -> (),
+}
+
+export type ShellExecuteResult = {
+    success: boolean,
+    stdout: string,
+    stderr: string,
+}
+
+export type VaultShell = {
+    --- Discovers IDEs on the developer's machine and returns a JSON string.
+    list_ides: () -> string,
+    --- Launches an IDE session for the project.
+    open_ide: (projectId: string, executable: string) -> (),
+    --- Opens the terminal / interactive shell in the project directory or subdirectory.
+    open_terminal: (projectId: string, cwdRel: string?) -> (),
+    --- Spawns a background task runner for the project using argv and an optional subdirectory, returning its session ID.
+    spawn_task: (projectId: string, argv: { string }, cwdRel: string?) -> string,
+    --- Spawns an external binary asynchronously in the background, returning its PID.
+    spawn_process: (command: string, args: { string }?, cwd: string?) -> number,
+    --- Opens a path or URL in the default system viewer (e.g. reveal in explorer, or launch an app/file).
+    open_path: (path: string) -> (),
+    --- Executes a shell command synchronously in the background, returning status and buffers.
+    execute: (command: string, args: { string }?, cwd: string?) -> ShellExecuteResult,
 }
 
 -- ─── Root Vault type ─────────────────────────────────────────────────────────
@@ -273,6 +350,7 @@ export type Vault = {
     github: VaultGithub,
     process: VaultProcess,
     event: VaultEvent,
+    shell: VaultShell,
 }
 
 -- This module is never required at runtime (vault is injected as a global).

@@ -31,6 +31,10 @@ export function getGitHubRepoForProject(projectId: string) {
   return tauriInvoke<GitHubRepoRefDto | null>("get_github_repo_for_project", { projectId });
 }
 
+export function getGitRemoteUrl(projectId: string) {
+  return tauriInvoke<string | null>("get_git_remote_url", { projectId });
+}
+
 export function upsertProject(project: ProjectDto) {
   return tauriInvoke<ProjectDto>("upsert_project", { project });
 }

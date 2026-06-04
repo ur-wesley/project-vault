@@ -73,6 +73,8 @@ export const ProjectDetailHeader: Component<ProjectDetailHeaderProps> = (
   const [tagDialogOpen, setTagDialogOpen] = createSignal(false);
   const [cleanDialogOpen, setCleanDialogOpen] = createSignal(false);
   const [incomingOpen, setIncomingOpen] = createSignal(false);
+  const [copiedPath, setCopiedPath] = createSignal(false);
+  const [copiedRemote, setCopiedRemote] = createSignal(false);
 
   const openExternal = (href: string) =>
     isTauri()
@@ -121,7 +123,7 @@ export const ProjectDetailHeader: Component<ProjectDetailHeaderProps> = (
                       <TooltipContent>{p().stack}</TooltipContent>
                     </Tooltip>
                     <div class="flex min-w-0 flex-col">
-                      <div class="flex items-center gap-2">
+                      <div class="flex items-center gap-1.5">
                         <div class="flex min-w-0 items-center gap-2">
                           <Show
                             when={m().ghQ.data}
@@ -172,6 +174,31 @@ export const ProjectDetailHeader: Component<ProjectDetailHeaderProps> = (
                             }}
                           </Show>
                         </div>
+
+                        <Show when={m().gitRemoteQ.data}>
+                          {(remoteUrl) => (
+                            <Tooltip>
+                              <TooltipTrigger
+                                as="button"
+                                type="button"
+                                class="flex size-5 shrink-0 items-center justify-center rounded text-muted-foreground/60 hover:bg-muted/80 hover:text-foreground focus-visible:ring-0"
+                                onClick={(e) => {
+                                  e.stopPropagation();
+                                  void navigator.clipboard.writeText(remoteUrl());
+                                  setCopiedRemote(true);
+                                  setTimeout(() => setCopiedRemote(false), 2000);
+                                }}
+                              >
+                                <Show when={copiedRemote()} fallback={<span class="iconify mdi--content-copy size-3.5" />}>
+                                  <span class="iconify mdi--check size-3.5 text-green-500" />
+                                </Show>
+                              </TooltipTrigger>
+                              <TooltipContent>
+                                {t("projectDetail.copyGitRemote") as string}
+                              </TooltipContent>
+                            </Tooltip>
+                          )}
+                        </Show>
                       </div>
                       <Show
                         when={
@@ -189,8 +216,8 @@ export const ProjectDetailHeader: Component<ProjectDetailHeaderProps> = (
                     </div>
                   </div>
                 </div>
-                <div class="ml-1 flex min-w-0 items-center gap-4">
-                  <div class="flex min-w-0">
+                <div class="ml-1 flex min-w-0 items-center gap-2">
+                  <div class="flex min-w-0 items-center gap-1.5">
                     <Tooltip>
                       <TooltipTrigger
                         as="div"
@@ -203,16 +230,38 @@ export const ProjectDetailHeader: Component<ProjectDetailHeaderProps> = (
                         <p class="truncate font-mono text-[10px] text-muted-foreground/80 transition-colors group-hover/path:text-foreground">
                           {p().path}
                         </p>
-                        <Show when={p().sizeBytes > 0}>
-                          <span class="shrink-0 text-[10px] text-muted-foreground/40 transition-colors group-hover/path:text-muted-foreground/60">
-                            · {formatBytes(p().sizeBytes)}
-                          </span>
-                        </Show>
                       </TooltipTrigger>
                       <TooltipContent>
                         {t("library.openInFileManager") as string}
                       </TooltipContent>
                     </Tooltip>
+
+                    <Tooltip>
+                      <TooltipTrigger
+                        as="button"
+                        type="button"
+                        class="flex size-5 shrink-0 items-center justify-center rounded text-muted-foreground/60 hover:bg-muted/80 hover:text-foreground focus-visible:ring-0"
+                        onClick={(e) => {
+                          e.stopPropagation();
+                          void navigator.clipboard.writeText(p().path);
+                          setCopiedPath(true);
+                          setTimeout(() => setCopiedPath(false), 2000);
+                        }}
+                      >
+                        <Show when={copiedPath()} fallback={<span class="iconify mdi--content-copy size-3" />}>
+                          <span class="iconify mdi--check size-3 text-green-500" />
+                        </Show>
+                      </TooltipTrigger>
+                      <TooltipContent>
+                        {t("projectDetail.copyPath") as string}
+                      </TooltipContent>
+                    </Tooltip>
+
+                    <Show when={p().sizeBytes > 0}>
+                      <span class="shrink-0 text-[10px] text-muted-foreground/40">
+                        · {formatBytes(p().sizeBytes)}
+                      </span>
+                    </Show>
                   </div>
                 </div>
               </div>

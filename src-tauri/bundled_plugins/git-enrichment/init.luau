@@ -67,20 +67,25 @@ local function t(locale: string, key: string, args: {[string]: string}?): string
 end
 
 local function get_git_status(project_id: string): GitStatus?
-    local status_json = vault.git.get_status(project_id)
-    if not status_json or status_json == "null" or status_json == "" then
+    vault.log.info("[Git Enrichment] get_git_status called for project_id: " .. project_id)
+    local ok, status_json = pcall(vault.git.get_status, project_id)
+    vault.log.info("[Git Enrichment] vault.git.get_status result - ok: " .. tostring(ok) .. ", json: " .. tostring(status_json))
+    if not ok or not status_json or status_json == "null" or status_json == "" then
         return nil
     end
-    local ok, status = pcall(vault.json.parse, status_json)
-    if ok and status and status.branch then
+    local parse_ok, status = pcall(vault.json.parse, status_json)
+    if parse_ok and status and status.branch then
         return status
     end
+    vault.log.info("[Git Enrichment] failed to parse status JSON or branch missing")
     return nil
 end
 
 local function sync_header(project_id: string)
+    vault.log.info("[Git Enrichment] sync_header called for project_id: " .. project_id)
     local status = get_git_status(project_id)
     if not status then
+        vault.log.info("[Git Enrichment] No status returned, clearing header widgets.")
         vault.ui.clear_header_widget("git_branch")
         vault.ui.clear_header_widget("git_status_badge")
         return
@@ -100,6 +105,7 @@ local function sync_header(project_id: string)
     end
     tooltip = tooltip .. "\nClick to run git pull"
 
+    vault.log.info("[Git Enrichment] Registering git_branch header widget: " .. status.branch)
     vault.ui.set_header_widget({
         id = "git_branch",
         type = "button",
@@ -111,6 +117,7 @@ local function sync_header(project_id: string)
     })
 
     -- 2. Register Status Badge Widget
+    vault.log.info("[Git Enrichment] Registering git_status_badge header widget: " .. (status.isDirty and "Dirty" or "Clean"))
     vault.ui.set_header_widget({
         id = "git_status_badge",
         type = "badge",
@@ -266,14 +273,17 @@ function plugin.execute(command_id: string, context: PluginCommandContext?)
         end
 
     elseif command_id == "init" then
+        vault.log.info("[Git Enrichment] init command executed for project_id: " .. tostring(project_id))
         if project_id and project_id ~= "" then
             sync_header(project_id)
         end
 
     elseif command_id == "project_focus" then
+        vault.log.info("[Git Enrichment] project_focus command executed for project_id: " .. tostring(project_id))
         if project_id and project_id ~= "" then
             sync_header(project_id)
         else
+            vault.log.info("[Git Enrichment] project_id is empty, clearing header widgets.")
             vault.ui.clear_header_widget("git_branch")
             vault.ui.clear_header_widget("git_status_badge")
         end

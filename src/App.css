@@ -513,3 +513,29 @@ html:not(.dark):not([data-kb-theme="dark"]) .markdown-body {
   margin-left: -2px;
   transition: background-color 0.5s ease;
 }
+
+/* Force word wrapping and prevent horizontal scrolling in the markdown dialog */
+.pv-markdown-dialog-content .markdown-body {
+  word-break: break-word !important;
+  word-wrap: break-word !important;
+  overflow-wrap: break-word !important;
+}
+
+.pv-markdown-dialog-content .markdown-body pre {
+  white-space: pre-wrap !important;
+  word-break: break-all !important;
+  overflow-x: hidden !important;
+}
+
+.pv-markdown-dialog-content .markdown-body code {
+  word-break: break-all !important;
+  white-space: pre-wrap !important;
+}
+
+.pv-markdown-dialog-content .markdown-body table {
+  display: block !important;
+  width: 100% !important;
+  overflow-x: hidden !important;
+  word-break: break-word !important;
+}
+

@@ -9,7 +9,7 @@ import { useI18n } from "~/lib/i18n-context";
 import { useWindowFocus } from "~/lib/use-window-focus";
 import { stableErrorMessage } from "~/lib/invoke-error";
 import { notify } from "~/lib/notification-center";
-import { getGitHubRepoForProject, getProject, setProjectFavorite, deleteProject as deleteProjectTauri, refreshProject } from "~/services/tauri/projects";
+import { getGitHubRepoForProject, getGitRemoteUrl, getProject, setProjectFavorite, deleteProject as deleteProjectTauri, refreshProject } from "~/services/tauri/projects";
 import { openProjectShell } from "~/services/tauri/terminal";
 import { startGitWatcher, stopGitWatcher } from "~/services/tauri/git";
 import { syncProjectTasksInCache } from "~/lib/sync-project-tasks-cache";
@@ -100,6 +100,17 @@ export function createProjectDetailModel(props: ProjectDetailViewProps) {
     refetchInterval: 30_000,
   }));
 
+  const gitRemoteQ = createQuery(() => ({
+    queryKey: ["git", "remote", props.projectId],
+    queryFn: async () => {
+      const r = await getGitRemoteUrl(props.projectId);
+      if (r.isErr()) throw new Error(r.error.message);
+      return r.value;
+    },
+    enabled: !!projectQ.data && git.gitStatusQ.isSuccess && git.gitStatusQ.data !== null,
+    refetchInterval: 30_000,
+  }));
+
   if (isTauri()) {
     createEffect(() => {
       const project = projectQ.data;
@@ -119,6 +130,7 @@ export function createProjectDetailModel(props: ProjectDetailViewProps) {
         if (ev.payload.projectId === props.projectId) {
           void refreshProject(props.projectId);
           void qc.invalidateQueries({ queryKey: queryKeys.githubRepo(props.projectId) });
+          void qc.invalidateQueries({ queryKey: ["git", "remote", props.projectId] });
           void qc.invalidateQueries({ queryKey: queryKeys.gitStatus(props.projectId) });
           void qc.invalidateQueries({ queryKey: queryKeys.gitIncoming(props.projectId) });
           void qc.invalidateQueries({ queryKey: ["git", "preview-versions", props.projectId] });
@@ -263,6 +275,7 @@ export function createProjectDetailModel(props: ProjectDetailViewProps) {
     sessionTunnels: events.sessionTunnels,
     idesQ: ide.idesQ,
     ghQ,
+    gitRemoteQ,
     miseToolsQ: mise.miseToolsQ,
     miseSuggestionsQ: mise.miseSuggestionsQ,
     pinMiseToolsMu: mise.pinMiseToolsMu,
