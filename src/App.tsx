@@ -203,6 +203,12 @@ function App() {
   });
 
   createEffect(() => {
+    if (activeView() === "settings") {
+      setProjectDetailId(null);
+    }
+  });
+
+  createEffect(() => {
     const mins = scanMinsQ.data;
     if (mins == null || mins <= 0) return;
     const id = window.setInterval(() => {
@@ -570,7 +576,11 @@ function App() {
       }}
       activeProjectId={projectDetailId()}
     >
-      <PluginUiBridge projectId={projectDetailId()} />
+      <PluginUiBridge
+        projectId={projectDetailId()}
+        detailTab={detailTab()}
+        subDetail={subDetail()}
+      />
       <SidebarProvider>
         <SidebarToggleListener />
         <StackIconSafelist />
@@ -820,7 +830,6 @@ function App() {
 
           <StatusBar
             activeView={activeView()}
-            pathname={pathname()}
             projectName={titleBarProjectQ.data?.name}
             projectId={projectDetailId()}
             onShowProcesses={() => setActiveView("processes")}

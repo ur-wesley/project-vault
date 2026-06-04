@@ -377,6 +377,8 @@ const de = {
 
     languageOther: "Andere",
     backToLibrary: "Zurück zur Bibliothek",
+    copyPath: "Pfad kopieren",
+    copyGitRemote: "Repository-URL kopieren",
     openOnGithub: "{owner}/{repo} auf GitHub öffnen",
     miseToolTooltip: "Mise-Tool: {name} v{version} von {source}",
     totalWorktime: "Gesamte Arbeitszeit",

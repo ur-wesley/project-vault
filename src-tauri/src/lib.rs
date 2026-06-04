@@ -34,6 +34,10 @@ const BUNDLED_PLUGINS: &[(&str, &str)] = &[
     ("catppuccin-theme", include_str!("../bundled_plugins/catppuccin-theme/init.luau")),
     ("harpoon", include_str!("../bundled_plugins/harpoon/init.luau")),
     ("mise", include_str!("../bundled_plugins/mise/init.luau")),
+    ("todo-telescope", include_str!("../bundled_plugins/todo-telescope/init.luau")),
+    ("auto-session-manager", include_str!("../bundled_plugins/auto-session-manager/init.luau")),
+    ("git-integration", include_str!("../bundled_plugins/git-integration/init.luau")),
+    ("project-launcher", include_str!("../bundled_plugins/project-launcher/init.luau")),
 ];
 
 #[cfg_attr(mobile, tauri::mobile_entry_point)]
@@ -328,6 +332,7 @@ pub fn run() {
             commands::github_device::start_github_device_flow,
             commands::github_device::wait_github_device_flow,
             commands::github_remote::get_github_repo_for_project,
+            commands::github_remote::get_git_remote_url,
             commands::notifications::show_system_notification,
             commands::settings::get_setting,
             commands::settings::set_setting,
@@ -397,6 +402,7 @@ pub fn run() {
             commands::plugins::get_tab_decorations,
         ])
         .manage(lua::ui::UiBridge::default())
+        .manage(crate::lua::LuaRuntimeState::new())
         .run(tauri::generate_context!())
         .expect("error while running tauri application");
 }
