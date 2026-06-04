@@ -276,37 +276,7 @@ export function PluginUiBridge(props: {
           document.getElementById(styleId)?.remove();
         }
       }));
-
-    const unlistenSetFooter = await listen<{
-      pluginId: string;
-      id: string;
-      text: string;
-      icon?: string;
-      tooltip?: string;
-      command?: string;
-      color: PluginFooterColor;
-      position?: "left" | "right";
-    }>("plugin:set-footer", (event) => {
-      upsertFooterSegment(event.payload);
-    });
-
-    const unlistenClearFooter = await listen<{ pluginId: string; id: string }>("plugin:clear-footer", (event) => {
-      removeFooterSegment(event.payload.pluginId, event.payload.id);
-    });
-
-    const unlistenMarkdown = await listen<{ pluginId: string; title: string; content: string }>("plugin:show-markdown-dialog", (event) => {
-      setMarkdownDialog(event.payload);
-    });
-
-    const unlistenShowForm = await listen<[string, { title: string; fields: any[] }]>("plugin:show-form", (event) => {
-      const [id, options] = event.payload;
-      setFormDialog({ id, title: options.title, fields: options.fields });
-      const defaults: Record<string, any> = {};
-      for (const field of options.fields) {
-        defaults[field.id] = field.defaultValue ?? "";
-      }
-      setFormValues(defaults);
-    });
+    })();
 
     // Run startup init for all enabled plugins
     try {
