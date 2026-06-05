@@ -22,6 +22,7 @@ import { useI18n } from "~/lib/i18n-context";
 import { FilePreview } from "~/features/project-detail/components/FilePreview";
 import { IssueMarkdown } from "~/features/project-detail/components/IssueMarkdown";
 import { useNotificationCenter } from "~/lib/notification-center";
+import { isGitStatusChangeType } from "~/lib/git-status-sync";
 
 interface BridgeQuickPickItem {
   id: string;
@@ -225,6 +226,29 @@ export function PluginUiBridge(props: {
   // ── Plugin lifecycle ───────────────────────────────────────────────────────
   const [enabledPlugins, setEnabledPlugins] = createSignal<string[]>([]);
 
+  let gitStatusDispatchTimeoutId: ReturnType<typeof setTimeout> | undefined;
+  let pendingGitStatusProjectId: string | null = null;
+
+  const dispatchGitStatusChanged = (projectId: string) => {
+    pendingGitStatusProjectId = projectId;
+    if (gitStatusDispatchTimeoutId !== undefined) {
+      clearTimeout(gitStatusDispatchTimeoutId);
+    }
+    gitStatusDispatchTimeoutId = setTimeout(() => {
+      gitStatusDispatchTimeoutId = undefined;
+      const pid = pendingGitStatusProjectId;
+      pendingGitStatusProjectId = null;
+      if (!pid) return;
+      for (const pluginId of enabledPlugins()) {
+        void invoke("execute_plugin_command", {
+          pluginId,
+          commandId: "git_status_changed",
+          context: { projectId: pid },
+        }).catch(() => {});
+      }
+    }, 150);
+  };
+
   onMount(() => {
     const unlistens: (() => void)[] = [];
 
@@ -332,6 +356,24 @@ export function PluginUiBridge(props: {
         removeHeaderWidget(event.payload.pluginId, event.payload.id);
       }));
 
+      unlistens.push(
+        await listen<{ projectId: string; changeType: string }>("project:changed", (event) => {
+          const { projectId, changeType } = event.payload;
+          if (isGitStatusChangeType(changeType)) {
+            dispatchGitStatusChanged(projectId);
+          }
+        }),
+      );
+
+      unlistens.push(
+        await listen<{ projectId: string; changeType: string }>("git:status-changed", (event) => {
+          const { projectId, changeType } = event.payload;
+          if (isGitStatusChangeType(changeType)) {
+            dispatchGitStatusChanged(projectId);
+          }
+        }),
+      );
+
       unlistens.push(await listen<string>("deep-link:install-plugin", (event) => {
         try {
           const urlStr = event.payload;
@@ -374,6 +416,9 @@ export function PluginUiBridge(props: {
     })();
 
     onCleanup(() => {
+      if (gitStatusDispatchTimeoutId !== undefined) {
+        clearTimeout(gitStatusDispatchTimeoutId);
+      }
       for (const fn of unlistens) fn();
     });
   });

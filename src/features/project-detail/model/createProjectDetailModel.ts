@@ -126,14 +126,9 @@ export function createProjectDetailModel(props: ProjectDetailViewProps) {
 
     createEffect(() => {
       let unlisten: (() => void) | undefined;
-      void listen<{ projectId: string }>("git:changed", (ev) => {
+      void listen<{ projectId: string }>("git:status-changed", (ev) => {
         if (ev.payload.projectId === props.projectId) {
           void refreshProject(props.projectId);
-          void qc.invalidateQueries({ queryKey: queryKeys.githubRepo(props.projectId) });
-          void qc.invalidateQueries({ queryKey: ["git", "remote", props.projectId] });
-          void qc.invalidateQueries({ queryKey: queryKeys.gitStatus(props.projectId) });
-          void qc.invalidateQueries({ queryKey: queryKeys.gitIncoming(props.projectId) });
-          void qc.invalidateQueries({ queryKey: ["git", "preview-versions", props.projectId] });
         }
       }).then((fn) => { unlisten = fn; });
 
