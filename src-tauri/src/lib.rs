@@ -380,6 +380,20 @@ pub fn run() {
             commands::plugins::list_plugins,
             commands::plugins::toggle_plugin,
             commands::plugins::get_tab_decorations,
+            commands::plugins::get_official_plugins_repo,
+            commands::plugins::open_plugins_dir,
+            commands::plugins::refresh_plugins_from_repos,
+            commands::plugins::install_plugin_git,
+            commands::plugins::uninstall_plugin,
+            commands::plugins::sync_lockfile,
+            commands::plugins::restore_from_lockfile,
+            commands::plugins::check_plugin_updates,
+            commands::plugins::update_plugin_git,
+            commands::plugins::update_all_plugins,
+            commands::plugins::get_plugin_load_stats,
+            commands::plugins::resolve_plugin_dependencies,
+            commands::plugins::sync_vendor_lockfile_cmd,
+            commands::plugins::restore_vendor_lockfile_cmd,
         ])
         .manage(lua::ui::UiBridge::default())
         .manage(crate::lua::LuaRuntimeState::new())
