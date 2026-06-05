@@ -54,7 +54,6 @@ pub fn register(lua: &Lua, vault: &Table, ctx: &ModuleContext) -> Result<()> {
         )?;
 
         let app_show = app.clone();
-        let plugin_id_show = ctx.plugin_id.clone();
         notification.set(
             "show",
             lua.create_function(move |lua, opts_val: mlua::Value| {
@@ -75,7 +74,10 @@ pub fn register(lua: &Lua, vault: &Table, ctx: &ModuleContext) -> Result<()> {
                     persist: Option<bool>,
                 }
                 let opts: ShowOpts = lua.from_value(opts_val)?;
-                let pid = plugin_id_show.clone().unwrap_or_else(|| "unknown".to_string());
+                let pid = lua.globals().get::<Option<String>>("__current_plugin_id")
+                    .ok()
+                    .flatten()
+                    .unwrap_or_else(|| "unknown".to_string());
                 let actions: Vec<serde_json::Value> = opts
                     .actions
                     .unwrap_or_default()

@@ -50,7 +50,6 @@ pub fn register(lua: &Lua, vault: &Table, ctx: &ModuleContext) -> Result<()> {
 
         // vault.ui.set_footer — display a persistent segment in the app footer/status bar
         let app_footer = app.clone();
-        let plugin_id_footer = ctx.plugin_id.clone();
         ui.set(
             "set_footer",
             lua.create_function(move |lua, options_val: mlua::Value| {
@@ -65,7 +64,10 @@ pub fn register(lua: &Lua, vault: &Table, ctx: &ModuleContext) -> Result<()> {
                     position: Option<String>,
                 }
                 let opts: FooterOptions = lua.from_value(options_val)?;
-                let pid = plugin_id_footer.clone().unwrap_or_else(|| "unknown".to_string());
+                let pid = lua.globals().get::<Option<String>>("__current_plugin_id")
+                    .ok()
+                    .flatten()
+                    .unwrap_or_else(|| "unknown".to_string());
                 let _ = app_footer.emit("plugin:set-footer", serde_json::json!({
                     "pluginId": pid,
                     "id": opts.id,
@@ -81,12 +83,15 @@ pub fn register(lua: &Lua, vault: &Table, ctx: &ModuleContext) -> Result<()> {
         )?;
 
         let app_c4 = app.clone();
-        let plugin_id_md = ctx.plugin_id.clone().unwrap_or_else(|| "unknown".to_string());
         ui.set(
             "show_markdown_dialog",
-            lua.create_function(move |_, (title, content): (String, String)| {
+            lua.create_function(move |lua, (title, content): (String, String)| {
+                let pid = lua.globals().get::<Option<String>>("__current_plugin_id")
+                    .ok()
+                    .flatten()
+                    .unwrap_or_else(|| "unknown".to_string());
                 let _ = app_c4.emit("plugin:show-markdown-dialog", serde_json::json!({
-                    "pluginId": plugin_id_md,
+                    "pluginId": pid,
                     "title": title,
                     "content": content
                 }));
@@ -96,11 +101,13 @@ pub fn register(lua: &Lua, vault: &Table, ctx: &ModuleContext) -> Result<()> {
 
         // vault.ui.clear_footer — remove a footer segment by id
         let app_footer_clear = app.clone();
-        let plugin_id_footer_clear = ctx.plugin_id.clone();
         ui.set(
             "clear_footer",
-            lua.create_function(move |_, id: String| {
-                let pid = plugin_id_footer_clear.clone().unwrap_or_else(|| "unknown".to_string());
+            lua.create_function(move |lua, id: String| {
+                let pid = lua.globals().get::<Option<String>>("__current_plugin_id")
+                    .ok()
+                    .flatten()
+                    .unwrap_or_else(|| "unknown".to_string());
                 let _ = app_footer_clear.emit("plugin:clear-footer", serde_json::json!({
                     "pluginId": pid,
                     "id": id,
@@ -132,7 +139,7 @@ pub fn register(lua: &Lua, vault: &Table, ctx: &ModuleContext) -> Result<()> {
             r#"
             return function(options)
                 local loaded = package.loaded
-                local vault = loaded["vault"] or loaded["../vault"]
+                local vault = loaded["vault"]
                 local raw = vault.ui._show_form_async(options)
                 if not raw then return nil end
                 return vault.json.parse(raw)
@@ -142,7 +149,6 @@ pub fn register(lua: &Lua, vault: &Table, ctx: &ModuleContext) -> Result<()> {
         ui.set("show_form", show_form_wrapper)?;
 
         let app_widget = app.clone();
-        let plugin_id_widget = ctx.plugin_id.clone();
         ui.set(
             "set_header_widget",
             lua.create_function(move |lua, options_val: mlua::Value| {
@@ -158,7 +164,10 @@ pub fn register(lua: &Lua, vault: &Table, ctx: &ModuleContext) -> Result<()> {
                     color: Option<String>,
                 }
                 let opts: HeaderWidgetOptions = lua.from_value(options_val)?;
-                let pid = plugin_id_widget.clone().unwrap_or_else(|| "unknown".to_string());
+                let pid = lua.globals().get::<Option<String>>("__current_plugin_id")
+                    .ok()
+                    .flatten()
+                    .unwrap_or_else(|| "unknown".to_string());
                 let _ = app_widget.emit("plugin:set-header-widget", serde_json::json!({
                     "pluginId": pid,
                     "id": opts.id,
@@ -174,11 +183,13 @@ pub fn register(lua: &Lua, vault: &Table, ctx: &ModuleContext) -> Result<()> {
         )?;
 
         let app_widget_clear = app.clone();
-        let plugin_id_widget_clear = ctx.plugin_id.clone();
         ui.set(
             "clear_header_widget",
-            lua.create_function(move |_, id: String| {
-                let pid = plugin_id_widget_clear.clone().unwrap_or_else(|| "unknown".to_string());
+            lua.create_function(move |lua, id: String| {
+                let pid = lua.globals().get::<Option<String>>("__current_plugin_id")
+                    .ok()
+                    .flatten()
+                    .unwrap_or_else(|| "unknown".to_string());
                 let _ = app_widget_clear.emit("plugin:clear-header-widget", serde_json::json!({
                     "pluginId": pid,
                     "id": id,
