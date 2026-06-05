@@ -10,6 +10,8 @@ import { ShortcutProvider } from "./lib/shortcut-context";
 import { useRealtimeProjects } from "./lib/use-realtime-projects";
 import { LivePlaytimeProvider } from "./lib/live-playtime-context";
 import { NotificationCenterProvider } from "./lib/notification-center";
+import { PluginUpdatesNotificationHost } from "./components/PluginUpdatesNotificationHost";
+import { getPluginLogStore } from "./lib/plugin-log-store";
 import { queryKeys } from "./services/query-keys";
 
 const queryClient = new QueryClient({
@@ -36,6 +38,10 @@ const Root: ParentComponent = (props) => {
       void queryClient.invalidateQueries({ queryKey: queryKeys.projects });
     }).then((fn) => unlistens.push(fn));
 
+    void listen<{ pluginId: string; level: "info" | "error"; message: string }>("plugin:log", (event) => {
+      getPluginLogStore().append(event.payload);
+    }).then((fn) => unlistens.push(fn));
+
     onCleanup(() => {
       for (const fn of unlistens) fn();
     });
@@ -52,6 +58,7 @@ render(
             <I18nProvider>
               <NotificationCenterProvider>
                 <LivePlaytimeProvider>
+                  <PluginUpdatesNotificationHost />
                   <App />
                 </LivePlaytimeProvider>
               </NotificationCenterProvider>

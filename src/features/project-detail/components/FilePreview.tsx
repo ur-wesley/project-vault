@@ -33,6 +33,8 @@ const [highlighter] = createResource(async () => {
       "xml",
       "docker",
       "diff",
+      "lua",
+      "luau",
       "plaintext",
     ],
   });
@@ -54,6 +56,8 @@ const EXT_LANG_MAP: Record<string, string> = {
   yml: "yaml",
   gradle: "kotlin",
   kts: "kotlin",
+  lua: "lua",
+  luau: "luau",
 };
 
 const FILENAME_LANG_MAP: Record<string, string> = {

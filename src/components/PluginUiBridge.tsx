@@ -21,6 +21,7 @@ import { TextField, TextFieldInput, TextFieldLabel } from "~/components/ui/text-
 import { useI18n } from "~/lib/i18n-context";
 import { FilePreview } from "~/features/project-detail/components/FilePreview";
 import { IssueMarkdown } from "~/features/project-detail/components/IssueMarkdown";
+import { useNotificationCenter } from "~/lib/notification-center";
 
 interface BridgeQuickPickItem {
   id: string;
@@ -60,6 +61,11 @@ export function PluginUiBridge(props: {
   subDetail?: string | null;
 }) {
   const { t } = useI18n();
+  const center = useNotificationCenter();
+  
+  // ── Deep link install state ────────────────────────────────────────────────
+  const [deepLinkInstall, setDeepLinkInstall] = createSignal<{ repo: string; branch?: string; tag?: string; commit?: string } | null>(null);
+
   // ── Markdown dialog state ──────────────────────────────────────────────────
   const [markdownDialog, setMarkdownDialog] = createSignal<{ pluginId: string; title: string; content: string } | null>(null);
 
@@ -324,6 +330,26 @@ export function PluginUiBridge(props: {
 
       unlistens.push(await listen<{ pluginId: string; id: string }>("plugin:clear-header-widget", (event) => {
         removeHeaderWidget(event.payload.pluginId, event.payload.id);
+      }));
+
+      unlistens.push(await listen<string>("deep-link:install-plugin", (event) => {
+        try {
+          const urlStr = event.payload;
+          const url = new URL(urlStr.replace("project-vault://", "http://").replace("vault://", "http://"));
+          if (url.pathname === "/install-plugin" || url.host === "install-plugin") {
+            const repo = url.searchParams.get("repo");
+            if (repo) {
+              setDeepLinkInstall({
+                repo,
+                branch: url.searchParams.get("branch") || undefined,
+                tag: url.searchParams.get("tag") || undefined,
+                commit: url.searchParams.get("commit") || undefined,
+              });
+            }
+          }
+        } catch (err) {
+          console.error("Failed to parse deep link URL:", err);
+        }
       }));
 
       try {
@@ -752,6 +778,82 @@ export function PluginUiBridge(props: {
           </div>
           <DialogFooter>
             <Button onClick={() => setMarkdownDialog(null)}>{t("common.close") || "Close"}</Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
+      {/* Deep Link Installation Confirmation */}
+      <Dialog open={!!deepLinkInstall()} onOpenChange={(open) => !open && setDeepLinkInstall(null)}>
+        <DialogContent class="sm:max-w-[450px]">
+          <DialogHeader>
+            <DialogTitle>Install External Plugin</DialogTitle>
+          </DialogHeader>
+          <div class="py-4 space-y-3">
+            <p class="text-xs text-muted-foreground leading-normal">
+              An external link is requesting to install a plugin in Project Vault.
+            </p>
+            <div class="rounded bg-muted/30 border border-border/50 p-3 font-mono text-[10px] break-all space-y-1">
+              <div class="flex flex-col">
+                <span class="text-muted-foreground font-semibold">Repository:</span>
+                <span class="text-foreground select-text">{deepLinkInstall()?.repo}</span>
+              </div>
+              <Show when={deepLinkInstall()?.branch}>
+                <div class="flex justify-between border-t border-border/20 pt-1 mt-1">
+                  <span class="text-muted-foreground">Branch:</span>
+                  <span class="text-foreground">{deepLinkInstall()?.branch}</span>
+                </div>
+              </Show>
+              <Show when={deepLinkInstall()?.tag}>
+                <div class="flex justify-between border-t border-border/20 pt-1 mt-1">
+                  <span class="text-muted-foreground">Tag:</span>
+                  <span class="text-foreground">{deepLinkInstall()?.tag}</span>
+                </div>
+              </Show>
+              <Show when={deepLinkInstall()?.commit}>
+                <div class="flex justify-between border-t border-border/20 pt-1 mt-1">
+                  <span class="text-muted-foreground">Commit:</span>
+                  <span class="text-foreground">{deepLinkInstall()?.commit}</span>
+                </div>
+              </Show>
+            </div>
+            <p class="text-[10px] text-amber-500 font-medium leading-normal">
+              ⚠️ Warning: Install plugins only from authors you trust. External code can access local files.
+            </p>
+          </div>
+          <DialogFooter>
+            <Button variant="ghost" size="sm" onClick={() => setDeepLinkInstall(null)}>{t("common.cancel")}</Button>
+            <Button size="sm" onClick={async () => {
+              const info = deepLinkInstall();
+              if (!info) return;
+              setDeepLinkInstall(null);
+              center.notify({
+                severity: "info",
+                title: "Installing Plugin",
+                body: `Cloning plugin repository in the background...`,
+                durationMs: 3000,
+              });
+              try {
+                await invoke("install_plugin_git", {
+                  repo: info.repo,
+                  branch: info.branch || null,
+                  tag: info.tag || null,
+                  commit: info.commit || null
+                });
+                center.notify({
+                  severity: "success",
+                  title: "Installation Successful",
+                  body: `Successfully installed plugin to plugins folder.`,
+                  durationMs: 5000,
+                });
+              } catch (err: any) {
+                center.notify({
+                  severity: "error",
+                  title: "Installation Failed",
+                  body: err.message || String(err),
+                  durationMs: 8000,
+                });
+              }
+            }}>Install Plugin</Button>
           </DialogFooter>
         </DialogContent>
       </Dialog>

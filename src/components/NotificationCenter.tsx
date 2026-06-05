@@ -79,10 +79,11 @@ function formatTime(ts: number): string {
 
 const NotificationRow: Component<{
   item: NotificationItem;
+  sourceSystemLabel: string;
+  dismissLabel: string;
   onAction: (a: { run?: () => void | Promise<void>; command?: string }) => void;
   onDismiss: () => void;
 }> = (props) => {
-  const { t } = useI18n();
   const iconName = () => props.item.icon || SEVERITY_ICON[props.item.severity];
 
   return (
@@ -97,7 +98,7 @@ const NotificationRow: Component<{
         <div class={cn("flex size-5 shrink-0 items-center justify-center rounded-md", SEVERITY_BG[props.item.severity])}>
           <span class={cn("iconify size-3", iconName(), SEVERITY_COLOR[props.item.severity])} />
         </div>
-        <span class="font-medium truncate">{props.item.source ?? (t("notificationCenter.sourceSystem") as string)}</span>
+        <span class="font-medium truncate">{props.item.source ?? props.sourceSystemLabel}</span>
         <Show when={!props.item.read}>
           <span class="inline-flex h-1.5 w-1.5 shrink-0 rounded-full bg-primary" aria-hidden="true" />
         </Show>
@@ -146,7 +147,7 @@ const NotificationRow: Component<{
 
       <button
         type="button"
-        aria-label={t("common.dismiss") as string}
+        aria-label={props.dismissLabel}
         class="absolute right-1 top-1 rounded p-0.5 text-muted-foreground/60 opacity-0 transition-opacity hover:bg-accent hover:text-foreground group-hover:opacity-100"
         onClick={(e) => {
           e.stopPropagation();
@@ -297,6 +298,8 @@ export const NotificationCenter: Component<{ projectId?: string | null }> = (pro
                           <div data-notification-id={item.id}>
                             <NotificationRow
                               item={item}
+                              sourceSystemLabel={t("notificationCenter.sourceSystem") as string}
+                              dismissLabel={t("common.dismiss") as string}
                               onAction={(a) => void handleAction(a)}
                               onDismiss={() => center.dismiss(item.id)}
                             />

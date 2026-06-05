@@ -1,6 +1,7 @@
 import { createQuery, useQueryClient } from "@tanstack/solid-query";
 import { For, Show, createEffect, createMemo, createSignal, onCleanup, type ParentProps } from "solid-js";
 import { isTauri, invoke } from "@tauri-apps/api/core";
+import { listen } from "@tauri-apps/api/event";
 
 import { StackIcon } from "~/components/StackIcon";
 import {
@@ -51,6 +52,17 @@ export function CommandPalette(props: CommandPaletteProps) {
       }
     });
     onCleanup(() => listener());
+  });
+
+  createEffect(() => {
+    if (!isTauri()) return;
+    let unlisten: (() => void) | undefined;
+    void listen("plugin:reload", () => {
+      void qc.invalidateQueries({ queryKey: ["plugin", "commands"] });
+    }).then((fn) => {
+      unlisten = fn;
+    });
+    onCleanup(() => unlisten?.());
   });
 
   const q = createQuery(() => ({

@@ -17,6 +17,13 @@ import "@xterm/xterm/css/xterm.css";
 
 import { useI18n } from "~/lib/i18n-context";
 import { stableErrorMessage } from "~/lib/invoke-error";
+import {
+  attachTerminalWindowRepaint,
+  repaintTerminal,
+  terminalHasMinSize,
+  TERMINAL_MIN_HEIGHT,
+  TERMINAL_MIN_WIDTH,
+} from "~/lib/terminal-repaint";
 import { cn } from "~/lib/utils";
 import {
   appendTerminalChunk,
@@ -121,8 +128,7 @@ export function TerminalHost(props: {
 
   const doResize = () => {
     if (!sessionId || !term || !fit) return;
-    const rect = term.element?.getBoundingClientRect();
-    if (!rect || rect.width < 200 || rect.height < 100) return;
+    if (!terminalHasMinSize(term)) return;
     fit.fit();
     if (term.cols >= MIN_COLS && term.rows >= MIN_ROWS) {
       void embeddedTerminalResize(sessionId, term.rows, term.cols);
@@ -142,8 +148,7 @@ export function TerminalHost(props: {
         if (!active() || !currentTerm.element) return;
         if (currentTerm.element.offsetParent !== null) {
           currentTerm.focus();
-          doResize();
-          currentTerm.refresh(0, currentTerm.rows - 1);
+          repaintTerminal(currentTerm, fit, doResize);
         }
       }, 150);
     });
@@ -186,6 +191,7 @@ export function TerminalHost(props: {
     let onWindowResize: (() => void) | null = null;
     let linkProvider: { dispose: () => void } | null = null;
     let cleanupOnKeyDown: ((e: KeyboardEvent) => void) | null = null;
+    let detachWindowRepaint: (() => void) | undefined;
     const existingSid = attachSid ?? existingSessionId;
     let sid = existingSid;
 
@@ -234,7 +240,7 @@ export function TerminalHost(props: {
       };
       node.addEventListener("keydown", cleanupOnKeyDown, { capture: true });
       const openRect = node.getBoundingClientRect();
-      if (openRect.width >= 200 && openRect.height >= 100) {
+      if (openRect.width >= TERMINAL_MIN_WIDTH && openRect.height >= TERMINAL_MIN_HEIGHT) {
         fit.fit();
       }
       if (!sid) {
@@ -265,6 +271,7 @@ export function TerminalHost(props: {
           }
           term.writeln("\r\n\x1b[90m" + (t("projectDetail.terminalProcessExited") as string) + "\x1b[0m");
           setTerminalReady(true);
+          detachWindowRepaint = attachTerminalWindowRepaint(() => term, () => fit, doResize);
           return;
         }
       }
@@ -329,6 +336,7 @@ export function TerminalHost(props: {
       });
 
       doResize();
+      detachWindowRepaint = attachTerminalWindowRepaint(() => term, () => fit, doResize);
 
       ro = new ResizeObserver(() => {
         window.clearTimeout(resizeT);
@@ -345,6 +353,7 @@ export function TerminalHost(props: {
 
     onCleanup(() => {
       cancelled = true;
+      detachWindowRepaint?.();
       window.clearTimeout(resizeT);
       ro?.disconnect();
       if (onWindowResize) window.removeEventListener("resize", onWindowResize);
