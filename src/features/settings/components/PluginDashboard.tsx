@@ -79,6 +79,16 @@ function pluginHasSettings(plugin: PluginInfo): boolean {
   return asPluginOptionList(plugin.options).length > 0 || asPluginConfigList(plugin.config).length > 0;
 }
 
+function normalizeHexColor(value: string, fallback = "#000000"): string {
+  let hex = value.trim();
+  if (!hex) return fallback;
+  if (!hex.startsWith("#")) hex = `#${hex}`;
+  const short = /^#([0-9a-fA-F])([0-9a-fA-F])([0-9a-fA-F])$/.exec(hex);
+  if (short) return `#${short[1]}${short[1]}${short[2]}${short[2]}${short[3]}${short[3]}`.toLowerCase();
+  if (/^#[0-9a-fA-F]{6}$/.test(hex)) return hex.toLowerCase();
+  return fallback;
+}
+
 export const PluginDashboard: Component<{ t: (key: string, params?: Record<string, unknown>) => string }> = (props) => {
   const center = useNotificationCenter();
   const queryClient = useQueryClient();
@@ -992,26 +1002,42 @@ export const PluginDashboard: Component<{ t: (key: string, params?: Record<strin
                                   </div>
                                 </Show>
 
-                                <Show when={cfg.type !== "select" && cfg.type !== "boolean"}>
+                                <Show when={cfg.type === "color"}>
                                   <div class="flex gap-2 items-center">
+                                    <input
+                                      id={fieldId}
+                                      type="color"
+                                      value={normalizeHexColor(currentVal(), normalizeHexColor(cfg.default ?? "", "#000000"))}
+                                      onInput={(e) => handleSaveConfig(plugin.id, cfg.key, e.currentTarget.value)}
+                                      class="size-8 shrink-0 cursor-pointer rounded border border-muted/40 bg-background p-0.5"
+                                      aria-label={cfg.label}
+                                    />
                                     <TextField
                                       value={currentVal()}
                                       onChange={(val) => handleSaveConfig(plugin.id, cfg.key, val)}
                                       class="flex-1"
-                                      id={fieldId}
                                     >
                                       <TextFieldInput
                                         type="text"
-                                        class="h-8 text-xs bg-background border-muted/40 placeholder:text-muted-foreground/50 focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 focus:outline-none"
+                                        placeholder="#000000"
+                                        class="h-8 text-xs bg-background border-muted/40 font-mono placeholder:text-muted-foreground/50 focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 focus:outline-none"
                                       />
                                     </TextField>
-                                    <Show when={cfg.type === "color"}>
-                                      <div
-                                        class="size-6 rounded border border-muted/50 shadow-inner shrink-0"
-                                        style={{ "background-color": currentVal() || "#000" }}
-                                      />
-                                    </Show>
                                   </div>
+                                </Show>
+
+                                <Show when={cfg.type !== "select" && cfg.type !== "boolean" && cfg.type !== "color"}>
+                                  <TextField
+                                    value={currentVal()}
+                                    onChange={(val) => handleSaveConfig(plugin.id, cfg.key, val)}
+                                    class="flex-1"
+                                    id={fieldId}
+                                  >
+                                    <TextFieldInput
+                                      type="text"
+                                      class="h-8 text-xs bg-background border-muted/40 placeholder:text-muted-foreground/50 focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 focus:outline-none"
+                                    />
+                                  </TextField>
                                 </Show>
                               </div>
                             );
