@@ -46,11 +46,37 @@ Lazy-loading hooks (usually on `init.luau`, not in the registry):
 |-------|---------|
 | `lazy` | Defer loading until a command, key, or event triggers the plugin (default `true` for registry installs) |
 | `cmd` | Command ids that load the plugin when invoked |
-| `event` | App events (`startup`, `project_focus`, …) that load the plugin |
+| `event` | App events (`startup`, `project_focus`, `git_status_changed`, …) that load the plugin |
 | `keys` | Keybinding ids that load the plugin |
 | `dependencies` | Other plugin ids (or `{ id, repo, dir }` tables) that must load first |
 | `externals` | Git-pinned Luau libraries in `plugins/vendor/` (string id or `{ id, repo, main }`) |
 | `exports` | Public API table for library plugins (`category = "library"`) |
+
+### Lifecycle hooks and git events
+
+The engine calls `plugin.execute(command_id, context)` for hooks that are not user commands. Implement only what your plugin needs:
+
+| Hook / Tauri event | When fired | Plugin `command_id` |
+|--------------------|------------|------------------------|
+| — | App startup, plugin enabled | `init` |
+| — | User opens a different project | `project_focus` |
+| — | Detail tab or sub-view changes | `project_state_changed` |
+| `project:changed` (`changeType`: `git`, `version-bump`, `git-clean`) | Built-in git commands, watcher, or `vault.event.publish` | — (UI cache invalidation only) |
+| `git:status-changed` | Same sources as above (paired with `project:changed`) | — |
+| — | After git events, frontend dispatches to all enabled plugins | `git_status_changed` |
+
+Example handler:
+
+```lua
+function plugin.execute(command_id: string, context: any)
+    if command_id == "git_status_changed" then
+        local projectId = context and context.projectId
+        -- Re-read vault.git.status(projectId) and refresh widgets
+    end
+end
+```
+
+After mutating the repo with `vault.git.run` or `vault.shell.execute`, publish `project:changed` with `changeType = "git"` so the UI and other plugins stay in sync (see [plugins.md](./plugins.md#210-git-vaultgit)).
 
 ## Where files live on disk
 

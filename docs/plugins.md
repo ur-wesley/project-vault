@@ -146,6 +146,41 @@ Request interaction with the user:
     * `filePath`: The absolute local file path to open.
     * `line`: (Optional) The 1-indexed line number to automatically scroll the editor preview to.
 
+### 2.10 Git (`vault.git`)
+
+There is **no engine-side cache** for repository status. Every call runs live `git` commands against the project directory.
+
+* **`vault.git.get_status(projectId: string) -> string`**: JSON string matching the built-in `get_git_status` Tauri command (`branch`, `ahead`, `behind`, `isDirty`, `hasUpstream`, `version`).
+* **`vault.git.status(projectId: string) -> string?`**: Same fields as JSON; returns `nil` when the project is not a git repository.
+* **`vault.git.run(projectId: string, args: table) -> { success, stdout, stderr }`**: Runs arbitrary git argv in the project root. Does **not** automatically notify the UI; after mutating commands, publish `project:changed` (see below) or rely on built-in commands that already notify.
+* **`vault.git.log(projectId: string, maxCount?: number) -> string`**: Recent commits as JSON.
+
+**`version` field:** Computed at call time with `git describe --tags --abbrev=0`. Omitted when the repository has no reachable tags.
+
+**Built-in commands and `project:changed` `changeType` values:**
+
+| Command / source | `changeType` |
+|------------------|--------------|
+| `git_pull`, `git_push`, `git_fetch`, `git_init` | `git` |
+| `git_clean_execute` | `git-clean` |
+| `git_tag_and_push`, `git_bump_version_and_tag` | `version-bump` |
+| Git directory watcher (project detail open) | `git` |
+
+Each row also emits **`git:status-changed`** with the same payload. The web UI invalidates its TanStack Query git caches on these events; plugins receive **`git_status_changed`** via `plugin.execute` (see [creating-plugins.md](./creating-plugins.md)).
+
+### 2.11 Events (`vault.event`)
+
+* **`vault.event.publish(eventName: string, payloadJson: string)`**: Emits a Tauri event to the frontend. Plugins commonly use this after local git work:
+
+  ```lua
+  vault.event.publish("project:changed", vault.json.stringify({
+      projectId = project_id,
+      changeType = "git",
+  }))
+  ```
+
+  That invalidates UI caches and triggers the `git_status_changed` plugin hook for enabled plugins.
+
 ---
 
 ## 3. Features & Development Tools
@@ -159,3 +194,16 @@ Inside settings, navigate to the **Plugins** tab to:
 * Open the [plugin development guide](./creating-plugins.md).
 * Turn plugins on/off instantly via toggles.
 * Access the **Real-time Log Console** to filter and view diagnostic outputs/errors from your plugin scripts.
+
+### 3.3 Plugin lifecycle hooks (`plugin.execute`)
+
+These `command_id` values are invoked by the app, not listed in `commands`:
+
+| `command_id` | When |
+|--------------|------|
+| `init` | Plugin enabled at startup |
+| `project_focus` | Active project changed |
+| `project_state_changed` | Active project’s detail tab or sub-view changed |
+| `git_status_changed` | Repository state changed (`context.projectId` set) |
+
+Handle `git_status_changed` to refresh header widgets, footer chips, or other git UI. Add `"git_status_changed"` to the plugin `event` array so lazy plugins load when this hook fires.
