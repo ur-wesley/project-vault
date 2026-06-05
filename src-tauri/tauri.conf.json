@@ -124,6 +124,14 @@
       "endpoints": [
         "https://github.com/ur-wesley/project-vault/releases/latest/download/latest.json"
       ]
+    },
+    "deep-link": {
+      "desktop": {
+        "schemes": [
+          "vault",
+          "project-vault"
+        ]
+      }
     }
   },
   "bundle": {

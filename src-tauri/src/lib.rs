@@ -85,8 +85,18 @@ pub fn run() {
                 )
                 .build(),
         )
-        .plugin(tauri_plugin_single_instance::init(|_app, _args, _cwd| {}))
+        .plugin(tauri_plugin_single_instance::init(|app, args, _cwd| {
+            if let Some(main_window) = app.get_webview_window("main") {
+                let _ = main_window.set_focus();
+            }
+            for arg in args {
+                if arg.starts_with("vault://") || arg.starts_with("project-vault://") {
+                    let _ = app.emit("deep-link:install-plugin", arg);
+                }
+            }
+        }))
         .plugin(tauri_plugin_fs::init())
+        .plugin(tauri_plugin_deep_link::init())
         .plugin(tauri_plugin_persisted_scope::init())
         .plugin(tauri_plugin_os::init())
         .plugin(tauri_plugin_cli::init())
