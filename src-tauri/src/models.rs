@@ -209,6 +209,15 @@ pub fn emit_project_changed(app: &AppHandle, project_id: &str, change_type: &str
     );
 }
 
+pub fn notify_git_status_changed(app: &AppHandle, project_id: &str, change_type: &str) {
+    let payload = ProjectChangedEmit {
+        project_id: project_id.to_string(),
+        change_type: change_type.to_string(),
+    };
+    let _ = app.emit("project:changed", &payload);
+    let _ = app.emit("git:status-changed", payload);
+}
+
 #[derive(Debug, Clone, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
 pub struct ScreenInfoDto {

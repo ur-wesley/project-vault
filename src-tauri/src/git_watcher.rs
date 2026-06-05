@@ -4,8 +4,7 @@ use std::sync::atomic::{AtomicBool, Ordering};
 use std::sync::Arc;
 use std::time::{Duration, SystemTime};
 
-use serde_json::json;
-use tauri::{AppHandle, Emitter};
+use tauri::AppHandle;
 use tokio::sync::Mutex;
 
 struct WatcherEntry {
@@ -73,7 +72,7 @@ impl GitWatcher {
                     
                     let pids: Vec<String> = projects_clone.lock().unwrap().iter().cloned().collect();
                     for pid in pids {
-                        let _ = app.emit("git:changed", json!({ "projectId": pid }));
+                        crate::models::notify_git_status_changed(&app, &pid, "git");
                     }
                 }
             }
