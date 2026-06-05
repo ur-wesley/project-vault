@@ -1,13 +1,24 @@
 # Lua Plugin System Documentation
 
-The `project-vault` application features a dynamic runtime Lua plugin system, allowing you to easily build custom commands, automate workspace-wide searches, query database states, inject themes/styles, and interact with the UI through input boxes and quick pick overlays.
+The `project-vault` application features a dynamic runtime Luau plugin system. Plugins are installed from Git repositories (not bundled inside the app binary). Official plugins: [pv-plugins](https://github.com/ur-wesley/pv-plugins). For local development, official plugin sources are checked out as a git submodule at `pv-plugins/` (`git submodule update --init`).
+
+**Authoring guide:** [creating-plugins.md](./creating-plugins.md)
 
 ---
 
 ## 1. Plugin Structure
 
-Each plugin resides in its own directory inside the `<app_data_dir>/plugins/` folder (e.g., `plugins/search-all-projects/`).
-A plugin is defined by a single **`init.lua`** file that must return a Lua table containing metadata, defined commands, and an execution entry hook.
+Plugins are loaded from paths declared in `<app_data_dir>/plugins/lazy-config.luau`:
+
+- **Monorepo:** `plugins/repos/<repo-slug>/<dir>/init.luau` (install from a repo with `plugins.registry.luau` at the root)
+- **Single-plugin repo:** `plugins/repos/<repo-slug>/init.luau`
+- **Legacy flat:** `plugins/<id>/init.luau` when no `repo` is set in lazy-config
+
+Each plugin is defined by **`init.luau`** returning a table with metadata, commands, and an `execute` hook.
+
+Monorepo repos ship a root **`plugins.registry.luau`** with placement entries only (`id` and optional `dir`). Commands, options, config, and lazy-load hooks belong in each plugin’s `init.luau`. After Git install, **`lazy-config.luau`** stores paths and enablement (`id`, `repo`, `dir`, `enabled`, `lazy`, …), not full plugin metadata.
+
+`vault.luau` in the plugins folder is **refreshed on every app start** for IDE types; do not edit it manually.
 
 ### Example `init.lua`
 ```lua
@@ -106,7 +117,13 @@ Build custom style overrides:
 Retrieve active application language options for localized dialogue rendering:
 * **`vault.i18n.get_locale() -> string`**: Asynchronously retrieves the active UI locale setting (e.g., `"en"`, `"de"`).
 
-### 2.8 UI Primitives (`vault.ui`)
+### 2.8 Plugin dependencies (`vault.plugin`, `vault.external`)
+
+* **`vault.plugin.require(pluginId: string) -> table`**: Returns another plugin's `exports` table. The dependency must be listed in your `dependencies` array.
+* **`vault.external.require(externalId: string) -> table`**: Loads a Git-pinned library from `plugins/vendor/`. Must be listed in `externals`.
+* **`require("@plugin/<id>")`**, **`require("@external/<id>")`**, **`require("./lib/foo")`**: Lower-level module paths resolved by the runtime searcher.
+
+### 2.9 UI Primitives (`vault.ui`)
 Request interaction with the user:
 * **`vault.ui.show_input_box(options: table) -> string | nil`**: Prompts the user with an input box.
   * *Options table structure*: `{ title = string, placeholder = string }`
@@ -134,10 +151,11 @@ Request interaction with the user:
 ## 3. Features & Development Tools
 
 ### 3.1 Hot-Reloading (File Watcher)
-During development, whenever you edit any `.lua` file inside your plugin's folder under the `<app_data_dir>/plugins/` path, the backend file watcher automatically detects the change, triggers a plugin reload, and refreshes the frontend's command palette list immediately. No app restarts needed.
+During development, whenever you edit `init.luau` under a plugin path, the file watcher reloads plugins and refreshes the command palette. No app restart needed.
 
 ### 3.2 Real-time Plugins Settings UI
 Inside settings, navigate to the **Plugins** tab to:
-* View all installed and bundled plugins.
+* View installed plugins (install the official bundle from the Store or a custom Git URL).
+* Open the [plugin development guide](./creating-plugins.md).
 * Turn plugins on/off instantly via toggles.
 * Access the **Real-time Log Console** to filter and view diagnostic outputs/errors from your plugin scripts.
