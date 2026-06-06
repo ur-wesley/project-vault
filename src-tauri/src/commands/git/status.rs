@@ -95,7 +95,7 @@ pub async fn git_pull(
     let cwd = Path::new(&project.path);
 
     run_git(cwd, &["pull"])?;
-    crate::models::emit_project_changed(&app, &project_id, "git");
+    crate::models::notify_git_status_changed(&app, &project_id, "git");
     Ok(())
 }
 
@@ -110,12 +110,13 @@ pub async fn git_push(
     let cwd = Path::new(&project.path);
 
     run_git(cwd, &["push"])?;
-    crate::models::emit_project_changed(&app, &project_id, "git");
+    crate::models::notify_git_status_changed(&app, &project_id, "git");
     Ok(())
 }
 
 #[tauri::command]
 pub async fn git_fetch(
+    app: AppHandle,
     db: State<'_, DbInstances>,
     project_id: String,
 ) -> Result<(), StableError> {
@@ -124,6 +125,7 @@ pub async fn git_fetch(
     let cwd = Path::new(&project.path);
 
     run_git(cwd, &["fetch"])?;
+    crate::models::notify_git_status_changed(&app, &project_id, "git");
     Ok(())
 }
 
@@ -167,6 +169,7 @@ pub async fn git_incoming(
 
 #[tauri::command]
 pub async fn git_init(
+    app: AppHandle,
     db: State<'_, DbInstances>,
     project_id: String,
 ) -> Result<(), StableError> {
@@ -176,6 +179,7 @@ pub async fn git_init(
 
     run_git(cwd, &["init"])?;
     run_git(cwd, &["checkout", "-b", "main"])?;
+    crate::models::notify_git_status_changed(&app, &project_id, "git");
     Ok(())
 }
 

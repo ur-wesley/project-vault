@@ -1,6 +1,6 @@
 [package]
 name = "project-vault"
-version = "0.10.1"
+version = "0.10.2"
 description = "Steam for dev Projects!"
 authors = ["Wesley"]
 edition = "2021"
@@ -36,6 +36,7 @@ tauri-plugin-persisted-scope = "2"
 tauri-plugin-sql = { version = "2", features = ["sqlite"] }
 tauri-plugin-store = "2"
 tauri-plugin-global-shortcut = "2"
+tauri-plugin-deep-link = "2"
 sqlx = { version = "0.8.6", default-features = false, features = ["runtime-tokio", "sqlite"] }
 uuid = { version = "1", features = ["v4"] }
 toml = "0.8"
@@ -57,7 +58,7 @@ thiserror = "1"
 notify = "6.1"
 tempfile = "3"
 shell-words = "1"
-mlua = { version = "0.10.1", features = ["luau", "serialize", "async"] }
+mlua = { version = "0.10.2", features = ["luau", "serialize", "async"] }
 zstd-sys = "=2.0.9"
 xcap = "0.9"
 image = { version = "0.25", default-features = false, features = ["png"] }

@@ -539,3 +539,12 @@ html:not(.dark):not([data-kb-theme="dark"]) .markdown-body {
   word-break: break-word !important;
 }
 
+.pv-markdown-dialog-content .shiki-container {
+  overflow-x: auto;
+}
+
+.pv-markdown-dialog-content .shiki-container code {
+  word-break: normal !important;
+  white-space: pre !important;
+}
+

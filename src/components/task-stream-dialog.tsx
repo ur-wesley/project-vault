@@ -17,7 +17,11 @@ import {
   DialogTitle,
 } from "~/components/ui/dialog";
 import { useI18n } from "~/lib/i18n-context";
+import { attachTerminalWindowRepaint, terminalHasMinSize } from "~/lib/terminal-repaint";
 import { embeddedTerminalKill, embeddedTerminalResize, embeddedTerminalWrite } from "~/services/tauri/terminal";
+
+const MIN_COLS = 20;
+const MIN_ROWS = 5;
 
 const WEB_LINK_REGEX = /https?:\/\/[^\s"<>|`{}[\]^]+/g;
 
@@ -108,6 +112,16 @@ function TaskStreamTerminal(props: { sessionId: string; active: boolean }) {
     let ro: ResizeObserver | null = null;
     let resizeT: number | undefined;
     let linkProvider: { dispose: () => void } | null = null;
+    let detachWindowRepaint: (() => void) | undefined;
+
+    const pushResize = () => {
+      if (!term || !fit) return;
+      if (!terminalHasMinSize(term)) return;
+      fit.fit();
+      if (term.cols >= MIN_COLS && term.rows >= MIN_ROWS) {
+        void embeddedTerminalResize(sid, term.rows, term.cols);
+      }
+    };
 
     void (async () => {
       term = new Terminal({
@@ -137,9 +151,10 @@ function TaskStreamTerminal(props: { sessionId: string; active: boolean }) {
       });
       term.open(el);
 
-      // Delay fit to ensure dialog animation is mostly done
       window.setTimeout(() => {
-        if (!cancelled) fit?.fit();
+        if (!cancelled && term && fit && terminalHasMinSize(term)) {
+          fit.fit();
+        }
       }, 200);
 
       if (cancelled) {
@@ -164,11 +179,7 @@ function TaskStreamTerminal(props: { sessionId: string; active: boolean }) {
         term.writeln("\r\n\x1b[90m[process exited]\x1b[0m");
       });
 
-      const pushResize = () => {
-        if (!term || !fit) return;
-        fit.fit();
-        void embeddedTerminalResize(sid, term.rows, term.cols);
-      };
+      detachWindowRepaint = attachTerminalWindowRepaint(() => term, () => fit, pushResize);
 
       ro = new ResizeObserver(() => {
         window.clearTimeout(resizeT);
@@ -179,6 +190,7 @@ function TaskStreamTerminal(props: { sessionId: string; active: boolean }) {
 
     onCleanup(() => {
       cancelled = true;
+      detachWindowRepaint?.();
       window.clearTimeout(resizeT);
       ro?.disconnect();
       unData?.();

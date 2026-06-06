@@ -18,3 +18,19 @@ A desktop project manager -- like Steam, but for your local repositories. Import
 ## Tech Stack
 
 Tauri (Rust), SolidJS, TypeScript, SQLite, Tailwind CSS
+
+## Development
+
+Clone with submodules so official plugin sources are available for tests and reference:
+
+```bash
+git clone --recurse-submodules https://github.com/ur-wesley/project-vault.git
+```
+
+If you already cloned the repository:
+
+```bash
+git submodule update --init
+```
+
+Official plugins live in the [pv-plugins](https://github.com/ur-wesley/pv-plugins) repository (git submodule at `pv-plugins/`). The app installs plugins from Git at runtime; the submodule is for development and tests only.

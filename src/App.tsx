@@ -223,6 +223,10 @@ function App() {
   });
 
   createEffect(() => {
+    const openPlugins = hub.on("ui:open-plugins-settings", () => {
+      setActiveView("settings");
+      setSettingsTab("plugins");
+    });
     const listener = hub.on("shortcut:action", (payload) => {
       if (payload.action === "settings:open") {
         setActiveView("settings");
@@ -256,7 +260,10 @@ function App() {
         }
       }
     });
-    onCleanup(() => listener());
+    onCleanup(() => {
+      openPlugins();
+      listener();
+    });
   });
 
   createEffect(() => {

@@ -98,7 +98,7 @@ pub async fn git_tag_and_push(
     run_git(cwd, &["push"])?;
     run_git(cwd, &["push", "origin", &new_tag])?;
 
-    crate::models::emit_project_changed(&app, &project_id, "version-bump");
+    crate::models::notify_git_status_changed(&app, &project_id, "version-bump");
     Ok(GitTagResultDto { new_tag })
 }
 

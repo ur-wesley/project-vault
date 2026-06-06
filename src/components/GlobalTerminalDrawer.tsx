@@ -1,6 +1,7 @@
 import {
   For,
   Show,
+  createEffect,
   createSignal,
 } from "solid-js";
 import { createQuery } from "@tanstack/solid-query";
@@ -81,6 +82,11 @@ export function GlobalTerminalDrawer() {
     ]);
     store.setActiveId(id);
   };
+
+  createEffect(() => {
+    if (!store.open() || store.instances().length > 0) return;
+    void createInstance();
+  });
 
   const closeInstance = async (id: string) => {
     const instance = store.instances().find((item) => item.id === id);

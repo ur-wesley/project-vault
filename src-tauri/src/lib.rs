@@ -28,18 +28,6 @@ mod tools;
 use tauri::{Manager, Emitter};
 use tauri_plugin_sql::{Builder as SqlPluginBuilder, Migration, MigrationKind};
 
-const BUNDLED_PLUGINS: &[(&str, &str)] = &[
-    ("search-all-projects", include_str!("../bundled_plugins/search-all-projects/init.luau")),
-    ("fzf-project-files", include_str!("../bundled_plugins/fzf-project-files/init.luau")),
-    ("catppuccin-theme", include_str!("../bundled_plugins/catppuccin-theme/init.luau")),
-    ("harpoon", include_str!("../bundled_plugins/harpoon/init.luau")),
-    ("mise", include_str!("../bundled_plugins/mise/init.luau")),
-    ("todo-telescope", include_str!("../bundled_plugins/todo-telescope/init.luau")),
-    ("auto-session-manager", include_str!("../bundled_plugins/auto-session-manager/init.luau")),
-    ("git-integration", include_str!("../bundled_plugins/git-integration/init.luau")),
-    ("project-launcher", include_str!("../bundled_plugins/project-launcher/init.luau")),
-];
-
 #[cfg_attr(mobile, tauri::mobile_entry_point)]
 pub fn run() {
     tauri::Builder::default()
@@ -97,8 +85,18 @@ pub fn run() {
                 )
                 .build(),
         )
-        .plugin(tauri_plugin_single_instance::init(|_app, _args, _cwd| {}))
+        .plugin(tauri_plugin_single_instance::init(|app, args, _cwd| {
+            if let Some(main_window) = app.get_webview_window("main") {
+                let _ = main_window.set_focus();
+            }
+            for arg in args {
+                if arg.starts_with("vault://") || arg.starts_with("project-vault://") {
+                    let _ = app.emit("deep-link:install-plugin", arg);
+                }
+            }
+        }))
         .plugin(tauri_plugin_fs::init())
+        .plugin(tauri_plugin_deep_link::init())
         .plugin(tauri_plugin_persisted_scope::init())
         .plugin(tauri_plugin_os::init())
         .plugin(tauri_plugin_cli::init())
@@ -126,22 +124,14 @@ pub fn run() {
                 let _ = std::fs::create_dir_all(&p_dir);
             }
 
-            // Write bundled plugins
-            for (plugin_name, content) in BUNDLED_PLUGINS {
-                let plugin_dir = p_dir.join(plugin_name);
-                if !plugin_dir.is_dir() {
-                    let _ = std::fs::create_dir_all(&plugin_dir);
-                }
-                // Clean up old .lua file if it exists to avoid stale duplicates
-                let old_init_path = plugin_dir.join("init.lua");
-                if old_init_path.is_file() {
-                    let _ = std::fs::remove_file(old_init_path);
-                }
-                let init_path = plugin_dir.join("init.luau");
-                let _ = std::fs::write(init_path, content);
+            let lazy_config_path = p_dir.join("lazy-config.luau");
+            if !lazy_config_path.is_file() {
+                let _ = std::fs::write(
+                    &lazy_config_path,
+                    "--!strict\n-- User plugin configuration (merged on install from plugins.registry.luau)\nreturn {}\n",
+                );
             }
 
-            // Write type-definitions file to the plugins root for IDE autocomplete and compiler resolution
             let old_d_lua_path = p_dir.join("vault.d.lua");
             if old_d_lua_path.is_file() {
                 let _ = std::fs::remove_file(old_d_lua_path);
@@ -151,7 +141,7 @@ pub fn run() {
                 let _ = std::fs::remove_file(old_d_luau_path);
             }
             let vault_luau_path = p_dir.join("vault.luau");
-            let _ = std::fs::write(vault_luau_path, include_str!("../bundled_plugins/vault.luau"));
+            let _ = std::fs::write(vault_luau_path, include_str!("../lua-sdk/vault.luau"));
 
             // Spawn plugins file watcher for hot-reloading
             let handle_for_watcher = app.handle().clone();
@@ -159,7 +149,7 @@ pub fn run() {
             tauri::async_runtime::spawn(async move {
                 use notify::{Watcher, RecursiveMode, EventKind};
                 let (tx, mut rx) = tokio::sync::mpsc::channel(100);
-                
+
                 let mut watcher = match notify::recommended_watcher(move |res| {
                     if let Ok(event) = res {
                         let _ = tx.blocking_send(event);
@@ -400,6 +390,20 @@ pub fn run() {
             commands::plugins::list_plugins,
             commands::plugins::toggle_plugin,
             commands::plugins::get_tab_decorations,
+            commands::plugins::get_official_plugins_repo,
+            commands::plugins::open_plugins_dir,
+            commands::plugins::refresh_plugins_from_repos,
+            commands::plugins::install_plugin_git,
+            commands::plugins::uninstall_plugin,
+            commands::plugins::sync_lockfile,
+            commands::plugins::restore_from_lockfile,
+            commands::plugins::check_plugin_updates,
+            commands::plugins::update_plugin_git,
+            commands::plugins::update_all_plugins,
+            commands::plugins::get_plugin_load_stats,
+            commands::plugins::resolve_plugin_dependencies,
+            commands::plugins::sync_vendor_lockfile_cmd,
+            commands::plugins::restore_vendor_lockfile_cmd,
         ])
         .manage(lua::ui::UiBridge::default())
         .manage(crate::lua::LuaRuntimeState::new())

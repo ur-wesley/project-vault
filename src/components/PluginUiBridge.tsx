@@ -21,6 +21,8 @@ import { TextField, TextFieldInput, TextFieldLabel } from "~/components/ui/text-
 import { useI18n } from "~/lib/i18n-context";
 import { FilePreview } from "~/features/project-detail/components/FilePreview";
 import { IssueMarkdown } from "~/features/project-detail/components/IssueMarkdown";
+import { useNotificationCenter } from "~/lib/notification-center";
+import { isGitStatusChangeType } from "~/lib/git-status-sync";
 
 interface BridgeQuickPickItem {
   id: string;
@@ -60,6 +62,11 @@ export function PluginUiBridge(props: {
   subDetail?: string | null;
 }) {
   const { t } = useI18n();
+  const center = useNotificationCenter();
+  
+  // ── Deep link install state ────────────────────────────────────────────────
+  const [deepLinkInstall, setDeepLinkInstall] = createSignal<{ repo: string; branch?: string; tag?: string; commit?: string } | null>(null);
+
   // ── Markdown dialog state ──────────────────────────────────────────────────
   const [markdownDialog, setMarkdownDialog] = createSignal<{ pluginId: string; title: string; content: string } | null>(null);
 
@@ -219,6 +226,29 @@ export function PluginUiBridge(props: {
   // ── Plugin lifecycle ───────────────────────────────────────────────────────
   const [enabledPlugins, setEnabledPlugins] = createSignal<string[]>([]);
 
+  let gitStatusDispatchTimeoutId: ReturnType<typeof setTimeout> | undefined;
+  let pendingGitStatusProjectId: string | null = null;
+
+  const dispatchGitStatusChanged = (projectId: string) => {
+    pendingGitStatusProjectId = projectId;
+    if (gitStatusDispatchTimeoutId !== undefined) {
+      clearTimeout(gitStatusDispatchTimeoutId);
+    }
+    gitStatusDispatchTimeoutId = setTimeout(() => {
+      gitStatusDispatchTimeoutId = undefined;
+      const pid = pendingGitStatusProjectId;
+      pendingGitStatusProjectId = null;
+      if (!pid) return;
+      for (const pluginId of enabledPlugins()) {
+        void invoke("execute_plugin_command", {
+          pluginId,
+          commandId: "git_status_changed",
+          context: { projectId: pid },
+        }).catch(() => {});
+      }
+    }, 150);
+  };
+
   onMount(() => {
     const unlistens: (() => void)[] = [];
 
@@ -276,47 +306,107 @@ export function PluginUiBridge(props: {
           document.getElementById(styleId)?.remove();
         }
       }));
+      unlistens.push(await listen<{
+        pluginId: string;
+        id: string;
+        text: string;
+        icon?: string;
+        tooltip?: string;
+        command?: string;
+        color: PluginFooterColor;
+        position?: "left" | "right";
+      }>("plugin:set-footer", (event) => {
+        upsertFooterSegment(event.payload);
+      }));
+
+      unlistens.push(await listen<{ pluginId: string; id: string }>("plugin:clear-footer", (event) => {
+        removeFooterSegment(event.payload.pluginId, event.payload.id);
+      }));
+
+      unlistens.push(await listen<{ pluginId: string; title: string; content: string }>("plugin:show-markdown-dialog", (event) => {
+        setMarkdownDialog(event.payload);
+      }));
+
+      unlistens.push(await listen<{
+        pluginId: string;
+        id: string;
+        type: "button" | "badge" | "text";
+        text: string;
+        icon?: string;
+        tooltip?: string;
+        command?: string;
+        color: PluginFooterColor;
+      }>("plugin:set-header-widget", (event) => {
+        upsertHeaderWidget(event.payload);
+      }));
+
+      unlistens.push(await listen<{ pluginId: string; id: string }>("plugin:clear-header-widget", (event) => {
+        removeHeaderWidget(event.payload.pluginId, event.payload.id);
+      }));
+
+      unlistens.push(
+        await listen<{ projectId: string; changeType: string }>("project:changed", (event) => {
+          const { projectId, changeType } = event.payload;
+          if (isGitStatusChangeType(changeType)) {
+            dispatchGitStatusChanged(projectId);
+          }
+        }),
+      );
+
+      unlistens.push(
+        await listen<{ projectId: string; changeType: string }>("git:status-changed", (event) => {
+          const { projectId, changeType } = event.payload;
+          if (isGitStatusChangeType(changeType)) {
+            dispatchGitStatusChanged(projectId);
+          }
+        }),
+      );
+
+      unlistens.push(await listen<string>("deep-link:install-plugin", (event) => {
+        try {
+          const urlStr = event.payload;
+          const url = new URL(urlStr.replace("project-vault://", "http://").replace("vault://", "http://"));
+          if (url.pathname === "/install-plugin" || url.host === "install-plugin") {
+            const repo = url.searchParams.get("repo");
+            if (repo) {
+              setDeepLinkInstall({
+                repo,
+                branch: url.searchParams.get("branch") || undefined,
+                tag: url.searchParams.get("tag") || undefined,
+                commit: url.searchParams.get("commit") || undefined,
+              });
+            }
+          }
+        } catch (err) {
+          console.error("Failed to parse deep link URL:", err);
+        }
+      }));
+
+      try {
+        const pluginsList = await invoke<{ id: string; enabled: boolean }[]>("list_plugins");
+        setEnabledPlugins(pluginsList.filter((p) => p.enabled).map((p) => p.id));
+        for (const p of pluginsList) {
+          if (p.enabled) {
+            try {
+              await invoke("execute_plugin_command", {
+                pluginId: p.id,
+                commandId: "init",
+                context: {},
+              });
+            } catch (initErr) {
+              console.debug(`No custom init sequence for plugin: ${p.id}`, initErr);
+            }
+          }
+        }
+      } catch (e) {
+        console.error("Failed to run startup plugin initializations:", e);
+      }
     })();
 
-    // Run startup init for all enabled plugins
-    try {
-      const pluginsList = await invoke<{ id: string; enabled: boolean }[]>("list_plugins");
-      setEnabledPlugins(pluginsList.filter((p) => p.enabled).map((p) => p.id));
-    } catch (e) {
-      console.error("Failed to run startup plugin initializations:", e);
-    }
-
-    // Register all event listeners
-    unlistens.push(await listen<{ pluginId: string; id: string; text: string; icon?: string; tooltip?: string; command?: string; color: PluginFooterColor; position?: "left" | "right" }>("plugin:set-footer", (event) => {
-      upsertFooterSegment(event.payload);
-    }));
-
-    unlistens.push(await listen<{ pluginId: string; id: string }>("plugin:clear-footer", (event) => {
-      removeFooterSegment(event.payload.pluginId, event.payload.id);
-    }));
-
-    unlistens.push(await listen<{ pluginId: string; title: string; content: string }>("plugin:show-markdown-dialog", (event) => {
-      setMarkdownDialog(event.payload);
-    }));
-
-    unlistens.push(await listen<{
-      pluginId: string;
-      id: string;
-      type: "button" | "badge" | "text";
-      text: string;
-      icon?: string;
-      tooltip?: string;
-      command?: string;
-      color: PluginFooterColor;
-    }>("plugin:set-header-widget", (event) => {
-      upsertHeaderWidget(event.payload);
-    }));
-
-    unlistens.push(await listen<{ pluginId: string; id: string }>("plugin:clear-header-widget", (event) => {
-      removeHeaderWidget(event.payload.pluginId, event.payload.id);
-    }));
-
     onCleanup(() => {
+      if (gitStatusDispatchTimeoutId !== undefined) {
+        clearTimeout(gitStatusDispatchTimeoutId);
+      }
       for (const fn of unlistens) fn();
     });
   });
@@ -739,6 +829,82 @@ export function PluginUiBridge(props: {
           </div>
           <DialogFooter>
             <Button onClick={() => setMarkdownDialog(null)}>{t("common.close") || "Close"}</Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
+      {/* Deep Link Installation Confirmation */}
+      <Dialog open={!!deepLinkInstall()} onOpenChange={(open) => !open && setDeepLinkInstall(null)}>
+        <DialogContent class="sm:max-w-[450px]">
+          <DialogHeader>
+            <DialogTitle>Install External Plugin</DialogTitle>
+          </DialogHeader>
+          <div class="py-4 space-y-3">
+            <p class="text-xs text-muted-foreground leading-normal">
+              An external link is requesting to install a plugin in Project Vault.
+            </p>
+            <div class="rounded bg-muted/30 border border-border/50 p-3 font-mono text-[10px] break-all space-y-1">
+              <div class="flex flex-col">
+                <span class="text-muted-foreground font-semibold">Repository:</span>
+                <span class="text-foreground select-text">{deepLinkInstall()?.repo}</span>
+              </div>
+              <Show when={deepLinkInstall()?.branch}>
+                <div class="flex justify-between border-t border-border/20 pt-1 mt-1">
+                  <span class="text-muted-foreground">Branch:</span>
+                  <span class="text-foreground">{deepLinkInstall()?.branch}</span>
+                </div>
+              </Show>
+              <Show when={deepLinkInstall()?.tag}>
+                <div class="flex justify-between border-t border-border/20 pt-1 mt-1">
+                  <span class="text-muted-foreground">Tag:</span>
+                  <span class="text-foreground">{deepLinkInstall()?.tag}</span>
+                </div>
+              </Show>
+              <Show when={deepLinkInstall()?.commit}>
+                <div class="flex justify-between border-t border-border/20 pt-1 mt-1">
+                  <span class="text-muted-foreground">Commit:</span>
+                  <span class="text-foreground">{deepLinkInstall()?.commit}</span>
+                </div>
+              </Show>
+            </div>
+            <p class="text-[10px] text-amber-500 font-medium leading-normal">
+              ⚠️ Warning: Install plugins only from authors you trust. External code can access local files.
+            </p>
+          </div>
+          <DialogFooter>
+            <Button variant="ghost" size="sm" onClick={() => setDeepLinkInstall(null)}>{t("common.cancel")}</Button>
+            <Button size="sm" onClick={async () => {
+              const info = deepLinkInstall();
+              if (!info) return;
+              setDeepLinkInstall(null);
+              center.notify({
+                severity: "info",
+                title: "Installing Plugin",
+                body: `Cloning plugin repository in the background...`,
+                durationMs: 3000,
+              });
+              try {
+                await invoke("install_plugin_git", {
+                  repo: info.repo,
+                  branch: info.branch || null,
+                  tag: info.tag || null,
+                  commit: info.commit || null
+                });
+                center.notify({
+                  severity: "success",
+                  title: "Installation Successful",
+                  body: `Successfully installed plugin to plugins folder.`,
+                  durationMs: 5000,
+                });
+              } catch (err: any) {
+                center.notify({
+                  severity: "error",
+                  title: "Installation Failed",
+                  body: err.message || String(err),
+                  durationMs: 8000,
+                });
+              }
+            }}>Install Plugin</Button>
           </DialogFooter>
         </DialogContent>
       </Dialog>

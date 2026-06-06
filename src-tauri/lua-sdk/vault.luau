@@ -1,7 +1,7 @@
 --!strict
 -- vault.luau — Vault Engine API type definitions
 -- This module is pre-loaded by the Rust engine and available as `vault` global.
--- Plugins obtain it via: local vault = (require :: any)("vault") :: Vault
+-- Plugins obtain it via: local vault = require("vault")
 -- Type definitions here are consumed by the Luau type checker and IDE language servers.
 
 -- ─── Sub-module types ────────────────────────────────────────────────────────
@@ -190,13 +190,6 @@ export type GitStatus = {
     version: string?,
 }
 
-export type VaultGit = {
-    --- Returns a JSON-serialized list of last commits for the given project.
-    log: (projectId: string, maxCount: number?) -> string,
-    --- Returns the current git status for the project as a JSON-serialized string, or nil.
-    status: (projectId: string) -> string?,
-}
-
 export type FormFieldOption = {
     id: string,
     label: string,
@@ -204,26 +197,11 @@ export type FormFieldOption = {
 
 export type FormField = {
     id: string,
-    type: "text" | "select",
-    label: string,
-    placeholder: string?,
-    default: string?,
-    options: { FormFieldOption }?,
-}
-
-export type FormOptions = {
-    title: string,
-    fields: { FormField },
-}
-
--- Form field definition
-export type FormField = {
-    id: string,
     label: string,
     fieldType: "text" | "number" | "boolean" | "select" | "textarea",
     placeholder: string?,
     defaultValue: any?,
-    options: { { id: string, label: string } }?,
+    options: { FormFieldOption }?,
     required: boolean?,
     pattern: string?,
     validationMessage: string?,
@@ -236,6 +214,8 @@ export type FormOptions = {
     title: string,
     fields: { FormField },
 }
+
+
 
 -- Header widget definition
 export type HeaderWidgetOptions = {
@@ -253,8 +233,8 @@ export type VaultUI = {
     show_input_box: (options: InputBoxOptions) -> string?,
     --- Renders a searchable Quick Pick list. Returns the selected item id or nil if cancelled.
     show_quick_pick: (options: QuickPickOptions) -> string?,
-    --- Renders a beautiful multi-input form dialog. Returns a key-value dictionary of values, or nil if cancelled.
-    show_form: (options: FormOptions) -> { [string]: string }?,
+    --- Renders a multi-input form dialog with validation. Returns { field_id = value } or nil if cancelled.
+    show_form: (options: FormOptions) -> { [string]: any }?,
     --- Navigates the UI to a project, opening a specific file and line.
     open_project_file: (projectId: string, filePath: string, line: number?) -> (),
     --- Creates or updates a persistent segment in the app footer/status bar.
@@ -262,8 +242,6 @@ export type VaultUI = {
     set_footer: (options: FooterSegmentOptions) -> (),
     --- Removes a footer segment by its id.
     clear_footer: (id: string) -> (),
-    --- Renders a custom form with input validation. Returns a table of { field_id = value } or nil if cancelled.
-    show_form: (options: FormOptions) -> { [string]: any }?,
     --- Adds or updates a widget in the project detail header.
     set_header_widget: (options: HeaderWidgetOptions) -> (),
     --- Removes a widget from the project detail header by its id.
@@ -332,6 +310,61 @@ export type VaultShell = {
     execute: (command: string, args: { string }?, cwd: string?) -> ShellExecuteResult,
 }
 
+export type PluginCommandMetadata = {
+    id: string,
+    title: string,
+    scope: string, -- "global" or "project"
+    plugin_id: string?,
+    locales: any?,
+}
+
+export type PluginDependencySpec = {
+    id: string,
+    repo: string?,
+    dir: string?,
+    branch: string?,
+    tag: string?,
+    commit: string?,
+}
+
+export type ExternalDependencySpec = {
+    id: string,
+    repo: string?,
+    main: string?,
+    branch: string?,
+    tag: string?,
+    commit: string?,
+}
+
+export type PluginTable = {
+    name: string?,
+    description: string?,
+    version: string?,
+    category: string?,
+    lazy: boolean?,
+    dependencies: ({ string } | PluginDependencySpec)?,
+    externals: ({ string } | ExternalDependencySpec)?,
+    exports: any?,
+    commands: { PluginCommandMetadata }?,
+    cmd: { string }?,
+    keys: { string }?,
+    event: { string }?,
+    config: any?,
+    options: any?,
+    locales: any?,
+    execute: (command_id: string, context: any?) -> ()?,
+}
+
+export type VaultPlugin = {
+    --- Load another plugin's `exports` table (must be declared in `dependencies`).
+    require: (pluginId: string) -> any,
+}
+
+export type VaultExternal = {
+    --- Load a Git-pinned external Luau library (must be declared in `externals`).
+    require: (externalId: string) -> any,
+}
+
 -- ─── Root Vault type ─────────────────────────────────────────────────────────
 
 export type Vault = {
@@ -351,6 +384,8 @@ export type Vault = {
     process: VaultProcess,
     event: VaultEvent,
     shell: VaultShell,
+    plugin: VaultPlugin,
+    external: VaultExternal,
 }
 
 -- This module is never required at runtime (vault is injected as a global).

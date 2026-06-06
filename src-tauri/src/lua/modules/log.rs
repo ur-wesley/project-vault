@@ -5,13 +5,15 @@ use tauri::Emitter;
 pub fn register(lua: &Lua, vault: &Table, ctx: &ModuleContext) -> Result<()> {
     let log = lua.create_table()?;
     let app_log = ctx.app.clone();
-    let plugin_id_log = ctx.plugin_id.clone();
     log.set(
         "info",
-        lua.create_function(move |_, msg: String| {
+        lua.create_function(move |lua, msg: String| {
             println!("[PLUGIN:INFO] {}", msg);
             if let Some(ref app) = app_log {
-                let pid = plugin_id_log.clone().unwrap_or_else(|| "unknown".to_string());
+                let pid = lua.globals().get::<Option<String>>("__current_plugin_id")
+                    .ok()
+                    .flatten()
+                    .unwrap_or_else(|| "unknown".to_string());
                 let _ = app.emit("plugin:log", serde_json::json!({
                     "pluginId": pid,
                     "level": "info",
@@ -23,13 +25,15 @@ pub fn register(lua: &Lua, vault: &Table, ctx: &ModuleContext) -> Result<()> {
     )?;
 
     let app_log2 = ctx.app.clone();
-    let plugin_id_log2 = ctx.plugin_id.clone();
     log.set(
         "error",
-        lua.create_function(move |_, msg: String| {
+        lua.create_function(move |lua, msg: String| {
             eprintln!("[PLUGIN:ERROR] {}", msg);
             if let Some(ref app) = app_log2 {
-                let pid = plugin_id_log2.clone().unwrap_or_else(|| "unknown".to_string());
+                let pid = lua.globals().get::<Option<String>>("__current_plugin_id")
+                    .ok()
+                    .flatten()
+                    .unwrap_or_else(|| "unknown".to_string());
                 let _ = app.emit("plugin:log", serde_json::json!({
                     "pluginId": pid,
                     "level": "error",

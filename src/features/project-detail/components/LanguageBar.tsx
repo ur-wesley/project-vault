@@ -13,12 +13,14 @@ const LANGUAGE_COLORS: Record<string, string> = {
   kt: "#A97BFF", kotlin: "#A97BFF", sql: "#e38c00", toml: "#9c4221", yaml: "#cb171e",
   yml: "#cb171e", json: "#29b544", html: "#e34c26", css: "#563d7c", md: "#083fa1",
   sh: "#89e051", bash: "#89e051", docker: "#384d54", dockerfile: "#384d54", plaintext: "#cccccc",
+  lua: "#000080", luau: "#000080",
 };
 
 const LANG_NAME_MAP: Record<string, string> = {
   js: "JavaScript", jsx: "JavaScript", ts: "TypeScript", tsx: "TypeScript",
   rs: "Rust", py: "Python", cs: "C#", cpp: "C++", c: "C", rb: "Ruby",
   ex: "Elixir", kt: "Kotlin", yml: "YAML", md: "Markdown",
+  lua: "Lua", luau: "Lua",
 };
 
 export function LanguageBar(props: { projectId: string }) {

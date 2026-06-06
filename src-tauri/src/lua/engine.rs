@@ -53,16 +53,16 @@ impl LuaEngine {
         modules::process::register(&lua, &vault, &ctx)?;
         modules::event::register(&lua, &vault, &ctx)?;
         modules::shell::register(&lua, &vault, &ctx)?;
+        modules::plugin_api::register(&lua, &vault, &ctx)?;
+        modules::external_api::register(&lua, &vault, &ctx)?;
 
         lua.globals().set("vault", vault.clone())?;
+        let _ = crate::lua::require::register_searcher(&lua);
+        let _ = lua.globals().set("__loaded_externals", lua.create_table()?);
 
-        // Register vault in package.loaded under both keys:
-        //   "vault"    — for plugins that call require("vault") directly
-        //   "../vault" — for bundled plugins that call require("../vault") for full static typing
         if let Ok(package) = lua.globals().get::<mlua::Table>("package") {
             if let Ok(loaded) = package.get::<mlua::Table>("loaded") {
-                let _ = loaded.set("vault", vault.clone());
-                let _ = loaded.set("../vault", vault);
+                let _ = loaded.set("vault", vault);
             }
         }
 
