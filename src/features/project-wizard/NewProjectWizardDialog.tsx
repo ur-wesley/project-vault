@@ -104,7 +104,7 @@ export function NewProjectWizardDialog(props: {
     }
     return {
       type: "files" as const,
-      fileCount: (config.files as unknown[])?.length ?? 0,
+      fileCount: typeof config.files === "object" && config.files !== null ? Object.keys(config.files).length : 0,
     };
   });
 

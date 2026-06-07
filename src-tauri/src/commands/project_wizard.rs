@@ -88,6 +88,15 @@ fn slugify(raw: &str) -> String {
 fn default_templates() -> Vec<TemplateSummaryDto> {
     vec![
         TemplateSummaryDto {
+            id: "empty".into(),
+            name: "Empty Project".into(),
+            description: "Creates an empty directory".into(),
+            template_type: "files".into(),
+            config: serde_json::json!({
+                "files": {}
+            }),
+        },
+        TemplateSummaryDto {
             id: "bun-ts".into(),
             name: "Bun + TypeScript".into(),
             description: "Interactive bun init".into(),
@@ -471,15 +480,37 @@ pub async fn create_project_from_template(
             })?;
             let files_written = write_files(&root, &files_map, display)?;
             fs_scope_util::allow_library_root(&app, root.to_str().unwrap_or(""))?;
+            let canonical_path = dunce::canonicalize(&root)
+                .unwrap_or(root.clone())
+                .to_string_lossy()
+                .into_owned();
+
+            let placeholder = ProjectDto {
+                id: String::new(),
+                location_id: payload.location_id.clone(),
+                name: display.to_string(),
+                path: canonical_path.clone(),
+                stack: "generic".into(),
+                runtime_hint: None,
+                favorite: false,
+                last_opened_at_ms: None,
+                total_playtime_ms: 0,
+                tasks: Vec::new(),
+                tags: vec!["wizard".into()],
+                github_owner: None,
+                github_repo: None,
+                file_count: files_written as u64,
+                size_bytes: 0,
+                last_edited_at_ms: None,
+            };
+            let inserted = db::upsert_project(&pool, &placeholder).await?;
+
             Ok(CreateProjectResultDto {
-                project_path: dunce::canonicalize(&root)
-                    .unwrap_or(root)
-                    .to_string_lossy()
-                    .into_owned(),
+                project_path: canonical_path,
                 files_written,
                 post_create_log: None,
                 session_id: None,
-                project_id: None,
+                project_id: Some(inserted.id),
             })
         }
         "lua" => {
