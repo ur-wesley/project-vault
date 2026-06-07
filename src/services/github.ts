@@ -255,8 +255,14 @@ function ensureLinkHook(): void {
   if (typeof window === "undefined" || hookInstalled.current) return;
   DOMPurify.addHook("afterSanitizeAttributes", (node) => {
     if ("target" in node) {
-      node.setAttribute("target", "_blank");
-      node.setAttribute("rel", "noopener noreferrer");
+      const href = node.getAttribute("href");
+      const isExternal = href && /^(https?:\/\/|mailto:|tel:|javascript:)/i.test(href);
+      if (isExternal) {
+        node.setAttribute("target", "_blank");
+        node.setAttribute("rel", "noopener noreferrer");
+      } else {
+        node.removeAttribute("target");
+      }
     }
   });
   hookInstalled.current = true;

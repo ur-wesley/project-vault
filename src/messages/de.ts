@@ -355,6 +355,9 @@ const de = {
     noFileSelected: "Keine Datei ausgewählt",
     fileLines: "{count} Zeilen",
     selectFilePreview: "Wählen Sie eine Datei zur Vorschau aus",
+    isDirectory: "Verzeichnis",
+    isDirectoryDescription: "Dies ist ein Verzeichnis. Wählen Sie eine Datei aus dem Baum aus, um sie in der Vorschau anzuzeigen.",
+    dirEmpty: "Dieses Verzeichnis ist leer.",
 
     searchFiles: "Dateien durchsuchen...",
     searchEmpty: "Keine Treffer gefunden.",

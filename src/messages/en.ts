@@ -355,6 +355,9 @@ const en = {
     noFileSelected: "No file selected",
     fileLines: "{count} lines",
     selectFilePreview: "Select a file to preview",
+    isDirectory: "Directory",
+    isDirectoryDescription: "This is a directory. Select a file from the tree to preview.",
+    dirEmpty: "This directory is empty.",
 
     searchFiles: "Search files...",
     searchEmpty: "No matches found.",

@@ -1,5 +1,6 @@
 import { Show, createSignal, createMemo, createEffect, onMount, onCleanup, type Component } from "solid-js";
 import { isTauri } from "@tauri-apps/api/core";
+import { resolve } from "@tauri-apps/api/path";
 import { openUrl } from "@tauri-apps/plugin-opener";
 import { ask } from "@tauri-apps/plugin-dialog";
 import { createQuery } from "@tanstack/solid-query";
@@ -11,7 +12,6 @@ import { readProjectReadmeHtml } from "~/services/github";
 import { deleteAllLocalIssues } from "~/services/tauri/issues";
 import { setProjectTag } from "~/services/tauri/projects";
 import { queryKeys } from "~/services/query-keys";
-import { cn } from "~/lib/utils";
 import type { StableError } from "~/types/error";
 
 import { useGithubIssues, type ExtendedIssueRow } from "./model/useGithubIssues";
@@ -20,6 +20,7 @@ import { GithubIssueDialogs } from "./components/GithubIssueDialogs";
 import { GithubSyncBanner } from "./components/GithubSyncBanner";
 import { GithubIssueList } from "./components/GithubIssueList";
 import type { ProjectDetailModel } from "./model/createProjectDetailModel";
+import { FilePreview } from "./components/FilePreview";
 
 async function openExternal(href: string): Promise<void> {
   if (isTauri()) {
@@ -87,6 +88,23 @@ export const GithubProjectPanel: Component<{
   const [search, setSearch] = createSignal("");
   const [filter, setFilter] = createSignal<IssueFilterState>("open");
 
+  const [history, setHistory] = createSignal<string[]>([]);
+  const currentPath = createMemo(() => {
+    const h = history();
+    return h.length > 0 ? h[h.length - 1] : null;
+  });
+  const handleNavigate = (path: string) => {
+    setHistory((prev) => [...prev, path]);
+  };
+  const handleBack = () => {
+    setHistory((prev) => prev.slice(0, -1));
+  };
+
+  createEffect(() => {
+    props.projectId();
+    setHistory([]);
+  });
+
   // Form State
   const [title, setTitle] = createSignal("");
   const [body, setBody] = createSignal("");
@@ -138,7 +156,7 @@ export const GithubProjectPanel: Component<{
   const { labels, issuesQ, localIssuesQ, syncM, createM, updateM, closeM } = useGithubIssues({
     projectId: props.projectId,
     github: props.github,
-    t: (k, a) => t(k, a) as string,
+    t: (k, a) => t(k as any, a) as string,
     setMutationError,
     onIssueCreated: () => {
       setCreateOpen(false);
@@ -206,12 +224,51 @@ export const GithubProjectPanel: Component<{
     );
   };
 
+  const handleLinkClick = async (e: MouseEvent) => {
+    const target = e.target as HTMLElement;
+    const anchor = target.closest("a") as HTMLAnchorElement | null;
+    if (!anchor) return;
+
+    const href = anchor.getAttribute("href");
+    if (!href) return;
+
+    // 1. Internal anchors
+    if (href.startsWith("#")) {
+      e.preventDefault();
+      const hash = href.slice(1);
+      const targetEl = containerRef?.querySelector(`[id="${hash}"], [name="${hash}"]`);
+      if (targetEl) {
+        targetEl.scrollIntoView({ behavior: "smooth", block: "start" });
+      }
+      return;
+    }
+
+    // 2. Relative links (folders / files)
+    const isExternal = /^(https?:\/\/|mailto:|tel:|javascript:)/i.test(href);
+    if (!isExternal) {
+      e.preventDefault();
+      let cleanHref = href.replace(/\\/g, "/");
+      if (cleanHref.startsWith("/")) {
+        cleanHref = cleanHref.substring(1);
+      }
+
+      try {
+        const resolvedPath = await resolve(props.projectPath(), cleanHref);
+        handleNavigate(resolvedPath);
+      } catch (err) {
+        console.error("Failed to resolve relative path:", err);
+      }
+    }
+  };
+
   onMount(() => {
     containerRef?.addEventListener("click", handleCopy);
+    containerRef?.addEventListener("click", handleLinkClick);
   });
 
   onCleanup(() => {
     containerRef?.removeEventListener("click", handleCopy);
+    containerRef?.removeEventListener("click", handleLinkClick);
   });
 
   return (
@@ -252,27 +309,52 @@ export const GithubProjectPanel: Component<{
       </div>
 
       <Show when={props.view === "readme"}>
-        <div class="min-h-0 min-w-0 flex-1 overflow-y-auto pr-1 pb-3 scrollbar-none">
-          <Show when={readmeQ.isPending}>
-            <div class="flex items-center justify-center py-20">
-              <span class="iconify mdi--loading animate-spin h-8 w-8 text-muted-foreground/20" />
-            </div>
-          </Show>
-          <Show when={readmeQ.isError}>
-            <div class="flex flex-col items-center justify-center py-24 text-center animate-in fade-in duration-500">
-              <div class="size-20 rounded-full bg-muted/30 flex items-center justify-center mb-6">
-                <span class="iconify mdi--file-document-outline h-10 w-10 text-muted-foreground/20" />
+        <div class="min-h-0 min-w-0 flex-1 overflow-y-auto pr-1 pb-3 scrollbar-none flex flex-col">
+          <Show
+            when={currentPath()}
+            fallback={
+              <>
+                <Show when={readmeQ.isPending}>
+                  <div class="flex items-center justify-center py-20">
+                    <span class="iconify mdi--loading animate-spin h-8 w-8 text-muted-foreground/20" />
+                  </div>
+                </Show>
+                <Show when={readmeQ.isError}>
+                  <div class="flex flex-col items-center justify-center py-24 text-center animate-in fade-in duration-500">
+                    <div class="size-20 rounded-full bg-muted/30 flex items-center justify-center mb-6">
+                      <span class="iconify mdi--file-document-outline h-10 w-10 text-muted-foreground/20" />
+                    </div>
+                    <h3 class="text-lg font-semibold mb-1">{t("projectDetail.readmeNotFound") as string}</h3>
+                    <p class="max-w-[280px] text-sm text-muted-foreground leading-relaxed">
+                      {t("projectDetail.readmeNotFoundDescription") as string}
+                    </p>
+                  </div>
+                </Show>
+                <Show when={readmeQ.isSuccess && readmeQ.data != null}>
+                  <div class="pv-github-readme mx-auto w-full max-w-3xl pt-4">
+                    <article class="markdown-body !bg-transparent" innerHTML={readmeQ.data!} />
+                  </div>
+                </Show>
+              </>
+            }
+          >
+            {(path) => (
+              <div class="flex-1 flex flex-col min-h-0 p-3">
+                <div class="mb-3 shrink-0">
+                  <Button variant="ghost" size="sm" onClick={handleBack} class="h-8 gap-1.5 text-xs">
+                    <span class="iconify mdi--arrow-left h-4 w-4" />
+                    {t("common.back") || "Back"}
+                  </Button>
+                </div>
+                <div class="flex-1 min-h-0">
+                  <FilePreview
+                    path={path()}
+                    projectRoot={props.projectPath()}
+                    onNavigate={handleNavigate}
+                  />
+                </div>
               </div>
-              <h3 class="text-lg font-semibold mb-1">{t("projectDetail.readmeNotFound") as string}</h3>
-              <p class="max-w-[280px] text-sm text-muted-foreground leading-relaxed">
-                {t("projectDetail.readmeNotFoundDescription") as string}
-              </p>
-            </div>
-          </Show>
-          <Show when={readmeQ.isSuccess && readmeQ.data != null}>
-            <div class="pv-github-readme mx-auto w-full max-w-3xl pt-4">
-              <article class="markdown-body !bg-transparent" innerHTML={readmeQ.data!} />
-            </div>
+            )}
           </Show>
         </div>
       </Show>
@@ -303,7 +385,7 @@ export const GithubProjectPanel: Component<{
               onSync={() => syncM.mutate()}
               syncPending={syncM.isPending}
               localeCode={localeCode()}
-              t={(k, a) => t(k, a) as string}
+              t={(k, a) => t(k as any, a) as string}
             />
           }
         >
@@ -326,7 +408,7 @@ export const GithubProjectPanel: Component<{
               isClosing={closeM.isPending}
               openExternal={openExternal}
               localeCode={localeCode()}
-              t={(k) => t(k) as string}
+              t={(k) => t(k as any) as string}
             />
           )}
         </Show>
@@ -347,7 +429,7 @@ export const GithubProjectPanel: Component<{
         github={props.github()}
         createM={createM}
         updateM={updateM}
-        t={(k, a) => t(k, a) as string}
+        t={(k, a) => t(k as any, a) as string}
       />
     </div>
   );
