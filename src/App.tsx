@@ -451,7 +451,7 @@ function App() {
 
   createEffect(() => {
     const tab = detailTab();
-    if (tab !== "issues") {
+    if (tab !== "issues" && tab !== "files") {
       setSubDetail(null);
     }
   });

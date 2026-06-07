@@ -1,7 +1,7 @@
 import { listen } from "@tauri-apps/api/event";
 import { readDir, type DirEntry } from "@tauri-apps/plugin-fs";
 import { join } from "@tauri-apps/api/path";
-import { For, Show, createEffect, createSignal, createResource, createMemo, onMount, onCleanup } from "solid-js";
+import { For, Show, createEffect, createSignal, createMemo, onMount, onCleanup } from "solid-js";
 import { createQuery } from "@tanstack/solid-query";
 import { cn } from "~/lib/utils";
 import { useI18n } from "~/lib/i18n-context";
@@ -17,7 +17,6 @@ import { Tooltip, TooltipContent, TooltipTrigger } from "~/components/ui/tooltip
 import { Badge } from "~/components/ui/badge";
 import { invoke } from "@tauri-apps/api/core";
 import { fetchTabDecorations, getElementDecorations, decorationsVersion } from "~/lib/plugin-decorations";
-import type { SearchHitDto } from "~/types/dto";
 
 const SKIP = new Set([
   "node_modules",
@@ -87,6 +86,17 @@ function Folder(props: {
   const [items, setItems] = createSignal<DirEntry[]>([]);
   const [loadErr, setLoadErr] = createSignal<string | null>(null);
   const [recursiveCount, setRecursiveCount] = createSignal<number | null>(null);
+
+  createEffect(() => {
+    const sel = props.selectedPath;
+    if (!sel) return;
+    const normAbs = props.absPath.replace(/\\/g, "/").replace(/\/$/, "");
+    const normSel = sel.replace(/\\/g, "/").replace(/\/$/, "");
+    const isSelfOrParent = normSel === normAbs || normSel.startsWith(normAbs + "/");
+    if (isSelfOrParent) {
+      setOpen(true);
+    }
+  });
 
   createEffect(() => {
     if (!open()) return;
@@ -377,6 +387,14 @@ export function FileTree(props: {
   onSubDetailChange?: (sub: string | null) => void;
 }) {
   const { t } = useI18n();
+  const [collapsed, setCollapsed] = createSignal(
+    localStorage.getItem("pv-files-sidebar-collapsed") === "true"
+  );
+
+  createEffect(() => {
+    localStorage.setItem("pv-files-sidebar-collapsed", String(collapsed()));
+  });
+
   const [selectedPath, setSelectedPath] = createSignal<string | null>(null);
 
   createEffect(() => {
@@ -541,8 +559,18 @@ export function FileTree(props: {
   };
 
   return (
-    <div class="flex h-full min-h-0 gap-4 overflow-hidden p-3">
-      <div class="w-64 shrink-0 overflow-auto rounded-md border border-border/60 bg-muted/20 p-2 scrollbar-none flex flex-col gap-2">
+    <div
+      class={cn(
+        "flex h-full min-h-0 overflow-hidden p-3 transition-all duration-200",
+        collapsed() ? "gap-2" : "gap-4"
+      )}
+    >
+      <div
+        class={cn(
+          "shrink-0 overflow-auto rounded-md border border-border/60 bg-muted/20 scrollbar-none flex flex-col gap-2 transition-all duration-200 ease-in-out",
+          collapsed() ? "w-0 p-0 border-none opacity-0" : "w-64 p-2 opacity-100"
+        )}
+      >
         <div class="flex items-center gap-1.5">
           <div class="relative flex-1">
             <span class="iconify mdi--magnify absolute left-2 top-1/2 -translate-y-1/2 h-3.5 w-3.5 text-muted-foreground" />
@@ -642,6 +670,18 @@ export function FileTree(props: {
               </Popover>
             )}
           </Show>
+
+          <Tooltip>
+            <TooltipTrigger
+              as="button"
+              type="button"
+              onClick={() => setCollapsed(true)}
+              class="inline-flex shrink-0 items-center justify-center rounded-md p-1 text-muted-foreground hover:bg-muted/50 hover:text-foreground transition-colors cursor-pointer"
+            >
+              <span class="iconify mdi--chevron-left h-4 w-4" />
+            </TooltipTrigger>
+            <TooltipContent>Collapse Sidebar</TooltipContent>
+          </Tooltip>
         </div>
 
         <div class="flex-1 overflow-auto">
@@ -657,57 +697,74 @@ export function FileTree(props: {
         </div>
       </div>
 
-      <div class="flex-1 min-w-0 h-full overflow-hidden">
-        <Show
-          when={previewPath()}
-          fallback={
-            <Show
-              when={isSearching()}
-              fallback={<FilePreview path={selectedPath()} scrollToLine={scrollToLine()} />}
+      <div class="flex-1 min-w-0 h-full overflow-hidden flex gap-3">
+        <Show when={collapsed()}>
+          <Tooltip>
+            <TooltipTrigger
+              as="button"
+              type="button"
+              onClick={() => setCollapsed(false)}
+              class="shrink-0 h-full w-6 bg-muted/10 hover:bg-muted/20 border border-border/40 hover:border-border/60 rounded-md flex items-center justify-center transition-all duration-200 group cursor-pointer"
             >
-              <div class="h-full flex flex-col min-w-0 bg-card/50 rounded-md border border-border/40 overflow-hidden">
-                <div class="flex items-center justify-between px-3 py-1.5 bg-muted/20 border-b border-border/40 shrink-0">
-                  <div class="flex items-center gap-2 min-w-0">
-                    <span class="iconify mdi--magnify h-3.5 w-3.5 text-muted-foreground" />
-                    <span class="text-[10px] font-mono text-muted-foreground truncate">
-                      {t("projectDetail.searchResults") as string}
-                    </span>
-                  </div>
-                  <Show when={searchQ.isLoading}>
-                    <span class="text-[9px] text-muted-foreground animate-pulse">
-                      {t("projectDetail.searchLoading") as string}
-                    </span>
-                  </Show>
-                </div>
-                <div class="flex-1 overflow-auto p-3 space-y-2">
-                  <Show when={!searchQ.isLoading && filteredHits().length === 0}>
-                    <div class="flex items-center justify-center h-full text-muted-foreground text-xs italic">
-                      {t("projectDetail.searchEmpty") as string}
-                    </div>
-                  </Show>
-                  <For each={filteredHits()}>
-                    {(hit) => (
-                      <SearchResultItem
-                        hit={hit}
-                        rootPath={props.rootPath}
-                        onClick={onResultClick}
-                      />
-                    )}
-                  </For>
-                </div>
-              </div>
-            </Show>
-          }
-        >
-          {(path) => (
-            <FilePreview
-              path={path()}
-              scrollToLine={scrollToLine()}
-              onBackToResults={isSearching() ? onBackToResults : undefined}
-              backLabel={t("projectDetail.searchResults") as string}
-            />
-          )}
+              <span class="iconify mdi--chevron-right h-4 w-4 text-muted-foreground group-hover:text-foreground transition-transform group-hover:scale-110" />
+            </TooltipTrigger>
+            <TooltipContent>Expand Sidebar</TooltipContent>
+          </Tooltip>
         </Show>
+        <div class="flex-1 min-w-0 h-full overflow-hidden">
+          <Show
+            when={previewPath()}
+            fallback={
+              <Show
+                when={isSearching()}
+                fallback={<FilePreview path={selectedPath()} projectRoot={props.rootPath} scrollToLine={scrollToLine()} onNavigate={onFileTreeClick} />}
+              >
+                <div class="h-full flex flex-col min-w-0 bg-card/50 rounded-md border border-border/40 overflow-hidden">
+                  <div class="flex items-center justify-between px-3 py-1.5 bg-muted/20 border-b border-border/40 shrink-0">
+                    <div class="flex items-center gap-2 min-w-0">
+                      <span class="iconify mdi--magnify h-3.5 w-3.5 text-muted-foreground" />
+                      <span class="text-[10px] font-mono text-muted-foreground truncate">
+                        {t("projectDetail.searchResults") as string}
+                      </span>
+                    </div>
+                    <Show when={searchQ.isLoading}>
+                      <span class="text-[9px] text-muted-foreground animate-pulse">
+                        {t("projectDetail.searchLoading") as string}
+                      </span>
+                    </Show>
+                  </div>
+                  <div class="flex-1 overflow-auto p-3 space-y-2">
+                    <Show when={!searchQ.isLoading && filteredHits().length === 0}>
+                      <div class="flex items-center justify-center h-full text-muted-foreground text-xs italic">
+                        {t("projectDetail.searchEmpty") as string}
+                      </div>
+                    </Show>
+                    <For each={filteredHits()}>
+                      {(hit) => (
+                        <SearchResultItem
+                          hit={hit}
+                          rootPath={props.rootPath}
+                          onClick={onResultClick}
+                        />
+                      )}
+                    </For>
+                  </div>
+                </div>
+              </Show>
+            }
+          >
+            {(path) => (
+              <FilePreview
+                path={path()}
+                projectRoot={props.rootPath}
+                scrollToLine={scrollToLine()}
+                onBackToResults={isSearching() ? onBackToResults : undefined}
+                backLabel={t("projectDetail.searchResults") as string}
+                onNavigate={onFileTreeClick}
+              />
+            )}
+          </Show>
+        </div>
       </div>
     </div>
   );
