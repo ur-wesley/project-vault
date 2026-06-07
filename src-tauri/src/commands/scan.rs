@@ -163,6 +163,19 @@ pub async fn run_location_scan_impl(
         }
     }
 
+    // Ensure we keep existing registered projects that still exist on disk
+    let all_existing: Vec<String> = sqlx::query_scalar("SELECT path FROM projects WHERE location_id = ?1")
+        .bind(&location_id)
+        .fetch_all(&pool)
+        .await
+        .map_err(|e| StableError::new(codes::DB_ERROR, e.to_string()))?;
+
+    for path_str in all_existing {
+        if Path::new(&path_str).is_dir() {
+            keep.insert(path_str);
+        }
+    }
+
     let pruned = db::delete_projects_for_location_not_in_paths(&pool, &location_id, &keep).await?;
     Ok(ScanResultDto {
         projects_discovered: discovered,
