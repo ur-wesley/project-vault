@@ -4,8 +4,9 @@ use std::io::{Read, Write};
 use std::path::{Path, PathBuf};
 
 use serde::{Deserialize, Serialize};
-use tauri::{AppHandle, State};
+use tauri::{AppHandle, State, Manager};
 use tauri_plugin_sql::DbInstances;
+use crate::lua::ui::UiBridge;
 
 use crate::db;
 use crate::error::{codes, StableError};
@@ -304,11 +305,44 @@ async fn download_github_template(
     Ok(())
 }
 
-#[tauri::command]
-pub async fn list_project_templates(
+async fn load_all_templates(
+    app: &AppHandle,
     db: State<'_, DbInstances>,
 ) -> Result<Vec<TemplateSummaryDto>, StableError> {
-    load_templates(db).await
+    let mut templates = load_templates(db.clone()).await?;
+
+    let p_dir = crate::commands::plugins::plugins_dir(app);
+    let specs = crate::lua::loader::load_specs(&p_dir);
+
+    let disabled_pool = db::sqlite_pool(&*db).await?;
+    let disabled_raw = db::get_setting(&disabled_pool, "disabled_plugins").await?;
+    let disabled: std::collections::HashSet<String> = match disabled_raw {
+        Some(json) => serde_json::from_str(&json).unwrap_or_default(),
+        None => std::collections::HashSet::new(),
+    };
+
+    for spec in specs {
+        if disabled.contains(&spec.id) || !spec.enabled {
+            continue;
+        }
+        let meta = crate::lua::loader::read_plugin_init_metadata_for_spec(&p_dir, &spec);
+        if let Some(plugin_templates) = meta.templates {
+            for mut t in plugin_templates {
+                t.id = format!("{}:{}", spec.id, t.id);
+                templates.push(t);
+            }
+        }
+    }
+
+    Ok(templates)
+}
+
+#[tauri::command]
+pub async fn list_project_templates(
+    app: AppHandle,
+    db: State<'_, DbInstances>,
+) -> Result<Vec<TemplateSummaryDto>, StableError> {
+    load_all_templates(&app, db).await
 }
 
 #[tauri::command]
@@ -340,7 +374,7 @@ pub async fn create_project_from_template(
         ));
     }
 
-    let templates = load_templates(db.clone()).await?;
+    let templates = load_all_templates(&app, db.clone()).await?;
     let t = find_template(&templates, &payload.template_id)
         .ok_or_else(|| StableError::new(codes::NOT_FOUND, "unknown template"))?;
 
@@ -545,6 +579,84 @@ pub async fn create_project_from_template(
                 post_create_log: None,
                 session_id: None,
                 project_id: None,
+            })
+        }
+        "plugin" => {
+            let plugin_id = config.get("pluginId").and_then(|v| v.as_str()).unwrap_or("");
+            let command_id = config.get("commandId").and_then(|v| v.as_str()).unwrap_or("");
+            if plugin_id.is_empty() || command_id.is_empty() {
+                return Err(StableError::new(
+                    codes::INVALID_PATH,
+                    "template config must define pluginId and commandId for type = 'plugin'",
+                ));
+            }
+
+            fs::create_dir_all(&root).map_err(|e| {
+                StableError::new(codes::INTERNAL, format!("create project directory: {}", e))
+            })?;
+
+            let canonical_path = dunce::canonicalize(&root)
+                .unwrap_or(root.clone())
+                .to_string_lossy()
+                .into_owned();
+
+            // Insert placeholder in database first, so the plugin has a valid projectId to work with
+            let placeholder = ProjectDto {
+                id: String::new(),
+                location_id: payload.location_id.clone(),
+                name: display.to_string(),
+                path: canonical_path.clone(),
+                stack: "generic".into(),
+                runtime_hint: None,
+                favorite: false,
+                last_opened_at_ms: None,
+                total_playtime_ms: 0,
+                tasks: Vec::new(),
+                tags: vec!["wizard".into()],
+                github_owner: None,
+                github_repo: None,
+                file_count: 0,
+                size_bytes: 0,
+                last_edited_at_ms: None,
+            };
+            let inserted = db::upsert_project(&pool, &placeholder).await?;
+
+            // Prepare context payload for the Lua plugin execution
+            let context = serde_json::json!({
+                "projectName": display,
+                "projectPath": canonical_path,
+                "projectId": inserted.id,
+                "locationId": payload.location_id,
+            });
+
+            let bridge = app.state::<UiBridge>();
+            let runtime = app.state::<crate::lua::LuaRuntimeState>();
+
+            // Execute the plugin command on the Lua worker thread and wait for completion
+            let p_dir = crate::commands::plugins::plugins_dir(&app);
+            let (tx, rx) = tokio::sync::oneshot::channel();
+            runtime.send(crate::lua::LuaTask::ExecuteCommand {
+                plugins_dir: p_dir,
+                app: app.clone(),
+                bridge: (*bridge).clone(),
+                plugin_id: plugin_id.to_string(),
+                command_id: command_id.to_string(),
+                context,
+                tx,
+            }).map_err(|e| StableError::new(codes::INTERNAL, format!("failed to send template lua command: {}", e)))?;
+
+            rx.await
+                .map_err(|e| StableError::new(codes::INTERNAL, format!("oneshot channel recv: {}", e)))?
+                .map_err(|e| StableError::new(codes::INTERNAL, format!("Scaffolding execution failed: {}", e.message)))?;
+
+            fs_scope_util::allow_library_root(&app, root.to_str().unwrap_or(""))?;
+
+            Ok(CreateProjectResultDto {
+                project_path: canonical_path,
+                files_written: 0,
+                post_create_log: None,
+                session_id: None,
+                project_id: Some(inserted.id),
             })
         }
         _ => Err(StableError::new(codes::NOT_FOUND, "unknown template type")),

@@ -52,6 +52,8 @@ pub struct PluginInfo {
     pub dir: Option<String>,
     pub dependencies: Vec<String>,
     pub externals: Vec<String>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub templates: Option<Vec<crate::commands::project_wizard::TemplateSummaryDto>>,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
@@ -172,6 +174,7 @@ pub struct PluginInitMetadata {
     pub event: Option<Vec<String>>,
     pub dependencies: Option<Vec<PluginDependency>>,
     pub externals: Option<Vec<ExternalDependency>>,
+    pub templates: Option<Vec<crate::commands::project_wizard::TemplateSummaryDto>>,
 }
 
 pub fn merge_registry_into_lazy_config(
@@ -278,6 +281,38 @@ fn parse_string_list(table: &mlua::Table, key: &str) -> Option<Vec<String>> {
     }
 }
 
+fn parse_templates_from_table(lua: &mlua::Lua, table: &mlua::Table) -> Option<Vec<crate::commands::project_wizard::TemplateSummaryDto>> {
+    let templates_tbl: mlua::Table = table.get("templates").ok()?;
+    let mut templates = Vec::new();
+    for tmpl_table in templates_tbl.sequence_values::<mlua::Table>().flatten() {
+        let Ok(id) = tmpl_table.get::<String>("id") else {
+            continue;
+        };
+        let Ok(name) = tmpl_table.get::<String>("name") else {
+            continue;
+        };
+        let description = tmpl_table.get::<String>("description").unwrap_or_default();
+        let template_type = tmpl_table.get::<String>("type").unwrap_or_else(|_| "files".to_string());
+        
+        let config_val = tmpl_table.get::<mlua::Value>("config").ok()
+            .and_then(|v| lua.from_value::<serde_json::Value>(v).ok())
+            .unwrap_or(serde_json::json!({}));
+
+        templates.push(crate::commands::project_wizard::TemplateSummaryDto {
+            id,
+            name,
+            description,
+            template_type,
+            config: config_val,
+        });
+    }
+    if templates.is_empty() {
+        None
+    } else {
+        Some(templates)
+    }
+}
+
 pub fn read_plugin_init_metadata(init_path: &Path) -> PluginInitMetadata {
     let mut meta = PluginInitMetadata::default();
     if !init_path.is_file() {
@@ -350,6 +385,7 @@ pub fn read_plugin_init_metadata(init_path: &Path) -> PluginInitMetadata {
     meta.event = parse_string_list(&table, "event");
     meta.dependencies = parse_plugin_dependencies(&table);
     meta.externals = parse_external_dependencies(&table);
+    meta.templates = parse_templates_from_table(&lua, &table);
     meta
 }
 
@@ -501,6 +537,7 @@ impl PluginManager {
                 dir: spec.dir,
                 dependencies,
                 externals,
+                templates: meta.templates.clone(),
             });
         }
         plugins
@@ -1358,6 +1395,37 @@ mod tests {
         let spec = make_spec("harpoon", None);
         let root = resolve_plugin_root(plugins_dir, &spec);
         assert!(root.ends_with("harpoon"));
+    }
+
+    #[test]
+    fn test_parse_templates_from_table() {
+        let lua = LuaEngine::create_instance().unwrap();
+        let chunk = r#"
+        return {
+            templates = {
+                {
+                    id = "my-custom-template",
+                    name = "My Custom Template",
+                    description = "Custom description",
+                    type = "plugin",
+                    config = {
+                        pluginId = "my-plugin",
+                        commandId = "my-cmd"
+                    }
+                }
+            }
+        }
+        "#;
+        let table: mlua::Table = lua.load(chunk).eval().unwrap();
+        let templates = parse_templates_from_table(&lua, &table).unwrap();
+        assert_eq!(templates.len(), 1);
+        let t = &templates[0];
+        assert_eq!(t.id, "my-custom-template");
+        assert_eq!(t.name, "My Custom Template");
+        assert_eq!(t.description, "Custom description");
+        assert_eq!(t.template_type, "plugin");
+        assert_eq!(t.config["pluginId"], "my-plugin");
+        assert_eq!(t.config["commandId"], "my-cmd");
     }
 }
 
