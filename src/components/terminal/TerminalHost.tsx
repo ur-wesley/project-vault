@@ -120,7 +120,6 @@ export function TerminalHost(props: {
 
   let term: Terminal | null = null;
   let fit: FitAddon | null = null;
-  let hasInitialized = false;
   let sessionId: string | null = null;
 
   const MIN_COLS = 20;
@@ -161,7 +160,7 @@ export function TerminalHost(props: {
 
   createEffect(() => {
     const node = container();
-    if (!node || hasInitialized) return;
+    if (!node) return;
 
     const stopFocus = (e: FocusEvent) => {
       e.stopPropagation();
@@ -194,8 +193,6 @@ export function TerminalHost(props: {
     let detachWindowRepaint: (() => void) | undefined;
     const existingSid = attachSid ?? existingSessionId;
     let sid = existingSid;
-
-    hasInitialized = true;
 
     void (async () => {
       term = new Terminal({
