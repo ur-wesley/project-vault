@@ -18,7 +18,7 @@ import {
 } from "~/components/ui/dialog";
 import { useI18n } from "~/lib/i18n-context";
 import { attachTerminalWindowRepaint, terminalHasMinSize } from "~/lib/terminal-repaint";
-import { embeddedTerminalKill, embeddedTerminalResize, embeddedTerminalWrite } from "~/services/tauri/terminal";
+import { embeddedTerminalKill, embeddedTerminalResize, embeddedTerminalWrite, embeddedTerminalGetBuffer } from "~/services/tauri/terminal";
 
 const MIN_COLS = 20;
 const MIN_ROWS = 5;
@@ -165,6 +165,15 @@ function TaskStreamTerminal(props: { sessionId: string; active: boolean }) {
       term.onData((data) => {
         void embeddedTerminalWrite(sid, data);
       });
+
+      const bufferResult = await embeddedTerminalGetBuffer(sid);
+      if (cancelled) return;
+      if (bufferResult.isOk()) {
+        for (const chunk of bufferResult.value) {
+          if (!term) break;
+          term.write(decodeChunk(chunk));
+        }
+      }
 
       unData = await listen<{ sessionId: string; chunk: string }>(
         "embedded-terminal-data",

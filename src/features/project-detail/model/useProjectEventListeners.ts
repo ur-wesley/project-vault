@@ -20,7 +20,7 @@ export interface TunnelInfo {
 export function useProjectEventListeners(props: {
   projectId: Accessor<string>;
   activeSessionsQ: { data?: SessionDto[] | null };
-  terminalInstances: () => TerminalInstance[];
+  terminalInstances: () => readonly TerminalInstance[];
   attachToTask: (sessionId: string, label: string, focus?: boolean) => void;
 }) {
   const qc = useQueryClient();

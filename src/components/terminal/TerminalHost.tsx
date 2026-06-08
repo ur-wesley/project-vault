@@ -240,6 +240,33 @@ export function TerminalHost(props: {
       if (openRect.width >= TERMINAL_MIN_WIDTH && openRect.height >= TERMINAL_MIN_HEIGHT) {
         fit.fit();
       }
+
+      let isReady = false;
+      let exitFired = false;
+
+      let unDataPromise = listen<{ sessionId: string; chunk: string }>(
+        "embedded-terminal-data",
+        (ev) => {
+          appendTerminalChunk(ev.payload.sessionId, ev.payload.chunk);
+          if (!isReady || ev.payload.sessionId !== sid || !term) return;
+          term.write(decodeChunk(ev.payload.chunk));
+        },
+      );
+
+      let unExitPromise = listen<{ sessionId: string }>("embedded-terminal-exit", (ev) => {
+        if (ev.payload.sessionId === sid) exitFired = true;
+        if (!isReady || ev.payload.sessionId !== sid || !term) return;
+        const hasContent = hasTerminalContent(ev.payload.sessionId);
+        if (!hasContent) {
+          props.onProcessExit?.(instanceId, false);
+          return;
+        }
+        term.writeln("\r\n\x1b[90m" + (t("projectDetail.terminalProcessExited") as string) + "\x1b[0m");
+      });
+
+      unData = await unDataPromise;
+      unExit = await unExitPromise;
+
       if (!sid) {
         const spawn = await spawnFn(instanceShell);
         if (spawn.isErr()) {
@@ -290,16 +317,30 @@ export function TerminalHost(props: {
         const bufferResult = await embeddedTerminalGetBuffer(sessionId);
         if (cancelled) return;
         if (bufferResult.isOk()) {
+          clearTerminalBuffer(sessionId);
           for (const chunk of bufferResult.value) {
+            appendTerminalChunk(sessionId, chunk);
             if (!term) break;
             term.write(decodeChunk(chunk));
           }
         }
+      } else {
+        const replay = getTerminalReplay(sessionId);
+        for (const chunk of replay) {
+          if (!term) break;
+          term.write(decodeChunk(chunk));
+        }
       }
-      const replay = getTerminalReplay(sessionId);
-      for (const chunk of replay) {
-        if (!term) break;
-        term.write(decodeChunk(chunk));
+
+      isReady = true;
+
+      if (exitFired && !existingSid) {
+        const hasContent = hasTerminalContent(sessionId);
+        if (!hasContent) {
+          props.onProcessExit?.(instanceId, false);
+          return;
+        }
+        term?.writeln("\r\n\x1b[90m" + (t("projectDetail.terminalProcessExited") as string) + "\x1b[0m");
       }
 
       term.onData((data) => {
@@ -308,27 +349,6 @@ export function TerminalHost(props: {
         result.mapErr((err) => {
           console.error("terminal write error:", err);
         });
-      });
-
-      unData = await listen<{ sessionId: string; chunk: string }>(
-        "embedded-terminal-data",
-        (ev) => {
-          if (ev.payload.sessionId !== sessionId) return;
-          appendTerminalChunk(ev.payload.sessionId, ev.payload.chunk);
-          if (!term) return;
-          const data = decodeChunk(ev.payload.chunk);
-          term.write(data);
-        },
-      );
-
-      unExit = await listen<{ sessionId: string }>("embedded-terminal-exit", (ev) => {
-        if (ev.payload.sessionId !== sessionId || !term) return;
-        const hasContent = hasTerminalContent(ev.payload.sessionId);
-        if (!hasContent) {
-          props.onProcessExit?.(instanceId, false);
-          return;
-        }
-        term.writeln("\r\n\x1b[90m" + (t("projectDetail.terminalProcessExited") as string) + "\x1b[0m");
       });
 
       doResize();
