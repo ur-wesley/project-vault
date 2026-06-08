@@ -234,6 +234,7 @@ export function createProjectDetailModel(props: ProjectDetailViewProps) {
     props,
     projectQ,
     gitStatusQ: git.gitStatusQ,
+    gitIncomingQ: git.gitIncomingQ,
     pullMutate: git.pullMutate,
     pushMutate: git.pushMutate,
     initMutate: git.initMutate,

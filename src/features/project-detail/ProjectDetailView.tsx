@@ -36,15 +36,13 @@ const ProjectDetailView: Component<ProjectDetailViewProps> = (props) => {
         </div>
       </Show>
       <Show when={model.projectQ.data}>
-        {(project) => (
-          <div class="min-h-0 flex-1 overflow-hidden">
-            <ProjectMainTabs model={model} project={project} />
-          </div>
-        )}
+        <div class="min-h-0 flex-1 overflow-hidden">
+          <ProjectMainTabs model={model} project={() => model.projectQ.data!} />
+        </div>
       </Show>
       <RiskConfirmDialog model={model} />
       <Show when={model.projectQ.data}>
-        {(p) => <MoveProjectDialog model={model} project={p} />}
+        <MoveProjectDialog model={model} project={() => model.projectQ.data!} />
       </Show>
     </div>
   );

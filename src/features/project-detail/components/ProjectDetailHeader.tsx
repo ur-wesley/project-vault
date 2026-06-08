@@ -69,6 +69,11 @@ export const ProjectDetailHeader: Component<ProjectDetailHeaderProps> = (
   const { t } = useI18n();
   const { getLivePlaytimeMs } = useLivePlaytime();
   const m = () => props.model;
+  const p = () => m().projectQ.data!;
+  const livePlaytimeMs = createMemo(() => {
+    const proj = m().projectQ.data;
+    return proj ? getLivePlaytimeMs(proj.id, proj.totalPlaytimeMs)() : 0;
+  });
   const [deleteConfirmOpen, setDeleteConfirmOpen] = createSignal(false);
   const [tagDialogOpen, setTagDialogOpen] = createSignal(false);
   const [cleanDialogOpen, setCleanDialogOpen] = createSignal(false);
@@ -84,11 +89,6 @@ export const ProjectDetailHeader: Component<ProjectDetailHeaderProps> = (
   return (
     <div class="shrink-0 border-b border-border/40 bg-background/50">
       <Show when={m().projectQ.data}>
-        {(p) => {
-          const livePlaytimeMs = createMemo(() =>
-            getLivePlaytimeMs(p().id, p().totalPlaytimeMs)(),
-          );
-          return (
             <div class="flex items-start justify-between gap-6 px-4 py-3">
               <div class="flex min-w-0 flex-1 flex-col gap-2">
                 <div class="flex items-center gap-3 min-w-0">
@@ -1005,8 +1005,6 @@ export const ProjectDetailHeader: Component<ProjectDetailHeaderProps> = (
                 </div>
               </Portal>
             </div>
-          );
-        }}
       </Show>
 
       <LanguageBar projectId={m().props.projectId} />
