@@ -222,3 +222,20 @@ pub fn embedded_terminal_get_buffer(
         embedded::get_terminal_buffer(&buffers, &session_id)
     }
 }
+
+#[tauri::command]
+pub fn embedded_terminal_clear_buffer(
+    #[cfg(not(any(target_os = "android", target_os = "ios")))]
+    buffers: State<'_, TerminalBuffers>,
+    session_id: String,
+) {
+    #[cfg(not(any(target_os = "android", target_os = "ios")))]
+    {
+        buffers.clear(&session_id);
+    }
+    #[cfg(any(target_os = "android", target_os = "ios"))]
+    {
+        let _ = session_id;
+    }
+}
+

@@ -1,12 +1,13 @@
 import { useQueryClient } from "@tanstack/solid-query";
 import { createMemo } from "solid-js";
 import { stopProjectTask } from "~/services/tauri/tasks";
-import { embeddedTerminalKill } from "~/services/tauri/terminal";
+import { embeddedTerminalKill, embeddedTerminalClearBuffer } from "~/services/tauri/terminal";
 import { stableErrorMessage } from "~/lib/invoke-error";
 import { queryKeys } from "~/services/query-keys";
 import type { Accessor } from "solid-js";
 import type { EmbeddedTerminalInstance } from "../EmbeddedTerminal";
 import { getProjectTerminalStore } from "./global-terminal-store";
+import { clearTerminalBuffer } from "~/features/project-detail/lib/terminal-buffer";
 
 export type UseProjectTerminalProps = Readonly<{
   projectId: Accessor<string>;
@@ -56,6 +57,12 @@ export function useProjectTerminal(props: UseProjectTerminalProps) {
     const instance = terminalInstances().find((item) => item.id === id);
     if (!instance) return;
 
+    const sid = instance.attachSessionId ?? instance.sessionId;
+    if (sid) {
+      clearTerminalBuffer(sid);
+      void embeddedTerminalClearBuffer(sid);
+    }
+
     if (instance.attachSessionId) {
       const sessionId = instance.attachSessionId;
       const r = await stopProjectTask(sessionId);
@@ -90,6 +97,15 @@ export function useProjectTerminal(props: UseProjectTerminalProps) {
       (inst) => inst.attachSessionId && !activeSessionIds.has(inst.attachSessionId),
     );
     if (toRemove.length === 0) return;
+
+    for (const inst of toRemove) {
+      const sid = inst.attachSessionId ?? inst.sessionId;
+      if (sid) {
+        clearTerminalBuffer(sid);
+        void embeddedTerminalClearBuffer(sid);
+      }
+    }
+
     const nextInstances = terminalInstances().filter(
       (inst) => !toRemove.some((r) => r.id === inst.id),
     );

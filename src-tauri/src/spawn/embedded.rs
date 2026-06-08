@@ -307,9 +307,9 @@ pub fn spawn_task_in_pty(
     let app_read = app.clone();
     let sid_read = stream_session_id.clone();
     let buffers_read = buffers.clone();
-    std::thread::spawn(move || {
+    let reader_thread = std::thread::spawn(move || {
         // Give frontend time to mount and start listening
-        std::thread::sleep(std::time::Duration::from_millis(1000));
+        std::thread::sleep(std::time::Duration::from_millis(100));
         
         let mut reader = reader;
         let mut buf = [0u8; 4096];
@@ -348,9 +348,9 @@ pub fn spawn_task_in_pty(
     let sid_wait = stream_session_id.clone();
     let map = sessions.0.clone();
     let monitors_wait = monitors.clone();
-    let buffers_wait = buffers.clone();
     std::thread::spawn(move || {
         let wait_res = child.wait();
+        let _ = reader_thread.join();
         let stop_requested = task_monitor::is_stop_requested(&monitors_wait, &sid_wait);
         let (state, exit_code, stop_reason) = match wait_res {
             Ok(status) => {
@@ -380,7 +380,6 @@ pub fn spawn_task_in_pty(
         if let Ok(mut g) = map.lock() {
             g.remove(&sid_wait);
         }
-        buffers_wait.clear(&sid_wait);
         let _ = app_wait.emit(
             "embedded-terminal-exit",
             TermExitPayload {
@@ -479,11 +478,11 @@ pub fn spawn_session(
     let app_read = app.clone();
     let sid_read = session_id.clone();
     let buffers_read = buffers.clone();
-    std::thread::spawn(move || {
+    let reader_thread = std::thread::spawn(move || {
         // Give the frontend a moment to mount and start listening before
         // emitting data, otherwise early chunks (e.g. the shell prompt) may
         // be lost.
-        std::thread::sleep(std::time::Duration::from_millis(300));
+        std::thread::sleep(std::time::Duration::from_millis(100));
         let mut reader = reader;
         let mut buf = [0u8; 4096];
         loop {
@@ -508,13 +507,12 @@ pub fn spawn_session(
     let app_wait = app.clone();
     let sid_wait = session_id.clone();
     let map = sessions.0.clone();
-    let buffers_wait = buffers.clone();
     std::thread::spawn(move || {
         let _ = child.wait();
+        let _ = reader_thread.join();
         if let Ok(mut g) = map.lock() {
             g.remove(&sid_wait);
         }
-        buffers_wait.clear(&sid_wait);
         let _ = app_wait.emit(
             "embedded-terminal-exit",
             TermExitPayload {

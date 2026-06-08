@@ -39,6 +39,12 @@ struct TermPayload {
     chunk: String,
 }
 
+#[derive(Clone, serde::Serialize)]
+#[serde(rename_all = "camelCase")]
+struct TermExitPayload {
+    session_id: String,
+}
+
 struct ChildHandle {
     killer: Arc<Mutex<Box<dyn ChildKiller + Send + Sync>>>,
 }
@@ -84,6 +90,7 @@ pub fn spawn_concurrent_tasks(
 
     let pty_system = native_pty_system();
     let mut children: Vec<ChildHandle> = Vec::new();
+    let mut reader_threads = Vec::new();
     let stop_flag = Arc::new(AtomicBool::new(false));
     let remaining = Arc::new(AtomicUsize::new(sub_tasks.len()));
 
@@ -155,9 +162,9 @@ pub fn spawn_concurrent_tasks(
         let stop = stop_flag.clone();
         let buffers_read = buffers.clone();
 
-        std::thread::spawn(move || {
+        let reader_thread = std::thread::spawn(move || {
             // Give frontend time to mount and start listening
-            std::thread::sleep(Duration::from_millis(500));
+            std::thread::sleep(Duration::from_millis(100));
             let mut reader = reader;
             let mut buf = [0u8; 4096];
             let mut line_buf = String::new();
@@ -227,6 +234,7 @@ pub fn spawn_concurrent_tasks(
             let _ = child.wait();
             remaining_clone.fetch_sub(1, Ordering::SeqCst);
         });
+        reader_threads.push(reader_thread);
     }
 
     // Spawn wait thread: monitors remaining count, handles graceful stop
@@ -234,7 +242,6 @@ pub fn spawn_concurrent_tasks(
     let sid_wait = parent_session_id.clone();
     let monitors_wait = monitors.clone();
     let map = sessions.0.clone();
-    let buffers_wait = buffers.clone();
 
     std::thread::spawn(move || {
         // Wait until all children have exited
@@ -257,6 +264,11 @@ pub fn spawn_concurrent_tasks(
             }
         }
 
+        // Wait for all reader threads to finish reading any remaining stdout/stderr
+        for t in reader_threads {
+            let _ = t.join();
+        }
+
         // Determine final state
         let stop_requested = task_monitor::is_stop_requested(&monitors_wait, &sid_wait);
         let state = if stop_requested {
@@ -269,7 +281,13 @@ pub fn spawn_concurrent_tasks(
         if let Ok(mut g) = map.lock() {
             g.remove(&sid_wait);
         }
-        buffers_wait.clear(&sid_wait);
+
+        let _ = app_wait.emit(
+            "embedded-terminal-exit",
+            TermExitPayload {
+                session_id: sid_wait.clone(),
+            },
+        );
 
         let monitors_done = monitors_wait.clone();
         tauri::async_runtime::block_on(async move {

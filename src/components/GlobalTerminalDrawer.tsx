@@ -22,10 +22,12 @@ import {
   embeddedTerminalKill,
   globalTerminalSpawn,
   listAvailableShells,
+  embeddedTerminalClearBuffer,
 } from "~/services/tauri/terminal";
 import { getSetting } from "~/services/tauri/settings";
 import { TerminalHost } from "~/components/terminal/TerminalHost";
 import { getGlobalTerminalStore } from "~/lib/global-terminal-store";
+import { clearTerminalBuffer } from "~/features/project-detail/lib/terminal-buffer";
 
 const SHELL_ICON_MAP: Record<string, string> = {
   powershell: "mdi--powershell",
@@ -93,6 +95,8 @@ export function GlobalTerminalDrawer() {
     if (!instance) return;
 
     if (instance.sessionId) {
+      clearTerminalBuffer(instance.sessionId);
+      void embeddedTerminalClearBuffer(instance.sessionId);
       const r = await embeddedTerminalKill(instance.sessionId);
       if (r.isErr()) {
         const msg = String(r.error.message ?? r.error);

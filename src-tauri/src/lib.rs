@@ -350,6 +350,7 @@ pub fn run() {
             commands::embedded_terminal::embedded_terminal_kill,
             commands::embedded_terminal::embedded_terminal_is_alive,
             commands::embedded_terminal::embedded_terminal_get_buffer,
+            commands::embedded_terminal::embedded_terminal_clear_buffer,
             commands::search::search_project,
             commands::search::index_project,
             commands::search::rebuild_index,

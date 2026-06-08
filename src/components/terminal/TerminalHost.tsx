@@ -327,7 +327,6 @@ export function TerminalHost(props: {
       unExit = await listen<{ sessionId: string }>("embedded-terminal-exit", (ev) => {
         if (ev.payload.sessionId !== sessionId || !term) return;
         const hasContent = hasTerminalContent(ev.payload.sessionId);
-        clearTerminalBuffer(ev.payload.sessionId);
         if (!hasContent) {
           props.onProcessExit?.(instanceId, false);
           return;
