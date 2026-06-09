@@ -351,6 +351,8 @@ const en = {
     readmeNotFoundDescription: "This project doesn't have a README file in its root directory or it could not be loaded.",
 
     fileBinary: "[Binary File]",
+    fileMediaTooLarge: "File is too large to preview ({size}).",
+    openExternally: "Open in default app",
     fileTruncated: "[Truncated...]",
     noFileSelected: "No file selected",
     fileLines: "{count} lines",

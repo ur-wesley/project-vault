@@ -351,6 +351,8 @@ const de = {
     readmeNotFoundDescription: "Dieses Projekt hat keine README-Datei im Stammverzeichnis oder sie konnte nicht geladen werden.",
 
     fileBinary: "[Binärdatei]",
+    fileMediaTooLarge: "Datei ist zu groß für die Vorschau ({size}).",
+    openExternally: "In Standard-App öffnen",
     fileTruncated: "[Gekürzt...]",
     noFileSelected: "Keine Datei ausgewählt",
     fileLines: "{count} Zeilen",

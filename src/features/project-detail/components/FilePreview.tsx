@@ -1,6 +1,7 @@
-import { Show, createEffect, createResource, createSignal, For } from "solid-js";
+import { Show, createEffect, createResource, createSignal, For, onCleanup } from "solid-js";
 import { readFile, readDir, stat } from "@tauri-apps/plugin-fs";
 import { join } from "@tauri-apps/api/path";
+import { openPath } from "@tauri-apps/plugin-opener";
 import { createHighlighter } from "shiki";
 import { marked } from "marked";
 import DOMPurify from "dompurify";
@@ -8,6 +9,13 @@ import { Tooltip, TooltipContent, TooltipTrigger } from "~/components/ui/tooltip
 import { useI18n } from "~/lib/i18n-context";
 import { cn } from "~/lib/utils";
 import { formatBytes } from "~/lib/format-bytes";
+import { FileIcon } from "~/components/FileIcon";
+import {
+  getFileExtension,
+  getPreviewMediaKind,
+  getPreviewMimeType,
+  PREVIEW_MEDIA_MAX_BYTES,
+} from "~/lib/preview-media";
 
 const [highlighter] = createResource(async () => {
   return await createHighlighter({
@@ -83,6 +91,10 @@ export type FilePreviewContent = {
   isDirectory?: boolean;
   isMarkdown?: boolean;
   markdownHtml?: string;
+  mediaKind?: "image" | "pdf";
+  mediaUrl?: string;
+  fileSize?: number;
+  mediaTooLarge?: boolean;
   children?: Array<{
     name: string;
     isDirectory: boolean;
@@ -174,6 +186,38 @@ export function FilePreview(props: {
           };
         }
 
+        const filename = path.split(/[\\/]/).pop()?.toLowerCase() || "";
+        const mediaKind = getPreviewMediaKind(filename);
+
+        if (mediaKind) {
+          const fileSize = info.size;
+          if (fileSize > PREVIEW_MEDIA_MAX_BYTES) {
+            return {
+              text: "",
+              html: null,
+              loc: 0,
+              mediaKind,
+              fileSize,
+              mediaTooLarge: true,
+            };
+          }
+
+          const bytes = await readFile(path);
+          const ext = getFileExtension(filename);
+          const mime = getPreviewMimeType(ext);
+          const blob = new Blob([bytes], { type: mime });
+          const mediaUrl = URL.createObjectURL(blob);
+
+          return {
+            text: "",
+            html: null,
+            loc: 0,
+            mediaKind,
+            mediaUrl,
+            fileSize,
+          };
+        }
+
         const bytes = await readFile(path);
         const text = new TextDecoder().decode(bytes);
 
@@ -202,7 +246,6 @@ export function FilePreview(props: {
           };
         }
 
-        const filename = path.split(/[\\/]/).pop()?.toLowerCase() || "";
         const extMatch = filename.match(/\.([^.]+)$/);
         const ext = extMatch ? extMatch[1] : "";
         const isMarkdown = filename.endsWith(".md") || filename.endsWith(".markdown");
@@ -281,6 +324,24 @@ export function FilePreview(props: {
   };
 
   createEffect(() => {
+    const c = content();
+    const url = c?.mediaUrl;
+    onCleanup(() => {
+      if (url) URL.revokeObjectURL(url);
+    });
+  });
+
+  const onOpenExternally = async () => {
+    const path = props.path;
+    if (!path) return;
+    try {
+      await openPath(path);
+    } catch (e) {
+      console.error("Failed to open file externally:", e);
+    }
+  };
+
+  createEffect(() => {
     const line = props.scrollToLine ?? 0;
     const c = content();
     if (!line || line <= 0 || !c || !c.html) return;
@@ -323,7 +384,10 @@ export function FilePreview(props: {
                     <TooltipContent>{props.backLabel ?? (t("projectDetail.searchResults") as string)}</TooltipContent>
                   </Tooltip>
                 </Show>
-                <span class="iconify mdi--file-document h-3.5 w-3.5 text-muted-foreground shrink-0" />
+                <FileIcon
+                  name={props.path?.split(/[\\/]/).pop() ?? ""}
+                  class="h-3.5 w-3.5"
+                />
                 <span class="text-[10px] font-mono text-muted-foreground truncate">
                   {props.path?.split(/[\\/]/).pop() ?? (t("projectDetail.noFileSelected") as string)}
                 </span>
@@ -364,9 +428,19 @@ export function FilePreview(props: {
                     {t("projectDetail.fileLines", { count: content()!.loc }) as string}
                   </span>
                 </Show>
+                <Show when={content()?.fileSize != null && content()?.mediaKind}>
+                  <span class="text-[9px] font-mono text-muted-foreground/60 uppercase tracking-wider">
+                    {formatBytes(content()!.fileSize!)}
+                  </span>
+                </Show>
               </div>
             </div>
-            <div class="flex-1 overflow-auto">
+            <div
+              class={cn(
+                "flex-1 min-h-0",
+                content()?.mediaKind === "pdf" ? "overflow-hidden" : "overflow-auto",
+              )}
+            >
               <Show
                 when={content()}
                 fallback={
@@ -375,17 +449,61 @@ export function FilePreview(props: {
               >
                 {(c) => (
                   <Show
-                    when={c().isMarkdown && viewMode() === "preview"}
+                    when={c().mediaTooLarge}
                     fallback={
-                      <div class="text-[11px] font-mono">
-                        <Show when={c().html} fallback={<pre class="p-3 whitespace-pre-wrap">{c().text}</pre>}>
-                          <div class="shiki-container" innerHTML={c().html!} />
-                        </Show>
-                      </div>
+                      <Show
+                        when={c().mediaKind === "image" && c().mediaUrl}
+                        fallback={
+                          <Show
+                            when={c().mediaKind === "pdf" && c().mediaUrl}
+                            fallback={
+                              <Show
+                                when={c().isMarkdown && viewMode() === "preview"}
+                                fallback={
+                                  <div class="text-[11px] font-mono">
+                                    <Show when={c().html} fallback={<pre class="p-3 whitespace-pre-wrap">{c().text}</pre>}>
+                                      <div class="shiki-container" innerHTML={c().html!} />
+                                    </Show>
+                                  </div>
+                                }
+                              >
+                                <div class="pv-github-readme mx-auto w-full max-w-3xl pt-2 pb-6 px-4">
+                                  <article class="markdown-body !bg-transparent" innerHTML={c().markdownHtml!} />
+                                </div>
+                              </Show>
+                            }
+                          >
+                            <embed
+                              src={c().mediaUrl!}
+                              type="application/pdf"
+                              class="w-full h-full min-h-0"
+                            />
+                          </Show>
+                        }
+                      >
+                        <div class="flex h-full min-h-0 items-center justify-center p-4">
+                          <img
+                            src={c().mediaUrl!}
+                            alt=""
+                            class="max-h-full max-w-full object-contain"
+                          />
+                        </div>
+                      </Show>
                     }
                   >
-                    <div class="pv-github-readme mx-auto w-full max-w-3xl pt-2 pb-6 px-4">
-                      <article class="markdown-body !bg-transparent" innerHTML={c().markdownHtml!} />
+                    <div class="flex h-full flex-col items-center justify-center gap-4 p-6 text-center">
+                      <p class="text-[11px] text-muted-foreground">
+                        {t("projectDetail.fileMediaTooLarge", {
+                          size: formatBytes(c().fileSize ?? 0),
+                        }) as string}
+                      </p>
+                      <button
+                        type="button"
+                        class="rounded-md border border-border/40 bg-muted/30 px-3 py-1.5 text-[11px] font-medium text-foreground hover:bg-muted/50 transition-colors cursor-pointer"
+                        onClick={onOpenExternally}
+                      >
+                        {t("projectDetail.openExternally") as string}
+                      </button>
                     </div>
                   </Show>
                 )}
@@ -398,7 +516,11 @@ export function FilePreview(props: {
           {/* Header Section */}
           <div class="flex items-center gap-3 mb-6 shrink-0 border-b border-border/40 pb-4">
             <div class="size-10 rounded-lg bg-blue-500/10 border border-blue-500/20 flex items-center justify-center text-blue-500">
-              <span class="iconify mdi--folder h-6 w-6" />
+              <FileIcon
+                name={props.path?.split(/[\\/]/).pop() ?? ""}
+                isDirectory
+                class="h-6 w-6"
+              />
             </div>
             <div class="flex flex-col min-w-0">
               <h3 class="text-sm font-semibold text-foreground/90 truncate">
@@ -465,11 +587,10 @@ export function FilePreview(props: {
                           onClick={() => props.onNavigate?.(child.absPath)}
                         >
                           <td class="py-2.5 px-3 font-mono text-[11px] font-medium flex items-center gap-2 max-w-xs truncate">
-                            <span
-                              class={cn(
-                                "iconify size-4 shrink-0 transition-transform group-hover:scale-110",
-                                child.isDirectory ? "mdi--folder text-blue-400" : "mdi--file-document-outline text-muted-foreground/75"
-                              )}
+                            <FileIcon
+                              name={child.name}
+                              isDirectory={child.isDirectory}
+                              class="size-4 transition-transform group-hover:scale-110"
                             />
                             <span class="truncate">{child.name}</span>
                           </td>
