@@ -25,6 +25,7 @@ import { Tooltip, TooltipContent, TooltipTrigger } from "~/components/ui/tooltip
 import { useI18n } from "~/lib/i18n-context";
 import { toast } from "solid-sonner";
 import { notify } from "~/lib/notification-center";
+import { isLiveSessionState } from "~/lib/session-state";
 import { deleteProjectTask } from "~/services/tauri/tasks";
 import { enableTunnel, disableTunnel, getTunnelStatus } from "~/services/tauri/tunnel";
 import type { ProjectDto, TaskDto } from "~/types/dto";
@@ -48,7 +49,11 @@ export function TasksTabPanel(props: {
   const { t } = useI18n();
   const m = () => props.model;
 
-  const activeSessions = createMemo(() => (m().activeSessionsQ.data ?? []).filter((s) => !s.command?.startsWith("IDE: ")));
+  const activeSessions = createMemo(() =>
+    (m().activeSessionsQ.data ?? []).filter(
+      (s) => !s.command?.startsWith("IDE: ") && isLiveSessionState(s.state),
+    ),
+  );
   const activeCount = createMemo(() => activeSessions().length);
   const [runningTaskKey, setRunningTaskKey] = createSignal<string | null>(null);
   const [taskEditorOpen, setTaskEditorOpen] = createSignal(false);

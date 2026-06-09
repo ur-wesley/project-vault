@@ -174,6 +174,18 @@ pub async fn request_stop(
     persist_snapshot(&app, monitors, session_id).await?;
     emit_live_events(&app, monitors, session_id)?;
     kill_task_tree(monitors, session_id).await;
+
+    let db = app.state::<DbInstances>();
+    let pool = db::sqlite_pool(&*db).await?;
+    let ended = db::end_session(&pool, session_id).await?;
+    let _ = app.emit(
+        "session:ended",
+        super::types::SessionEndedEmit {
+            session_id: ended.id,
+            project_id: ended.project_id,
+        },
+    );
+
     Ok(())
 }
 

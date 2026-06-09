@@ -5,6 +5,7 @@ use tauri_plugin_sql::DbInstances;
 use crate::db;
 use crate::error::StableError;
 use crate::models::SessionDto;
+use crate::spawn::task_monitor::{TASK_STATE_RUNNING, TASK_STATE_STARTING};
 use crate::spawn::{TaskMonitorEntry, TaskMonitors, ProjectIdeSessions};
 
 #[derive(Deserialize)]
@@ -151,7 +152,10 @@ pub async fn list_all_processes(
             .map_err(|e| StableError::new(crate::error::codes::INTERNAL, e.to_string()))?;
         guard
             .values()
-            .filter(|e| !e.finished)
+            .filter(|e| {
+                !e.finished
+                    && (e.state == TASK_STATE_STARTING || e.state == TASK_STATE_RUNNING)
+            })
             .cloned()
             .collect()
     };

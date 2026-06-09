@@ -5,9 +5,10 @@ use tauri::{AppHandle, Emitter};
 
 use crate::db;
 use super::types::{
-    TaskMonitors, TaskPortsEmit, TASK_STATE_RUNNING, TASK_STATE_STARTING,
+    TaskMonitors, TaskPortsEmit, TASK_STATE_CANCELLED, TASK_STATE_ERROR, TASK_STATE_RUNNING,
+    TASK_STATE_STARTING, TASK_STATE_SUCCESS,
 };
-use super::actions::snapshot_task;
+use super::actions::{finalize_task, snapshot_task};
 use super::db_events::{persist_snapshot, task_state_emit, task_tree_emit};
 use super::process::discover_task_tree;
 
@@ -40,6 +41,40 @@ pub async fn watch_task(app: AppHandle, monitors: TaskMonitors, session_id: Stri
         sys.refresh_processes(ProcessesToUpdate::All, true);
         let tree = discover_task_tree(&sys, &snapshot.tree_pids, root_pid);
         let alive = tree.iter().any(|pid| sys.process(Pid::from(*pid as usize)).is_some());
+
+        if !alive {
+            let final_snapshot = match snapshot_task(&monitors, &session_id) {
+                Some(entry) => entry,
+                None => break,
+            };
+            if final_snapshot.finished {
+                break;
+            }
+            let state = if final_snapshot.stop_requested {
+                TASK_STATE_CANCELLED.to_string()
+            } else if final_snapshot.state == TASK_STATE_SUCCESS
+                || final_snapshot.state == TASK_STATE_ERROR
+            {
+                final_snapshot.state.clone()
+            } else {
+                TASK_STATE_SUCCESS.to_string()
+            };
+            let stop_reason = final_snapshot.stop_reason.clone();
+            let app_finalize = app.clone();
+            let monitors_finalize = monitors.clone();
+            let session_id_finalize = session_id.clone();
+            let _ = finalize_task(
+                app_finalize,
+                monitors_finalize,
+                session_id_finalize,
+                state,
+                final_snapshot.exit_code,
+                stop_reason,
+            )
+            .await;
+            break;
+        }
+
         let mut next_state = snapshot.state.clone();
         if next_state == TASK_STATE_STARTING && alive {
             next_state = TASK_STATE_RUNNING.to_string();
@@ -131,15 +166,10 @@ pub fn discover_ports_for_pids(pids: &[u32]) -> Vec<u16> {
     #[cfg(windows)]
     {
         let pids_set: std::collections::HashSet<u32> = pids.iter().copied().collect();
-        let mut cmd = std::process::Command::new("netstat");
+        let mut cmd = crate::process_util::hidden_command("netstat");
         cmd.args(["-ano"])
             .stdout(std::process::Stdio::piped())
             .stderr(std::process::Stdio::null());
-        {
-            use std::os::windows::process::CommandExt;
-            const CREATE_NO_WINDOW: u32 = 0x08000000;
-            cmd.creation_flags(CREATE_NO_WINDOW);
-        }
         let output = cmd.output();
         match output {
             Ok(out) => {

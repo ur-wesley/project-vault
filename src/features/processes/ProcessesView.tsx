@@ -1,8 +1,10 @@
-import { For, Show, createMemo, type Component } from "solid-js";
+import { listen } from "@tauri-apps/api/event";
+import { For, Show, createEffect, createMemo, onCleanup, type Component } from "solid-js";
 import { createQuery, useQueryClient } from "@tanstack/solid-query";
 import { createStore } from "solid-js/store";
 
 import { Button } from "~/components/ui/button";
+import { isLiveSessionState } from "~/lib/session-state";
 import { Badge } from "~/components/ui/badge";
 import { Tooltip, TooltipContent, TooltipTrigger } from "~/components/ui/tooltip";
 import { useI18n } from "~/lib/i18n-context";
@@ -44,8 +46,27 @@ export const ProcessesView: Component<{
     refetchInterval: 3000,
   }));
 
+  createEffect(() => {
+    let unTaskState: (() => void) | undefined;
+    let unSessionEnded: (() => void) | undefined;
+
+    void (async () => {
+      unTaskState = await listen("task-state-changed", () => {
+        void qc.invalidateQueries({ queryKey: ["processes", "all"] });
+      });
+      unSessionEnded = await listen("session:ended", () => {
+        void qc.invalidateQueries({ queryKey: ["processes", "all"] });
+      });
+    })();
+
+    onCleanup(() => {
+      unTaskState?.();
+      unSessionEnded?.();
+    });
+  });
+
   const grouped = createMemo((): ProjectGroup[] => {
-    const data = processesQ.data ?? [];
+    const data = (processesQ.data ?? []).filter((p) => isLiveSessionState(p.state));
     const map = new Map<string, ProjectGroup>();
     for (const proc of data) {
       const group = map.get(proc.projectId);

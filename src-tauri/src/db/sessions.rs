@@ -150,7 +150,7 @@ pub async fn list_active_sessions_for_project(
     project_id: &str,
 ) -> Result<Vec<SessionDto>, StableError> {
     let rows: Vec<SessionRow> = sqlx::query_as(
-        "SELECT id, project_id, started_at_ms, ended_at_ms, command, state, root_pid, tree_pids_json, exit_code, stop_reason, last_event_at_ms FROM sessions WHERE project_id = ?1 AND ended_at_ms IS NULL ORDER BY started_at_ms DESC",
+        "SELECT id, project_id, started_at_ms, ended_at_ms, command, state, root_pid, tree_pids_json, exit_code, stop_reason, last_event_at_ms FROM sessions WHERE project_id = ?1 AND ended_at_ms IS NULL AND state IN ('starting', 'running') ORDER BY started_at_ms DESC",
     )
     .bind(project_id)
     .fetch_all(pool)
@@ -163,7 +163,7 @@ pub async fn list_active_sessions_for_project_all(
     pool: &Pool<Sqlite>,
 ) -> Result<Vec<SessionDto>, StableError> {
     let rows: Vec<SessionRow> = sqlx::query_as(
-        "SELECT id, project_id, started_at_ms, ended_at_ms, command, state, root_pid, tree_pids_json, exit_code, stop_reason, last_event_at_ms FROM sessions WHERE ended_at_ms IS NULL ORDER BY started_at_ms DESC",
+        "SELECT id, project_id, started_at_ms, ended_at_ms, command, state, root_pid, tree_pids_json, exit_code, stop_reason, last_event_at_ms FROM sessions WHERE ended_at_ms IS NULL AND state IN ('starting', 'running') ORDER BY started_at_ms DESC",
     )
     .fetch_all(pool)
     .await

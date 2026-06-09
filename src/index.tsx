@@ -31,6 +31,11 @@ const Root: ParentComponent = (props) => {
 
     void listen("session:ended", () => {
       void queryClient.invalidateQueries({ queryKey: queryKeys.projects });
+      void queryClient.invalidateQueries({ queryKey: ["processes", "all"] });
+    }).then((fn) => unlistens.push(fn));
+
+    void listen("task-state-changed", () => {
+      void queryClient.invalidateQueries({ queryKey: ["processes", "all"] });
     }).then((fn) => unlistens.push(fn));
 
     void listen<{ locationId: string }>("location:scan-completed", () => {
