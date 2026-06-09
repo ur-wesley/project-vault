@@ -1,9 +1,14 @@
 pub mod commands;
 
 use std::collections::HashMap;
+use std::process::{Command, Stdio};
 use std::sync::{Arc, Mutex};
 
 use serde::Serialize;
+
+fn portless_cmd() -> Command {
+    crate::process_util::hidden_command("portless")
+}
 
 #[derive(Clone, Default)]
 pub struct TunnelState(pub Arc<Mutex<TunnelStateInner>>);
@@ -44,10 +49,10 @@ pub struct TunnelChangedEmit {
 }
 
 pub fn check_portless_available() -> bool {
-    let output = std::process::Command::new("portless")
+    let output = portless_cmd()
         .arg("--version")
-        .stdout(std::process::Stdio::piped())
-        .stderr(std::process::Stdio::null())
+        .stdout(Stdio::piped())
+        .stderr(Stdio::null())
         .output();
     match output {
         Ok(o) => o.status.success(),
@@ -68,10 +73,10 @@ pub fn start_portless_proxy(port: u16, tls: bool) -> Result<(), String> {
     if !tls {
         args.push("--no-tls");
     }
-    let output = std::process::Command::new("portless")
+    let output = portless_cmd()
         .args(&args)
-        .stdout(std::process::Stdio::piped())
-        .stderr(std::process::Stdio::piped())
+        .stdout(Stdio::piped())
+        .stderr(Stdio::piped())
         .output()
         .map_err(|e| format!("Failed to start portless proxy: {e}"))?;
 
@@ -102,10 +107,10 @@ fn portless_state_dir() -> Option<std::path::PathBuf> {
 }
 
 fn stop_portless_proxy_any() -> Result<(), String> {
-    let output = std::process::Command::new("portless")
+    let output = portless_cmd()
         .args(["proxy", "stop"])
-        .stdout(std::process::Stdio::piped())
-        .stderr(std::process::Stdio::piped())
+        .stdout(Stdio::piped())
+        .stderr(Stdio::piped())
         .output()
         .map_err(|e| format!("Failed to stop portless proxy: {e}"))?;
     if output.status.success() {
@@ -116,10 +121,10 @@ fn stop_portless_proxy_any() -> Result<(), String> {
 }
 
 pub fn stop_portless_proxy(port: u16) -> Result<(), String> {
-    let output = std::process::Command::new("portless")
+    let output = portless_cmd()
         .args(["proxy", "stop", "-p", &port.to_string()])
-        .stdout(std::process::Stdio::piped())
-        .stderr(std::process::Stdio::piped())
+        .stdout(Stdio::piped())
+        .stderr(Stdio::piped())
         .output()
         .map_err(|e| format!("Failed to stop portless proxy: {e}"))?;
 
@@ -132,10 +137,10 @@ pub fn stop_portless_proxy(port: u16) -> Result<(), String> {
 }
 
 pub fn portless_trust() -> Result<(), String> {
-    let output = std::process::Command::new("portless")
+    let output = portless_cmd()
         .args(["trust"])
-        .stdout(std::process::Stdio::piped())
-        .stderr(std::process::Stdio::piped())
+        .stdout(Stdio::piped())
+        .stderr(Stdio::piped())
         .output()
         .map_err(|e| format!("Failed to trust portless CA: {e}"))?;
 
@@ -148,10 +153,10 @@ pub fn portless_trust() -> Result<(), String> {
 }
 
 pub fn portless_is_ca_trusted() -> bool {
-    let output = std::process::Command::new("portless")
+    let output = portless_cmd()
         .args(["trust"])
-        .stdout(std::process::Stdio::piped())
-        .stderr(std::process::Stdio::piped())
+        .stdout(Stdio::piped())
+        .stderr(Stdio::piped())
         .output();
     match output {
         Ok(o) => {
@@ -164,10 +169,10 @@ pub fn portless_is_ca_trusted() -> bool {
 
 pub fn portless_alias(subdomain: &str, port: u16) -> Result<(), String> {
     let hostname = format!("{subdomain}.localhost");
-    let output = std::process::Command::new("portless")
+    let output = portless_cmd()
         .args(["alias", &hostname, &port.to_string()])
-        .stdout(std::process::Stdio::piped())
-        .stderr(std::process::Stdio::piped())
+        .stdout(Stdio::piped())
+        .stderr(Stdio::piped())
         .output()
         .map_err(|e| format!("Failed to create portless alias: {e}"))?;
 
@@ -181,10 +186,10 @@ pub fn portless_alias(subdomain: &str, port: u16) -> Result<(), String> {
 
 pub fn portless_remove_alias(subdomain: &str) -> Result<(), String> {
     let hostname = format!("{subdomain}.localhost");
-    let output = std::process::Command::new("portless")
+    let output = portless_cmd()
         .args(["alias", "--remove", &hostname])
-        .stdout(std::process::Stdio::piped())
-        .stderr(std::process::Stdio::piped())
+        .stdout(Stdio::piped())
+        .stderr(Stdio::piped())
         .output()
         .map_err(|e| format!("Failed to remove portless alias: {e}"))?;
 
@@ -197,10 +202,10 @@ pub fn portless_remove_alias(subdomain: &str) -> Result<(), String> {
 }
 
 pub fn portless_list() -> Result<Vec<TunnelRoute>, String> {
-    let output = std::process::Command::new("portless")
+    let output = portless_cmd()
         .args(["list"])
-        .stdout(std::process::Stdio::piped())
-        .stderr(std::process::Stdio::piped())
+        .stdout(Stdio::piped())
+        .stderr(Stdio::piped())
         .output()
         .map_err(|e| format!("Failed to list portless routes: {e}"))?;
 

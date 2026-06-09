@@ -46,16 +46,8 @@ async fn save_disabled_plugins(db: &DbInstances, set: &HashSet<String>) -> Resul
     db::set_setting(&pool, "disabled_plugins", &json).await
 }
 
-#[cfg_attr(windows, allow(unused_imports))]
 fn git_command() -> tokio::process::Command {
-    let mut cmd = tokio::process::Command::new("git");
-    #[cfg(windows)]
-    {
-        use std::os::windows::process::CommandExt;
-        const CREATE_NO_WINDOW: u32 = 0x08000000;
-        cmd.creation_flags(CREATE_NO_WINDOW);
-    }
-    cmd
+    crate::process_util::hidden_tokio_command("git")
 }
 
 async fn run_git(mut cmd: tokio::process::Command) -> Result<std::process::Output, StableError> {

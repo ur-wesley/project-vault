@@ -1,5 +1,6 @@
 mod commands;
 mod notifications;
+mod process_util;
 pub mod db;
 pub mod discovery;
 mod disk_volume;

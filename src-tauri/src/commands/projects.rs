@@ -26,14 +26,8 @@ pub async fn get_project_mise_tools(
         return Ok(Vec::new());
     }
 
-    let mut cmd = std::process::Command::new("mise");
+    let mut cmd = crate::process_util::hidden_command("mise");
     cmd.args(["ls", "--json"]).current_dir(root);
-    #[cfg(windows)]
-    {
-        use std::os::windows::process::CommandExt;
-        const CREATE_NO_WINDOW: u32 = 0x08000000;
-        cmd.creation_flags(CREATE_NO_WINDOW);
-    }
     let output = cmd.output();
 
     let Ok(out) = output else {

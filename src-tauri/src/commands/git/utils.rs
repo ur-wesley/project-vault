@@ -1,22 +1,14 @@
 use std::fs;
 use std::path::Path;
-use std::process::Command;
 use std::time::Duration;
-use tokio::process::Command as TokioCommand;
 
 use crate::error::{codes, StableError};
 
 pub const GIT_TIMEOUT: Duration = Duration::from_secs(30);
 
 pub fn run_git(cwd: &Path, args: &[&str]) -> Result<String, StableError> {
-    let mut cmd = Command::new("git");
+    let mut cmd = crate::process_util::hidden_command("git");
     cmd.args(args).current_dir(cwd);
-    #[cfg(windows)]
-    {
-        use std::os::windows::process::CommandExt;
-        const CREATE_NO_WINDOW: u32 = 0x08000000;
-        cmd.creation_flags(CREATE_NO_WINDOW);
-    }
     let output = cmd
         .output()
         .map_err(|e| StableError::new(codes::INTERNAL, format!("failed to execute git: {e}")))?;
@@ -31,14 +23,8 @@ pub fn run_git(cwd: &Path, args: &[&str]) -> Result<String, StableError> {
 
 pub async fn run_git_async(cwd: &Path, args: &[&str]) -> Result<String, StableError> {
     eprintln!("[run_git_async] starting: git {:?} in {:?}", args, cwd);
-    let mut cmd = TokioCommand::new("git");
+    let mut cmd = crate::process_util::hidden_tokio_command("git");
     cmd.args(args).current_dir(cwd);
-    #[cfg(windows)]
-    {
-        use std::os::windows::process::CommandExt;
-        const CREATE_NO_WINDOW: u32 = 0x08000000;
-        cmd.as_std_mut().creation_flags(CREATE_NO_WINDOW);
-    }
 
     let output = tokio::time::timeout(GIT_TIMEOUT, cmd.output())
         .await

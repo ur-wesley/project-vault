@@ -1,4 +1,7 @@
 use std::path::Path;
+use std::sync::OnceLock;
+
+static MISE_AVAILABLE: OnceLock<bool> = OnceLock::new();
 
 #[allow(dead_code)]
 pub fn project_has_mise_config(root: &Path) -> bool {
@@ -16,19 +19,15 @@ pub fn project_has_mise_config(root: &Path) -> bool {
 }
 
 pub fn mise_available() -> bool {
-    let mut cmd = std::process::Command::new("mise");
-    cmd.arg("--version")
-        .stdout(std::process::Stdio::null())
-        .stderr(std::process::Stdio::null());
-    #[cfg(windows)]
-    {
-        use std::os::windows::process::CommandExt;
-        const CREATE_NO_WINDOW: u32 = 0x08000000;
-        cmd.creation_flags(CREATE_NO_WINDOW);
-    }
-    cmd.status()
-        .map(|s| s.success())
-        .unwrap_or(false)
+    *MISE_AVAILABLE.get_or_init(|| {
+        let mut cmd = crate::process_util::hidden_command("mise");
+        cmd.arg("--version")
+            .stdout(std::process::Stdio::null())
+            .stderr(std::process::Stdio::null());
+        cmd.status()
+            .map(|s| s.success())
+            .unwrap_or(false)
+    })
 }
 
 pub fn use_mise_for_project(root: &Path) -> bool {
