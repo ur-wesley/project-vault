@@ -617,35 +617,35 @@ export const PluginDashboard: Component<{ t: (key: string, params?: Record<strin
       <div class="grid grid-cols-2 md:grid-cols-5 gap-3 bg-muted/10 border border-muted/30 rounded-lg p-3 relative overflow-hidden backdrop-blur">
         <div class="flex flex-col">
           <span class="text-[10px] text-muted-foreground uppercase font-bold tracking-wider flex items-center gap-1">
-            <span class="i-mdi-package-variant size-3.5 shrink-0" aria-hidden="true" />
+            <span class="iconify mdi--package-variant size-3.5 shrink-0" aria-hidden="true" />
             {props.t("pluginsDashboard.totalPlugins")}
           </span>
           <span class="text-xl font-bold font-mono text-foreground">{totalPlugins()}</span>
         </div>
         <div class="flex flex-col">
           <span class="text-[10px] text-emerald-400 uppercase font-bold tracking-wider flex items-center gap-1">
-            <span class="i-mdi-play-circle-outline size-3.5 shrink-0 text-emerald-400" aria-hidden="true" />
+            <span class="iconify mdi--play-circle-outline size-3.5 shrink-0 text-emerald-400" aria-hidden="true" />
             {props.t("pluginsDashboard.activeCount")}
           </span>
           <span class="text-xl font-bold font-mono text-emerald-400">{activeCount()}</span>
         </div>
         <div class="flex flex-col">
           <span class="text-[10px] text-amber-400 uppercase font-bold tracking-wider flex items-center gap-1">
-            <span class="i-mdi-flash size-3.5 shrink-0 text-amber-400" aria-hidden="true" />
+            <span class="iconify mdi--flash size-3.5 shrink-0 text-amber-400" aria-hidden="true" />
             {props.t("pluginsDashboard.lazyCount")}
           </span>
           <span class="text-xl font-bold font-mono text-amber-400">{lazyCount()}</span>
         </div>
         <div class="flex flex-col">
           <span class="text-[10px] text-sky-400 uppercase font-bold tracking-wider flex items-center gap-1">
-            <span class="i-mdi-folder-outline size-3.5 shrink-0 text-sky-400" aria-hidden="true" />
+            <span class="iconify mdi--folder-outline size-3.5 shrink-0 text-sky-400" aria-hidden="true" />
             {props.t("pluginsDashboard.localCount")}
           </span>
           <span class="text-xl font-bold font-mono text-sky-400">{localCount()}</span>
         </div>
         <div class="flex flex-col col-span-2 md:col-span-1 justify-center">
           <span class="text-[10px] text-primary uppercase font-bold tracking-wider flex items-center gap-1">
-            <span class="i-mdi-timer-outline size-3.5 shrink-0 text-primary" aria-hidden="true" />
+            <span class="iconify mdi--timer-outline size-3.5 shrink-0 text-primary" aria-hidden="true" />
             {props.t("pluginsDashboard.loadSpeed")}
           </span>
           <span class="text-xl font-extrabold font-mono text-primary animate-pulse flex items-center gap-1">
@@ -692,7 +692,7 @@ export const PluginDashboard: Component<{ t: (key: string, params?: Record<strin
               onClick={() => void handleOpenPluginsDir()}
               class="inline-flex h-8 items-center gap-1.5 px-2.5 text-[11px] font-bold focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2"
             >
-              <span class="i-mdi-folder-open-outline size-3.5 shrink-0" aria-hidden="true" />
+              <span class="iconify mdi--folder-open-outline size-3.5 shrink-0" aria-hidden="true" />
               {props.t("pluginsDashboard.openPluginsDir")}
             </Button>
             <Button
@@ -702,7 +702,7 @@ export const PluginDashboard: Component<{ t: (key: string, params?: Record<strin
               onClick={() => setDocsOpen(true)}
               class="inline-flex h-8 items-center gap-1.5 px-2.5 text-[11px] font-bold focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2"
             >
-              <span class="i-mdi-book-open-page-variant size-3.5 shrink-0" aria-hidden="true" />
+              <span class="iconify mdi--book-open-page-variant size-3.5 shrink-0" aria-hidden="true" />
               {props.t("pluginsDashboard.devGuideBtn")}
             </Button>
           </div>
@@ -718,7 +718,7 @@ export const PluginDashboard: Component<{ t: (key: string, params?: Record<strin
               onClick={() => void handleCheckUpdates()}
               class="inline-flex h-8 items-center gap-1.5 px-2.5 text-[11px] font-bold focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2"
             >
-              <span class="i-mdi-refresh size-3.5 shrink-0" aria-hidden="true" />
+              <span class="iconify mdi--refresh size-3.5 shrink-0" aria-hidden="true" />
               {props.t("pluginsDashboard.checkUpdates")}
             </Button>
             <Button
@@ -728,7 +728,7 @@ export const PluginDashboard: Component<{ t: (key: string, params?: Record<strin
               onClick={() => void handleUpdateAll()}
               class="inline-flex h-8 items-center gap-1.5 px-2.5 text-[11px] font-bold focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2"
             >
-              <span class="i-mdi-download size-3.5 shrink-0" aria-hidden="true" />
+              <span class="iconify mdi--download size-3.5 shrink-0" aria-hidden="true" />
               {props.t("pluginsDashboard.updateAll")}
             </Button>
             <Button
@@ -738,7 +738,7 @@ export const PluginDashboard: Component<{ t: (key: string, params?: Record<strin
               onClick={() => void handleSyncLockfile()}
               class="inline-flex h-8 items-center gap-1.5 px-2.5 text-[11px] font-bold focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2"
             >
-              <span class="i-mdi-content-save size-3.5 shrink-0" aria-hidden="true" />
+              <span class="iconify mdi--content-save size-3.5 shrink-0" aria-hidden="true" />
               {props.t("pluginsDashboard.syncLockfile")}
             </Button>
             <Button
@@ -748,7 +748,7 @@ export const PluginDashboard: Component<{ t: (key: string, params?: Record<strin
               onClick={() => void handleRestore()}
               class="inline-flex h-8 items-center gap-1.5 px-2.5 text-[11px] font-bold focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2"
             >
-              <span class="i-mdi-restore size-3.5 shrink-0" aria-hidden="true" />
+              <span class="iconify mdi--restore size-3.5 shrink-0" aria-hidden="true" />
               {props.t("pluginsDashboard.restoreLock")}
             </Button>
             <Button
@@ -758,7 +758,7 @@ export const PluginDashboard: Component<{ t: (key: string, params?: Record<strin
               onClick={() => void handleSyncVendorLockfile()}
               class="inline-flex h-8 items-center gap-1.5 px-2.5 text-[11px] font-bold focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2"
             >
-              <span class="i-mdi-package-down size-3.5 shrink-0" aria-hidden="true" />
+              <span class="iconify mdi--package-down size-3.5 shrink-0" aria-hidden="true" />
               {props.t("pluginsDashboard.syncVendorLock")}
             </Button>
             <Button
@@ -768,7 +768,7 @@ export const PluginDashboard: Component<{ t: (key: string, params?: Record<strin
               onClick={() => void handleRestoreVendorLock()}
               class="inline-flex h-8 items-center gap-1.5 px-2.5 text-[11px] font-bold focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2"
             >
-              <span class="i-mdi-package-variant size-3.5 shrink-0" aria-hidden="true" />
+              <span class="iconify mdi--package-variant size-3.5 shrink-0" aria-hidden="true" />
               {props.t("pluginsDashboard.restoreVendorLock")}
             </Button>
           </div>
@@ -788,7 +788,7 @@ export const PluginDashboard: Component<{ t: (key: string, params?: Record<strin
                     aria-label={expandedPlugin() === plugin.id ? props.t("pluginsDashboard.collapseTooltip") : props.t("pluginsDashboard.expandTooltip")}
                   >
                     <span
-                      class="i-mdi-chevron-right size-4 shrink-0 transition-transform duration-200"
+                      class="iconify mdi--chevron-right size-4 shrink-0 transition-transform duration-200"
                       class:rotate-90={expandedPlugin() === plugin.id}
                       aria-hidden="true"
                     />
@@ -843,7 +843,7 @@ export const PluginDashboard: Component<{ t: (key: string, params?: Record<strin
                       onClick={() => void handleUpdatePlugin(plugin.id)}
                       class="h-7 px-2 text-[10px] font-bold focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2"
                     >
-                      <span class="i-mdi-download size-3 shrink-0" aria-hidden="true" />
+                      <span class="iconify mdi--download size-3 shrink-0" aria-hidden="true" />
                       {props.t("pluginsDashboard.updatePluginBtn")}
                     </Button>
                   </Show>
@@ -856,7 +856,7 @@ export const PluginDashboard: Component<{ t: (key: string, params?: Record<strin
                       title={props.t("pluginsDashboard.pluginSettingsBtn")}
                       aria-label={props.t("pluginsDashboard.pluginSettingsBtn")}
                     >
-                      <span class="i-mdi-cog-outline size-4 shrink-0" aria-hidden="true" />
+                      <span class="iconify mdi--cog-outline size-4 shrink-0" aria-hidden="true" />
                     </button>
                   </Show>
                   <Checkbox
@@ -874,7 +874,7 @@ export const PluginDashboard: Component<{ t: (key: string, params?: Record<strin
                     title={props.t("pluginsDashboard.uninstallTooltip")}
                     aria-label={props.t("pluginsDashboard.uninstallTooltip")}
                   >
-                    <span class="i-mdi-trash-can-outline size-4 shrink-0" aria-hidden="true" />
+                    <span class="iconify mdi--trash-can-outline size-4 shrink-0" aria-hidden="true" />
                   </button>
                 </div>
               </div>
@@ -1141,7 +1141,7 @@ export const PluginDashboard: Component<{ t: (key: string, params?: Record<strin
               return (
                 <div class="grid grid-cols-1 md:grid-cols-4 gap-2 items-center">
                   <div class="flex items-center gap-1.5 md:col-span-1">
-                    <span class="i-mdi-flash-outline size-3 shrink-0 text-amber-400" aria-hidden="true" />
+                    <span class="iconify mdi--flash-outline size-3 shrink-0 text-amber-400" aria-hidden="true" />
                     <span class="truncate font-bold text-foreground">{plugin.id}</span>
                   </div>
                   <div class="md:col-span-2 bg-muted/20 h-2 rounded overflow-hidden">
@@ -1187,7 +1187,7 @@ export const PluginDashboard: Component<{ t: (key: string, params?: Record<strin
                     </span>
                   )}
                 </Select.Value>
-                <span class="i-mdi-chevron-down size-3.5 shrink-0 opacity-50" aria-hidden="true" />
+                <span class="iconify mdi--chevron-down size-3.5 shrink-0 opacity-50" aria-hidden="true" />
               </Select.Trigger>
               <Select.Content>
                 <Select.Listbox />
@@ -1230,7 +1230,7 @@ export const PluginDashboard: Component<{ t: (key: string, params?: Record<strin
             when={filteredLogs().length > 0}
             fallback={
               <div class="flex h-full flex-col items-center justify-center text-muted-foreground/30 font-sans">
-                <span class="i-mdi-console mb-1 size-8 shrink-0" aria-hidden="true" />
+                <span class="iconify mdi--console mb-1 size-8 shrink-0" aria-hidden="true" />
                 <span class="text-[9px] font-semibold tracking-wide uppercase">{props.t("pluginsDashboard.consoleEmpty")}</span>
               </div>
             }

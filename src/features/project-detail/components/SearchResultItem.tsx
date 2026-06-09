@@ -1,7 +1,8 @@
-import { For, Show, createMemo } from "solid-js";
+import { For, createMemo } from "solid-js";
 import { join } from "@tauri-apps/api/path";
 import { useI18n } from "~/lib/i18n-context";
 import type { SearchHitDto } from "~/types/dto";
+import { FileIcon } from "~/components/FileIcon";
 
 export function SearchResultItem(props: {
   hit: SearchHitDto;
@@ -39,7 +40,7 @@ export function SearchResultItem(props: {
     >
       <div class="flex items-center justify-between gap-2 mb-1.5">
         <div class="flex items-center gap-1.5 min-w-0">
-          <span class="iconify mdi--file-document h-3.5 w-3.5 text-muted-foreground shrink-0" />
+          <FileIcon name={props.hit.path} class="h-3.5 w-3.5" />
           <span class="text-[11px] font-mono text-foreground/90 truncate">{props.hit.path}</span>
         </div>
         <span class="shrink-0 inline-flex items-center rounded-full bg-primary/20 px-1.5 py-0.5 text-[9px] font-mono font-black text-primary">

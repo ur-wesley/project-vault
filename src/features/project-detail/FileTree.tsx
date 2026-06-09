@@ -17,6 +17,7 @@ import { Tooltip, TooltipContent, TooltipTrigger } from "~/components/ui/tooltip
 import { Badge } from "~/components/ui/badge";
 import { invoke } from "@tauri-apps/api/core";
 import { fetchTabDecorations, getElementDecorations, decorationsVersion } from "~/lib/plugin-decorations";
+import { FileIcon } from "~/components/FileIcon";
 
 const SKIP = new Set([
   "node_modules",
@@ -151,7 +152,7 @@ function Folder(props: {
         >
           <span class="iconify mdi--chevron-right h-3 w-3" />
         </span>
-        <span class="iconify mdi--folder h-3.5 w-3.5 text-blue-400/80" />
+        <FileIcon name={props.label} isDirectory class="h-3.5 w-3.5" />
         
         {/* Before Folder Decorations */}
         <For each={decs().before}>
@@ -285,7 +286,7 @@ function FileItem(props: {
       style={{ "padding-left": `${props.depth * 12 + 16}px` }}
       onClick={() => absPath() && props.onClick(absPath()!)}
     >
-      <span class="iconify mdi--file-outline h-3.5 w-3.5 shrink-0 opacity-60" />
+      <FileIcon name={props.name} class="h-3.5 w-3.5 opacity-90" />
 
       {/* Before File Decorations */}
       <For each={decs().before}>
