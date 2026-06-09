@@ -108,36 +108,54 @@ struct TaskLogChunkPayload {
 }
 
 #[cfg(windows)]
-fn task_command_windows(
+fn needs_shell_wrapper(args: &[String]) -> bool {
+    for arg in args {
+        if arg.contains('|')
+            || arg.contains('>')
+            || arg.contains('<')
+            || arg.contains("&&")
+            || arg.contains("||")
+        {
+            return true;
+        }
+    }
+    false
+}
+
+#[cfg(windows)]
+fn should_use_shell_wrapper(args: &[String], shell_pref: Option<&str>) -> bool {
+    if needs_shell_wrapper(args) {
+        return true;
+    }
+    if let Some(s) = shell_pref {
+        let s = s.trim();
+        if !s.is_empty() && Path::new(s).exists() && !is_terminal_launcher(s) {
+            let s_low = s.to_lowercase();
+            let is_default_cmd = s_low.ends_with("cmd.exe") || s_low == "cmd";
+            return !is_default_cmd;
+        }
+    }
+    false
+}
+
+#[cfg(windows)]
+fn task_command_windows_shell_wrap(
     cwd: &Path,
-    argv: &[String],
-    use_mise: bool,
-    runtime_hint: Option<&str>,
-    stack: &str,
+    args: &[String],
     shell_pref: Option<&str>,
 ) -> Result<CommandBuilder, StableError> {
-    let args = if use_mise {
-        if argv.get(0).map(|s| s.as_str()) == Some("mise") {
-            argv.to_vec()
-        } else {
-            get_mise_tool_args(runtime_hint, stack, argv)
-        }
-    } else {
-        argv.to_vec()
-    };
-
-    // For Windows shell execution, we join arguments into a single string.
-    // We use double quotes for arguments with spaces.
-    let joined_cmd = args.iter()
-        .map(|a| if a.contains(' ') || a.contains('"') { 
-            format!("\"{}\"", a.replace("\"", "\"\"")) 
-        } else { 
-            a.clone() 
+    let joined_cmd = args
+        .iter()
+        .map(|a| {
+            if a.contains(' ') || a.contains('"') {
+                format!("\"{}\"", a.replace("\"", "\"\""))
+            } else {
+                a.clone()
+            }
         })
         .collect::<Vec<_>>()
         .join(" ");
 
-    // Determine the shell to use. Default to cmd.exe.
     let shell = if let Some(s) = shell_pref {
         if Path::new(s).exists() && !is_terminal_launcher(s) {
             s.to_string()
@@ -155,19 +173,47 @@ fn task_command_windows(
         cb.arg("Bypass");
         cb.arg("-Command");
         cb.arg(&joined_cmd);
-    } else if s_low.contains("cmd.exe") {
+    } else if s_low.contains("cmd.exe") || s_low == "cmd" {
         cb.arg("/D");
         cb.arg("/S");
         cb.arg("/C");
         cb.arg(&joined_cmd);
     } else {
-        // Fallback for other shells (like git bash or nu)
         cb.arg("-c");
         cb.arg(&joined_cmd);
     }
 
     cb.cwd(cwd);
     Ok(cb)
+}
+
+#[cfg(windows)]
+fn task_command_windows(
+    cwd: &Path,
+    argv: &[String],
+    use_mise: bool,
+    runtime_hint: Option<&str>,
+    stack: &str,
+    shell_pref: Option<&str>,
+) -> Result<CommandBuilder, StableError> {
+    let args = if use_mise {
+        if argv.first().map(|s| s.as_str()) == Some("mise") {
+            argv.to_vec()
+        } else {
+            get_mise_tool_args(runtime_hint, stack, argv)
+        }
+    } else {
+        argv.to_vec()
+    };
+
+    if !args.is_empty() && !should_use_shell_wrapper(&args, shell_pref) {
+        let os_args: Vec<std::ffi::OsString> = args.into_iter().map(Into::into).collect();
+        let mut cb = CommandBuilder::from_argv(os_args);
+        cb.cwd(cwd);
+        return Ok(cb);
+    }
+
+    task_command_windows_shell_wrap(cwd, &args, shell_pref)
 }
 
 #[cfg(not(windows))]
