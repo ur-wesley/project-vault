@@ -289,6 +289,8 @@ pub fn run() {
             commands::projects::get_project,
             commands::projects::move_project,
             commands::projects::delete_project,
+            commands::project_cleaner::project_cleaner_scan,
+            commands::project_cleaner::project_cleaner_execute,
             commands::projects::set_project_favorite,
             commands::projects::set_project_tag,
             commands::projects::remove_project_tag,

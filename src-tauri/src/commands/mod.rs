@@ -20,3 +20,4 @@ pub mod tools;
 pub mod updater;
 pub mod volumes;
 pub mod plugins;
+pub mod project_cleaner;

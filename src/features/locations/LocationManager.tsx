@@ -23,6 +23,7 @@ import { LibraryLocationDiskBlock } from "./components/LibraryLocationDiskBlock"
 import { LocationRenameDialog } from "./components/LocationRenameDialog";
 import { LocationImportDialog } from "./components/LocationImportDialog";
 import { SizeTreemapDialog } from "./components/SizeTreemapDialog";
+import { LocationProjectCleanerDialog } from "./components/LocationProjectCleanerDialog";
 
 type LocationWorkState =
   | { kind: "rescan"; locationId: string; locationName: string }
@@ -52,6 +53,9 @@ export const LocationManager: Component = () => {
   const [treemapOpen, setTreemapOpen] = createSignal(false);
   const [treemapLocation, setTreemapLocation] = createSignal<LocationDto | null>(null);
   const [treemapProjects, setTreemapProjects] = createSignal<{ projectId: string; path: string; name: string; sizeBytes: number }[]>([]);
+
+  const [cleanerOpen, setCleanerOpen] = createSignal(false);
+  const [cleanerLocation, setCleanerLocation] = createSignal<LocationDto | null>(null);
 
   const locQ = createQuery(() => ({
     queryKey: queryKeys.locations,
@@ -127,6 +131,11 @@ export const LocationManager: Component = () => {
     }
     return map;
   });
+
+  const openCleaner = (loc: LocationDto) => {
+    setCleanerLocation(loc);
+    setCleanerOpen(true);
+  };
 
   const openTreemap = async (loc: LocationDto) => {
     const r = await getLocationProjectSizes(loc.id);
@@ -451,6 +460,16 @@ export const LocationManager: Component = () => {
                   </Button>
                   <Button
                     type="button"
+                    variant="secondary"
+                    class="h-8 flex-1 text-[10px] font-bold uppercase tracking-tight bg-muted/40"
+                    disabled={busy()}
+                    onClick={() => openCleaner(loc)}
+                  >
+                    <span class="iconify mdi--broom h-3.5 w-3.5 mr-1.5 shrink-0" aria-hidden="true" />
+                    {t("locations.cleanProjects") as string}
+                  </Button>
+                  <Button
+                    type="button"
                     variant="ghost"
                     class="h-8 flex-1 text-[10px] font-bold uppercase tracking-tight text-muted-foreground hover:text-destructive hover:bg-destructive/5"
                     disabled={busy()}
@@ -495,6 +514,14 @@ export const LocationManager: Component = () => {
           setTreemapOpen(false);
           hub.emit("project:opened", { projectId });
         }}
+      />
+
+      <LocationProjectCleanerDialog
+        open={cleanerOpen()}
+        onOpenChange={setCleanerOpen}
+        locationId={cleanerLocation()?.id ?? ""}
+        locationName={cleanerLocation()?.name ?? ""}
+        onComplete={() => invalidateAll()}
       />
     </div>
   );
