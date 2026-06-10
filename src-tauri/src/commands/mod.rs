@@ -1,3 +1,4 @@
+pub mod clipboard_history;
 pub mod embedded_terminal;
 pub mod git;
 pub mod github_device;

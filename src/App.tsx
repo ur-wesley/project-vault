@@ -73,6 +73,7 @@ import "./App.css";
 import { SidebarHeaderSearch } from "~/components/SidebarHeaderSearch";
 import { SidebarToggleListener } from "~/components/SidebarToggleListener";
 import { useScreenshot } from "~/features/screenshot";
+import { openClipboardOverlay } from "~/features/clipboard-history";
 import AnnotationEditor from "~/features/screenshot/components/AnnotationEditor";
 import SourceSelector from "~/features/screenshot/components/SourceSelector";
 import { PluginUiBridge } from "~/components/PluginUiBridge";
@@ -239,6 +240,11 @@ function App() {
         globalTerminal.setOpen(!globalTerminal.open());
       } else if (payload.action === "screenshot:capture") {
         void screenshot.selectSource({ type: "region" }, (k, a) => t(k, a) as string);
+      } else if (payload.action === "clipboard-history:open") {
+        void openClipboardOverlay().catch((e) => {
+          console.error("Failed to open clipboard overlay:", e);
+          toast.error(String(t("clipboardHistory.openFailed")));
+        });
       } else if (payload.action.startsWith("plugin:")) {
         const parts = payload.action.split(":");
         if (parts.length >= 3) {

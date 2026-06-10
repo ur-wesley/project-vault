@@ -11,6 +11,11 @@ import { checkForUpdates, installUpdate } from "~/services/tauri/updates";
 import { notify } from "~/lib/notification-center";
 import { getAutostartEnabled, setAutostartEnabled } from "~/services/tauri/autostart";
 import { getSetting, setSetting } from "~/services/tauri/settings";
+import {
+  getClipboardHistorySettings,
+  setClipboardHistorySettings,
+} from "~/services/tauri/clipboard-history";
+import type { ClipboardHistorySettingsDto } from "~/types/dto";
 import { checkTunnelAvailable, startTunnelProxy, stopTunnelProxy } from "~/services/tauri/tunnel";
 import { GITHUB_TOKEN_SETTING_KEY, fetchGitHubViewer } from "~/services/github";
 import { runGithubDeviceSignIn } from "~/services/github-device-signin";
@@ -58,12 +63,16 @@ export function useSettingsModel(props: UseSettingsModelProps) {
   const [githubUserCode, setGithubUserCode] = createSignal("");
   const [globalTerminalCwd, setGlobalTerminalCwd] = createSignal("");
   const [screenshotSaveDir, setScreenshotSaveDir] = createSignal("");
+  const [clipboardEnabled, setClipboardEnabled] = createSignal(true);
+  const [clipboardMaxEntries, setClipboardMaxEntries] = createSignal("200");
+  const [clipboardDedupSeconds, setClipboardDedupSeconds] = createSignal("2");
+  const [clipboardShowSource, setClipboardShowSource] = createSignal(true);
   const [busy, setBusy] = createSignal(false);
 
   const settingsQ = createQuery(() => ({
     queryKey: ["settings", "view"] as const,
     queryFn: async () => {
-      const [sh, scan, gh, di, ds, loc, ai, au, as, pe, pp, pt, gtc, ssd] = await Promise.all([
+      const [sh, scan, gh, di, ds, loc, ai, au, as, pe, pp, pt, gtc, ssd, clip] = await Promise.all([
         getSetting(SHELL_KEY),
         getSetting(SCAN_KEY),
         getSetting(GITHUB_TOKEN_SETTING_KEY),
@@ -78,6 +87,7 @@ export function useSettingsModel(props: UseSettingsModelProps) {
         getSetting(PORTLESS_TLS_KEY),
         getSetting(GLOBAL_TERMINAL_CWD_KEY),
         getSetting(SCREENSHOT_SAVE_DIR_KEY),
+        getClipboardHistorySettings(),
       ]);
       if (sh.isErr()) throw new Error(sh.error.message);
       if (scan.isErr()) throw new Error(scan.error.message);
@@ -92,6 +102,7 @@ export function useSettingsModel(props: UseSettingsModelProps) {
       if (pt.isErr()) throw new Error(pt.error.message);
       if (gtc.isErr()) throw new Error(gtc.error.message);
       if (ssd.isErr()) throw new Error(ssd.error.message);
+      if (clip.isErr()) throw new Error(clip.error.message);
 
       const tunnelR = await checkTunnelAvailable();
       setPortlessAvailable(tunnelR.isOk() ? tunnelR.value : false);
@@ -111,6 +122,7 @@ export function useSettingsModel(props: UseSettingsModelProps) {
         portlessTls: pt.value === "true",
         globalTerminalCwd: gtc.value ?? "",
         screenshotSaveDir: ssd.value ?? "",
+        clipboard: clip.value,
       };
     },
   }));
@@ -180,6 +192,10 @@ export function useSettingsModel(props: UseSettingsModelProps) {
       setPortlessTls(d.portlessTls);
       setGlobalTerminalCwd(d.globalTerminalCwd);
       setScreenshotSaveDir(d.screenshotSaveDir);
+      setClipboardEnabled(d.clipboard.enabled);
+      setClipboardMaxEntries(String(d.clipboard.maxEntries));
+      setClipboardDedupSeconds(String(d.clipboard.dedupSeconds));
+      setClipboardShowSource(d.clipboard.showSource);
     }
   });
 
@@ -192,6 +208,19 @@ export function useSettingsModel(props: UseSettingsModelProps) {
         toast.error(stableErrorMessage(props.t, asR.error), { id: "settings" });
         return;
       }
+      const clipSettings: ClipboardHistorySettingsDto = {
+        enabled: clipboardEnabled(),
+        maxEntries: Math.max(1, Number.parseInt(clipboardMaxEntries(), 10) || 200),
+        maxImageBytes: 5 * 1024 * 1024,
+        dedupSeconds: Math.max(0, Number.parseInt(clipboardDedupSeconds(), 10) || 2),
+        showSource: clipboardShowSource(),
+      };
+      const clipR = await setClipboardHistorySettings(clipSettings);
+      if (clipR.isErr()) {
+        toast.error(stableErrorMessage(props.t, clipR.error), { id: "settings" });
+        return;
+      }
+
       for (const [key, val] of [
         [SHELL_KEY, shellPath()],
         [SCAN_KEY, scanMinutes().trim() || "0"],
@@ -413,6 +442,14 @@ export function useSettingsModel(props: UseSettingsModelProps) {
     setGlobalTerminalCwd,
     screenshotSaveDir,
     setScreenshotSaveDir,
+    clipboardEnabled,
+    setClipboardEnabled,
+    clipboardMaxEntries,
+    setClipboardMaxEntries,
+    clipboardDedupSeconds,
+    setClipboardDedupSeconds,
+    clipboardShowSource,
+    setClipboardShowSource,
     busy,
     onSave,
     onGithubDeviceSignIn,

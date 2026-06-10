@@ -36,6 +36,14 @@ export type GeneralSettingsTabProps = Readonly<{
   setGlobalTerminalCwd: (v: string) => void;
   screenshotSaveDir: string;
   setScreenshotSaveDir: (v: string) => void;
+  clipboardEnabled: boolean;
+  setClipboardEnabled: (v: boolean) => void;
+  clipboardMaxEntries: string;
+  setClipboardMaxEntries: (v: string) => void;
+  clipboardDedupSeconds: string;
+  setClipboardDedupSeconds: (v: string) => void;
+  clipboardShowSource: boolean;
+  setClipboardShowSource: (v: boolean) => void;
   busy: boolean;
   onExport: () => void;
   onOpenAppDataDir?: () => void;
@@ -305,6 +313,77 @@ export const GeneralSettingsTab: Component<GeneralSettingsTabProps> = (props) =>
               </p>
             </div>
           </div>
+        </div>
+      </section>
+
+      <section class="space-y-4">
+        <div class="space-y-1">
+          <h3 class="text-sm font-bold uppercase tracking-wider text-primary/80">{props.t("settings.clipboardHistoryTitle")}</h3>
+          <p class="text-xs text-muted-foreground">
+            {props.t("settings.clipboardHistoryDescription")}
+          </p>
+        </div>
+        <div class="grid gap-6">
+          <div class="flex items-start space-x-3">
+            <Checkbox
+              id="clipboard-enabled"
+              checked={props.clipboardEnabled}
+              onChange={(checked) => props.setClipboardEnabled(checked)}
+            />
+            <div class="grid gap-1.5 leading-none pt-0.5">
+              <Label for="clipboard-enabled" class="text-sm font-medium leading-none cursor-pointer">
+                {props.t("settings.clipboardHistoryEnabled")}
+              </Label>
+            </div>
+          </div>
+          <div class="grid gap-2">
+            <label class="text-[10px] font-bold text-muted-foreground uppercase tracking-widest">
+              {props.t("settings.clipboardHistoryMaxEntries")}
+            </label>
+            <TextField>
+              <TextFieldInput
+                type="number"
+                min={10}
+                max={1000}
+                class="bg-muted/30"
+                value={props.clipboardMaxEntries}
+                onInput={(e) => props.setClipboardMaxEntries(e.currentTarget.value)}
+                disabled={props.busy || !props.clipboardEnabled}
+              />
+            </TextField>
+          </div>
+          <div class="grid gap-2">
+            <label class="text-[10px] font-bold text-muted-foreground uppercase tracking-widest">
+              {props.t("settings.clipboardHistoryDedup")}
+            </label>
+            <TextField>
+              <TextFieldInput
+                type="number"
+                min={0}
+                max={60}
+                class="bg-muted/30"
+                value={props.clipboardDedupSeconds}
+                onInput={(e) => props.setClipboardDedupSeconds(e.currentTarget.value)}
+                disabled={props.busy || !props.clipboardEnabled}
+              />
+            </TextField>
+          </div>
+          <div class="flex items-start space-x-3">
+            <Checkbox
+              id="clipboard-show-source"
+              checked={props.clipboardShowSource}
+              onChange={(checked) => props.setClipboardShowSource(checked)}
+              disabled={!props.clipboardEnabled}
+            />
+            <div class="grid gap-1.5 leading-none pt-0.5">
+              <Label for="clipboard-show-source" class="text-sm font-medium leading-none cursor-pointer">
+                {props.t("settings.clipboardHistoryShowSource")}
+              </Label>
+            </div>
+          </div>
+          <p class="text-[10px] text-muted-foreground">
+            {props.t("settings.clipboardHistoryAutostartNote")}
+          </p>
         </div>
       </section>
 

@@ -45,6 +45,7 @@ export default defineConfig(async () => ({
       input: {
         main: path.resolve(__dirname, "index.html"),
         "screenshot-overlay": path.resolve(__dirname, "screenshot-overlay.html"),
+        "clipboard-overlay": path.resolve(__dirname, "clipboard-overlay.html"),
       },
     },
   },

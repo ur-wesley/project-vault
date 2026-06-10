@@ -142,6 +142,14 @@ export const SettingsView: Component<SettingsViewProps> = (props) => {
                 setGlobalTerminalCwd={model.setGlobalTerminalCwd}
                 screenshotSaveDir={model.screenshotSaveDir()}
                 setScreenshotSaveDir={model.setScreenshotSaveDir}
+                clipboardEnabled={model.clipboardEnabled()}
+                setClipboardEnabled={model.setClipboardEnabled}
+                clipboardMaxEntries={model.clipboardMaxEntries()}
+                setClipboardMaxEntries={model.setClipboardMaxEntries}
+                clipboardDedupSeconds={model.clipboardDedupSeconds()}
+                setClipboardDedupSeconds={model.setClipboardDedupSeconds}
+                clipboardShowSource={model.clipboardShowSource()}
+                setClipboardShowSource={model.setClipboardShowSource}
                 busy={model.busy()}
                 onExport={model.onExport}
                 onOpenAppDataDir={onOpenAppDataDir}

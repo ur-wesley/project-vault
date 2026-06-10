@@ -7,6 +7,7 @@ export type ShortcutAction =
   | "sidebar:toggle"
   | "new-project:open"
   | "screenshot:capture"
+  | "clipboard-history:open"
   | "notification-center:toggle"
   | "project-tab:1"
   | "project-tab:2"
@@ -27,6 +28,7 @@ export const DEFAULT_SHORTCUTS: Record<ShortcutAction, string[]> = {
   "sidebar:toggle": ["Control", "b"],
   "new-project:open": [],
   "screenshot:capture": ["Control", "Shift", "s"],
+  "clipboard-history:open": ["Control", "Shift", "v"],
   "notification-center:toggle": ["Control", "Shift", "n"],
   "project-tab:1": ["Control", "1"],
   "project-tab:2": ["Control", "2"],
@@ -46,6 +48,7 @@ export const SHORTCUT_ACTION_LABEL_KEYS: Record<ShortcutAction, string> = {
   "sidebar:toggle": "settings.shortcutsLabelSidebar",
   "new-project:open": "settings.shortcutsLabelNewProject",
   "screenshot:capture": "settings.shortcutsLabelScreenshot",
+  "clipboard-history:open": "settings.shortcutsLabelClipboardHistory",
   "notification-center:toggle": "settings.shortcutsLabelNotificationCenter",
   "project-tab:1": "settings.shortcutsLabelProjectTab1",
   "project-tab:2": "settings.shortcutsLabelProjectTab2",
@@ -59,7 +62,7 @@ export const SHORTCUT_ACTION_LABEL_KEYS: Record<ShortcutAction, string> = {
 };
 
 export function isGlobalHotkeyAction(action: string): boolean {
-  return action === "screenshot:capture";
+  return action === "screenshot:capture" || action === "clipboard-history:open";
 }
 
 export function isAppShortcutAction(action: string): boolean {

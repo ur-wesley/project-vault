@@ -97,7 +97,6 @@ export const ShortcutsSettingsTab: Component<ShortcutsSettingsTabProps> = (props
       "locations:open",
       "sidebar:toggle",
       "new-project:open",
-      "screenshot:capture",
       "notification-center:toggle",
       "project-tab:1",
       "project-tab:2",
@@ -124,6 +123,17 @@ export const ShortcutsSettingsTab: Component<ShortcutsSettingsTabProps> = (props
   const hotkeyRows = (): ShortcutRow[] => {
     const list: ShortcutRow[] = [];
     const all = shortcuts.bindings();
+
+    const globalActions: ShortcutAction[] = ["screenshot:capture", "clipboard-history:open"];
+    for (const action of globalActions) {
+      const labelKey = SHORTCUT_ACTION_LABEL_KEYS[action];
+      list.push({
+        action,
+        label: labelKey ? (props.t(labelKey) ?? action) : action,
+        keys: all[action] ?? [],
+        group: "hotkey",
+      });
+    }
 
     for (const action of Object.keys(all)) {
       if (!action.startsWith("plugin:")) continue;

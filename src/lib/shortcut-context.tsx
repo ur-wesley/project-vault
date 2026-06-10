@@ -17,6 +17,7 @@ import {
 } from "./shortcut-registry";
 import { register, unregister, isRegistered } from "@tauri-apps/plugin-global-shortcut";
 import { isTauri } from "@tauri-apps/api/core";
+import { captureClipboardOverlayAnchor } from "~/services/tauri/clipboard-history";
 
 interface ShortcutContextValue {
   bindings: () => Record<string, string[]>;
@@ -161,7 +162,17 @@ export const ShortcutProvider: ParentComponent = (props) => {
         try {
           const ok = await register(shortcut, (event: { state: string }) => {
             if (event.state === "Pressed") {
-              hub.emit("shortcut:action", { action });
+              const emit = () => hub.emit("shortcut:action", { action });
+              if (action === "clipboard-history:open") {
+                void captureClipboardOverlayAnchor().then((result) => {
+                  if (result.isErr()) {
+                    console.warn("[ShortcutContext] caret capture failed:", result.error);
+                  }
+                  emit();
+                });
+                return;
+              }
+              emit();
             }
           }).then(
             () => true,

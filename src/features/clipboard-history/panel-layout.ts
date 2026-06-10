@@ -1,0 +1,2 @@
+export const CLIPBOARD_PANEL_WIDTH = 520;
+export const CLIPBOARD_PANEL_HEIGHT = 400;

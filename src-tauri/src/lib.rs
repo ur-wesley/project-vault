@@ -12,6 +12,7 @@ pub mod lua;
 mod ide;
 pub mod location_watcher;
 pub mod git_watcher;
+pub mod clipboard_history;
 pub mod models;
 pub mod project_move;
 pub mod search;
@@ -82,6 +83,12 @@ pub fn run() {
                             sql: include_str!("../migrations/007_issues.sql"),
                             kind: MigrationKind::Up,
                         },
+                        Migration {
+                            version: 8,
+                            description: "clipboard_history",
+                            sql: include_str!("../migrations/008_clipboard_history.sql"),
+                            kind: MigrationKind::Up,
+                        },
                     ],
                 )
                 .build(),
@@ -114,6 +121,7 @@ pub fn run() {
         .manage(crate::spawn::ProjectIdeSessions::default())
         .manage(crate::spawn::TaskMonitors::default())
         .manage(crate::tunnel::TunnelState::default())
+        .manage(std::sync::Arc::new(crate::clipboard_history::ClipboardWatcherState::new()))
         .setup(|app| {
             #[cfg(windows)]
             if let Err(e) = crate::notifications::register_windows_notifications(app.handle()) {
@@ -260,7 +268,8 @@ pub fn run() {
             let git_watcher = crate::git_watcher::GitWatcher::new(handle.clone());
             app.manage(git_watcher);
 
-            crate::search::background::start_background_scanner(handle, 15);
+            crate::search::background::start_background_scanner(handle.clone(), 15);
+            crate::clipboard_history::start_watcher(handle);
             Ok(())
         })
         .invoke_handler(tauri::generate_handler![
@@ -370,6 +379,19 @@ pub fn run() {
             commands::screenshot::capture_region,
             commands::screenshot::save_screenshot,
             commands::screenshot::pick_screenshot_directory,
+            commands::clipboard_history::list_clipboard_history,
+            commands::clipboard_history::delete_clipboard_entry,
+            commands::clipboard_history::clear_clipboard_history,
+            commands::clipboard_history::update_clipboard_entry,
+            commands::clipboard_history::toggle_clipboard_pin,
+            commands::clipboard_history::apply_clipboard_entry,
+            commands::clipboard_history::get_clipboard_history_settings,
+            commands::clipboard_history::set_clipboard_history_settings,
+            commands::clipboard_history::save_clipboard_foreground_window,
+            commands::clipboard_history::capture_clipboard_overlay_anchor,
+            commands::clipboard_history::get_clipboard_overlay_position,
+            commands::clipboard_history::get_clipboard_entry_thumbnail,
+            commands::clipboard_history::close_clipboard_overlay,
             commands::updater::check_for_updates,
             commands::updater::install_update,
             commands::issues::list_issues,
