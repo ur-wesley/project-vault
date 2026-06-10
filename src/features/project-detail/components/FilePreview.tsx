@@ -467,7 +467,7 @@ export function FilePreview(props: {
                                   </div>
                                 }
                               >
-                                <div class="pv-github-readme mx-auto w-full max-w-3xl pt-2 pb-6 px-4">
+                                <div class="pv-github-readme w-full pt-2 pb-6 px-4">
                                   <article class="markdown-body !bg-transparent" innerHTML={c().markdownHtml!} />
                                 </div>
                               </Show>

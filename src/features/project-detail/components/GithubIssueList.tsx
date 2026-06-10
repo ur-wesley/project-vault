@@ -38,7 +38,7 @@ export function GithubIssueList(props: {
 }) {
   return (
     <div class="flex h-full flex-col min-h-0">
-      <div class="mx-auto w-full max-w-3xl flex flex-col h-full min-h-0">
+      <div class="w-full flex flex-col h-full min-h-0">
         <div class="mb-4 flex flex-col gap-3 border-b border-border/50 pb-4 shrink-0">
           <div class="flex items-center justify-between">
             <div class="flex items-center gap-3">

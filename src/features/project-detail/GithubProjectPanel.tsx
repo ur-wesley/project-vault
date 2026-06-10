@@ -273,7 +273,7 @@ export const GithubProjectPanel: Component<{
 
   return (
     <div ref={containerRef} class="flex h-full min-h-0 min-w-0 flex-1 flex-col">
-      <div class="mx-auto w-full max-w-3xl px-1 shrink-0">
+      <div class="w-full px-1 shrink-0">
         <Show when={mutationError()}>
           <div class="mb-4 flex items-center justify-between rounded-md border border-destructive/40 bg-destructive/10 px-3 py-2 text-xs text-destructive animate-in fade-in slide-in-from-top-2">
             <div class="flex items-center gap-2">
@@ -331,7 +331,7 @@ export const GithubProjectPanel: Component<{
                   </div>
                 </Show>
                 <Show when={readmeQ.isSuccess && readmeQ.data != null}>
-                  <div class="pv-github-readme mx-auto w-full max-w-3xl pt-4">
+                  <div class="pv-github-readme w-full pt-4">
                     <article class="markdown-body !bg-transparent" innerHTML={readmeQ.data!} />
                   </div>
                 </Show>

@@ -20,7 +20,7 @@ export type GithubIssueDetailProps = Readonly<{
 export const GithubIssueDetail: Component<GithubIssueDetailProps> = (props) => {
   return (
     <div class="flex h-full flex-col min-h-0">
-      <div class="mx-auto w-full max-w-3xl flex h-full flex-col min-h-0 animate-in fade-in slide-in-from-right-4 duration-300">
+      <div class="w-full flex h-full flex-col min-h-0 animate-in fade-in slide-in-from-right-4 duration-300">
         <div class="mb-4 flex items-center justify-between border-b border-border/50 pb-3 shrink-0">
           <Button
             variant="ghost"

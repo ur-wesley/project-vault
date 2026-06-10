@@ -63,7 +63,7 @@ export const IssueMarkdown: Component<IssueMarkdownProps> = (props) => {
   });
 
   return (
-    <div ref={containerRef} class="mx-auto w-full max-w-3xl prose prose-sm dark:prose-invert">
+    <div ref={containerRef} class="w-full prose prose-sm dark:prose-invert">
        <Show when={html()} fallback={<p class="animate-pulse text-muted-foreground text-xs">{t('common.rendering') as string}</p>}>
           <article class="markdown-body !bg-transparent !p-0" innerHTML={html()!} />
        </Show>
