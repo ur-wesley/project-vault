@@ -6,6 +6,7 @@ import { MoveProjectDialog } from "./components/MoveProjectDialog";
 import { MiseToolsSuggestion } from "./components/MiseToolsSuggestion";
 import { ProjectDetailBanners } from "./components/ProjectDetailBanners";
 import { ProjectDetailHeader } from "./components/ProjectDetailHeader";
+import { ProjectDetailShortcutListener } from "./components/ProjectDetailShortcutListener";
 import { ProjectMainTabs } from "./components/ProjectMainTabs";
 import { RiskConfirmDialog } from "./components/RiskConfirmDialog";
 import { createProjectDetailModel } from "./model/createProjectDetailModel";
@@ -16,6 +17,10 @@ const ProjectDetailView: Component<ProjectDetailViewProps> = (props) => {
   const model = createProjectDetailModel(props);
   return (
     <div class="flex min-h-0 flex-1 flex-col gap-3">
+      <ProjectDetailShortcutListener
+        detailTab={props.detailTab}
+        onDetailTabChange={props.onDetailTabChange}
+      />
       <ProjectDetailBanners model={model} />
       <ProjectDetailHeader model={model} />
       <Show when={model.projectQ.isPending}>

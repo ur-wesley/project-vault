@@ -3,12 +3,15 @@ import {
   createSignal,
   createEffect,
   createMemo,
+  onCleanup,
   type Component,
 } from "solid-js";
 
 import { Badge } from "~/components/ui/badge";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "~/components/ui/tabs";
+import { useEventHub } from "~/lib/event-hub-context";
 import { useI18n } from "~/lib/i18n-context";
+import { useShortcuts } from "~/lib/shortcut-context";
 import { useSidebar } from "~/components/ui/sidebar";
 import { cn } from "~/lib/utils";
 
@@ -27,8 +30,27 @@ type ProjectMainTabsProps = Readonly<{
 
 export const ProjectMainTabs: Component<ProjectMainTabsProps> = (props) => {
   const { t } = useI18n();
+  const hub = useEventHub();
+  const shortcuts = useShortcuts();
   const sidebar = useSidebar();
   const m = () => props.model;
+
+  let tabsListRef: HTMLDivElement | undefined;
+
+  const tabShortcutTitle = (index: number, label: string) => {
+    const binding = shortcuts.format(`project-tab:${index}`);
+    return binding ? `${label} (${binding})` : label;
+  };
+
+  createEffect(() => {
+    const unsub = hub.on("terminal:blurred", () => {
+      const list = tabsListRef;
+      if (!list) return;
+      const selected = list.querySelector<HTMLElement>("[data-selected]");
+      selected?.focus();
+    });
+    onCleanup(unsub);
+  });
 
   const activeCount = createMemo(() => (m().activeSessionsQ.data ?? []).filter((s) => !s.command?.startsWith("IDE: ")).length);
   const [terminalFullscreen, setTerminalFullscreen] = createSignal(false);
@@ -68,19 +90,35 @@ export const ProjectMainTabs: Component<ProjectMainTabsProps> = (props) => {
     >
       <div class="mx-auto flex w-full max-w-6xl flex-1 flex-col min-h-0 px-4">
         <Show when={!terminalFullscreen()}>
-          <TabsList class="h-9 w-full shrink-0 justify-start bg-muted/60 flex p-1">
-            <TabsTrigger value="readme" class="flex-1 text-xs font-semibold">
+          <TabsList
+            ref={tabsListRef}
+            class="h-9 w-full shrink-0 justify-start bg-muted/60 flex p-1"
+          >
+            <TabsTrigger
+              value="readme"
+              class="flex-1 text-xs font-semibold"
+              title={tabShortcutTitle(1, t("projectDetail.tabReadme") as string)}
+            >
               {t("projectDetail.tabReadme") as string}
             </TabsTrigger>
-            <TabsTrigger value="issues" class="flex-1 text-xs font-semibold">
+            <TabsTrigger
+              value="issues"
+              class="flex-1 text-xs font-semibold"
+              title={tabShortcutTitle(2, t("projectDetail.tabIssues") as string)}
+            >
               {t("projectDetail.tabIssues") as string}
             </TabsTrigger>
-            <TabsTrigger value="files" class="flex-1 text-xs font-semibold">
+            <TabsTrigger
+              value="files"
+              class="flex-1 text-xs font-semibold"
+              title={tabShortcutTitle(3, t("projectDetail.tabFiles") as string)}
+            >
               {t("projectDetail.tabFiles") as string}
             </TabsTrigger>
             <TabsTrigger
               value="tasks"
               class="flex-1 text-xs font-semibold gap-2"
+              title={tabShortcutTitle(4, t("projectDetail.tabTasks") as string)}
             >
               {t("projectDetail.tabTasks") as string}
               <Show when={activeCount() > 0}>
@@ -96,6 +134,7 @@ export const ProjectMainTabs: Component<ProjectMainTabsProps> = (props) => {
             <TabsTrigger
               value="terminal"
               class="flex-1 text-xs font-semibold gap-2"
+              title={tabShortcutTitle(5, t("projectDetail.tabTerminal") as string)}
             >
               {t("projectDetail.tabTerminal") as string}
               <Show when={m().terminalInstances().length > 0}>
@@ -108,7 +147,11 @@ export const ProjectMainTabs: Component<ProjectMainTabsProps> = (props) => {
                 </Badge>
               </Show>
             </TabsTrigger>
-            <TabsTrigger value="history" class="flex-1 text-xs font-semibold">
+            <TabsTrigger
+              value="history"
+              class="flex-1 text-xs font-semibold"
+              title={tabShortcutTitle(6, t("projectDetail.tabHistory") as string)}
+            >
               {t("projectDetail.tabHistory") as string}
             </TabsTrigger>
           </TabsList>

@@ -11,6 +11,8 @@ function createAppEventHub() {
     "session:started": createEventBus<{ sessionId: string; projectId: string }>(),
     "session:ended": createEventBus<{ sessionId: string }>(),
     "shortcut:action": createEventBus<ShortcutActionPayload>(),
+    "terminal:focus": createEventBus<void>(),
+    "terminal:blurred": createEventBus<void>(),
     "ui:open-plugins-settings": createEventBus<void>(),
   });
 }

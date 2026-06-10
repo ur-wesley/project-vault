@@ -98,6 +98,16 @@ export const ShortcutsSettingsTab: Component<ShortcutsSettingsTabProps> = (props
       "sidebar:toggle",
       "new-project:open",
       "screenshot:capture",
+      "notification-center:toggle",
+      "project-tab:1",
+      "project-tab:2",
+      "project-tab:3",
+      "project-tab:4",
+      "project-tab:5",
+      "project-tab:6",
+      "project-tab:next",
+      "project-tab:prev",
+      "project-terminal:focus",
     ];
     for (const action of knownAppActions) {
       const labelKey = SHORTCUT_ACTION_LABEL_KEYS[action];

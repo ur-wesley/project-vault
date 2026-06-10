@@ -1,4 +1,15 @@
-const TAB_VALUES = new Set(["readme", "issues", "files", "tasks", "terminal", "history"]);
+export const PROJECT_DETAIL_TABS = [
+  "readme",
+  "issues",
+  "files",
+  "tasks",
+  "terminal",
+  "history",
+] as const;
+
+export type ProjectDetailTab = (typeof PROJECT_DETAIL_TABS)[number];
+
+const TAB_VALUES = new Set<string>(PROJECT_DETAIL_TABS);
 
 export const PROJECTS_PATH_PREFIX = "/projects";
 export const SETTINGS_PATH = "/settings";

@@ -15,6 +15,7 @@ import {
 
 import "@xterm/xterm/css/xterm.css";
 
+import { useEventHub } from "~/lib/event-hub-context";
 import { useI18n } from "~/lib/i18n-context";
 import { stableErrorMessage } from "~/lib/invoke-error";
 import {
@@ -41,6 +42,7 @@ import {
 import type { Result } from "neverthrow";
 
 const WEB_LINK_REGEX = /https?:\/\/[^\s"<>|`{}[\]^]+/g;
+const ESC_BLUR_WINDOW_MS = 450;
 
 function registerTauriWebLinks(term: XTermTerminal): { dispose: () => void } {
   const provider: ILinkProvider = {
@@ -114,6 +116,7 @@ export function TerminalHost(props: {
   onProcessExit?: (id: string, hasContent: boolean) => void;
 }) {
   const active = createMemo(() => props.isActivePane && props.activeId() === props.instance.id);
+  const hub = useEventHub();
   const { t } = useI18n();
   const [container, setContainer] = createSignal<HTMLDivElement | null>(null);
   const [terminalReady, setTerminalReady] = createSignal(false);
@@ -159,6 +162,25 @@ export function TerminalHost(props: {
   });
 
   createEffect(() => {
+    const unsubFocus = hub.on("terminal:focus", () => {
+      if (!active() || !terminalReady()) return;
+      const currentTerm = term;
+      if (!currentTerm?.element) return;
+
+      requestAnimationFrame(() => {
+        window.setTimeout(() => {
+          if (!active() || !currentTerm.element) return;
+          if (currentTerm.element.offsetParent !== null) {
+            currentTerm.focus();
+            repaintTerminal(currentTerm, fit, doResize);
+          }
+        }, 150);
+      });
+    });
+    onCleanup(unsubFocus);
+  });
+
+  createEffect(() => {
     const node = container();
     if (!node) return;
 
@@ -191,6 +213,7 @@ export function TerminalHost(props: {
     let linkProvider: { dispose: () => void } | null = null;
     let cleanupOnKeyDown: ((e: KeyboardEvent) => void) | null = null;
     let detachWindowRepaint: (() => void) | undefined;
+    let lastEscAt = 0;
     const existingSid = attachSid ?? existingSessionId;
     let sid = existingSid;
 
@@ -209,6 +232,20 @@ export function TerminalHost(props: {
       term.loadAddon(fit);
       linkProvider = registerTauriWebLinks(term);
       term.open(node);
+
+      term.attachCustomKeyEventHandler((event) => {
+        if (event.type !== "keydown" || event.key !== "Escape") return true;
+        const now = Date.now();
+        if (now - lastEscAt < ESC_BLUR_WINDOW_MS) {
+          lastEscAt = 0;
+          event.preventDefault();
+          term!.blur();
+          hub.emit("terminal:blurred");
+          return false;
+        }
+        lastEscAt = now;
+        return true;
+      });
 
       cleanupOnKeyDown = (e: KeyboardEvent) => {
         const isPaste = (e.ctrlKey || e.metaKey) && (e.key === "v" || e.key === "V");
