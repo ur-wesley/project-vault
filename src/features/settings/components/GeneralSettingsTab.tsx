@@ -94,7 +94,7 @@ export const GeneralSettingsTab: Component<GeneralSettingsTabProps> = (props) =>
             {props.t("settings.interfaceDescription")}
           </p>
         </div>
-        <div class="grid gap-6 max-w-sm">
+        <div class="grid gap-6">
           <div class="grid gap-2">
             <label class="text-[10px] font-bold text-muted-foreground uppercase tracking-widest">
               {props.t("settings.language")}
@@ -315,7 +315,7 @@ export const GeneralSettingsTab: Component<GeneralSettingsTabProps> = (props) =>
             {props.t("settings.portlessDescription")}
           </p>
         </div>
-        <div class="grid gap-6 max-w-sm">
+        <div class="grid gap-6">
           <Show when={!props.portlessAvailable}>
             <div class="rounded-md bg-muted/50 p-3">
               <p class="text-xs text-muted-foreground">

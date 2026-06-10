@@ -27,7 +27,7 @@ export const AccountsSettingsTab: Component<AccountsSettingsTabProps> = (props) 
           </p>
         </div>
 
-        <div class="grid gap-6 max-w-sm">
+        <div class="grid gap-6">
           <div class="flex flex-col gap-3">
             <div class="flex flex-wrap items-center gap-3">
               <Show when={props.ghViewerQ.data} fallback={

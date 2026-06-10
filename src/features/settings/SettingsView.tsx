@@ -85,42 +85,40 @@ export const SettingsView: Component<SettingsViewProps> = (props) => {
       </header>
 
       <div class="flex-1 overflow-hidden px-6 py-6">
-        <div class="mx-auto max-w-2xl h-full flex flex-col gap-6">
+        <div class="mx-auto w-full max-w-6xl h-full flex flex-col gap-6">
           <Tabs
             value={props.activeTab}
             onChange={props.onTabChange}
             class="flex flex-1 flex-col overflow-hidden"
           >
-            <div class="mb-6 min-w-0 shrink-0 overflow-x-auto overflow-y-hidden">
-              <TabsList class="inline-flex w-max min-w-full justify-start bg-muted/40 p-1">
-                <TabsTrigger value="general" class="shrink-0 font-semibold text-xs uppercase tracking-wider">
-                  {t("settings.tabGeneral") as string}
-                </TabsTrigger>
-                <TabsTrigger value="locations" class="shrink-0 font-semibold text-xs uppercase tracking-wider">
-                  {t("settings.tabLocations") as string}
-                </TabsTrigger>
-                <TabsTrigger value="tools" class="shrink-0 font-semibold text-xs uppercase tracking-wider">
-                  {t("settings.tabTools") as string}
-                </TabsTrigger>
-                <TabsTrigger value="shortcuts" class="shrink-0 font-semibold text-xs uppercase tracking-wider">
-                  {t("settings.tabShortcuts") as string}
-                </TabsTrigger>
-                <TabsTrigger value="templates" class="shrink-0 font-semibold text-xs uppercase tracking-wider">
-                  {t("settings.tabTemplates") as string}
-                </TabsTrigger>
-                <TabsTrigger value="plugins" class="shrink-0 font-semibold text-xs uppercase tracking-wider">
-                  {t("settings.tabPlugins") as string ?? "Plugins"}
-                </TabsTrigger>
-                <TabsTrigger value="accounts" class="shrink-0 font-semibold text-xs uppercase tracking-wider">
-                  {t("settings.tabAccounts") as string}
-                </TabsTrigger>
-                <TabsTrigger value="notifications" class="shrink-0 font-semibold text-xs uppercase tracking-wider">
-                  {t("settings.tabNotifications") as string}
-                </TabsTrigger>
-              </TabsList>
-            </div>
+            <TabsList class="mb-6 h-9 w-full shrink-0 flex justify-start bg-muted/40 p-1">
+              <TabsTrigger value="general" class="flex-1 text-xs font-semibold uppercase tracking-wider">
+                {t("settings.tabGeneral") as string}
+              </TabsTrigger>
+              <TabsTrigger value="locations" class="flex-1 text-xs font-semibold uppercase tracking-wider">
+                {t("settings.tabLocations") as string}
+              </TabsTrigger>
+              <TabsTrigger value="tools" class="flex-1 text-xs font-semibold uppercase tracking-wider">
+                {t("settings.tabTools") as string}
+              </TabsTrigger>
+              <TabsTrigger value="shortcuts" class="flex-1 text-xs font-semibold uppercase tracking-wider">
+                {t("settings.tabShortcuts") as string}
+              </TabsTrigger>
+              <TabsTrigger value="templates" class="flex-1 text-xs font-semibold uppercase tracking-wider">
+                {t("settings.tabTemplates") as string}
+              </TabsTrigger>
+              <TabsTrigger value="plugins" class="flex-1 text-xs font-semibold uppercase tracking-wider">
+                {t("settings.tabPlugins") as string ?? "Plugins"}
+              </TabsTrigger>
+              <TabsTrigger value="accounts" class="flex-1 text-xs font-semibold uppercase tracking-wider">
+                {t("settings.tabAccounts") as string}
+              </TabsTrigger>
+              <TabsTrigger value="notifications" class="flex-1 text-xs font-semibold uppercase tracking-wider">
+                {t("settings.tabNotifications") as string}
+              </TabsTrigger>
+            </TabsList>
 
-            <div class="flex-1 overflow-y-auto px-1 pr-2 scrollbar-none">
+            <div class="w-full flex-1 overflow-y-auto scrollbar-none">
               <GeneralSettingsTab
                 t={tAny}
                 selectedLocale={model.selectedLocale()}

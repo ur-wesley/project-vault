@@ -70,7 +70,7 @@ export const ToolsSettingsTab: Component<ToolsSettingsTabProps> = (props) => {
             {props.t("settings.externalAppsDescription")}
           </p>
         </div>
-        <div class="grid gap-6 max-w-sm">
+        <div class="grid gap-6">
           <div class="grid gap-2">
             <label class="text-[10px] font-bold text-muted-foreground uppercase tracking-widest">
               {props.t("settings.defaultIde")}
