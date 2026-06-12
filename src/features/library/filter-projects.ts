@@ -1,10 +1,13 @@
 import type { ProjectDto } from "~/types/dto";
 
+const TOUCHED_WINDOW_MS = 10 * 24 * 60 * 60 * 1000;
+
 export function filterProjectList(
   projects: readonly ProjectDto[],
   filter: string,
   search: string,
   githubLogin?: string | null,
+  nowMs: number = Date.now(),
 ): ProjectDto[] {
   let list = [...projects];
   if (filter === "favorites") {
@@ -15,6 +18,14 @@ export function filterProjectList(
       .sort((a, b) => {
         if (a.favorite !== b.favorite) return a.favorite ? -1 : 1;
         return (b.lastOpenedAtMs ?? 0) - (a.lastOpenedAtMs ?? 0);
+      });
+  } else if (filter === "touched-10d") {
+    const cutoff = nowMs - TOUCHED_WINDOW_MS;
+    list = list
+      .filter((p) => p.lastEditedAtMs != null && p.lastEditedAtMs >= cutoff)
+      .sort((a, b) => {
+        if (a.favorite !== b.favorite) return a.favorite ? -1 : 1;
+        return (b.lastEditedAtMs ?? 0) - (a.lastEditedAtMs ?? 0);
       });
   } else if (filter === "git") {
     list = list.filter((p) => p.tags.includes("git"));
