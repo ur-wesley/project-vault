@@ -75,6 +75,7 @@ const en = {
     openLocations: "Locations",
     filterLabel: "Filter",
     filterAll: "All projects",
+    filterTouched10d: "Last 10 days",
     filterFavorites: "Favorites",
     filterRecent: "Recently opened",
     filterLocations: "Library folder",

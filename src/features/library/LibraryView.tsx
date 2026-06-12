@@ -166,6 +166,11 @@ export function LibraryView(props: {
     const list = [
       { id: "all", label: t("library.filterAll"), icon: "mdi--apps" },
       {
+        id: "touched-10d",
+        label: t("library.filterTouched10d"),
+        icon: "mdi--clock-edit-outline",
+      },
+      {
         id: "favorites",
         label: t("library.filterFavorites"),
         icon: "mdi--star",
@@ -235,12 +240,12 @@ export function LibraryView(props: {
                 variant="outline"
                 size="sm"
                 class={cn(
-                  "h-8 gap-1.5 text-xs lg:hidden",
+                  "h-8 gap-1.5 text-xs lg:hidden whitespace-nowrap",
                   hasActiveFilters() && "border-primary text-primary",
                 )}
               >
                 <span class="iconify mdi--filter-outline size-3.5" />
-                <span>{activeFilterLabel()}</span>
+                <span class="whitespace-nowrap">{activeFilterLabel()}</span>
                 <Show when={hasActiveFilters()}>
                   <span class="ml-0.5 size-1.5 rounded-full bg-primary" />
                 </Show>
@@ -256,7 +261,7 @@ export function LibraryView(props: {
                         <button
                           type="button"
                           class={cn(
-                            "flex h-7 items-center gap-1.5 rounded-md px-2.5 text-[11px] font-medium transition-all",
+                            "flex h-7 items-center gap-1.5 rounded-md px-2.5 text-[11px] font-medium transition-all whitespace-nowrap",
                             props.filter() === chip.id
                               ? "bg-primary text-primary-foreground"
                               : "bg-muted text-muted-foreground hover:bg-muted/80 hover:text-foreground",
@@ -330,7 +335,7 @@ export function LibraryView(props: {
               <button
                 type="button"
                 class={cn(
-                  "flex h-7 items-center gap-1.5 rounded-md px-3 text-[11px] font-medium transition-all active:scale-95",
+                  "flex h-7 items-center gap-1.5 rounded-md px-3 text-[11px] font-medium transition-all active:scale-95 whitespace-nowrap",
                   props.filter() === chip.id
                     ? "bg-primary text-primary-foreground shadow-sm"
                     : "bg-muted/50 text-muted-foreground hover:bg-muted hover:text-foreground border border-border/40",

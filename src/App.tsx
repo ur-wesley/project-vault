@@ -88,7 +88,7 @@ function App() {
   const globalTerminal = getGlobalTerminalStore();
   const screenshot = useScreenshot();
   const [librarySearch, setLibrarySearch] = createSignal("");
-  const [libraryFilter, setLibraryFilter] = createSignal("all");
+  const [libraryFilter, setLibraryFilter] = createSignal("touched-10d");
   const [wizardOpen, setWizardOpen] = createSignal(false);
   const initialUrl = readAppUrl();
   const [activeView, setActiveView] = createSignal<"library" | "project" | "processes" | "settings">(
@@ -310,6 +310,7 @@ function App() {
   const filterOptions = createMemo((): ProjectFilterOption[] => {
     const out: ProjectFilterOption[] = [
       { value: "all", label: t("library.filterAll") as string, textValue: `all ${t("library.filterAll")}` },
+      { value: "touched-10d", label: t("library.filterTouched10d") as string, textValue: `touched ${t("library.filterTouched10d")}` },
       { value: "favorites", label: t("library.filterFavorites") as string, textValue: `favorites ${t("library.filterFavorites")}` },
       { value: "recent", label: t("library.filterRecent") as string, textValue: `recent ${t("library.filterRecent")}` },
       { value: "git", label: "Git", textValue: "git" },
