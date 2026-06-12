@@ -9,7 +9,8 @@ use crate::lua::loader::{
     PluginCommandMetadata, PluginInfo, PluginManager, PluginRegistryEntry, load_specs,
     load_registry_entries, merge_registry_into_lazy_config, registry_entry_to_spec,
     enrich_spec_from_repo_init, repo_slug, topological_sort_specs, write_specs_to_file,
-    PLUGIN_REGISTRY_FILE, OFFICIAL_PLUGINS_REPO,
+    PLUGIN_REGISTRY_FILE, OFFICIAL_PLUGINS_REPO, plugin_init_path, parse_plugin_init_metadata_str,
+    read_plugin_init_metadata,
 };
 use crate::lua::plugin_install::resolve_plugin_deps;
 use crate::lua::vendor::{restore_vendor_lockfile, sync_vendor_lockfile};
@@ -568,7 +569,34 @@ pub async fn check_plugin_updates(app: AppHandle) -> Result<Vec<String>, StableE
         };
 
         if behind {
-            updateable.push(spec.id.clone());
+            let local_init_path = plugin_init_path(&p_dir, &spec);
+            let mut is_update = true;
+
+            if let Ok(rel_path) = local_init_path.strip_prefix(&path) {
+                let rel_path_str = rel_path.to_string_lossy().replace('\\', "/");
+                let mut show_cmd = git_command();
+                show_cmd.current_dir(&path)
+                    .arg("show")
+                    .arg(format!("@{{u}}:{}", rel_path_str));
+
+                if let Ok(out) = run_git(show_cmd).await {
+                    if out.status.success() {
+                        if let Ok(upstream_content) = String::from_utf8(out.stdout) {
+                            let upstream_meta = parse_plugin_init_metadata_str(&upstream_content, None);
+                            let local_meta = read_plugin_init_metadata(&local_init_path);
+                            if let (Some(up_ver), Some(loc_ver)) = (upstream_meta.version, local_meta.version) {
+                                if up_ver == loc_ver {
+                                    is_update = false;
+                                }
+                            }
+                        }
+                    }
+                }
+            }
+
+            if is_update {
+                updateable.push(spec.id.clone());
+            }
         }
     }
 

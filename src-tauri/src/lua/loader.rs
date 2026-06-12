@@ -313,18 +313,15 @@ fn parse_templates_from_table(lua: &mlua::Lua, table: &mlua::Table) -> Option<Ve
     }
 }
 
-pub fn read_plugin_init_metadata(init_path: &Path) -> PluginInitMetadata {
+pub fn parse_plugin_init_metadata_str(content: &str, current_plugin_root: Option<String>) -> PluginInitMetadata {
     let mut meta = PluginInitMetadata::default();
-    if !init_path.is_file() {
-        return meta;
-    }
     let Ok(lua) = LuaEngine::create_instance() else {
         return meta;
     };
-    if let Some(parent) = init_path.parent() {
+    if let Some(root) = current_plugin_root {
         let _ = lua.globals().set(
             "__current_plugin_root",
-            parent.to_string_lossy().to_string(),
+            root,
         );
     }
     if let Ok(vault_tbl) = lua.globals().get::<mlua::Table>("vault") {
@@ -341,15 +338,8 @@ pub fn read_plugin_init_metadata(init_path: &Path) -> PluginInitMetadata {
             let _ = vault_tbl.set("external", e);
         }
     }
-    let Ok(content) = std::fs::read_to_string(init_path) else {
-        return meta;
-    };
     let chunk = format!("return (function()\n{}\nend)()", content);
     let Ok(mlua::Value::Table(table)) = lua.load(&chunk).eval() else {
-        eprintln!(
-            "[plugins] failed to evaluate init metadata from {}",
-            init_path.display()
-        );
         return meta;
     };
     if let Ok(n) = table.get::<String>("name") {
@@ -386,6 +376,24 @@ pub fn read_plugin_init_metadata(init_path: &Path) -> PluginInitMetadata {
     meta.dependencies = parse_plugin_dependencies(&table);
     meta.externals = parse_external_dependencies(&table);
     meta.templates = parse_templates_from_table(&lua, &table);
+    meta
+}
+
+pub fn read_plugin_init_metadata(init_path: &Path) -> PluginInitMetadata {
+    if !init_path.is_file() {
+        return PluginInitMetadata::default();
+    }
+    let Ok(content) = std::fs::read_to_string(init_path) else {
+        return PluginInitMetadata::default();
+    };
+    let parent = init_path.parent().map(|p| p.to_string_lossy().to_string());
+    let meta = parse_plugin_init_metadata_str(&content, parent);
+    if meta.name.is_none() && meta.version.is_none() {
+        eprintln!(
+            "[plugins] failed to evaluate init metadata from {}",
+            init_path.display()
+        );
+    }
     meta
 }
 
