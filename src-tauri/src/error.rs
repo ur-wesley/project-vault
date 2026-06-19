@@ -40,6 +40,7 @@ pub mod codes {
     pub const GITHUB_DEVICE_REQUEST: &str = "GITHUB_DEVICE_REQUEST";
     pub const GITHUB_DEVICE_TIMEOUT: &str = "GITHUB_DEVICE_TIMEOUT";
     pub const GITHUB_DEVICE_DENIED: &str = "GITHUB_DEVICE_DENIED";
+    pub const EMPTY_SELECTION: &str = "EMPTY_SELECTION";
 }
 
 // ---------------------------------------------------------------------------

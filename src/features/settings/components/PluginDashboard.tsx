@@ -4,6 +4,7 @@ import { invoke, isTauri } from "@tauri-apps/api/core";
 import { listen } from "@tauri-apps/api/event";
 import { Button } from "~/components/ui/button";
 import { PluginDocsDialog } from "./PluginDocsDialog";
+import { MonorepoInstallDialog, type MonorepoDiscovery } from "./MonorepoInstallDialog";
 import { Checkbox } from "~/components/ui/checkbox";
 import { Badge } from "~/components/ui/badge";
 import { useNotificationCenter } from "~/lib/notification-center";
@@ -50,6 +51,20 @@ interface PluginInfo {
   dir?: string;
   dependencies: string[];
   externals: string[];
+}
+
+interface DiscoveredPlugin {
+  id: string;
+  name: string | null;
+  description: string | null;
+  version: string | null;
+  category: string | null;
+}
+
+interface DiscoveredRepo {
+  repo: string;
+  slug: string;
+  entries: DiscoveredPlugin[];
 }
 
 function asPluginOptionList(value: unknown): { id: string; label: string }[] {
@@ -107,6 +122,9 @@ export const PluginDashboard: Component<{ t: (key: string, params?: Record<strin
   const [configValues, setConfigValues] = createSignal<Record<string, Record<string, string>>>({});
   const [officialRepo, setOfficialRepo] = createSignal("https://github.com/ur-wesley/pv-plugins");
   const [docsOpen, setDocsOpen] = createSignal(false);
+
+  const [discovery, setDiscovery] = createSignal<MonorepoDiscovery | null>(null);
+  const [discoveredRepos, setDiscoveredRepos] = createSignal<DiscoveredRepo[]>([]);
 
   const officialPluginsInstalled = createMemo(() => {
     const repo = officialRepo().replace(/\.git$/, "").replace(/\/$/, "");
@@ -267,6 +285,17 @@ export const PluginDashboard: Component<{ t: (key: string, params?: Record<strin
     void queryClient.invalidateQueries({ queryKey: ["plugins", "updates"] });
   };
 
+  const refreshDiscoveries = async () => {
+    if (!isTauri()) return;
+    try {
+      const list = await invoke<DiscoveredRepo[]>("get_pending_discoveries");
+      setDiscoveredRepos(list ?? []);
+    } catch (e) {
+      console.error("Failed to fetch discoveries:", e);
+      setDiscoveredRepos([]);
+    }
+  };
+
   const handleUpdatePlugin = async (pluginId: string) => {
     setBusy(true);
     center.notify({
@@ -343,22 +372,52 @@ export const PluginDashboard: Component<{ t: (key: string, params?: Record<strin
     }
   };
 
-  // Install custom plugin
+  // Install from a Git URL — first discovers what the repo offers, then either
+  // opens the multi-select picker (monorepo with >1 entry) or installs directly.
   const handleInstallGit = async (repoUrl: string) => {
     if (!repoUrl.trim()) return;
     setBusy(true);
-    center.notify({
-      severity: "info",
-      title: props.t("pluginsDashboard.notifyInstalling"),
-      body: props.t("pluginsDashboard.notifyInstallingDesc", { url: repoUrl }),
-      durationMs: 3000,
-    });
     try {
-      await invoke("install_plugin_git", {
+      const info = await invoke<MonorepoDiscovery>("discover_monorepo", {
         repo: repoUrl.trim(),
         branch: null,
         tag: null,
         commit: null,
+      });
+      if (info.kind === "monorepo" && info.entries.length > 1) {
+        setDiscovery(info);
+        return;
+      }
+      await commitInstall(info, info.entries.map((e) => e.id));
+      setCustomRepoUrl("");
+    } catch (e: unknown) {
+      center.notify({
+        severity: "error",
+        title: props.t("pluginsDashboard.notifyInstallFailed"),
+        body: e instanceof Error ? e.message : String(e),
+        durationMs: 6000,
+      });
+    } finally {
+      setBusy(false);
+    }
+  };
+
+  const commitInstall = async (info: MonorepoDiscovery, selectedIds: string[]) => {
+    if (selectedIds.length === 0) return;
+    setBusy(true);
+    center.notify({
+      severity: "info",
+      title: props.t("pluginsDashboard.notifyInstalling"),
+      body: props.t("pluginsDashboard.notifyInstallingDesc", { url: info.repo }),
+      durationMs: 3000,
+    });
+    try {
+      await invoke("install_plugin_git", {
+        repo: info.repo,
+        branch: info.branch ?? null,
+        tag: info.tag ?? null,
+        commit: info.commit ?? null,
+        selectedIds,
       });
       center.notify({
         severity: "success",
@@ -366,8 +425,40 @@ export const PluginDashboard: Component<{ t: (key: string, params?: Record<strin
         body: props.t("pluginsDashboard.notifyInstalledSuccessDesc"),
         durationMs: 4000,
       });
-      setCustomRepoUrl("");
+      setDiscovery(null);
       await fetchPlugins();
+      await refreshDiscoveries();
+    } catch (e: unknown) {
+      center.notify({
+        severity: "error",
+        title: props.t("pluginsDashboard.notifyInstallFailed"),
+        body: e instanceof Error ? e.message : String(e),
+        durationMs: 6000,
+      });
+    } finally {
+      setBusy(false);
+    }
+  };
+
+  const handleInstallDiscovered = async (repo: DiscoveredRepo, pluginIds: string[]) => {
+    if (pluginIds.length === 0) return;
+    setBusy(true);
+    try {
+      await invoke("install_plugin_git", {
+        repo: repo.repo,
+        branch: null,
+        tag: null,
+        commit: null,
+        selectedIds: pluginIds,
+      });
+      center.notify({
+        severity: "success",
+        title: props.t("pluginsDashboard.notifyInstalledSuccess"),
+        body: props.t("pluginsDashboard.notifyInstalledSuccessDesc"),
+        durationMs: 4000,
+      });
+      await fetchPlugins();
+      await refreshDiscoveries();
     } catch (e: unknown) {
       center.notify({
         severity: "error",
@@ -522,16 +613,25 @@ export const PluginDashboard: Component<{ t: (key: string, params?: Record<strin
 
   onMount(() => {
     let unlistenReload: (() => void) | undefined;
+    let unlistenDiscoveries: (() => void) | undefined;
     void listen("plugin:reload", () => {
       void fetchPlugins();
+      void refreshDiscoveries();
     }).then((fn) => {
       unlistenReload = fn;
     });
+    void listen("plugin:discoveries", () => {
+      void refreshDiscoveries();
+    }).then((fn) => {
+      unlistenDiscoveries = fn;
+    });
     onCleanup(() => {
       unlistenReload?.();
+      unlistenDiscoveries?.();
     });
 
     void fetchPlugins();
+    void refreshDiscoveries();
 
     void invoke<string>("get_official_plugins_repo")
       .then((repo) => setOfficialRepo(repo))
@@ -1056,6 +1156,88 @@ export const PluginDashboard: Component<{ t: (key: string, params?: Record<strin
 
       {/* Store & Installation registry */}
       <TabsContent value="store" class="mt-0 space-y-6 outline-none">
+        {/* Discovered section */}
+        <Show when={discoveredRepos().length > 0}>
+          <div class="flex flex-col gap-2 p-4 rounded-lg border border-amber-500/30 bg-amber-500/5">
+            <div class="flex items-center justify-between">
+              <h5 class="text-xs font-bold text-amber-400 uppercase tracking-wider">
+                {props.t("pluginsDashboard.discoveredSectionTitle")}
+              </h5>
+              <span class="rounded bg-amber-500/15 px-1.5 py-0.5 text-[9px] font-bold text-amber-400 uppercase font-mono tracking-wider">
+                {discoveredRepos().reduce((acc, r) => acc + r.entries.length, 0)}
+              </span>
+            </div>
+            <p class="text-[10px] text-muted-foreground/80 leading-normal">
+              {props.t("pluginsDashboard.discoveredSectionSubtitle")}
+            </p>
+            <div class="space-y-3 mt-1">
+              <For each={discoveredRepos()}>
+                {(repo) => (
+                  <div class="border border-muted/40 bg-background/60 rounded-md p-3 space-y-2">
+                    <div class="flex items-center justify-between gap-2">
+                      <div class="min-w-0">
+                        <div class="text-xs font-bold text-foreground truncate">{repo.slug}</div>
+                        <div class="text-[10px] font-mono text-muted-foreground/70 truncate" title={repo.repo}>
+                          {repo.repo}
+                        </div>
+                      </div>
+                      <Button
+                        size="sm"
+                        variant="outline"
+                        disabled={busy()}
+                        onClick={() => void handleInstallDiscovered(repo, repo.entries.map((e) => e.id))}
+                        class="h-7 px-3 text-[10px] font-bold focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2"
+                      >
+                        <span class="iconify mdi--download size-3.5 shrink-0" aria-hidden="true" />
+                        {props.t("pluginsDashboard.discoveredInstallAllBtn")}
+                      </Button>
+                    </div>
+                    <div class="divide-y divide-muted/30 border border-muted/30 rounded">
+                      <For each={repo.entries}>
+                        {(entry) => (
+                          <div class="flex items-start gap-3 p-2">
+                            <div class="min-w-0 flex-1">
+                              <div class="flex items-center gap-2 flex-wrap">
+                                <span class="text-xs font-bold text-foreground">
+                                  {entry.name || entry.id}
+                                </span>
+                                <Show when={entry.version}>
+                                  <span class="rounded bg-muted/40 px-1.5 py-0.5 text-[9px] font-mono text-muted-foreground border border-muted/30">
+                                    v{entry.version}
+                                  </span>
+                                </Show>
+                                <Show when={entry.category}>
+                                  <span class="rounded bg-primary/10 px-1.5 py-0.5 text-[9px] font-bold text-primary uppercase font-mono tracking-wider">
+                                    {entry.category}
+                                  </span>
+                                </Show>
+                              </div>
+                              <Show when={entry.description}>
+                                <p class="text-[10px] text-muted-foreground/80 mt-0.5 leading-normal">
+                                  {entry.description}
+                                </p>
+                              </Show>
+                            </div>
+                            <Button
+                              size="sm"
+                              variant="ghost"
+                              disabled={busy()}
+                              onClick={() => void handleInstallDiscovered(repo, [entry.id])}
+                              class="h-6 px-2 text-[10px] font-bold"
+                            >
+                              {props.t("pluginsDashboard.discoveredInstallBtn")}
+                            </Button>
+                          </div>
+                        )}
+                      </For>
+                    </div>
+                  </div>
+                )}
+              </For>
+            </div>
+          </div>
+        </Show>
+
         {/* Custom Git installer input */}
         <div class="flex flex-col gap-2 p-4 rounded-lg border border-muted/50 bg-muted/5">
           <h5 class="text-xs font-bold text-foreground">{props.t("pluginsDashboard.customInstallTitle")}</h5>
@@ -1270,6 +1452,18 @@ export const PluginDashboard: Component<{ t: (key: string, params?: Record<strin
         open={docsOpen()}
         onOpenChange={setDocsOpen}
         t={props.t}
+      />
+
+      <MonorepoInstallDialog
+        t={props.t}
+        discovery={discovery()}
+        busy={busy()}
+        onCancel={() => setDiscovery(null)}
+        onInstall={async (selectedIds) => {
+          const info = discovery();
+          if (!info) return;
+          await commitInstall(info, selectedIds);
+        }}
       />
   </div>
   );

@@ -1,5 +1,6 @@
 use std::collections::{HashSet, HashMap};
 use std::path::{Path, PathBuf};
+use serde::{Deserialize, Serialize};
 use tauri::{AppHandle, Manager, State, Emitter};
 use tauri_plugin_sql::DbInstances;
 
@@ -10,7 +11,7 @@ use crate::lua::loader::{
     load_registry_entries, merge_registry_into_lazy_config, registry_entry_to_spec,
     enrich_spec_from_repo_init, repo_slug, topological_sort_specs, write_specs_to_file,
     PLUGIN_REGISTRY_FILE, OFFICIAL_PLUGINS_REPO, plugin_init_path, parse_plugin_init_metadata_str,
-    read_plugin_init_metadata,
+    read_plugin_init_metadata, diff_registry_against_specs,
 };
 use crate::lua::plugin_install::resolve_plugin_deps;
 use crate::lua::vendor::{restore_vendor_lockfile, sync_vendor_lockfile};
@@ -71,17 +72,18 @@ async fn pull_repo_at(path: &Path) -> Result<(), StableError> {
     Ok(())
 }
 
-fn merge_repo_registry_if_present(p_dir: &Path, repo: &str) -> Result<(), StableError> {
+fn merge_repo_registry_if_present(p_dir: &Path, repo: &str) -> Result<Vec<String>, StableError> {
     let target_path = repo_checkout_path(p_dir, repo);
     let registry_path = target_path.join(PLUGIN_REGISTRY_FILE);
     if !registry_path.is_file() {
-        return Ok(());
+        return Ok(Vec::new());
     }
     let registry_entries = load_registry_entries(&target_path);
     if registry_entries.is_empty() {
-        return Ok(());
+        return Ok(Vec::new());
     }
     let mut specs = load_specs(p_dir);
+    let discovered = diff_registry_against_specs(&registry_entries, &specs);
     merge_registry_into_lazy_config(&mut specs, registry_entries, repo, &target_path);
     let lazy_config_path = p_dir.join("lazy-config.luau");
     write_specs_to_file(&lazy_config_path, &specs).map_err(|e| {
@@ -90,10 +92,10 @@ fn merge_repo_registry_if_present(p_dir: &Path, repo: &str) -> Result<(), Stable
             format!("Failed to write lazy-config.luau: {}", e),
         )
     })?;
-    Ok(())
+    Ok(discovered)
 }
 
-async fn update_repo_checkout(p_dir: &Path, repo: &str) -> Result<(), StableError> {
+async fn update_repo_checkout(p_dir: &Path, repo: &str) -> Result<Vec<String>, StableError> {
     let path = repo_checkout_path(p_dir, repo);
     if !path.is_dir() {
         return Err(StableError::new(
@@ -102,8 +104,7 @@ async fn update_repo_checkout(p_dir: &Path, repo: &str) -> Result<(), StableErro
         ));
     }
     pull_repo_at(&path).await?;
-    merge_repo_registry_if_present(p_dir, repo)?;
-    Ok(())
+    merge_repo_registry_if_present(p_dir, repo)
 }
 
 async fn repo_is_behind_upstream(path: &Path) -> bool {
@@ -302,20 +303,17 @@ pub async fn get_tab_decorations(
     Ok(rx.await.map_err(|e| StableError::new(crate::error::codes::INTERNAL, format!("oneshot channel recv: {}", e)))?)
 }
 
-#[tauri::command]
-pub async fn install_plugin_git(
-    app: AppHandle,
-    repo: String,
-    branch: Option<String>,
-    tag: Option<String>,
-    commit: Option<String>,
-) -> Result<(), StableError> {
-    let p_dir = plugins_dir(&app);
-    let slug = repo_slug(&repo);
-    let target_path = repo_checkout_path(&p_dir, &repo);
+async fn ensure_repo_checkout(
+    p_dir: &Path,
+    repo: &str,
+    branch: Option<&str>,
+    tag: Option<&str>,
+    commit: Option<&str>,
+) -> Result<PathBuf, StableError> {
+    let target_path = repo_checkout_path(p_dir, repo);
 
-    if !repos_dir(&p_dir).is_dir() {
-        std::fs::create_dir_all(repos_dir(&p_dir)).map_err(|e| {
+    if !repos_dir(p_dir).is_dir() {
+        std::fs::create_dir_all(repos_dir(p_dir)).map_err(|e| {
             StableError::new(crate::error::codes::INTERNAL, format!("Failed to create repos dir: {}", e))
         })?;
     }
@@ -326,7 +324,7 @@ pub async fn install_plugin_git(
         let mut cmd = git_command();
         cmd.arg("clone")
             .arg("--filter=blob:none")
-            .arg(&repo)
+            .arg(repo)
             .arg(&target_path);
 
         let out = run_git(cmd).await?;
@@ -339,11 +337,149 @@ pub async fn install_plugin_git(
         }
     }
 
-    if let Some(ref_val) = branch.or(tag).or(commit.clone()) {
+    if let Some(ref_val) = branch.or(tag).or(commit) {
         let mut checkout = git_command();
         checkout.current_dir(&target_path).arg("checkout").arg(ref_val);
         let _ = run_git(checkout).await;
     }
+
+    Ok(target_path)
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct MonorepoEntryDto {
+    pub id: String,
+    pub dir: Option<String>,
+    pub name: Option<String>,
+    pub description: Option<String>,
+    pub version: Option<String>,
+    pub category: Option<String>,
+    pub existing: bool,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct MonorepoDiscoveryDto {
+    pub repo: String,
+    pub slug: String,
+    pub branch: Option<String>,
+    pub tag: Option<String>,
+    pub commit: Option<String>,
+    pub kind: String, // "monorepo" | "single"
+    pub entries: Vec<MonorepoEntryDto>,
+}
+
+fn enrich_entry_meta(target_path: &Path, entry: &PluginRegistryEntry, existing: bool) -> MonorepoEntryDto {
+    let dir = entry.dir.as_deref().unwrap_or(&entry.id);
+    let init_path = target_path.join(dir).join("init.luau");
+    let meta = read_plugin_init_metadata(&init_path);
+    MonorepoEntryDto {
+        id: entry.id.clone(),
+        dir: entry.dir.clone(),
+        name: meta.name,
+        description: meta.description,
+        version: meta.version,
+        category: meta.category,
+        existing,
+    }
+}
+
+#[tauri::command]
+pub async fn discover_monorepo(
+    app: AppHandle,
+    repo: String,
+    branch: Option<String>,
+    tag: Option<String>,
+    commit: Option<String>,
+) -> Result<MonorepoDiscoveryDto, StableError> {
+    let p_dir = plugins_dir(&app);
+    let slug = repo_slug(&repo);
+    let target_path = ensure_repo_checkout(
+        &p_dir,
+        &repo,
+        branch.as_deref(),
+        tag.as_deref(),
+        commit.as_deref(),
+    )
+    .await?;
+
+    let registry_path = target_path.join(PLUGIN_REGISTRY_FILE);
+    let root_init = target_path.join("init.luau");
+
+    let specs = load_specs(&p_dir);
+    let installed_ids: HashSet<String> = specs.iter().map(|s| s.id.clone()).collect();
+
+    if registry_path.is_file() {
+        let entries = load_registry_entries(&target_path);
+        if entries.is_empty() {
+            return Err(StableError::new(
+                crate::error::codes::INTERNAL,
+                format!("{} parsed to zero plugins", PLUGIN_REGISTRY_FILE),
+            ));
+        }
+        let dtos: Vec<MonorepoEntryDto> = entries
+            .iter()
+            .map(|e| {
+                let existing = installed_ids.contains(&e.id);
+                enrich_entry_meta(&target_path, e, existing)
+            })
+            .collect();
+        Ok(MonorepoDiscoveryDto {
+            repo,
+            slug,
+            branch,
+            tag,
+            commit,
+            kind: "monorepo".to_string(),
+            entries: dtos,
+        })
+    } else if root_init.is_file() {
+        let entry = PluginRegistryEntry {
+            id: slug.clone(),
+            dir: None,
+        };
+        let existing = installed_ids.contains(&entry.id);
+        let dto = enrich_entry_meta(&target_path, &entry, existing);
+        Ok(MonorepoDiscoveryDto {
+            repo,
+            slug,
+            branch,
+            tag,
+            commit,
+            kind: "single".to_string(),
+            entries: vec![dto],
+        })
+    } else {
+        Err(StableError::new(
+            crate::error::codes::NOT_FOUND,
+            format!(
+                "No {} or init.luau found at repository root",
+                PLUGIN_REGISTRY_FILE
+            ),
+        ))
+    }
+}
+
+#[tauri::command]
+pub async fn install_plugin_git(
+    app: AppHandle,
+    repo: String,
+    branch: Option<String>,
+    tag: Option<String>,
+    commit: Option<String>,
+    selected_ids: Option<Vec<String>>,
+) -> Result<(), StableError> {
+    let p_dir = plugins_dir(&app);
+    let slug = repo_slug(&repo);
+    let target_path = ensure_repo_checkout(
+        &p_dir,
+        &repo,
+        branch.as_deref(),
+        tag.as_deref(),
+        commit.as_deref(),
+    )
+    .await?;
 
     let registry_path = target_path.join(PLUGIN_REGISTRY_FILE);
     let root_init = target_path.join("init.luau");
@@ -359,7 +495,32 @@ pub async fn install_plugin_git(
                 format!("{} parsed to zero plugins", PLUGIN_REGISTRY_FILE),
             ));
         }
-        merge_registry_into_lazy_config(&mut specs, registry_entries, &repo, &target_path);
+
+        let filtered: Vec<PluginRegistryEntry> = match &selected_ids {
+            Some(ids) => {
+                if ids.is_empty() {
+                    return Err(StableError::new(
+                        crate::error::codes::EMPTY_SELECTION,
+                        "No plugins selected for installation",
+                    ));
+                }
+                let wanted: HashSet<&String> = ids.iter().collect();
+                registry_entries
+                    .into_iter()
+                    .filter(|e| wanted.contains(&e.id))
+                    .collect()
+            }
+            None => registry_entries,
+        };
+
+        if filtered.is_empty() {
+            return Err(StableError::new(
+                crate::error::codes::EMPTY_SELECTION,
+                "No matching plugins found in registry for the given selection",
+            ));
+        }
+
+        merge_registry_into_lazy_config(&mut specs, filtered, &repo, &target_path);
     } else if root_init.is_file() {
         let mut single = registry_entry_to_spec(
             &PluginRegistryEntry {
@@ -392,6 +553,76 @@ pub async fn install_plugin_git(
 
     let _ = app.emit("plugin:reload", ());
     Ok(())
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct DiscoveredPluginDto {
+    pub id: String,
+    pub name: Option<String>,
+    pub description: Option<String>,
+    pub version: Option<String>,
+    pub category: Option<String>,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct DiscoveredRepoDto {
+    pub repo: String,
+    pub slug: String,
+    pub entries: Vec<DiscoveredPluginDto>,
+}
+
+#[tauri::command]
+pub async fn get_pending_discoveries(app: AppHandle) -> Result<Vec<DiscoveredRepoDto>, StableError> {
+    let p_dir = plugins_dir(&app);
+    let specs = load_specs(&p_dir);
+    let installed_ids: HashSet<String> = specs.iter().map(|s| s.id.clone()).collect();
+
+    // Collect unique repo URLs from installed specs
+    let mut seen_slugs: HashMap<String, String> = HashMap::new();
+    for spec in &specs {
+        if let Some(ref repo) = spec.repo {
+            let slug = repo_slug(repo);
+            seen_slugs.entry(slug).or_insert_with(|| repo.clone());
+        }
+    }
+
+    let mut out: Vec<DiscoveredRepoDto> = Vec::new();
+    for (slug, repo) in seen_slugs {
+        let target_path = repo_checkout_path(&p_dir, &repo);
+        if !target_path.is_dir() {
+            continue;
+        }
+        let entries = load_registry_entries(&target_path);
+        if entries.is_empty() {
+            continue;
+        }
+        let mut discovered: Vec<DiscoveredPluginDto> = Vec::new();
+        for entry in &entries {
+            if installed_ids.contains(&entry.id) {
+                continue;
+            }
+            let dir = entry.dir.as_deref().unwrap_or(&entry.id);
+            let init_path = target_path.join(dir).join("init.luau");
+            let meta = read_plugin_init_metadata(&init_path);
+            discovered.push(DiscoveredPluginDto {
+                id: entry.id.clone(),
+                name: meta.name,
+                description: meta.description,
+                version: meta.version,
+                category: meta.category,
+            });
+        }
+        if !discovered.is_empty() {
+            out.push(DiscoveredRepoDto {
+                repo: repo.clone(),
+                slug,
+                entries: discovered,
+            });
+        }
+    }
+    Ok(out)
 }
 
 #[tauri::command]
@@ -619,7 +850,13 @@ pub async fn update_plugin_git(app: AppHandle, plugin_id: String) -> Result<(), 
             "Plugin has no git repository",
         )
     })?;
-    update_repo_checkout(&p_dir, repo).await?;
+    let discovered = update_repo_checkout(&p_dir, repo).await?;
+    if !discovered.is_empty() {
+        let _ = app.emit(
+            "plugin:discoveries",
+            serde_json::json!([{ "repo": repo, "slug": repo_slug(repo), "ids": discovered }]),
+        );
+    }
     let _ = app.emit("plugin:reload", ());
     Ok(())
 }
@@ -630,6 +867,7 @@ pub async fn update_all_plugins(app: AppHandle) -> Result<Vec<String>, StableErr
     let specs = load_specs(&p_dir);
     let mut seen_slugs: HashSet<String> = HashSet::new();
     let mut updated_slugs: HashSet<String> = HashSet::new();
+    let mut discovery_payload: Vec<serde_json::Value> = Vec::new();
 
     for spec in &specs {
         let repo = match &spec.repo {
@@ -644,8 +882,18 @@ pub async fn update_all_plugins(app: AppHandle) -> Result<Vec<String>, StableErr
         if !path.is_dir() || !repo_is_behind_upstream(&path).await {
             continue;
         }
-        if update_repo_checkout(&p_dir, repo).await.is_ok() {
-            updated_slugs.insert(slug);
+        match update_repo_checkout(&p_dir, repo).await {
+            Ok(discovered) => {
+                updated_slugs.insert(slug.clone());
+                if !discovered.is_empty() {
+                    discovery_payload.push(serde_json::json!({
+                        "repo": repo,
+                        "slug": slug,
+                        "ids": discovered,
+                    }));
+                }
+            }
+            Err(_) => {}
         }
     }
 
@@ -659,6 +907,9 @@ pub async fn update_all_plugins(app: AppHandle) -> Result<Vec<String>, StableErr
         .map(|s| s.id.clone())
         .collect();
 
+    if !discovery_payload.is_empty() {
+        let _ = app.emit("plugin:discoveries", discovery_payload);
+    }
     let _ = app.emit("plugin:reload", ());
     Ok(updated_ids)
 }

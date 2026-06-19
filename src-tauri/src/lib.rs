@@ -22,6 +22,7 @@ mod spawn;
 pub mod task_config;
 pub mod tunnel;
 pub mod mise_tools;
+mod screenshot_overlay;
 #[cfg(not(any(target_os = "android", target_os = "ios")))]
 mod tools;
 
@@ -379,6 +380,7 @@ pub fn run() {
             commands::screenshot::capture_region,
             commands::screenshot::save_screenshot,
             commands::screenshot::pick_screenshot_directory,
+            commands::screenshot::select_region,
             commands::clipboard_history::list_clipboard_history,
             commands::clipboard_history::delete_clipboard_entry,
             commands::clipboard_history::clear_clipboard_history,
@@ -420,6 +422,8 @@ pub fn run() {
             commands::plugins::open_plugins_dir,
             commands::plugins::refresh_plugins_from_repos,
             commands::plugins::install_plugin_git,
+            commands::plugins::discover_monorepo,
+            commands::plugins::get_pending_discoveries,
             commands::plugins::uninstall_plugin,
             commands::plugins::sync_lockfile,
             commands::plugins::restore_from_lockfile,

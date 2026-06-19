@@ -11,6 +11,7 @@ import { useRealtimeProjects } from "./lib/use-realtime-projects";
 import { LivePlaytimeProvider } from "./lib/live-playtime-context";
 import { NotificationCenterProvider } from "./lib/notification-center";
 import { PluginUpdatesNotificationHost } from "./components/PluginUpdatesNotificationHost";
+import { PluginDiscoveriesHost } from "./components/PluginDiscoveriesHost";
 import { getPluginLogStore } from "./lib/plugin-log-store";
 import { queryKeys } from "./services/query-keys";
 
@@ -64,6 +65,7 @@ render(
               <NotificationCenterProvider>
                 <LivePlaytimeProvider>
                   <PluginUpdatesNotificationHost />
+                  <PluginDiscoveriesHost />
                   <App />
                 </LivePlaytimeProvider>
               </NotificationCenterProvider>

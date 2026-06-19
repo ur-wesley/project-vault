@@ -218,6 +218,21 @@ pub fn load_registry_entries(repo_root: &Path) -> Vec<PluginRegistryEntry> {
     parse_registry_file(&registry_path).unwrap_or_default()
 }
 
+/// Compare a registry's entry ids against the currently installed specs and
+/// return the subset of ids that are NOT yet present. Used by update flows to
+/// surface newly-discovered plugins without auto-installing them.
+pub fn diff_registry_against_specs(
+    entries: &[PluginRegistryEntry],
+    specs: &[PluginSpec],
+) -> Vec<String> {
+    let existing: HashSet<String> = specs.iter().map(|s| s.id.clone()).collect();
+    entries
+        .iter()
+        .filter(|e| !existing.contains(&e.id))
+        .map(|e| e.id.clone())
+        .collect()
+}
+
 pub fn registry_entry_to_spec(entry: &PluginRegistryEntry, repo_url: &str) -> PluginSpec {
     PluginSpec {
         id: entry.id.clone(),
