@@ -233,6 +233,9 @@ export const ProjectMainTabs: Component<ProjectMainTabsProps> = (props) => {
                 onUpdateSessionId={(id, sessionId) =>
                   m().updateTerminalSessionId(id, sessionId)
                 }
+                onUpdateName={(id, command) =>
+                  m().updateTerminalName(id, command)
+                }
                 onExternalShell={() => void m().onShell(props.project().id)}
                 fullscreen={terminalFullscreen()}
                 onToggleFullscreen={() => setTerminalFullscreen((v) => !v)}

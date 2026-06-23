@@ -300,6 +300,7 @@ export function createProjectDetailModel(props: ProjectDetailViewProps) {
     closeFinishedTerminals: terminal.closeFinishedTerminals,
     selectTerminal: terminal.selectTerminal,
     updateTerminalSessionId: terminal.updateTerminalSessionId,
+    updateTerminalName: terminal.updateTerminalName,
     onOpenIde: ide.onOpenIde,
     onStopIde: ide.onStopIde,
     onOpenProjectInFileManager,

@@ -3,6 +3,7 @@ import { createRoot, createEffect, createSignal } from "solid-js";
 export type GlobalTerminalInstance = {
   id: string;
   name: string;
+  defaultName?: string;
   shell?: string;
   icon?: string;
   sessionId?: string;
@@ -35,6 +36,7 @@ function savePersistedState(instances: readonly GlobalTerminalInstance[], active
       instances: instances.map((inst) => ({
         id: inst.id,
         name: inst.name,
+        defaultName: inst.defaultName,
         shell: inst.shell,
         icon: inst.icon,
         sessionId: inst.sessionId,

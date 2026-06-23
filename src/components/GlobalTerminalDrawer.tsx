@@ -79,7 +79,7 @@ export function GlobalTerminalDrawer() {
 
     const id = crypto.randomUUID();
     store.setInstances((current) => [
-      { id, name: label, shell: targetShell, icon },
+      { id, name: label, defaultName: label, shell: targetShell, icon },
       ...current.filter((item) => item.id !== id),
     ]);
     store.setActiveId(id);
@@ -121,6 +121,16 @@ export function GlobalTerminalDrawer() {
         item.sessionId = sessionId;
       }
       return [...current];
+    });
+  };
+
+  const updateInstanceName = (id: string, command: string) => {
+    store.setInstances((current) => {
+      const item = current.find((i) => i.id === id);
+      if (!item || item.attachSessionId) return current;
+      const nextName = command.trim() || item.defaultName || item.name;
+      if (item.name === nextName) return current;
+      return current.map((i) => (i.id === id ? { ...i, name: nextName } : i));
     });
   };
 
@@ -286,6 +296,7 @@ export function GlobalTerminalDrawer() {
                       void closeInstance(id);
                     }
                   }}
+                  onCommandEntered={updateInstanceName}
                 />
               )}
             </For>

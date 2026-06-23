@@ -25,11 +25,12 @@ export function useProjectTerminal(props: UseProjectTerminalProps) {
   const terminalInstances = createMemo(() => store().instances());
   const activeTerminalId = createMemo(() => store().activeId());
 
-  const openTerminal = (instance: Pick<EmbeddedTerminalInstance, "name" | "shell" | "icon">) => {
+  const openTerminal = (instance: Pick<EmbeddedTerminalInstance, "name" | "defaultName" | "shell" | "icon">) => {
     const id = crypto.randomUUID();
     const nextInstance: EmbeddedTerminalInstance = {
       id,
       name: instance.name,
+      defaultName: instance.name,
       shell: instance.shell,
       icon: instance.icon,
     };
@@ -44,6 +45,16 @@ export function useProjectTerminal(props: UseProjectTerminalProps) {
         item.sessionId = sessionId;
       }
       return [...current];
+    });
+  };
+
+  const updateTerminalName = (id: string, command: string) => {
+    store().setInstances((current) => {
+      const item = current.find((i) => i.id === id);
+      if (!item || item.attachSessionId) return current;
+      const nextName = command.trim() || item.defaultName || item.name;
+      if (item.name === nextName) return current;
+      return current.map((i) => (i.id === id ? { ...i, name: nextName } : i));
     });
   };
 
@@ -146,6 +157,7 @@ export function useProjectTerminal(props: UseProjectTerminalProps) {
     closeFinishedTerminals,
     selectTerminal,
     updateTerminalSessionId,
+    updateTerminalName,
     attachToTask,
   };
 }

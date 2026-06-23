@@ -21,6 +21,7 @@ export function saveTerminalState(
       instances: instances.map((inst) => ({
         id: inst.id,
         name: inst.name,
+        defaultName: inst.defaultName,
         shell: inst.shell,
         icon: inst.icon,
         sessionId: inst.sessionId,

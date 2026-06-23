@@ -40,11 +40,12 @@ export function EmbeddedTerminalPane(props: {
   instances: Accessor<readonly EmbeddedTerminalInstance[]>;
   activeId: Accessor<string | null>;
   finishedCount: Accessor<number>;
-  onOpenTerminal: (instance: Pick<EmbeddedTerminalInstance, "name" | "shell" | "icon">) => void;
+  onOpenTerminal: (instance: Pick<EmbeddedTerminalInstance, "name" | "defaultName" | "shell" | "icon">) => void;
   onCloseTerminal: (id: string) => void | Promise<void>;
   onCloseFinishedTerminals: () => void;
   onSelectTerminal: (id: string) => void;
   onUpdateSessionId: (id: string, sessionId: string) => void;
+  onUpdateName?: (id: string, command: string) => void;
   onExternalShell?: () => void;
   fullscreen?: boolean;
   onToggleFullscreen?: () => void;
@@ -78,6 +79,7 @@ export function EmbeddedTerminalPane(props: {
 
     props.onOpenTerminal({
       name: label,
+      defaultName: label,
       shell: targetShell,
       icon,
     });
@@ -85,6 +87,10 @@ export function EmbeddedTerminalPane(props: {
 
   const closeInstance = (id: string) => {
     void props.onCloseTerminal(id);
+  };
+
+  const updateInstanceName = (id: string, command: string) => {
+    props.onUpdateName?.(id, command);
   };
 
   return (
@@ -228,12 +234,13 @@ export function EmbeddedTerminalPane(props: {
                 spawnFn={(shell) => embeddedTerminalSpawn(props.projectId, shell)}
                 onSessionId={(id, sid) => props.onUpdateSessionId(id, sid)}
                 onError={(err) => toast.error(err)}
-                onProcessExit={(id, hasContent) => {
-                  if (!hasContent) {
-                    void props.onCloseTerminal(id);
-                  }
-                }}
-              />
+                  onProcessExit={(id, hasContent) => {
+                    if (!hasContent) {
+                      void props.onCloseTerminal(id);
+                    }
+                  }}
+                  onCommandEntered={updateInstanceName}
+                />
             )}
           </For>
           <Show when={props.instances().length === 0}>
