@@ -464,6 +464,11 @@ export function FileTree(props: {
       unlisten = await listen<{ projectId: string }>("index:built", (ev) => {
         if (ev.payload.projectId === props.projectId) {
           void indexMetaQ.refetch();
+          // Re-run an in-flight search so the result list reflects the
+          // freshly-built index without the user having to retype.
+          if (activeQuery().trim().length > 0) {
+            void searchQ.refetch();
+          }
         }
       });
     })();
@@ -534,10 +539,18 @@ export function FileTree(props: {
 
   const isSearching = () => activeQuery().trim().length > 0;
 
+  // Sort by score (highest first) and include path-only matches. The backend
+  // is the source of truth for what counts as a hit; the frontend only orders.
   const filteredHits = createMemo(() => {
     const data = searchQ.data;
     if (!data) return [];
-    return data.filter((h) => h.lineNumbers.length > 0);
+    return [...data].sort((a, b) => b.score - a.score);
+  });
+
+  const topScore = createMemo(() => {
+    const data = searchQ.data;
+    if (!data || data.length === 0) return 0;
+    return Math.max(...data.map((h) => h.score));
   });
 
   const onResultClick = (path: string, line: number) => {
@@ -745,6 +758,7 @@ export function FileTree(props: {
                         <SearchResultItem
                           hit={hit}
                           rootPath={props.rootPath}
+                          topScore={topScore()}
                           onClick={onResultClick}
                         />
                       )}
