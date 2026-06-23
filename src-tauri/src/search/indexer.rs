@@ -4,9 +4,15 @@ use std::path::Path;
 use std::time::SystemTime;
 
 use ignore::WalkBuilder;
+use tantivy::collector::TopDocs;
+use tantivy::query::TermQuery;
+use tantivy::schema::IndexRecordOption;
 use tantivy::{doc, Index, IndexWriter, Term};
 
-use crate::search::{guess_language, is_binary, open_index, SearchSchema, ALWAYS_SKIP, DEFAULT_MAX_FILE_SIZE};
+use crate::search::{
+    guess_language, is_binary, open_index, write_schema_version, SearchSchema, ALWAYS_SKIP,
+    DEFAULT_MAX_FILE_SIZE,
+};
 use crate::error::{codes, StableError};
 
 /// Metadata about a project's search index.
@@ -86,6 +92,9 @@ pub fn build_project_index(
         StableError::new(codes::INTERNAL, format!("failed to commit index: {e}"))
     })?;
 
+    // Persist the schema version so the next `open_index` can verify compatibility.
+    write_schema_version(app_data_dir, project_id);
+
     let meta = index_meta(app_data_dir, project_id)?;
     Ok(IndexMeta {
         indexed_files,
@@ -100,6 +109,10 @@ fn index_single_file(
     project_path: &Path,
     file_path: &Path,
 ) -> Result<(), StableError> {
+    let meta = fs::metadata(file_path).map_err(|e| {
+        StableError::new(codes::INTERNAL, format!("metadata read failed: {e}"))
+    })?;
+
     let data = fs::read(file_path).map_err(|e| {
         StableError::new(codes::INTERNAL, format!("read failed: {e}"))
     })?;
@@ -120,10 +133,37 @@ fn index_single_file(
 
     let language = guess_language(file_path);
 
+    let basename = file_path
+        .file_name()
+        .and_then(|n| n.to_str())
+        .unwrap_or("")
+        .to_lowercase();
+
+    // Tokenise the path: split on `/`, `.`, `_`, `-`, drop empty fragments.
+    let path_token_str: String = rel_path
+        .split(|c: char| c == '/' || c == '.' || c == '_' || c == '-')
+        .filter(|s| !s.is_empty())
+        .collect::<Vec<_>>()
+        .join(" ");
+
+    let mtime_ms = meta
+        .modified()
+        .ok()
+        .and_then(|m| m.duration_since(SystemTime::UNIX_EPOCH).ok())
+        .map(|d| d.as_millis() as u64)
+        .unwrap_or(0);
+
+    let size_bytes = meta.len();
+
     let doc = doc!(
-        schema.path => rel_path,
+        schema.path => rel_path.clone(),
+        schema.path_full => rel_path,
+        schema.path_basename => basename,
+        schema.path_tokens => path_token_str,
         schema.content => text,
         schema.language => language,
+        schema.mtime => mtime_ms,
+        schema.size => size_bytes,
     );
 
     writer.add_document(doc).map_err(|e| {
@@ -148,6 +188,7 @@ pub fn remove_file_from_index(
         StableError::new(codes::INTERNAL, format!("failed to create index writer: {e}"))
     })?;
 
+    // Target the `path` field (STRING | STORED) which holds the raw relative path.
     let term = Term::from_field_text(schema.path, rel_path);
     writer.delete_term(term);
 
@@ -158,7 +199,26 @@ pub fn remove_file_from_index(
     Ok(())
 }
 
+/// Read the stored mtime for a given relative path, or `None` if missing.
+///
+/// The mtime lookup is best-effort: a `Tantivy` error here is non-fatal — we
+/// treat it as "unknown mtime" and force a re-index.
+fn read_doc_mtime(index: &Index, schema: &SearchSchema, rel_path: &str) -> Option<u64> {
+    let reader = index.reader().ok()?;
+    let searcher = reader.searcher();
+    let term = Term::from_field_text(schema.path, rel_path);
+    let term_query = TermQuery::new(term, IndexRecordOption::Basic);
+    let top = searcher.search(&term_query, &TopDocs::with_limit(1)).ok()?;
+    let (_score, addr) = top.first()?;
+    let doc = searcher.doc(*addr).ok()?;
+    let val = doc.get_first(schema.mtime)?;
+    val.as_u64()
+}
+
 /// Update (add or replace) a single file in the index.
+///
+/// If the on-disk mtime matches the stored mtime, the call short-circuits —
+/// a no-op wiring for the future watcher to call.
 pub fn update_file_in_index(
     app_data_dir: &Path,
     project_id: &str,
@@ -170,6 +230,24 @@ pub fn update_file_in_index(
         .unwrap_or(file_path)
         .to_string_lossy()
         .replace('\\', "/");
+
+    // Read on-disk mtime (or 0 on failure).
+    let on_disk_mtime: u64 = fs::metadata(file_path)
+        .ok()
+        .and_then(|m| m.modified().ok())
+        .and_then(|m| m.duration_since(SystemTime::UNIX_EPOCH).ok())
+        .map(|d| d.as_millis() as u64)
+        .unwrap_or(0);
+
+    // Short-circuit: if the stored doc already has the same mtime, skip the work.
+    if let Ok(index) = open_index(app_data_dir, project_id) {
+        let schema = SearchSchema::new();
+        if let Some(stored_mtime) = read_doc_mtime(&index, &schema, &rel_path) {
+            if stored_mtime == on_disk_mtime && on_disk_mtime != 0 {
+                return Ok(());
+            }
+        }
+    }
 
     // Remove existing doc for this path
     let _ = remove_file_from_index(app_data_dir, project_id, &rel_path);

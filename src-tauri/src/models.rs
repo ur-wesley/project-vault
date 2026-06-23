@@ -269,6 +269,9 @@ pub struct IndexMetaDto {
 #[serde(rename_all = "camelCase")]
 pub struct SearchHitDto {
     pub path: String,
+    /// Tantivy BM25 score for this hit. Used to sort results on the frontend
+    /// and to dim low-relevance hits.
+    pub score: f32,
     pub highlights: Vec<SearchSnippetDto>,
     pub line_numbers: Vec<usize>,
 }
@@ -277,7 +280,12 @@ pub struct SearchHitDto {
 #[serde(rename_all = "camelCase")]
 pub struct SearchSnippetDto {
     pub line_number: usize,
+    /// Plain-text line, suitable for fallback rendering.
     pub text: String,
+    /// Tantivy-generated snippet HTML with `<mark class="pv-mark">` wrappers
+    /// around the matched terms. User content is escaped by Tantivy; only the
+    /// wrapper tag is HTML.
+    pub html: String,
 }
 
 #[derive(Debug, Clone, Serialize)]

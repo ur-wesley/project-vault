@@ -1,13 +1,20 @@
-use std::collections::HashMap;
 use std::path::Path;
 
-use tantivy::query::{FuzzyTermQuery, PhraseQuery, QueryParser};
-use tantivy::{Index, SnippetGenerator, Term};
+use tantivy::query::{
+    BooleanQuery, BoostQuery, FuzzyTermQuery, Occur, PhraseQuery, Query, QueryParser, TermQuery,
+};
+use tantivy::schema::IndexRecordOption;
+use tantivy::{Index, Snippet, SnippetGenerator, Term};
 
 use crate::error::{codes, StableError};
 use crate::models::{SearchHitDto, SearchSnippetDto};
 use crate::search::open_index;
 use crate::search::SearchSchema;
+
+/// Wrapper used to mark up snippet text from Tantivy. Tantivy's default
+/// wrapper is `<b>`; we swap to `<mark class="pv-mark">` for the frontend.
+const MARK_START: &str = "<mark class=\"pv-mark\">";
+const MARK_END: &str = "</mark>";
 
 /// Search a project's index with the given query string.
 pub fn search_project_index(
@@ -26,38 +33,44 @@ pub fn search_project_index(
     })?;
     let searcher = reader.searcher();
 
-    let (query, processed_raw) = build_query(&index, &schema, query_str)?;
+    let (query, _processed_raw) = build_query(&index, &schema, query_str)?;
 
     let top_docs = searcher
         .search(&query, &tantivy::collector::TopDocs::with_limit(limit))
         .map_err(|e| StableError::new(codes::INTERNAL, format!("search failed: {e}")))?;
 
-    let snippet_gen = SnippetGenerator::create(&searcher, &*query, schema.content).map_err(|e| {
-        StableError::new(codes::INTERNAL, format!("snippet generator failed: {e}"))
-    })?;
+    // Snippet generator over `content` — drives the body snippet HTML.
+    let content_snip = SnippetGenerator::create(&searcher, &*query, schema.content).ok();
+    // Snippet generator over `path_full` — used for path-only matches so the
+    // synthetic highlight position aligns with the path string.
+    let path_snip = SnippetGenerator::create(&searcher, &*query, schema.path_full).ok();
 
     let mut hits = Vec::new();
-    for (_score, doc_address) in top_docs {
+    for (score, doc_address) in top_docs {
         if let Ok(doc) = searcher.doc(doc_address) {
             let path = doc
                 .get_first(schema.path)
                 .and_then(|v| v.as_text())
                 .unwrap_or("")
                 .to_string();
+
             let content = doc
                 .get_first(schema.content)
                 .and_then(|v| v.as_text())
                 .unwrap_or("")
                 .to_string();
 
-            let snippet = snippet_gen.snippet_from_doc(&doc);
-            let _snippet_html = snippet.fragment().to_string();
-
-            let (highlights, line_numbers) =
-                extract_highlights(&content, &processed_raw);
+            let (highlights, line_numbers) = build_snippets(
+                content_snip.as_ref(),
+                path_snip.as_ref(),
+                &doc,
+                &content,
+                &path,
+            );
 
             hits.push(SearchHitDto {
                 path,
+                score,
                 highlights,
                 line_numbers,
             });
@@ -69,21 +82,16 @@ pub fn search_project_index(
 
 /// Build a Tantivy query from a user query string.
 ///
-/// Supported Google-like syntax:
-///   - `"exact phrase"`    -> phrase query (exact, no fuzzy)
-///   - `word`              -> fuzzy term query (distance 2)
-///   - `foo -bar`          -> foo required, bar excluded (QueryParser)
-///   - `foo +bar`          -> both required (QueryParser)
-///   - `path:foo`          -> field query (QueryParser)
-///   - `term~` / `term~2`  -> custom fuzzy (QueryParser)
-///
-/// Returns the query object plus the raw / processed query strings so the
-/// highlighter can know which terms to look for.
+/// Dispatcher routes to one of four branches:
+///   1. Filename fast-path  — `package.json`, `eslint.config.js`, `Dockerfile`
+///   2. Exact phrase       — `"foo bar"`
+///   3. Single bare token  — `bar`
+///   4. Complex query      — anything else (uses `QueryParser` with safer fuzzy)
 fn build_query(
     index: &Index,
     schema: &SearchSchema,
     query_str: &str,
-) -> Result<(Box<dyn tantivy::query::Query>, String), StableError> {
+) -> Result<(Box<dyn Query>, String), StableError> {
     let raw = query_str.trim();
     if raw.is_empty() {
         return Err(StableError::new(codes::INTERNAL, "empty query"));
@@ -102,16 +110,24 @@ fn build_query(
         return Ok((Box::new(PhraseQuery::new(terms)), raw.to_string()));
     }
 
-    // 2. Single bare token -> direct FuzzyTermQuery (most common case)
-    if !raw.contains(' ') && !raw.contains('"') && !raw.contains(':') && !raw.contains('~') {
-        let term = Term::from_field_text(schema.content, raw);
-        return Ok((Box::new(FuzzyTermQuery::new(term, 2, true)), raw.to_string()));
+    // 2. Filename fast-path — `package.json`, `eslint.config.js`, `Dockerfile`, etc.
+    if let Some(q) = build_filename_query(schema, raw) {
+        return Ok((q, raw.to_string()));
     }
 
-    // 3. Complex query -> preprocess + QueryParser
+    // 3. Single bare token -> boosted: path > content (fuzzy).
+    if !raw.contains(' ') && !raw.contains('"') && !raw.contains(':') && !raw.contains('~') {
+        let q = build_single_token_query(schema, raw);
+        return Ok((q, raw.to_string()));
+    }
+
+    // 4. Complex query -> preprocess + QueryParser
     let processed = preprocess_query(raw);
 
-    let mut parser = QueryParser::for_index(index, vec![schema.content, schema.path]);
+    // Pass `path_full` (tokenised path) ahead of `content` so `path:foo` and
+    // bare `foo` terms hit path matches first.
+    let mut parser =
+        QueryParser::for_index(index, vec![schema.content, schema.path_full, schema.path_basename]);
     parser.set_conjunction_by_default();
 
     let query = parser.parse_query(&processed).map_err(|e| {
@@ -121,8 +137,141 @@ fn build_query(
     Ok((query, processed))
 }
 
+/// True when the raw string looks like a filename the user is targeting
+/// (e.g. `package.json`, `eslint.config.js`, `Dockerfile`).
+///
+/// Rules:
+///   - No whitespace
+///   - Only contains `a-z`, `A-Z`, `0-9`, `.`, `_`, `-`
+///   - Does not start with `:`, `"`, `~`, `*`, `+`, `-`
+///   - Has at least one alphanumeric character
+fn looks_like_filename(raw: &str) -> bool {
+    if raw.is_empty() || raw.contains(char::is_whitespace) {
+        return false;
+    }
+
+    let first = raw.chars().next().unwrap();
+    if matches!(first, ':' | '"' | '~' | '*' | '+' | '-') {
+        return false;
+    }
+
+    if !raw
+        .chars()
+        .all(|c| c.is_ascii_alphanumeric() || c == '.' || c == '_' || c == '-')
+    {
+        return false;
+    }
+
+    if !raw.chars().any(|c| c.is_ascii_alphanumeric()) {
+        return false;
+    }
+
+    true
+}
+
+fn build_filename_query(schema: &SearchSchema, raw: &str) -> Option<Box<dyn Query>> {
+    if !looks_like_filename(raw) {
+        return None;
+    }
+
+    let lower = raw.to_lowercase();
+    let mut clauses: Vec<(Occur, Box<dyn Query>)> = Vec::new();
+
+    // Exact basename match — strongest signal.
+    let basename_term = Term::from_field_text(schema.path_basename, &lower);
+    clauses.push((
+        Occur::Should,
+        Box::new(BoostQuery::new(
+            Box::new(TermQuery::new(basename_term, IndexRecordOption::Basic)),
+            10.0,
+        )),
+    ));
+
+    // Tokenised path components — strong signal for partial matches.
+    for tok in lower.split(|c: char| c == '.' || c == '_' || c == '-') {
+        if tok.is_empty() {
+            continue;
+        }
+        let term = Term::from_field_text(schema.path_tokens, tok);
+        clauses.push((
+            Occur::Should,
+            Box::new(BoostQuery::new(
+                Box::new(TermQuery::new(term, IndexRecordOption::Basic)),
+                6.0,
+            )),
+        ));
+    }
+
+    // Fuzzy on the longest token (usually the file stem).
+    let stem = lower
+        .split(|c: char| c == '.' || c == '_' || c == '-')
+        .find(|s| !s.is_empty())
+        .unwrap_or(&lower);
+    let stem_term = Term::from_field_text(schema.path_tokens, stem);
+    clauses.push((
+        Occur::Should,
+        Box::new(BoostQuery::new(
+            Box::new(FuzzyTermQuery::new(stem_term, 1, true)),
+            3.0,
+        )),
+    ));
+
+    // Fuzzy on content (distance 2) as a safety net.
+    let content_term = Term::from_field_text(schema.content, &lower);
+    clauses.push((
+        Occur::Should,
+        Box::new(BoostQuery::new(
+            Box::new(FuzzyTermQuery::new(content_term, 2, true)),
+            1.0,
+        )),
+    ));
+
+    Some(Box::new(BooleanQuery::new(clauses)))
+}
+
+fn build_single_token_query(schema: &SearchSchema, raw: &str) -> Box<dyn Query> {
+    let lower = raw.to_lowercase();
+    let mut clauses: Vec<(Occur, Box<dyn Query>)> = Vec::new();
+
+    // Content fuzzy (distance 2).
+    let content_term = Term::from_field_text(schema.content, &lower);
+    clauses.push((
+        Occur::Should,
+        Box::new(BoostQuery::new(
+            Box::new(FuzzyTermQuery::new(content_term, 2, true)),
+            1.0,
+        )),
+    ));
+
+    // Path token exact.
+    let token_term = Term::from_field_text(schema.path_tokens, &lower);
+    clauses.push((
+        Occur::Should,
+        Box::new(BoostQuery::new(
+            Box::new(TermQuery::new(token_term, IndexRecordOption::Basic)),
+            4.0,
+        )),
+    ));
+
+    // Path token fuzzy.
+    let fuzzy_term = Term::from_field_text(schema.path_tokens, &lower);
+    clauses.push((
+        Occur::Should,
+        Box::new(BoostQuery::new(
+            Box::new(FuzzyTermQuery::new(fuzzy_term, 1, true)),
+            2.0,
+        )),
+    ));
+
+    Box::new(BooleanQuery::new(clauses))
+}
+
 /// Pre-process a raw user query so bare words become fuzzy (`~2`) while
 /// quoted phrases and advanced syntax (`:`, `~`, `*`) are left alone.
+///
+/// Be conservative: only inject `~2` when the term is 4+ chars long. Short
+/// terms (1-3 chars) get exact matching only — fuzzy on `bar` would match
+/// `baz`, `bat`, etc., which is noise.
 fn preprocess_query(query: &str) -> String {
     let mut result = String::new();
     let mut chars = query.chars().peekable();
@@ -155,9 +304,11 @@ fn preprocess_query(query: &str) -> String {
             }
 
             let has_advanced = word.contains('~') || word.contains(':') || word.contains('*');
+            let preceded_by_path = word.starts_with("path") && word.contains(':');
+            let long_enough = word.chars().count() >= 4;
 
             result.push_str(&word);
-            if !has_advanced {
+            if !has_advanced && !preceded_by_path && long_enough {
                 result.push_str("~2");
             }
         } else {
@@ -168,142 +319,85 @@ fn preprocess_query(query: &str) -> String {
     result
 }
 
-/// Scan the file content for lines that contain the query terms.
+/// Build the snippet payload for a single hit. Returns `(highlights, line_numbers)`.
 ///
-/// Rules:
-///   - Phrases in `"..."` → line must contain the whole phrase.
-///   - Space-separated terms → line must contain **any** of them.
-///   - Fuzzy `~` is ignored for line detection (we search the literal term).
-///   - Prohibited `-` terms are ignored (they only affect scoring/exclusion).
-fn extract_highlights(content: &str, processed_query: &str) -> (Vec<SearchSnippetDto>, Vec<usize>) {
-    let lines: Vec<&str> = content.lines().collect();
-    let mut matched_lines = HashMap::new();
-
-    // Extract search tokens from the processed query.
-    let tokens = extract_search_tokens(processed_query);
-
-    for (idx, line) in lines.iter().enumerate() {
-        let line_lower = line.to_lowercase();
-        for token in &tokens {
-            if line_lower.contains(token) {
-                matched_lines.insert(idx + 1, *line);
-                break;
-            }
+/// - For content matches, the snippet comes from the `content` field. The
+///   `line_numbers` vector contains one entry — the line of the first match,
+///   derived from the number of newlines in the snippet's pre-context.
+/// - For path-only matches, the snippet comes from the `path_full` field. The
+///   `line_numbers` vector is empty; the user navigates by clicking the card.
+fn build_snippets(
+    content_gen: Option<&SnippetGenerator>,
+    path_gen: Option<&SnippetGenerator>,
+    doc: &tantivy::TantivyDocument,
+    _content: &str,
+    path: &str,
+) -> (Vec<SearchSnippetDto>, Vec<usize>) {
+    // Try content snippet first.
+    if let Some(gen) = content_gen {
+        let snippet = gen.snippet_from_doc(doc);
+        if !snippet.is_empty() {
+            let (line_number, html) = rewrap_snippet(&snippet);
+            let plain = strip_marks(&html);
+            return (
+                vec![SearchSnippetDto {
+                    line_number,
+                    text: plain,
+                    html,
+                }],
+                vec![line_number],
+            );
         }
     }
 
-    let mut sorted: Vec<_> = matched_lines.into_iter().collect();
-    sorted.sort_by_key(|(k, _)| *k);
+    // Fall back to path snippet for path-only matches.
+    if let Some(gen) = path_gen {
+        let snippet = gen.snippet_from_doc(doc);
+        if !snippet.is_empty() {
+            let (line_number, html) = rewrap_snippet(&snippet);
+            let plain = strip_marks(&html);
+            return (
+                vec![SearchSnippetDto {
+                    line_number,
+                    text: plain,
+                    html,
+                }],
+                Vec::new(),
+            );
+        }
+    }
 
-    let highlights: Vec<SearchSnippetDto> = sorted
-        .iter()
-        .take(5)
-        .map(|(num, text)| SearchSnippetDto {
-            line_number: *num,
-            text: text.to_string(),
-        })
-        .collect();
-
-    let line_numbers: Vec<usize> = sorted.iter().map(|(num, _)| *num).collect();
-
-    (highlights, line_numbers)
+    // Last resort: empty path snippet, so we still show the user *something*
+    // about why this file matched (the path itself).
+    let _ = path;
+    (Vec::new(), Vec::new())
 }
 
-/// Strip out the tokens we should search for in raw content.
-///
-/// - Keeps phrases (text inside quotes) as one token.
-/// - Keeps bare words (drops the trailing `~2` fuzzy marker).
-/// - Drops prohibited terms (those prefixed with `-`).
-/// - Keeps required terms (those prefixed with `+`).
-fn extract_search_tokens(processed: &str) -> Vec<String> {
-    let mut tokens = Vec::new();
-    let mut chars = processed.chars().peekable();
-    let mut in_quotes = false;
+/// Re-wrap Tantivy's `<b>...</b>` snippet HTML in our `<mark class="pv-mark">` tag,
+/// and return the line number of the first match (1-based).
+fn rewrap_snippet(snippet: &Snippet) -> (usize, String) {
+    let line_number = snippet.pre_snippet().matches('\n').count() + 1;
+    let raw = snippet.to_html();
+    let html = raw
+        .replace("<b>", MARK_START)
+        .replace("</b>", MARK_END);
+    (line_number, html)
+}
 
-    while let Some(ch) = chars.next() {
-        if ch == '"' {
-            in_quotes = !in_quotes;
-            if !in_quotes {
-                continue;
-            }
-            // Start of phrase — collect until closing quote.
-            let mut phrase = String::new();
-            while let Some(next) = chars.next() {
-                if next == '"' {
-                    in_quotes = false;
-                    break;
-                }
-                phrase.push(next);
-            }
-            if !phrase.is_empty() {
-                tokens.push(phrase.to_lowercase());
-            }
-            continue;
-        }
-
-        if in_quotes {
-            continue;
-        }
-
-        if ch.is_whitespace() {
-            continue;
-        }
-
-        // Skip prohibited terms entirely.
-        if ch == '-' {
-            while let Some(&next) = chars.peek() {
-                if next.is_alphanumeric() || next == '_' || next == '-' {
-                    chars.next();
-                } else {
-                    break;
-                }
-            }
-            // Skip any trailing `~` / digits.
-            if chars.peek() == Some(&'~') {
-                chars.next();
-                while let Some(&next) = chars.peek() {
-                    if next.is_ascii_digit() {
-                        chars.next();
-                    } else {
-                        break;
-                    }
-                }
-            }
-            continue;
-        }
-
-        // Collect a word (skip leading `+` if present).
-        let mut word = String::new();
-        if ch != '+' {
-            word.push(ch);
-        }
-
-        // Consume the rest of the word characters.
-        while let Some(&next) = chars.peek() {
-            if next.is_alphanumeric() || next == '_' || next == '-' {
-                word.push(next);
-                chars.next();
-            } else {
-                break;
-            }
-        }
-
-        // Consume trailing fuzzy marker `~N` (e.g. `~2`).
-        if chars.peek() == Some(&'~') {
-            chars.next(); // consume '~'
-            while let Some(&next) = chars.peek() {
-                if next.is_ascii_digit() {
-                    chars.next();
-                } else {
-                    break;
-                }
-            }
-        }
-
-        if !word.is_empty() {
-            tokens.push(word.to_lowercase());
+/// Strip `<mark ...>` / `</mark>` wrappers for a plain-text rendering.
+fn strip_marks(html: &str) -> String {
+    let mut out = String::with_capacity(html.len());
+    let mut rest = html;
+    while let Some(start) = rest.find(MARK_START) {
+        out.push_str(&rest[..start]);
+        rest = &rest[start + MARK_START.len()..];
+        if let Some(end) = rest.find(MARK_END) {
+            out.push_str(&rest[..end]);
+            rest = &rest[end + MARK_END.len()..];
+        } else {
+            break;
         }
     }
-
-    tokens
+    out.push_str(rest);
+    out
 }

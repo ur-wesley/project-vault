@@ -6,12 +6,15 @@ use tauri_plugin_sql::DbInstances;
 use crate::db;
 use crate::error::StableError;
 use crate::models::{IndexMetaDto, SearchHitDto};
-use crate::search::indexer::{build_project_index, delete_project_index, index_exists, index_meta, update_file_in_index};
+use crate::search::indexer::{
+    build_project_index, delete_project_index, index_exists, index_meta, update_file_in_index,
+};
 use crate::search::query::search_project_index;
 
 #[tauri::command]
 pub async fn search_project(
     app: AppHandle,
+    db: State<'_, DbInstances>,
     project_id: String,
     query: String,
 ) -> Result<Vec<SearchHitDto>, StableError> {
@@ -20,8 +23,28 @@ pub async fn search_project(
         .app_data_dir()
         .map_err(|e| StableError::new(crate::error::codes::INTERNAL, format!("app data dir: {e}")))?;
 
-    // Need project path for potential future use; for now just search the index.
-    search_project_index(&app_data_dir, &project_id, &query, 50)
+    match search_project_index(&app_data_dir, &project_id, &query, 50) {
+        Ok(hits) => Ok(hits),
+        Err(e) => {
+            // Schema mismatch → auto-rebuild and retry. This is the migration
+            // path for users upgrading from a pre-v2 schema.
+            let is_schema_mismatch = e.message.to_lowercase().contains("schema");
+            if !is_schema_mismatch {
+                return Err(e);
+            }
+
+            // Need the project path to rebuild.
+            let pool = db::sqlite_pool(&*db).await?;
+            let project = db::get_project(&pool, &project_id).await?;
+            let project_path = PathBuf::from(&project.path);
+
+            let _ = delete_project_index(&app_data_dir, &project_id);
+            build_project_index(&app_data_dir, &project_id, project_path.as_path())?;
+            let _ = app.emit("index:built", serde_json::json!({ "projectId": project_id }));
+
+            search_project_index(&app_data_dir, &project_id, &query, 50)
+        }
+    }
 }
 
 #[tauri::command]
