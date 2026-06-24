@@ -1,7 +1,5 @@
 import { createSignal } from "solid-js";
 import { toast } from "solid-sonner";
-import { listen, emitTo } from "@tauri-apps/api/event";
-import { WebviewWindow } from "@tauri-apps/api/webviewWindow";
 import * as screenshotService from "~/services/tauri/screenshot";
 import { getSetting } from "~/services/tauri/settings";
 import type { ScreenInfoDto, WindowInfoDto } from "~/types/dto";
@@ -28,141 +26,6 @@ async function loadSaveDirectory() {
   if (r.isOk() && r.value) {
     setSaveDirectory(r.value);
   }
-}
-
-/**
- * Open the overlay window for region selection.
- * The screenshot must already be captured (blocking) before calling this.
- */
-function openOverlayWindow(
-  capturedBase64: string,
-  strings: Record<string, string>,
-  imageWidth: number,
-  imageHeight: number,
-): Promise<Uint8Array | null> {
-  return new Promise(async (resolve) => {
-    let settled = false;
-    const settle = (result: Uint8Array | null) => {
-      if (settled) return;
-      settled = true;
-      resolve(result);
-    };
-
-    // Get monitor bounds
-    const monitors = await screenshotService.getAllMonitorBounds();
-    const bounds = screenshotService.computeDesktopBounds(monitors);
-
-    // Create window — use fullscreen first (guaranteed to cover primary monitor)
-    const win = new WebviewWindow("screenshot-overlay", {
-      url: "/screenshot-overlay.html",
-      decorations: false,
-      alwaysOnTop: true,
-      skipTaskbar: true,
-      resizable: false,
-      focus: true,
-      fullscreen: true,
-      visible: false,
-    });
-
-    // After window is ready, try to expand to cover all monitors
-    let expandPromise: Promise<void> | null = null;
-    const tryExpand = (): Promise<void> => {
-      if (expandPromise) return expandPromise;
-      expandPromise = (async () => {
-        try {
-          await win.setFullscreen(false);
-          // Small delay for the fullscreen exit to take effect
-          await new Promise((r) => setTimeout(r, 50));
-          // Use logical dimensions for setSize/setPosition
-          await win.setSize({
-            type: "Logical",
-            width: bounds.logicalWidth,
-            height: bounds.logicalHeight,
-          } as never);
-          await win.setPosition({
-            type: "Logical",
-            x: bounds.logicalX,
-            y: bounds.logicalY,
-          } as never);
-        } catch (e) {
-          console.error("[screenshot] Multi-monitor expansion failed:", e);
-        }
-      })();
-      return expandPromise;
-    };
-
-    // Register listeners BEFORE creating the window
-    const unlistenReady = await listen("screenshot-overlay:ready", () => {
-      // Send strings, image, and image dimensions TO the overlay window
-      void emitTo("screenshot-overlay", "screenshot-overlay:load-strings", { strings });
-      void emitTo("screenshot-overlay", "screenshot-overlay:load-image", {
-        base64: capturedBase64,
-        imageWidth,
-        imageHeight,
-      });
-      // Start expanding in the background immediately!
-      void tryExpand();
-    });
-
-    const unlistenResult = await listen<{ base64: string }>(
-      "screenshot-overlay:result",
-      (event) => {
-        settle(screenshotService.base64ToUint8Array(event.payload.base64));
-      },
-    );
-
-    const unlistenCopy = await listen<{ base64: string }>(
-      "screenshot-overlay:copy",
-      async (event) => {
-        const data = screenshotService.base64ToUint8Array(event.payload.base64);
-        try {
-          await screenshotService.copyPngToClipboard(data);
-          toast.success(strings["screenshot.copied"] ?? "Copied to clipboard");
-        } catch (e) {
-          const errMsg = strings["screenshot.copyFailed"] ?? "Failed to copy: {message}";
-          toast.error(errMsg.replace("{message}", String(e)));
-        }
-        settle(null);
-      },
-    );
-
-    const unlistenCancel = await listen("screenshot-overlay:cancel", () => {
-      settle(null);
-    });
-
-    const unlistenShow = await listen("screenshot-overlay:show", async () => {
-      // Ensure multi-monitor expansion is fully completed before showing the window
-      await tryExpand();
-      await new Promise((r) => setTimeout(r, 50));
-      await win.show();
-      await win.setFocus();
-    });
-
-    // If window closed without sending result
-    try {
-      await win.onCloseRequested(() => {
-        settle(null);
-      });
-    } catch {
-      // ignore
-    }
-
-    // Cleanup after resolution
-    const cleanup = () => {
-      unlistenReady();
-      unlistenResult();
-      unlistenCopy();
-      unlistenCancel();
-      unlistenShow();
-    };
-    void Promise.race([
-      new Promise<void>((r) => {
-        const check = () => (settled ? r() : setTimeout(check, 100));
-        check();
-      }),
-      new Promise<void>((r) => setTimeout(r, 300_000)),
-    ]).then(cleanup);
-  });
 }
 
 export function useScreenshot() {
@@ -197,29 +60,8 @@ export function useScreenshot() {
     async selectSource(source: CaptureSource, t: (key: string, args?: Record<string, unknown>) => string) {
       setAppState("closed");
 
-      // Collect translated strings for the overlay
-      const strings: Record<string, string> = {};
-      for (const key of [
-        "screenshot.selectRegionHint",
-        "screenshot.cancel",
-        "screenshot.save",
-        "screenshot.copyToClipboard",
-        "screenshot.reset",
-        "screenshot.annotate",
-        "screenshot.toolSelect",
-        "screenshot.toolArrow",
-        "screenshot.toolRectangle",
-        "screenshot.toolDraw",
-        "screenshot.toolHighlight",
-        "screenshot.copied",
-        "screenshot.copyFailed",
-      ]) {
-        strings[key] = t(key);
-      }
-
       try {
         if (source.type === "all-screens") {
-          // Capture all screens and go directly to annotation editor
           const captureR = await screenshotService.captureAllScreens();
           if (captureR.isErr()) {
             toast.error(t("screenshot.captureFailed", { message: captureR.error.message }));
@@ -231,27 +73,30 @@ export function useScreenshot() {
         }
 
         if (source.type === "region") {
-          // Capture FIRST (blocking), then open window with image ready
-          const captureR = await screenshotService.captureAllScreens();
-          if (captureR.isErr()) {
-            toast.error(t("screenshot.captureFailed", { message: captureR.error.message }));
+          // Capture + selection in one call (fast: raw RGBA, no JPEG round-trip)
+          const resultR = await screenshotService.selectRegion();
+
+          if (resultR.isErr()) {
+            toast.error(t("screenshot.captureFailed", { message: resultR.error.message }));
+            return;
+          }
+          if (!resultR.value) return; // cancelled
+
+          // Zero-dimension result = copied to clipboard or saved to file
+          if (resultR.value.width === 0 || resultR.value.height === 0) {
+            toast.success(t("screenshot.copied"));
             return;
           }
 
-          // Get image dimensions from the Rust side
-          const monitors = await screenshotService.getAllMonitorBounds();
-          const bounds = screenshotService.computeDesktopBounds(monitors);
-
-          const cropped = await openOverlayWindow(
-            captureR.value,
-            strings,
-            bounds.physicalWidth,
-            bounds.physicalHeight,
+          // Crop the selected region from the returned image
+          const cropped = await screenshotService.cropImage(
+            resultR.value.imageBase64,
+            { x: resultR.value.x, y: resultR.value.y, width: resultR.value.width, height: resultR.value.height },
+            resultR.value.imageWidth,
+            resultR.value.imageHeight,
           );
-          if (cropped) {
-            setImageData(cropped);
-            setAppState("editing");
-          }
+          setImageData(cropped);
+          setAppState("editing");
           return;
         }
 

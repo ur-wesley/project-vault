@@ -50,6 +50,27 @@ export function pickScreenshotDirectory() {
   return tauriInvoke<string | null>("pick_screenshot_directory");
 }
 
+export interface SelectionDto {
+  x: number;
+  y: number;
+  width: number;
+  height: number;
+}
+
+export interface RegionSelectionResultDto {
+  x: number;
+  y: number;
+  width: number;
+  height: number;
+  imageBase64: string;
+  imageWidth: number;
+  imageHeight: number;
+}
+
+export function selectRegion() {
+  return tauriInvoke<RegionSelectionResultDto | null>("select_region");
+}
+
 import { writeImageBase64 } from "tauri-plugin-clipboard-api";
 
 function uint8ArrayToBase64(arr: Uint8Array): string {
@@ -140,4 +161,40 @@ export function computeDesktopBounds(monitors: MonitorBounds[]): {
     logicalWidth: maxLX - minLX, logicalHeight: maxLY - minLY,
     scaleFactor: sf,
   };
+}
+
+/** Crop a region from a base64 JPEG/PNG image and return as PNG Uint8Array */
+export async function cropImage(
+  base64: string,
+  selection: SelectionDto,
+  imageWidth: number,
+  imageHeight: number,
+): Promise<Uint8Array> {
+  const isJpeg = base64.startsWith("/9j/");
+  const mime = isJpeg ? "image/jpeg" : "image/png";
+  const img = await loadImageFromBase64(base64, mime);
+
+  const canvas = document.createElement("canvas");
+  canvas.width = selection.width;
+  canvas.height = selection.height;
+  const ctx = canvas.getContext("2d")!;
+  ctx.drawImage(
+    img,
+    selection.x, selection.y, selection.width, selection.height,
+    0, 0, selection.width, selection.height,
+  );
+
+  const blob = await new Promise<Blob>((resolve) =>
+    canvas.toBlob((b) => resolve(b!), "image/png"),
+  );
+  return new Uint8Array(await blob.arrayBuffer());
+}
+
+function loadImageFromBase64(base64: string, mime: string): Promise<HTMLImageElement> {
+  return new Promise((resolve, reject) => {
+    const img = new Image();
+    img.onload = () => resolve(img);
+    img.onerror = reject;
+    img.src = `data:${mime};base64,${base64}`;
+  });
 }

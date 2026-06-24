@@ -64,6 +64,7 @@ xcap = "0.9"
 image = { version = "0.25", default-features = false, features = ["png"] }
 arboard = "3.4"
 enigo = "0.3"
+eframe = { version = "0.34", default-features = false, features = ["default_fonts", "glow"] }
 
 [target.'cfg(not(any(target_os = "android", target_os = "ios")))'.dependencies]
 portable-pty = "0.9"
