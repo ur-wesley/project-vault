@@ -23,9 +23,7 @@ pub fn search_project_index(
     query_str: &str,
     limit: usize,
 ) -> Result<Vec<SearchHitDto>, StableError> {
-    let index = open_index(app_data_dir, project_id).map_err(|e| {
-        StableError::new(codes::INTERNAL, format!("failed to open index: {e}"))
-    })?;
+    let index = open_index(app_data_dir, project_id)?;
 
     let schema = SearchSchema::new();
     let reader = index.reader().map_err(|e| {
@@ -125,9 +123,17 @@ fn build_query(
     let processed = preprocess_query(raw);
 
     // Pass `path_full` (tokenised path) ahead of `content` so `path:foo` and
-    // bare `foo` terms hit path matches first.
-    let mut parser =
-        QueryParser::for_index(index, vec![schema.content, schema.path_full, schema.path_basename]);
+    // bare `foo` terms hit path matches first. `path_tokens` is included so
+    // `path:foo bar` (multi-term) splits on path components as well.
+    let mut parser = QueryParser::for_index(
+        index,
+        vec![
+            schema.content,
+            schema.path_full,
+            schema.path_tokens,
+            schema.path_basename,
+        ],
+    );
     parser.set_conjunction_by_default();
 
     let query = parser.parse_query(&processed).map_err(|e| {
@@ -169,12 +175,25 @@ fn looks_like_filename(raw: &str) -> bool {
     true
 }
 
+/// Split a raw token into its component pieces on `_`, `-`, and `.`. Mirrors
+/// how the path and content tokenizers segment text, so `google_places` becomes
+/// `["google", "places"]` — the same tokens that exist in the index. Without
+/// this, `TermQuery` for the joined form never matches anything because the
+/// tokenizer already split on those delimiters.
+fn split_query_tokens(raw: &str) -> Vec<String> {
+    raw.split(|c: char| c == '_' || c == '-' || c == '.')
+        .filter(|t| !t.is_empty())
+        .map(|t| t.to_lowercase())
+        .collect()
+}
+
 fn build_filename_query(schema: &SearchSchema, raw: &str) -> Option<Box<dyn Query>> {
     if !looks_like_filename(raw) {
         return None;
     }
 
     let lower = raw.to_lowercase();
+    let tokens = split_query_tokens(raw);
     let mut clauses: Vec<(Occur, Box<dyn Query>)> = Vec::new();
 
     // Exact basename match — strongest signal.
@@ -188,10 +207,9 @@ fn build_filename_query(schema: &SearchSchema, raw: &str) -> Option<Box<dyn Quer
     ));
 
     // Tokenised path components — strong signal for partial matches.
-    for tok in lower.split(|c: char| c == '.' || c == '_' || c == '-') {
-        if tok.is_empty() {
-            continue;
-        }
+    // Same terms also drive the path snippet generator (see notes on
+    // `path_full` terms below).
+    for tok in &tokens {
         let term = Term::from_field_text(schema.path_tokens, tok);
         clauses.push((
             Occur::Should,
@@ -200,13 +218,22 @@ fn build_filename_query(schema: &SearchSchema, raw: &str) -> Option<Box<dyn Quer
                 6.0,
             )),
         ));
+
+        // Add a `path_full`-targeted term as well so the path snippet
+        // generator has something to highlight when the file matches on
+        // tokens but not on the full basename.
+        let path_full_term = Term::from_field_text(schema.path_full, tok);
+        clauses.push((
+            Occur::Should,
+            Box::new(BoostQuery::new(
+                Box::new(TermQuery::new(path_full_term, IndexRecordOption::Basic)),
+                5.0,
+            )),
+        ));
     }
 
     // Fuzzy on the longest token (usually the file stem).
-    let stem = lower
-        .split(|c: char| c == '.' || c == '_' || c == '-')
-        .find(|s| !s.is_empty())
-        .unwrap_or(&lower);
+    let stem = tokens.first().map(|s| s.as_str()).unwrap_or(lower.as_str());
     let stem_term = Term::from_field_text(schema.path_tokens, stem);
     clauses.push((
         Occur::Should,
@@ -216,52 +243,76 @@ fn build_filename_query(schema: &SearchSchema, raw: &str) -> Option<Box<dyn Quer
         )),
     ));
 
-    // Fuzzy on content (distance 2) as a safety net.
-    let content_term = Term::from_field_text(schema.content, &lower);
-    clauses.push((
-        Occur::Should,
-        Box::new(BoostQuery::new(
-            Box::new(FuzzyTermQuery::new(content_term, 2, true)),
-            1.0,
-        )),
-    ));
+    // Fuzzy on content (distance 2) for every split token. Splitting is
+    // essential — the content tokenizer breaks `google_places` into
+    // `google` + `places`, so the joined term can never match.
+    for tok in &tokens {
+        let content_term = Term::from_field_text(schema.content, tok);
+        clauses.push((
+            Occur::Should,
+            Box::new(BoostQuery::new(
+                Box::new(FuzzyTermQuery::new(content_term, 2, true)),
+                1.0,
+            )),
+        ));
+    }
 
     Some(Box::new(BooleanQuery::new(clauses)))
 }
 
 fn build_single_token_query(schema: &SearchSchema, raw: &str) -> Box<dyn Query> {
-    let lower = raw.to_lowercase();
+    let tokens = split_query_tokens(raw);
+    // Fallback to the raw lowercased form when the input had no split
+    // delimiters (e.g. `googleplaces`). Avoids an empty token list.
+    let tokens = if tokens.is_empty() {
+        vec![raw.to_lowercase()]
+    } else {
+        tokens
+    };
     let mut clauses: Vec<(Occur, Box<dyn Query>)> = Vec::new();
 
-    // Content fuzzy (distance 2).
-    let content_term = Term::from_field_text(schema.content, &lower);
-    clauses.push((
-        Occur::Should,
-        Box::new(BoostQuery::new(
-            Box::new(FuzzyTermQuery::new(content_term, 2, true)),
-            1.0,
-        )),
-    ));
+    for tok in &tokens {
+        // Content fuzzy (distance 2) — primary content signal per token.
+        let content_term = Term::from_field_text(schema.content, tok);
+        clauses.push((
+            Occur::Should,
+            Box::new(BoostQuery::new(
+                Box::new(FuzzyTermQuery::new(content_term, 2, true)),
+                1.0,
+            )),
+        ));
 
-    // Path token exact.
-    let token_term = Term::from_field_text(schema.path_tokens, &lower);
-    clauses.push((
-        Occur::Should,
-        Box::new(BoostQuery::new(
-            Box::new(TermQuery::new(token_term, IndexRecordOption::Basic)),
-            4.0,
-        )),
-    ));
+        // Path token exact — strong path signal per token.
+        let token_term = Term::from_field_text(schema.path_tokens, tok);
+        clauses.push((
+            Occur::Should,
+            Box::new(BoostQuery::new(
+                Box::new(TermQuery::new(token_term, IndexRecordOption::Basic)),
+                4.0,
+            )),
+        ));
 
-    // Path token fuzzy.
-    let fuzzy_term = Term::from_field_text(schema.path_tokens, &lower);
-    clauses.push((
-        Occur::Should,
-        Box::new(BoostQuery::new(
-            Box::new(FuzzyTermQuery::new(fuzzy_term, 1, true)),
-            2.0,
-        )),
-    ));
+        // Path token fuzzy (distance 1) — typo tolerance.
+        let fuzzy_term = Term::from_field_text(schema.path_tokens, tok);
+        clauses.push((
+            Occur::Should,
+            Box::new(BoostQuery::new(
+                Box::new(FuzzyTermQuery::new(fuzzy_term, 1, true)),
+                2.0,
+            )),
+        ));
+
+        // path_full term — drives the path snippet generator for hits that
+        // match only on tokens.
+        let path_full_term = Term::from_field_text(schema.path_full, tok);
+        clauses.push((
+            Occur::Should,
+            Box::new(BoostQuery::new(
+                Box::new(TermQuery::new(path_full_term, IndexRecordOption::Basic)),
+                3.0,
+            )),
+        ));
+    }
 
     Box::new(BooleanQuery::new(clauses))
 }
@@ -322,23 +373,25 @@ fn preprocess_query(query: &str) -> String {
 /// Build the snippet payload for a single hit. Returns `(highlights, line_numbers)`.
 ///
 /// - For content matches, the snippet comes from the `content` field. The
-///   `line_numbers` vector contains one entry — the line of the first match,
-///   derived from the number of newlines in the snippet's pre-context.
+///   `line_numbers` vector contains one entry — the absolute line of the
+///   first match in the original file (see `absolute_line_number`).
 /// - For path-only matches, the snippet comes from the `path_full` field. The
 ///   `line_numbers` vector is empty; the user navigates by clicking the card.
 fn build_snippets(
     content_gen: Option<&SnippetGenerator>,
     path_gen: Option<&SnippetGenerator>,
-    doc: &tantivy::TantivyDocument,
-    _content: &str,
+    doc: &tantivy::Document,
+    content: &str,
     path: &str,
 ) -> (Vec<SearchSnippetDto>, Vec<usize>) {
     // Try content snippet first.
     if let Some(gen) = content_gen {
         let snippet = gen.snippet_from_doc(doc);
         if !snippet.is_empty() {
-            let (line_number, html) = rewrap_snippet(&snippet);
+            let (_, html) = rewrap_snippet(&snippet);
             let plain = strip_marks(&html);
+            let line_number =
+                absolute_line_number(content, snippet.fragment(), snippet.highlighted());
             return (
                 vec![SearchSnippetDto {
                     line_number,
@@ -354,11 +407,11 @@ fn build_snippets(
     if let Some(gen) = path_gen {
         let snippet = gen.snippet_from_doc(doc);
         if !snippet.is_empty() {
-            let (line_number, html) = rewrap_snippet(&snippet);
+            let (_, html) = rewrap_snippet(&snippet);
             let plain = strip_marks(&html);
             return (
                 vec![SearchSnippetDto {
-                    line_number,
+                    line_number: 1,
                     text: plain,
                     html,
                 }],
@@ -373,15 +426,32 @@ fn build_snippets(
     (Vec::new(), Vec::new())
 }
 
-/// Re-wrap Tantivy's `<b>...</b>` snippet HTML in our `<mark class="pv-mark">` tag,
-/// and return the line number of the first match (1-based).
+/// Translate Tantivy's snippet-relative highlight position into an absolute
+/// line number in the original document. Tantivy's snippet is a substring of
+/// the document with its own zero-based line count, which is meaningless to
+/// the file preview's `data-line` attributes. We find the snippet's fragment
+/// inside the document text (it appears verbatim, so `str::find` is reliable)
+/// and count newlines up to the highlighted byte offset.
+fn absolute_line_number(
+    content: &str,
+    fragment: &str,
+    highlighted: &[std::ops::Range<usize>],
+) -> usize {
+    let Some(first) = highlighted.first() else {
+        return 1;
+    };
+    let frag_start = content.find(fragment).unwrap_or(0);
+    let absolute = frag_start + first.start.min(fragment.len());
+    content[..absolute.min(content.len())].matches('\n').count() + 1
+}
+
+/// Re-wrap Tantivy's `<b>...</b>` snippet HTML in our `<mark class="pv-mark">` tag.
+/// Line numbers are computed separately in `build_snippets` because we need
+/// the absolute line in the original document, not the snippet-relative one.
 fn rewrap_snippet(snippet: &Snippet) -> (usize, String) {
-    let line_number = snippet.pre_snippet().matches('\n').count() + 1;
     let raw = snippet.to_html();
-    let html = raw
-        .replace("<b>", MARK_START)
-        .replace("</b>", MARK_END);
-    (line_number, html)
+    let html = raw.replace("<b>", MARK_START).replace("</b>", MARK_END);
+    (0, html)
 }
 
 /// Strip `<mark ...>` / `</mark>` wrappers for a plain-text rendering.

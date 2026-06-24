@@ -11,6 +11,25 @@ use crate::search::indexer::{
 };
 use crate::search::query::search_project_index;
 
+/// On a `SCHEMA_INCOMPATIBLE` error from the search-side `open_index`, wipe
+/// the index directory and rebuild it from disk. Returns the project path
+/// pulled from the DB so the caller can also re-run its primary operation.
+async fn rebuild_on_schema_mismatch(
+    app: &AppHandle,
+    db: &State<'_, DbInstances>,
+    app_data_dir: &std::path::Path,
+    project_id: &str,
+) -> Result<PathBuf, StableError> {
+    let pool = db::sqlite_pool(&**db).await?;
+    let project = db::get_project(&pool, project_id).await?;
+    let project_path = PathBuf::from(&project.path);
+
+    let _ = delete_project_index(app_data_dir, project_id);
+    build_project_index(app_data_dir, project_id, project_path.as_path())?;
+    let _ = app.emit("index:built", serde_json::json!({ "projectId": project_id }));
+    Ok(project_path)
+}
+
 #[tauri::command]
 pub async fn search_project(
     app: AppHandle,
@@ -25,25 +44,13 @@ pub async fn search_project(
 
     match search_project_index(&app_data_dir, &project_id, &query, 50) {
         Ok(hits) => Ok(hits),
-        Err(e) => {
-            // Schema mismatch → auto-rebuild and retry. This is the migration
-            // path for users upgrading from a pre-v2 schema.
-            let is_schema_mismatch = e.message.to_lowercase().contains("schema");
-            if !is_schema_mismatch {
-                return Err(e);
-            }
-
-            // Need the project path to rebuild.
-            let pool = db::sqlite_pool(&*db).await?;
-            let project = db::get_project(&pool, &project_id).await?;
-            let project_path = PathBuf::from(&project.path);
-
-            let _ = delete_project_index(&app_data_dir, &project_id);
-            build_project_index(&app_data_dir, &project_id, project_path.as_path())?;
-            let _ = app.emit("index:built", serde_json::json!({ "projectId": project_id }));
-
+        Err(e) if e.code == crate::error::codes::SCHEMA_INCOMPATIBLE => {
+            // Auto-rebuild on schema mismatch. This is the migration path for
+            // users upgrading from a pre-v2 schema.
+            rebuild_on_schema_mismatch(&app, &db, &app_data_dir, &project_id).await?;
             search_project_index(&app_data_dir, &project_id, &query, 50)
         }
+        Err(e) => Err(e),
     }
 }
 
@@ -59,8 +66,18 @@ pub async fn index_project(
         .path()
         .app_data_dir()
         .map_err(|e| StableError::new(crate::error::codes::INTERNAL, format!("app data dir: {e}")))?;
+    let project_path = PathBuf::from(&project.path);
 
-    let meta = build_project_index(&app_data_dir, &project_id, PathBuf::from(&project.path).as_path())?;
+    let meta = match build_project_index(&app_data_dir, &project_id, project_path.as_path()) {
+        Ok(meta) => meta,
+        Err(e) if e.code == crate::error::codes::SCHEMA_INCOMPATIBLE => {
+            // Auto-rebuild on schema mismatch, same as search_project.
+            rebuild_on_schema_mismatch(&app, &db, &app_data_dir, &project_id).await?;
+            build_project_index(&app_data_dir, &project_id, project_path.as_path())?
+        }
+        Err(e) => return Err(e),
+    };
+
     let _ = app.emit("index:built", serde_json::json!({ "projectId": project_id }));
     Ok(IndexMetaDto {
         indexed_files: meta.indexed_files,

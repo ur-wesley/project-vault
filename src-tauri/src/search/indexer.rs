@@ -10,8 +10,8 @@ use tantivy::schema::IndexRecordOption;
 use tantivy::{doc, Index, IndexWriter, Term};
 
 use crate::search::{
-    guess_language, is_binary, open_index, write_schema_version, SearchSchema, ALWAYS_SKIP,
-    DEFAULT_MAX_FILE_SIZE,
+    guess_language, index_writer, is_binary, open_index, write_schema_version, SearchSchema,
+    ALWAYS_SKIP, DEFAULT_MAX_FILE_SIZE,
 };
 use crate::error::{codes, StableError};
 
@@ -30,14 +30,10 @@ pub fn build_project_index(
     project_id: &str,
     project_path: &Path,
 ) -> Result<IndexMeta, StableError> {
-    let index = open_index(app_data_dir, project_id).map_err(|e| {
-        StableError::new(codes::INTERNAL, format!("failed to open index: {e}"))
-    })?;
+    let index = open_index(app_data_dir, project_id)?;
 
     let schema = SearchSchema::new();
-    let mut writer = index.writer(50_000_000).map_err(|e| {
-        StableError::new(codes::INTERNAL, format!("failed to create index writer: {e}"))
-    })?;
+    let mut writer = index_writer(&index)?;
 
     // Clear existing documents
     writer.delete_all_documents().map_err(|e| {
@@ -179,14 +175,10 @@ pub fn remove_file_from_index(
     project_id: &str,
     rel_path: &str,
 ) -> Result<(), StableError> {
-    let index = open_index(app_data_dir, project_id).map_err(|e| {
-        StableError::new(codes::INTERNAL, format!("failed to open index: {e}"))
-    })?;
+    let index = open_index(app_data_dir, project_id)?;
 
     let schema = SearchSchema::new();
-    let mut writer = index.writer(50_000_000).map_err(|e| {
-        StableError::new(codes::INTERNAL, format!("failed to create index writer: {e}"))
-    })?;
+    let mut writer = index_writer(&index)?;
 
     // Target the `path` field (STRING | STORED) which holds the raw relative path.
     let term = Term::from_field_text(schema.path, rel_path);
@@ -252,14 +244,10 @@ pub fn update_file_in_index(
     // Remove existing doc for this path
     let _ = remove_file_from_index(app_data_dir, project_id, &rel_path);
 
-    let index = open_index(app_data_dir, project_id).map_err(|e| {
-        StableError::new(codes::INTERNAL, format!("failed to open index: {e}"))
-    })?;
+    let index = open_index(app_data_dir, project_id)?;
 
     let schema = SearchSchema::new();
-    let mut writer = index.writer(50_000_000).map_err(|e| {
-        StableError::new(codes::INTERNAL, format!("failed to create index writer: {e}"))
-    })?;
+    let mut writer = index_writer(&index)?;
 
     if let Ok(meta) = fs::metadata(file_path) {
         if meta.len() > DEFAULT_MAX_FILE_SIZE {
