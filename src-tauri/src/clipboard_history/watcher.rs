@@ -168,6 +168,10 @@ async fn persist_text(
     source_app: Option<String>,
 ) -> Result<(), StableError> {
     let bounded: String = text.chars().take(MAX_TEXT_BYTES).collect();
+    let bounded = bounded.trim().to_string();
+    if bounded.is_empty() {
+        return Ok(());
+    }
     let hash = format!("{:x}", md5_hash(bounded.as_bytes()));
     let preview = truncate_preview(&bounded, 120);
 

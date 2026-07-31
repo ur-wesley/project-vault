@@ -72,6 +72,7 @@ base64 = "0.22"
 tauri-plugin-autostart = "2"
 tauri-plugin-single-instance = "2"
 tauri-plugin-window-state = "2"
+window-vibrancy = "0.6"
 
 [target.'cfg(windows)'.dependencies]
 winreg = "0.56"

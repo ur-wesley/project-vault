@@ -90,6 +90,12 @@ pub fn run() {
                             sql: include_str!("../migrations/008_clipboard_history.sql"),
                             kind: MigrationKind::Up,
                         },
+                        Migration {
+                            version: 9,
+                            description: "clipboard_history_unique_hash",
+                            sql: include_str!("../migrations/009_clipboard_history_unique_hash.sql"),
+                            kind: MigrationKind::Up,
+                        },
                     ],
                 )
                 .build(),
@@ -394,6 +400,7 @@ pub fn run() {
             commands::clipboard_history::get_clipboard_overlay_position,
             commands::clipboard_history::get_clipboard_entry_thumbnail,
             commands::clipboard_history::close_clipboard_overlay,
+            commands::clipboard_history::prepare_clipboard_overlay_window,
             commands::updater::check_for_updates,
             commands::updater::install_update,
             commands::issues::list_issues,

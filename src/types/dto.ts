@@ -458,6 +458,4 @@ export type ClipboardOverlayPositionDto = {
   windowY: number;
   windowWidth: number;
   windowHeight: number;
-  panelX: number;
-  panelY: number;
 };

@@ -63,6 +63,10 @@ export function closeClipboardOverlay() {
   return tauriInvoke<void>("close_clipboard_overlay");
 }
 
+export function prepareClipboardOverlayWindow() {
+  return tauriInvoke<void>("prepare_clipboard_overlay_window");
+}
+
 export function getClipboardEntryThumbnail(id: string, maxSize?: number) {
   return tauriInvoke<string | null>("get_clipboard_entry_thumbnail", {
     id,

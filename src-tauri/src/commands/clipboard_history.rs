@@ -2,10 +2,11 @@ use tauri::{AppHandle, Manager, State};
 use tauri_plugin_sql::DbInstances;
 
 use crate::clipboard_history::{
-    apply_entry, capture_overlay_anchor, clear_entries, compute_overlay_position, delete_entry,
-    entry_thumbnail_data_url, get_entry, list_entries, load_settings, save_settings, toggle_pin,
-    update_text_entry, ClearClipboardHistoryArgs, ClipboardEntryDto, ClipboardHistorySettingsDto,
-    ClipboardOverlayPositionDto, ListClipboardHistoryArgs, UpdateClipboardEntryArgs,
+    apply_entry, apply_overlay_effects, capture_overlay_anchor, clear_entries,
+    compute_overlay_position, delete_entry, entry_thumbnail_data_url, get_entry, list_entries,
+    load_settings, save_settings, toggle_pin, update_text_entry, ClearClipboardHistoryArgs,
+    ClipboardEntryDto, ClipboardHistorySettingsDto, ClipboardOverlayPositionDto,
+    ListClipboardHistoryArgs, UpdateClipboardEntryArgs,
 };
 use crate::clipboard_history::save_foreground_hwnd;
 use crate::db;
@@ -95,6 +96,11 @@ pub async fn set_clipboard_history_settings(
 ) -> Result<(), StableError> {
     let pool = db::sqlite_pool(&*db).await?;
     save_settings(&pool, &settings).await
+}
+
+#[tauri::command]
+pub fn prepare_clipboard_overlay_window(window: tauri::WebviewWindow) -> Result<(), StableError> {
+    apply_overlay_effects(&window)
 }
 
 #[tauri::command]

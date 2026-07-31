@@ -5501,6 +5501,7 @@ dependencies = [
  "toml_edit 0.22.27",
  "uuid",
  "walkdir",
+ "window-vibrancy",
  "windows 0.58.0",
  "windows-registry",
  "winreg 0.56.0",

@@ -22,10 +22,10 @@ import {
   closeClipboardOverlay,
   deleteClipboardEntry,
   listClipboardHistory,
+  prepareClipboardOverlayWindow,
   toggleClipboardPin,
 } from "~/services/tauri/clipboard-history";
 import { ClipboardEntryRow } from "./components/ClipboardEntryRow";
-import { CLIPBOARD_PANEL_HEIGHT, CLIPBOARD_PANEL_WIDTH } from "./panel-layout";
 import {
   AlertDialog,
   AlertDialogContent,
@@ -76,15 +76,7 @@ function groupEntries(items: ClipboardEntryDto[], t: (k: string) => string): Gro
   return groups;
 }
 
-function readPanelOffset(): { x: number; y: number } {
-  const params = new URLSearchParams(window.location.search);
-  const x = Number(params.get("panelX"));
-  const y = Number(params.get("panelY"));
-  return {
-    x: Number.isFinite(x) ? x : 0,
-    y: Number.isFinite(y) ? y : 0,
-  };
-}
+const AUTO_HIDE_GRACE_MS = 300;
 
 function matchesSearch(item: ClipboardEntryDto, query: string): boolean {
   const hay = `${item.preview} ${item.contentText ?? ""} ${(item.meta?.filePaths ?? []).join(" ")}`.toLowerCase();
@@ -103,7 +95,6 @@ export const ClipboardHistoryOverlay: Component = () => {
   const [selectedIdx, setSelectedIdx] = createSignal(0);
   const [clearOpen, setClearOpen] = createSignal(false);
   const [busy, setBusy] = createSignal(false);
-  const panelOffset = readPanelOffset();
 
   // eslint-disable-next-line no-unassigned-vars — Solid ref pattern
   let searchRef: HTMLInputElement | undefined;
@@ -162,7 +153,7 @@ export const ClipboardHistoryOverlay: Component = () => {
 
   const closeOverlay = async () => {
     try {
-      await getCurrentWindow().close();
+      await getCurrentWindow().destroy();
     } catch {
       const r = await closeClipboardOverlay();
       if (r.isErr()) console.error("[clipboard] close failed:", r.error.message);
@@ -234,12 +225,10 @@ export const ClipboardHistoryOverlay: Component = () => {
       case "ArrowDown":
         e.preventDefault();
         if (items.length) setSelectedIdx((i) => (i + 1) % items.length);
-        if (inSearch) searchRef?.blur();
         break;
       case "ArrowUp":
         e.preventDefault();
         if (items.length) setSelectedIdx((i) => (i - 1 + items.length) % items.length);
-        if (inSearch) searchRef?.blur();
         break;
       case "Home":
         e.preventDefault();
@@ -271,25 +260,30 @@ export const ClipboardHistoryOverlay: Component = () => {
 
   onMount(() => {
     const unlistens: (() => void)[] = [];
-    let hadWindowFocus = false;
+    const shownAt = Date.now();
+    const win = getCurrentWindow();
+
+    const shouldDismissOnFocusLoss = () => {
+      if (clearOpen() || busy()) return false;
+      return Date.now() - shownAt > AUTO_HIDE_GRACE_MS;
+    };
+
+    void prepareClipboardOverlayWindow().catch(() => {});
 
     document.addEventListener("keydown", handleListKeyDown, true);
     unlistens.push(() => document.removeEventListener("keydown", handleListKeyDown, true));
 
     const onWindowBlur = () => {
-      if (!hadWindowFocus || clearOpen() || busy()) return;
+      if (!shouldDismissOnFocusLoss()) return;
       void closeOverlay();
     };
     window.addEventListener("blur", onWindowBlur);
     unlistens.push(() => window.removeEventListener("blur", onWindowBlur));
 
-    void getCurrentWindow()
+    void win
       .onFocusChanged(({ payload: focused }) => {
-        if (focused) {
-          hadWindowFocus = true;
-          return;
-        }
-        if (hadWindowFocus && !clearOpen() && !busy()) {
+        if (focused) return;
+        if (shouldDismissOnFocusLoss()) {
           void closeOverlay();
         }
       })
@@ -315,18 +309,18 @@ export const ClipboardHistoryOverlay: Component = () => {
   };
 
   return (
-    <div
-      class="absolute flex flex-col gap-2.5 overflow-hidden rounded-xl border border-border bg-background p-3 shadow-2xl"
-      style={{
-        left: `${panelOffset.x}px`,
-        top: `${panelOffset.y}px`,
-        width: `${CLIPBOARD_PANEL_WIDTH}px`,
-        height: `${CLIPBOARD_PANEL_HEIGHT}px`,
-      }}
-    >
+    <div class="flex size-full flex-col overflow-hidden rounded-xl border border-border/60 bg-background/45 py-3 shadow-2xl">
+      <div class="flex shrink-0 items-center justify-between gap-3 px-4">
+        <div class="flex min-w-0 items-center gap-2">
+          <span class="iconify mdi--clipboard-text-multiple size-4 shrink-0 text-primary" />
+          <span class="truncate text-sm font-semibold">{tStr("clipboardHistory.title")}</span>
+          <span class="shrink-0 rounded-md bg-muted px-2 py-0.5 text-[10px] font-medium text-muted-foreground">
+            {filterLabel()}
+          </span>
+        </div>
         <button
           type="button"
-          class="absolute right-3 top-3 z-10 flex size-8 items-center justify-center rounded-full text-muted-foreground transition-colors hover:bg-accent hover:text-foreground"
+          class="flex size-8 shrink-0 items-center justify-center rounded-full text-muted-foreground transition-colors hover:bg-accent hover:text-foreground"
           onClick={(e) => {
             e.preventDefault();
             e.stopPropagation();
@@ -335,16 +329,9 @@ export const ClipboardHistoryOverlay: Component = () => {
         >
           <span class="iconify mdi--close size-4" />
         </button>
+      </div>
 
-        <div class="flex shrink-0 items-center gap-2 px-1 pr-9">
-          <span class="iconify mdi--clipboard-text-multiple size-4 text-primary" />
-          <span class="text-sm font-semibold">{tStr("clipboardHistory.title")}</span>
-          <span class="rounded-md bg-muted px-2 py-0.5 text-[10px] font-medium text-muted-foreground">
-            {filterLabel()}
-          </span>
-        </div>
-
-        <div class="flex shrink-0 items-center gap-2 rounded-lg border border-border/60 bg-muted/25 px-3 py-1">
+      <div class="mt-2.5 flex shrink-0 items-center gap-2 rounded-lg border border-border/60 bg-muted/30 px-3 py-1 mx-4">
           <span class="iconify mdi--magnify size-4 shrink-0 opacity-50" />
           <input
             ref={searchRef}
@@ -360,7 +347,7 @@ export const ClipboardHistoryOverlay: Component = () => {
           />
         </div>
 
-        <div ref={listRef} class="min-h-0 flex-1 overflow-y-auto px-0.5 py-0.5">
+        <div ref={listRef} class="mt-2.5 min-h-0 flex-1 overflow-y-auto px-4 py-0.5">
           <Show when={historyQ.isError}>
             <p class="px-3 py-8 text-center text-xs text-destructive">
               {(historyQ.error as Error)?.message ?? tStr("clipboardHistory.empty")}
@@ -390,6 +377,7 @@ export const ClipboardHistoryOverlay: Component = () => {
                           <ClipboardEntryRow
                             entry={entry}
                             selected={selectedIdx() === globalIdx()}
+                            searchQuery={search()}
                             onPointerMove={() => setSelectedIdx(globalIdx())}
                             onApply={() => void applyEntry(entry)}
                           />
@@ -403,7 +391,7 @@ export const ClipboardHistoryOverlay: Component = () => {
           </Show>
         </div>
 
-        <div class="shrink-0 rounded-lg bg-muted/30 px-3 py-2.5 text-[10px] leading-relaxed text-muted-foreground">
+        <div class="mx-4 mt-2.5 shrink-0 rounded-lg bg-muted/30 px-3 py-2.5 text-[10px] leading-relaxed text-muted-foreground">
           {tStr("clipboardHistory.footerHints")}
         </div>
 

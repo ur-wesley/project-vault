@@ -1,8 +1,11 @@
+import { LogicalSize, PhysicalPosition } from "@tauri-apps/api/dpi";
 import { availableMonitors } from "@tauri-apps/api/window";
 import { WebviewWindow } from "@tauri-apps/api/webviewWindow";
 import type { ClipboardOverlayPositionDto } from "~/types/dto";
 import { getClipboardOverlayPosition } from "~/services/tauri/clipboard-history";
 import { CLIPBOARD_PANEL_HEIGHT, CLIPBOARD_PANEL_WIDTH } from "./panel-layout";
+
+const panelSize = () => new LogicalSize(CLIPBOARD_PANEL_WIDTH, CLIPBOARD_PANEL_HEIGHT);
 
 async function fallbackOverlayLayout(): Promise<ClipboardOverlayPositionDto> {
   try {
@@ -11,27 +14,21 @@ async function fallbackOverlayLayout(): Promise<ClipboardOverlayPositionDto> {
     if (!monitor) throw new Error("no monitors");
 
     const scale = monitor.scaleFactor || 1;
-    const windowX = Math.round(monitor.position.x / scale);
-    const windowY = Math.round(monitor.position.y / scale);
-    const windowWidth = Math.round(monitor.size.width / scale);
-    const windowHeight = Math.round(monitor.size.height / scale);
+    const panelWPhys = Math.round(CLIPBOARD_PANEL_WIDTH * scale);
+    const panelHPhys = Math.round(CLIPBOARD_PANEL_HEIGHT * scale);
 
     return {
-      windowX,
-      windowY,
-      windowWidth,
-      windowHeight,
-      panelX: Math.round((windowWidth - CLIPBOARD_PANEL_WIDTH) / 2),
-      panelY: Math.round((windowHeight - CLIPBOARD_PANEL_HEIGHT) / 2),
+      windowX: monitor.position.x + Math.round((monitor.size.width - panelWPhys) / 2),
+      windowY: monitor.position.y + Math.round((monitor.size.height - panelHPhys) / 2),
+      windowWidth: CLIPBOARD_PANEL_WIDTH,
+      windowHeight: CLIPBOARD_PANEL_HEIGHT,
     };
   } catch {
     return {
-      windowX: 0,
-      windowY: 0,
-      windowWidth: 1920,
-      windowHeight: 1080,
-      panelX: Math.round((1920 - CLIPBOARD_PANEL_WIDTH) / 2),
-      panelY: Math.round((1080 - CLIPBOARD_PANEL_HEIGHT) / 2),
+      windowX: Math.round((1920 - CLIPBOARD_PANEL_WIDTH) / 2),
+      windowY: Math.round((1080 - CLIPBOARD_PANEL_HEIGHT) / 2),
+      windowWidth: CLIPBOARD_PANEL_WIDTH,
+      windowHeight: CLIPBOARD_PANEL_HEIGHT,
     };
   }
 }
@@ -48,22 +45,16 @@ export async function openClipboardOverlay(): Promise<void> {
   );
   const layout = posResult.isOk() ? posResult.value : await fallbackOverlayLayout();
 
-  const params = new URLSearchParams({
-    panelX: String(layout.panelX),
-    panelY: String(layout.panelY),
-  });
-
   const win = new WebviewWindow("clipboard-overlay", {
-    url: `/clipboard-overlay.html?${params.toString()}`,
+    url: "/clipboard-overlay.html",
     title: "Clipboard History",
-    width: layout.windowWidth,
-    height: layout.windowHeight,
-    x: layout.windowX,
-    y: layout.windowY,
+    width: CLIPBOARD_PANEL_WIDTH,
+    height: CLIPBOARD_PANEL_HEIGHT,
     decorations: false,
     alwaysOnTop: true,
     skipTaskbar: true,
     transparent: true,
+    shadow: false,
     resizable: false,
     focus: false,
     visible: false,
@@ -81,17 +72,13 @@ export async function openClipboardOverlay(): Promise<void> {
     });
   });
 
-  await win.setPosition({
-    type: "Logical",
-    x: layout.windowX,
-    y: layout.windowY,
-  } as never);
-  await win.setSize({
-    type: "Logical",
-    width: layout.windowWidth,
-    height: layout.windowHeight,
-  } as never);
+  const size = panelSize();
+  await win.setPosition(new PhysicalPosition(layout.windowX, layout.windowY));
+  await win.setSize(size);
+  await win.setMinSize(size);
+  await win.setMaxSize(size);
 
   await win.show();
+  await win.setShadow(true);
   await win.setFocus();
 }

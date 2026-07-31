@@ -3,7 +3,7 @@
 @config "../tailwind.config.cjs";
 
 @plugin "@iconify/tailwind4" {
-  prefixes: mdi, catppuccin;
+  prefixes: mdi, catppuccin, devicon-plain;
 }
 
 @theme inline {

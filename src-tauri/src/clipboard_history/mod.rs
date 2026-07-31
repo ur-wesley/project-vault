@@ -1,12 +1,14 @@
 mod apply;
 #[cfg(windows)]
 mod caret;
+mod overlay_window;
 mod position;
 mod store;
 mod types;
 mod watcher;
 
 pub use apply::apply_entry;
+pub use overlay_window::apply_overlay_effects;
 pub use position::{
     capture_overlay_anchor, compute_overlay_position, save_foreground_hwnd,
     ClipboardOverlayPositionDto,

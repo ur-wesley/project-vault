@@ -6,7 +6,7 @@ use tauri::{AppHandle, Manager};
 use crate::error::StableError;
 
 #[cfg(windows)]
-use super::caret::{resolve_caret_anchor, CaretAnchor};
+use super::caret::{cursor_as_anchor, resolve_caret_anchor, CaretAnchor};
 use super::watcher::ClipboardWatcherState;
 
 #[derive(Debug, Clone, Serialize)]
@@ -16,8 +16,6 @@ pub struct ClipboardOverlayPositionDto {
     pub window_y: i32,
     pub window_width: u32,
     pub window_height: u32,
-    pub panel_x: i32,
-    pub panel_y: i32,
 }
 
 const GAP_PX: i32 = 10;
@@ -34,7 +32,7 @@ struct MonitorWorkArea {
 #[cfg(windows)]
 pub fn capture_overlay_anchor(app: &AppHandle) -> Result<(), StableError> {
     save_foreground_hwnd(app);
-    if let Some(anchor) = resolve_caret_anchor(app) {
+    if let Some(anchor) = resolve_caret_anchor(app).or_else(cursor_as_anchor) {
         let state = app.state::<Arc<ClipboardWatcherState>>();
         if let Ok(mut guard) = state.saved_caret_anchor.lock() {
             *guard = Some(anchor);
@@ -54,7 +52,9 @@ pub fn compute_overlay_position(
     width: u32,
     height: u32,
 ) -> Result<ClipboardOverlayPositionDto, StableError> {
-    let anchor = take_saved_caret_anchor(app).or_else(|| resolve_caret_anchor(app));
+    let anchor = take_saved_caret_anchor(app)
+        .or_else(|| resolve_caret_anchor(app))
+        .or_else(cursor_as_anchor);
 
     unsafe {
         match anchor {
@@ -116,7 +116,7 @@ unsafe fn panel_origin_for_anchor(
         x = work.work_left;
     }
 
-    Ok(layout_from_work_area(work, x, y))
+    Ok(layout_from_work_area(x, y, width, height))
 }
 
 #[cfg(windows)]
@@ -143,25 +143,21 @@ unsafe fn panel_origin_centered_on_focus_monitor(
     let x = work.work_left + (work_w - panel_w_phys) / 2;
     let y = work.work_top + (work_h - panel_h_phys) / 2;
 
-    Ok(layout_from_work_area(work, x, y))
+    Ok(layout_from_work_area(x, y, width, height))
 }
 
 #[cfg(windows)]
-fn layout_from_work_area(work: MonitorWorkArea, panel_x_phys: i32, panel_y_phys: i32) -> ClipboardOverlayPositionDto {
-    let window_x = (work.work_left as f64 / work.scale).round() as i32;
-    let window_y = (work.work_top as f64 / work.scale).round() as i32;
-    let window_width = ((work.work_right - work.work_left) as f64 / work.scale).round() as u32;
-    let window_height = ((work.work_bottom - work.work_top) as f64 / work.scale).round() as u32;
-    let panel_x = (panel_x_phys as f64 / work.scale).round() as i32 - window_x;
-    let panel_y = (panel_y_phys as f64 / work.scale).round() as i32 - window_y;
-
+fn layout_from_work_area(
+    panel_x_phys: i32,
+    panel_y_phys: i32,
+    width: u32,
+    height: u32,
+) -> ClipboardOverlayPositionDto {
     ClipboardOverlayPositionDto {
-        window_x,
-        window_y,
-        window_width,
-        window_height,
-        panel_x,
-        panel_y,
+        window_x: panel_x_phys,
+        window_y: panel_y_phys,
+        window_width: width,
+        window_height: height,
     }
 }
 

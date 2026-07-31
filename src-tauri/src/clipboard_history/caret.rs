@@ -31,6 +31,19 @@ pub fn resolve_caret_anchor(app: &AppHandle) -> Option<CaretAnchor> {
     }
 }
 
+pub fn cursor_as_anchor() -> Option<CaretAnchor> {
+    unsafe {
+        use windows::Win32::Foundation::POINT;
+        use windows::Win32::UI::WindowsAndMessaging::GetCursorPos;
+
+        let mut pt = POINT::default();
+        if GetCursorPos(&mut pt).is_err() {
+            return None;
+        }
+        Some((pt.x, pt.y, pt.y - DEFAULT_LINE_HEIGHT))
+    }
+}
+
 fn saved_foreground_hwnd(app: &AppHandle) -> Option<HWND> {
     let state = app.state::<Arc<ClipboardWatcherState>>();
     state
@@ -107,27 +120,42 @@ unsafe fn anchor_from_bounding_rects_array(
 }
 
 unsafe fn caret_from_gui_thread_info(hwnd: HWND) -> Option<CaretAnchor> {
-    use windows::Win32::Foundation::RECT;
+    use windows::Win32::Foundation::{POINT, RECT};
+    use windows::Win32::Graphics::Gdi::ClientToScreen;
     use windows::Win32::UI::WindowsAndMessaging::{
         GetGUIThreadInfo, GetWindowRect, GetWindowThreadProcessId, GUITHREADINFO,
     };
 
-    if hwnd.0.is_null() {
-        return None;
-    }
-
-    let thread_id = GetWindowThreadProcessId(hwnd, None);
     let mut info = GUITHREADINFO {
         cbSize: std::mem::size_of::<GUITHREADINFO>() as u32,
         ..Default::default()
     };
 
-    if GetGUIThreadInfo(thread_id, &mut info).is_err() {
+    let loaded = if GetGUIThreadInfo(0, &mut info).is_ok() {
+        true
+    } else if !hwnd.0.is_null() {
+        let thread_id = GetWindowThreadProcessId(hwnd, None);
+        GetGUIThreadInfo(thread_id, &mut info).is_ok()
+    } else {
+        false
+    };
+
+    if !loaded {
         return None;
     }
 
     if !info.hwndCaret.0.is_null() {
-        let r = info.rcCaret;
+        let mut r = info.rcCaret;
+        let mut top_left = POINT { x: r.left, y: r.top };
+        let mut bottom_right = POINT { x: r.right, y: r.bottom };
+        if ClientToScreen(info.hwndCaret, &mut top_left).as_bool()
+            && ClientToScreen(info.hwndCaret, &mut bottom_right).as_bool()
+        {
+            r.left = top_left.x;
+            r.top = top_left.y;
+            r.right = bottom_right.x;
+            r.bottom = bottom_right.y;
+        }
         if r.bottom > r.top {
             return Some((r.left, r.bottom, r.top));
         }
@@ -170,6 +198,9 @@ unsafe fn caret_from_attach_thread_getcaretpos() -> Option<CaretAnchor> {
     let result = (|| {
         let mut pt = POINT::default();
         if GetCaretPos(&mut pt).is_err() {
+            return None;
+        }
+        if pt.x == 0 && pt.y == 0 {
             return None;
         }
         let focus = GetFocus();

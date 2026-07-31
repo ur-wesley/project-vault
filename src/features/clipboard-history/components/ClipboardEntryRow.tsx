@@ -3,6 +3,7 @@ import { createQuery } from "@tanstack/solid-query";
 import type { ClipboardEntryDto } from "~/types/dto";
 import { cn } from "~/lib/utils";
 import { getClipboardEntryThumbnail } from "~/services/tauri/clipboard-history";
+import { SearchHighlightedText } from "../lib/highlight-search-text";
 
 const KIND_ICON: Record<string, string> = {
   text: "mdi--text",
@@ -14,6 +15,7 @@ const KIND_ICON: Record<string, string> = {
 export type ClipboardEntryRowProps = Readonly<{
   entry: ClipboardEntryDto;
   selected: boolean;
+  searchQuery: string;
   onPointerMove: () => void;
   onApply: () => void;
 }>;
@@ -38,10 +40,10 @@ export const ClipboardEntryRow: Component<ClipboardEntryRowProps> = (props) => {
       type="button"
       data-clip-item
       class={cn(
-        "flex w-full items-center gap-3.5 rounded-sm px-5 py-4 text-left text-sm transition-colors",
+        "flex w-full items-center gap-3 rounded-md px-2 py-2.5 text-left text-sm transition-colors",
         props.selected
-          ? "bg-primary/15 text-foreground ring-1 ring-primary/25"
-          : "text-foreground/90 hover:bg-accent/50",
+          ? "bg-primary/20 text-foreground ring-1 ring-inset ring-primary/40"
+          : "text-foreground/90 hover:bg-accent/60",
       )}
       onClick={() => props.onApply()}
       onPointerMove={() => props.onPointerMove()}
@@ -59,7 +61,9 @@ export const ClipboardEntryRow: Component<ClipboardEntryRowProps> = (props) => {
         />
       </Show>
       <div class="flex min-w-0 flex-1 items-center gap-1.5">
-        <span class="truncate font-medium">{props.entry.preview}</span>
+        <span class="truncate font-medium">
+          <SearchHighlightedText text={props.entry.preview} query={props.searchQuery} />
+        </span>
         {props.entry.pinned && (
           <span class="iconify mdi--pin size-3 shrink-0 text-primary" title="Pinned" />
         )}
