@@ -24,6 +24,7 @@ struct ProjectRow {
     file_count: i64,
     size_bytes: i64,
     last_edited_at_ms: Option<i64>,
+    icon_path: Option<String>,
 }
 
 fn row_to_dto(r: ProjectRow) -> Result<ProjectDto, StableError> {
@@ -48,12 +49,13 @@ fn row_to_dto(r: ProjectRow) -> Result<ProjectDto, StableError> {
         file_count: r.file_count as u64,
         size_bytes: r.size_bytes as u64,
         last_edited_at_ms: r.last_edited_at_ms,
+        icon_path: r.icon_path,
     })
 }
 
 pub async fn list_projects(pool: &Pool<Sqlite>) -> Result<Vec<ProjectDto>, StableError> {
     let rows: Vec<ProjectRow> = sqlx::query_as(
-        "SELECT id, location_id, name, path, stack, runtime_hint, favorite, last_opened_at_ms, total_playtime_ms, tasks_json, tags_json, github_owner, github_repo, file_count, size_bytes, last_edited_at_ms FROM projects ORDER BY name ASC",
+        "SELECT id, location_id, name, path, stack, runtime_hint, favorite, last_opened_at_ms, total_playtime_ms, tasks_json, tags_json, github_owner, github_repo, file_count, size_bytes, last_edited_at_ms, icon_path FROM projects ORDER BY name ASC",
     )
     .fetch_all(pool)
     .await
@@ -67,7 +69,7 @@ pub async fn list_projects(pool: &Pool<Sqlite>) -> Result<Vec<ProjectDto>, Stabl
 
 pub async fn get_project(pool: &Pool<Sqlite>, id: &str) -> Result<ProjectDto, StableError> {
     let row: Option<ProjectRow> = sqlx::query_as(
-        "SELECT id, location_id, name, path, stack, runtime_hint, favorite, last_opened_at_ms, total_playtime_ms, tasks_json, tags_json, github_owner, github_repo, file_count, size_bytes, last_edited_at_ms FROM projects WHERE id = ?1",
+        "SELECT id, location_id, name, path, stack, runtime_hint, favorite, last_opened_at_ms, total_playtime_ms, tasks_json, tags_json, github_owner, github_repo, file_count, size_bytes, last_edited_at_ms, icon_path FROM projects WHERE id = ?1",
     )
     .bind(id)
     .fetch_optional(pool)
@@ -110,8 +112,8 @@ pub async fn upsert_project(
 
     let id = if let Some(eid) = existing {
         sqlx::query(
-            r#"UPDATE projects SET name = ?1, stack = ?2, runtime_hint = ?3, tasks_json = ?4, tags_json = ?5, github_owner = ?6, github_repo = ?7, file_count = ?8, size_bytes = ?9, last_edited_at_ms = ?10
-               WHERE id = ?11"#,
+            r#"UPDATE projects SET name = ?1, stack = ?2, runtime_hint = ?3, tasks_json = ?4, tags_json = ?5, github_owner = ?6, github_repo = ?7, file_count = ?8, size_bytes = ?9, last_edited_at_ms = ?10, icon_path = ?11
+               WHERE id = ?12"#,
         )
         .bind(&dto.name)
         .bind(&dto.stack)
@@ -123,6 +125,7 @@ pub async fn upsert_project(
         .bind(dto.file_count as i64)
         .bind(dto.size_bytes as i64)
         .bind(dto.last_edited_at_ms)
+        .bind(&dto.icon_path)
         .bind(&eid)
         .execute(pool)
         .await
@@ -136,8 +139,8 @@ pub async fn upsert_project(
         };
         sqlx::query(
             r#"INSERT INTO projects (
-                id, location_id, name, path, stack, runtime_hint, favorite, last_opened_at_ms, total_playtime_ms, tasks_json, tags_json, github_owner, github_repo, file_count, size_bytes, last_edited_at_ms
-            ) VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7, ?8, ?9, ?10, ?11, ?12, ?13, ?14, ?15, ?16)"#,
+                id, location_id, name, path, stack, runtime_hint, favorite, last_opened_at_ms, total_playtime_ms, tasks_json, tags_json, github_owner, github_repo, file_count, size_bytes, last_edited_at_ms, icon_path
+            ) VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7, ?8, ?9, ?10, ?11, ?12, ?13, ?14, ?15, ?16, ?17)"#,
         )
         .bind(&nid)
         .bind(&dto.location_id)
@@ -155,6 +158,7 @@ pub async fn upsert_project(
         .bind(dto.file_count as i64)
         .bind(dto.size_bytes as i64)
         .bind(dto.last_edited_at_ms)
+        .bind(&dto.icon_path)
         .execute(pool)
         .await
         .map_err(|e| StableError::new(codes::DB_ERROR, e.to_string()))?;
@@ -184,8 +188,8 @@ pub async fn upsert_project_lightweight(
     let id = if let Some(eid) = existing {
         // Preserve metadata: only update structural fields
         sqlx::query(
-            r#"UPDATE projects SET name = ?1, stack = ?2, runtime_hint = ?3, tasks_json = ?4, tags_json = ?5, github_owner = ?6, github_repo = ?7
-               WHERE id = ?8"#,
+            r#"UPDATE projects SET name = ?1, stack = ?2, runtime_hint = ?3, tasks_json = ?4, tags_json = ?5, github_owner = ?6, github_repo = ?7, icon_path = ?8
+               WHERE id = ?9"#,
         )
         .bind(&dto.name)
         .bind(&dto.stack)
@@ -194,6 +198,7 @@ pub async fn upsert_project_lightweight(
         .bind(&tags_json)
         .bind(&dto.github_owner)
         .bind(&dto.github_repo)
+        .bind(&dto.icon_path)
         .bind(&eid)
         .execute(pool)
         .await
@@ -207,8 +212,8 @@ pub async fn upsert_project_lightweight(
         };
         sqlx::query(
             r#"INSERT INTO projects (
-                id, location_id, name, path, stack, runtime_hint, favorite, last_opened_at_ms, total_playtime_ms, tasks_json, tags_json, github_owner, github_repo, file_count, size_bytes, last_edited_at_ms
-            ) VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7, ?8, ?9, ?10, ?11, ?12, ?13, ?14, ?15, ?16)"#,
+                id, location_id, name, path, stack, runtime_hint, favorite, last_opened_at_ms, total_playtime_ms, tasks_json, tags_json, github_owner, github_repo, file_count, size_bytes, last_edited_at_ms, icon_path
+            ) VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7, ?8, ?9, ?10, ?11, ?12, ?13, ?14, ?15, ?16, ?17)"#,
         )
         .bind(&nid)
         .bind(&dto.location_id)
@@ -226,6 +231,7 @@ pub async fn upsert_project_lightweight(
         .bind(dto.file_count as i64)
         .bind(dto.size_bytes as i64)
         .bind(dto.last_edited_at_ms)
+        .bind(&dto.icon_path)
         .execute(pool)
         .await
         .map_err(|e| StableError::new(codes::DB_ERROR, e.to_string()))?;
@@ -358,7 +364,7 @@ pub async fn update_project_tasks(
 
 pub async fn find_project_by_path(pool: &Pool<Sqlite>, path: &str) -> Result<ProjectDto, StableError> {
     let row: Option<ProjectRow> = sqlx::query_as(
-        "SELECT id, location_id, name, path, stack, runtime_hint, favorite, last_opened_at_ms, total_playtime_ms, tasks_json, tags_json, github_owner, github_repo, file_count, size_bytes, last_edited_at_ms FROM projects WHERE path = ?1",
+        "SELECT id, location_id, name, path, stack, runtime_hint, favorite, last_opened_at_ms, total_playtime_ms, tasks_json, tags_json, github_owner, github_repo, file_count, size_bytes, last_edited_at_ms, icon_path FROM projects WHERE path = ?1",
     )
     .bind(path)
     .fetch_optional(pool)

@@ -32,6 +32,14 @@ pub fn discover_platform(
         out,
         seen_paths,
         seen_ids,
+        "vscode-oss",
+        "VSCode OSS",
+        apps.join("Code - OSS.app/Contents/Resources/app/bin/code"),
+    );
+    push_candidate(
+        out,
+        seen_paths,
+        seen_ids,
         "vscodium",
         "VSCodium",
         apps.join("VSCodium.app/Contents/Resources/app/bin/codium"),
@@ -138,6 +146,11 @@ pub fn discover_platform(
         ("clion", "CLion", "CLion.app/Contents/MacOS/clion"),
         ("phpstorm", "PhpStorm", "PhpStorm.app/Contents/MacOS/phpstorm"),
         ("rider", "Rider", "Rider.app/Contents/MacOS/rider"),
+        ("datagrip", "DataGrip", "DataGrip.app/Contents/MacOS/datagrip"),
+        ("rubymine", "RubyMine", "RubyMine.app/Contents/MacOS/rubymine"),
+        ("appcode", "AppCode", "AppCode.app/Contents/MacOS/appcode"),
+        ("dataspell", "DataSpell", "DataSpell.app/Contents/MacOS/dataspell"),
+        ("aqua", "Aqua", "Aqua.app/Contents/MacOS/aqua"),
         (
             "android-studio",
             "Android Studio",
@@ -353,6 +366,11 @@ pub fn discover_platform_fallback(
             &["Contents/Resources/app/bin/code"],
         ),
         ("vscodium", "VSCodium", &["Contents/Resources/app/bin/codium"]),
+        (
+            "vscode-oss",
+            "VSCode OSS",
+            &["Contents/Resources/app/bin/code"],
+        ),
         ("cursor", "Cursor", &["Contents/Resources/app/bin/cursor"]),
         ("windsurf", "Windsurf", &["Contents/Resources/app/bin/windsurf"]),
         ("trae", "Trae", &["Contents/Resources/app/bin/trae"]),
@@ -371,6 +389,11 @@ pub fn discover_platform_fallback(
         ("clion", "CLion", &["Contents/MacOS/clion"]),
         ("phpstorm", "PhpStorm", &["Contents/MacOS/phpstorm"]),
         ("rider", "Rider", &["Contents/MacOS/rider"]),
+        ("datagrip", "DataGrip", &["Contents/MacOS/datagrip"]),
+        ("rubymine", "RubyMine", &["Contents/MacOS/rubymine"]),
+        ("appcode", "AppCode", &["Contents/MacOS/appcode"]),
+        ("dataspell", "DataSpell", &["Contents/MacOS/dataspell"]),
+        ("aqua", "Aqua", &["Contents/MacOS/aqua"]),
         ("android-studio", "Android Studio", &["Contents/MacOS/studio"]),
         ("fleet", "Fleet", &["Contents/MacOS/fleet"]),
         ("emacs", "Emacs", &["Contents/MacOS/Emacs"]),
@@ -405,6 +428,11 @@ pub fn discover_platform_fallback(
                 || (*id == "vscode" && bundle_name.contains("visual studio code"))
                 || (*id == "vscode-insiders" && bundle_name.contains("visual studio code insiders"))
                 || (*id == "vscodium" && bundle_name.contains("vscodium"))
+                || (*id == "vscode-oss"
+                    && (bundle_name.contains("code - oss")
+                        || bundle_name.contains("code-oss")
+                        || bundle_name.contains("code oss")
+                        || bundle_name.contains("vscode oss")))
                 || (*id == "android-studio" && bundle_name.contains("android studio"))
                 || (*id == "antigravity" && bundle_name.contains("antigravity"));
 

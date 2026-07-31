@@ -18,7 +18,7 @@ export type ToolsSettingsTabProps = Readonly<{
   setShellPath: (v: string) => void;
 }>;
 
-type IdeOption = { value: string; label: string; textValue: string; icon?: string | null };
+type IdeOption = { value: string; label: string; textValue: string; icon?: string | null; iconData?: string | null };
 type ShellOption = { value: string; label: string; textValue: string; icon?: string | null };
 
 const SHELL_ICON_MAP: Record<string, string> = {
@@ -41,6 +41,7 @@ export const ToolsSettingsTab: Component<ToolsSettingsTabProps> = (props) => {
       label: i.label,
       textValue: i.label,
       icon: i.icon,
+      iconData: i.iconData,
     }));
   });
 
@@ -85,8 +86,15 @@ export const ToolsSettingsTab: Component<ToolsSettingsTabProps> = (props) => {
               itemComponent={(p) => (
                 <Select.Item item={p.item}>
                   <div class="flex items-center gap-2">
-                      <Show when={p.item.rawValue.icon}>
-                        <span class={cn("iconify shrink-0 size-4", p.item.rawValue.icon!)} />
+                      <Show
+                        when={p.item.rawValue.iconData}
+                        fallback={
+                          <Show when={p.item.rawValue.icon}>
+                            <span class={cn("iconify shrink-0 size-4", p.item.rawValue.icon!)} />
+                          </Show>
+                        }
+                      >
+                        {(src) => <img src={src()} alt="" class="size-4 shrink-0 object-contain" />}
                       </Show>
                       <Select.ItemLabel>{p.item.rawValue.label}</Select.ItemLabel>
                   </div>
@@ -97,8 +105,15 @@ export const ToolsSettingsTab: Component<ToolsSettingsTabProps> = (props) => {
                 <Select.Value<IdeOption>>
                   {(s) => (
                     <div class="flex items-center gap-2 truncate">
-                      <Show when={s.selectedOption()?.icon}>
-                        {(icon) => <span class={cn("iconify shrink-0 size-4", icon())} />}
+                      <Show
+                        when={s.selectedOption()?.iconData}
+                        fallback={
+                          <Show when={s.selectedOption()?.icon}>
+                            {(icon) => <span class={cn("iconify shrink-0 size-4", icon())} />}
+                          </Show>
+                        }
+                      >
+                        {(src) => <img src={src()} alt="" class="size-4 shrink-0 object-contain" />}
                       </Show>
                       <span class="truncate">
                         {s.selectedOption()?.label ?? props.t("settings.defaultIdePlaceholder")}

@@ -54,6 +54,7 @@ export function useProjectIde(props: { projectId: Accessor<string> }) {
       textValue: `${i.label} ${i.executable}`,
       executable: i.executable,
       icon: i.icon,
+      iconData: i.iconData,
     }));
   });
 

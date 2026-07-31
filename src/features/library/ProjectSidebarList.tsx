@@ -3,6 +3,7 @@ import { openPath } from "@tauri-apps/plugin-opener";
 import { For, Show, createMemo, type Accessor } from "solid-js";
 
 import { StackIcon } from "~/components/StackIcon";
+import { ProjectAvatar } from "~/components/ProjectAvatar";
 import {
   ContextMenu,
   ContextMenuContent,
@@ -212,8 +213,8 @@ export function ProjectSidebarList(props: {
                     >
                       <div class="flex w-full min-w-0 items-center gap-2.5 group-data-[collapsible=icon]:justify-center">
                         <span class="relative flex shrink-0 items-center justify-center self-center text-sidebar-foreground/70">
-                          <StackIcon
-                            stack={project.stack}
+                          <ProjectAvatar
+                            project={project}
                             class="size-6 shrink-0"
                             noTooltip
                           />

@@ -13,6 +13,7 @@ pub fn jetbrains_exe_label(name: &str) -> Option<(&'static str, &'static str)> {
         "clion64.exe" | "clion" => Some(("clion", "CLion")),
         "phpstorm64.exe" | "phpstorm" => Some(("phpstorm", "PhpStorm")),
         "rider64.exe" | "rider" => Some(("rider", "Rider")),
+        "datagrip64.exe" | "datagrip" => Some(("datagrip", "DataGrip")),
         "studio64.exe" | "studio" | "studio.exe" => Some(("android-studio", "Android Studio")),
         "fleet" => Some(("fleet", "Fleet")),
         _ => None,

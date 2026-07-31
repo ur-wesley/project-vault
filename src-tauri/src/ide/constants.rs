@@ -6,6 +6,9 @@ pub static KNOWN_WINDOWS_EXE_PATTERNS: &[(&str, &str, &[&str])] = &[
         "Visual Studio Code Insiders",
         &["Code - Insiders.exe"],
     ),
+    // OSS build (microsoft/vscode product.json: win32ShellNameShort "C&ode - OSS",
+    // win32DirName "Microsoft Code OSS")
+    ("vscode-oss", "VSCode OSS", &["Code - OSS.exe"]),
     ("vscodium", "VSCodium", &["VSCodium.exe"]),
     ("cursor", "Cursor", &["Cursor.exe"]),
     ("windsurf", "Windsurf", &["Windsurf.exe"]),
@@ -34,6 +37,11 @@ pub static KNOWN_WINDOWS_EXE_PATTERNS: &[(&str, &str, &[&str])] = &[
     ("clion", "CLion", &["clion64.exe"]),
     ("phpstorm", "PhpStorm", &["phpstorm64.exe"]),
     ("rider", "Rider", &["rider64.exe"]),
+    ("datagrip", "DataGrip", &["datagrip64.exe"]),
+    ("rubymine", "RubyMine", &["rubymine64.exe"]),
+    ("appcode", "AppCode", &["appcode64.exe"]),
+    ("dataspell", "DataSpell", &["dataSpell64.exe"]),
+    ("aqua", "Aqua", &["aqua64.exe"]),
     (
         "android-studio",
         "Android Studio",
@@ -57,6 +65,8 @@ pub static KNOWN_UNIX_EXE_NAMES: &[(&str, &str, &[&str])] = &[
         "Visual Studio Code Insiders",
         &["code-insiders"],
     ),
+    // OSS build (microsoft/vscode product.json applicationName "code-oss")
+    ("vscode-oss", "VSCode OSS", &["code-oss"]),
     ("vscodium", "VSCodium", &["codium"]),
     ("cursor", "Cursor", &["cursor"]),
     ("windsurf", "Windsurf", &["windsurf"]),
@@ -74,4 +84,10 @@ pub static KNOWN_UNIX_EXE_NAMES: &[(&str, &str, &[&str])] = &[
     ("spyder", "Spyder", &["spyder"]),
     ("bluej", "BlueJ", &["bluej"]),
     ("antigravity", "Google Antigravity", &["antigravity"]),
+    // JetBrains launcher scripts (bin/<product>.sh inside each install dir)
+    ("datagrip", "DataGrip", &["datagrip.sh", "datagrip"]),
+    ("rubymine", "RubyMine", &["rubymine.sh", "rubymine"]),
+    ("appcode", "AppCode", &["appcode.sh", "appcode"]),
+    ("dataspell", "DataSpell", &["dataspell.sh", "dataspell"]),
+    ("aqua", "Aqua", &["aqua.sh", "aqua"]),
 ];

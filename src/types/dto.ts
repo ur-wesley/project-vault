@@ -56,6 +56,7 @@ export type ProjectDto = {
   fileCount: number;
   sizeBytes: number;
   lastEditedAtMs: number | null;
+  iconPath: string | null;
 };
 
 export type SessionDto = {
@@ -116,6 +117,7 @@ export type IdeCandidateDto = {
   label: string;
   executable: string;
   icon: string | null;
+  iconData: string | null;
 };
 
 export type ShellCandidateDto = {

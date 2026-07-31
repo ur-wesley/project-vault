@@ -54,6 +54,7 @@ pub struct ProjectDto {
     pub file_count: u64,
     pub size_bytes: u64,
     pub last_edited_at_ms: Option<i64>,
+    pub icon_path: Option<String>,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
@@ -78,7 +79,12 @@ pub struct IdeCandidateDto {
     pub id: String,
     pub label: String,
     pub executable: String,
+    /// Iconify class fallback (e.g. "devicon-plain--vscode").
     pub icon: Option<String>,
+    /// Real OS icon as a data URL ("data:image/png;base64,...", or the svg
+    /// variant on Linux). None when extraction failed; the frontend then
+    /// falls back to `icon`.
+    pub icon_data: Option<String>,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]

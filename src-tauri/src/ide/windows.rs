@@ -37,6 +37,14 @@ pub fn discover_platform(
             out,
             seen_paths,
             seen_ids,
+            "vscode-oss",
+            "VSCode OSS",
+            base.join("Programs/Microsoft Code OSS/Code - OSS.exe"),
+        );
+        push_candidate(
+            out,
+            seen_paths,
+            seen_ids,
             "cursor",
             "Cursor",
             base.join("Programs/cursor/Cursor.exe"),
@@ -121,6 +129,14 @@ pub fn discover_platform(
             "vscode",
             "Visual Studio Code",
             base.join("Microsoft VS Code/Code.exe"),
+        );
+        push_candidate(
+            out,
+            seen_paths,
+            seen_ids,
+            "vscode-oss",
+            "VSCode OSS",
+            base.join("Microsoft Code OSS/Code - OSS.exe"),
         );
         push_candidate(
             out,
@@ -291,6 +307,21 @@ pub fn discover_platform(
         }
     }
 
+    // -- PATH lookups derived from KNOWN_WINDOWS_EXE_PATTERNS so every known
+    //    exe name is covered, not just the hand list above. Deduplication is
+    //    handled by push_candidate (seen_ids / seen_paths).
+    for (id, label, exes) in KNOWN_WINDOWS_EXE_PATTERNS {
+        if seen_ids.contains(*id) {
+            continue;
+        }
+        for exe in *exes {
+            if let Some(p) = path_dirs_lookup(exe) {
+                push_candidate(out, seen_paths, seen_ids, id, label, p);
+                break;
+            }
+        }
+    }
+
     // -- Generic install root scanner --
     let scan_roots: Vec<PathBuf> = [local.as_ref().map(|p| p.join("Programs")), pf, pf86]
         .into_iter()
@@ -309,6 +340,12 @@ pub fn discover_platform(
             "Visual Studio Code Insiders",
             &["vs code insiders*", "vscode-insiders*"],
             &["Code - Insiders.exe", "code-insiders.exe"],
+        ),
+        (
+            "vscode-oss",
+            "VSCode OSS",
+            &["microsoft code oss*", "code - oss*", "code-oss*"],
+            &["Code - OSS.exe"],
         ),
         (
             "vscodium",
@@ -413,32 +450,213 @@ pub fn discover_platform_fallback(
                 continue;
             };
             let install_loc: String = app_key.get_value("InstallLocation").unwrap_or_default();
-            if install_loc.is_empty() {
-                continue;
-            }
-            let loc = PathBuf::from(&install_loc);
-            if !loc.is_dir() {
+            let display_icon: String = app_key.get_value("DisplayIcon").unwrap_or_default();
+            let uninstall_string: String = app_key.get_value("UninstallString").unwrap_or_default();
+            if install_loc.is_empty() && display_icon.is_empty() && uninstall_string.is_empty() {
                 continue;
             }
 
-            // Search InstallLocation root and bin/ subdir for known IDE exes
-            for (id, label, exes) in KNOWN_WINDOWS_EXE_PATTERNS {
-                if seen_ids.contains(*id) {
-                    continue;
-                }
-                for exe in *exes {
-                    let p = loc.join(exe);
-                    if p.is_file() {
-                        push_candidate(out, seen_paths, seen_ids, id, label, p);
-                        break;
-                    }
-                    let bin_p = loc.join("bin").join(exe);
-                    if bin_p.is_file() {
-                        push_candidate(out, seen_paths, seen_ids, id, label, bin_p);
-                        break;
+            // 1) InstallLocation: look for known IDE executables in the install
+            //    dir root and its bin/ subdir.
+            if !install_loc.is_empty() {
+                let loc = PathBuf::from(&install_loc);
+                if loc.is_dir() {
+                    for (id, label, exes) in KNOWN_WINDOWS_EXE_PATTERNS {
+                        if seen_ids.contains(*id) {
+                            continue;
+                        }
+                        for exe in *exes {
+                            let p = loc.join(exe);
+                            if p.is_file() {
+                                push_candidate(out, seen_paths, seen_ids, id, label, p);
+                                break;
+                            }
+                            let bin_p = loc.join("bin").join(exe);
+                            if bin_p.is_file() {
+                                push_candidate(out, seen_paths, seen_ids, id, label, bin_p);
+                                break;
+                            }
+                        }
                     }
                 }
             }
+
+            // 2) DisplayIcon / UninstallString: use the executable path they
+            //    reference only when it resolves to an actual known IDE
+            //    executable. MsiExec.exe /X{...}, uninstall.exe, etc. never
+            //    match a known exe name, so they are skipped safely.
+            for raw in [&display_icon, &uninstall_string] {
+                let Some(path_str) = parse_registry_exe_path(raw) else {
+                    continue;
+                };
+                let Some(expanded) = expand_registry_path(&path_str) else {
+                    continue;
+                };
+                let p = PathBuf::from(&expanded);
+                if !p.is_file() {
+                    continue;
+                }
+                let Some(file_name) = p.file_name().and_then(|n| n.to_str()) else {
+                    continue;
+                };
+                let Some((id, label)) = known_exe_pattern_for(file_name) else {
+                    continue;
+                };
+                push_candidate(out, seen_paths, seen_ids, id, label, p);
+            }
         }
+    }
+}
+
+/// Extract an executable path from a registry string value (DisplayIcon or
+/// UninstallString). Handles:
+///   - quoted:   "\"C:\\Program Files\\App\\app.exe\",0"   -> "C:\\Program Files\\App\\app.exe"
+///   - plain:    "C:\\Program Files\\App\\app.exe /S"      -> "C:\\Program Files\\App\\app.exe"
+/// Returns the raw (possibly %VAR%-containing) path without quotes/arguments.
+pub fn parse_registry_exe_path(value: &str) -> Option<String> {
+    let value = value.trim();
+    if value.is_empty() {
+        return None;
+    }
+    let candidate = if let Some(stripped) = value.strip_prefix('"') {
+        // Quoted form: everything up to the closing quote.
+        match stripped.find('"') {
+            Some(end) => stripped[..end].to_string(),
+            None => return None, // unterminated quote: not parseable
+        }
+    } else {
+        // Unquoted form: stop at the first comma or whitespace
+        // (e.g. "C:\\Tools\\app.exe,0" or "MsiExec.exe /I{GUID}").
+        let end = value
+            .find(|c: char| c == ',' || c == ' ' || c == '\t')
+            .unwrap_or(value.len());
+        value[..end].to_string()
+    };
+    let candidate = candidate.trim();
+    if candidate.is_empty() {
+        None
+    } else {
+        Some(candidate.to_string())
+    }
+}
+
+/// Expand %VAR% references in a registry path (winreg returns REG_EXPAND_SZ
+/// values unexpanded). Returns None when a referenced variable is missing or
+/// the value is malformed, so callers can skip unresolvable entries safely.
+pub fn expand_registry_path(raw: &str) -> Option<String> {
+    if !raw.contains('%') {
+        return Some(raw.to_string());
+    }
+    let mut out = String::new();
+    let mut rest = raw;
+    while let Some(start) = rest.find('%') {
+        out.push_str(&rest[..start]);
+        let after = &rest[start + 1..];
+        let Some(end) = after.find('%') else {
+            return None; // unterminated %VAR
+        };
+        let var = &after[..end];
+        if var.is_empty() {
+            return None; // "%%" is not meaningful in a path
+        }
+        out.push_str(&std::env::var(var).ok()?);
+        rest = &after[end + 1..];
+    }
+    out.push_str(rest);
+    Some(out)
+}
+
+/// Find the first known IDE pattern whose executable names contain
+/// `file_name` (case-insensitive), returning its (id, label).
+pub fn known_exe_pattern_for(file_name: &str) -> Option<(&'static str, &'static str)> {
+    let lower = file_name.to_lowercase();
+    for (id, label, exes) in KNOWN_WINDOWS_EXE_PATTERNS {
+        if exes.iter().any(|exe| exe.to_lowercase() == lower) {
+            return Some((id, label));
+        }
+    }
+    None
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn parse_registry_exe_path_handles_quoted_with_icon_index() {
+        assert_eq!(
+            parse_registry_exe_path("\"C:\\Program Files\\App\\app.exe\",0"),
+            Some("C:\\Program Files\\App\\app.exe".to_string())
+        );
+    }
+
+    #[test]
+    fn parse_registry_exe_path_handles_quoted_with_args() {
+        assert_eq!(
+            parse_registry_exe_path("\"C:\\Program Files\\App\\uninstall.exe\" /S"),
+            Some("C:\\Program Files\\App\\uninstall.exe".to_string())
+        );
+    }
+
+    #[test]
+    fn parse_registry_exe_path_handles_plain_and_msi() {
+        assert_eq!(
+            parse_registry_exe_path("C:\\Tools\\App\\app.exe,0"),
+            Some("C:\\Tools\\App\\app.exe".to_string())
+        );
+        assert_eq!(
+            parse_registry_exe_path("MsiExec.exe /X{GUID}"),
+            Some("MsiExec.exe".to_string())
+        );
+        assert_eq!(
+            parse_registry_exe_path("C:\\Tools\\App\\app.exe /S"),
+            Some("C:\\Tools\\App\\app.exe".to_string())
+        );
+    }
+
+    #[test]
+    fn parse_registry_exe_path_rejects_empty_and_malformed() {
+        assert_eq!(parse_registry_exe_path(""), None);
+        assert_eq!(parse_registry_exe_path("   "), None);
+        assert_eq!(parse_registry_exe_path("\"unterminated"), None);
+        assert_eq!(parse_registry_exe_path("\"  \""), None);
+    }
+
+    #[test]
+    fn expand_registry_path_passthrough_and_expansion() {
+        assert_eq!(
+            expand_registry_path("C:\\Program Files\\App\\app.exe"),
+            Some("C:\\Program Files\\App\\app.exe".to_string())
+        );
+        // %SystemRoot% is always defined on Windows.
+        let expanded = expand_registry_path("%SystemRoot%\\System32\\notepad.exe");
+        assert!(expanded
+            .as_deref()
+            .unwrap_or("")
+            .ends_with("\\System32\\notepad.exe"));
+        assert_eq!(expand_registry_path("%DEFINITELY_NOT_SET_VAR_XYZ%\\x.exe"), None);
+        assert_eq!(expand_registry_path("C:\\%unterminated"), None);
+    }
+
+    #[test]
+    fn known_exe_pattern_for_matches_case_insensitively() {
+        assert_eq!(
+            known_exe_pattern_for("Code.exe"),
+            Some(("vscode", "Visual Studio Code"))
+        );
+        assert_eq!(
+            known_exe_pattern_for("code.exe"),
+            Some(("vscode", "Visual Studio Code"))
+        );
+        assert_eq!(
+            known_exe_pattern_for("Code - OSS.exe"),
+            Some(("vscode-oss", "VSCode OSS"))
+        );
+        assert_eq!(
+            known_exe_pattern_for("dataSpell64.exe"),
+            Some(("dataspell", "DataSpell"))
+        );
+        assert_eq!(known_exe_pattern_for("uninstall.exe"), None);
+        assert_eq!(known_exe_pattern_for("MsiExec.exe"), None);
     }
 }

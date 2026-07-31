@@ -518,6 +518,7 @@ mod tests {
             file_count: 0,
             size_bytes: 0,
             last_edited_at_ms: Some(0),
+            icon_path: None,
         }
     }
 

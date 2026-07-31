@@ -21,6 +21,7 @@ function project(over: Partial<ProjectDto> & { name: string }): ProjectDto {
     fileCount: 0,
     sizeBytes: 0,
     lastEditedAtMs: over.lastEditedAtMs ?? null,
+    iconPath: over.iconPath ?? null,
   };
 }
 

@@ -135,6 +135,7 @@ pub async fn run_location_scan_impl(
             file_count,
             size_bytes,
             last_edited_at_ms,
+            icon_path: crate::discovery::find_project_icon(&d.root),
         };
         let is_new = lightweight && !existing_paths.contains(&key);
         let project = if lightweight {

@@ -4,6 +4,7 @@ import { isTauri, invoke } from "@tauri-apps/api/core";
 import { listen } from "@tauri-apps/api/event";
 
 import { StackIcon } from "~/components/StackIcon";
+import { ProjectAvatar } from "~/components/ProjectAvatar";
 import {
   CommandDialog,
   CommandEmpty,
@@ -361,9 +362,10 @@ export function CommandPalette(props: CommandPaletteProps) {
                             as={CommandShortcut}
                             class="flex max-w-[40%] items-center justify-end font-normal"
                           >
-                            <StackIcon
-                              stack={project.stack}
+                            <ProjectAvatar
+                              project={project}
                               class="h-3.5 w-3.5"
+                              noTooltip
                             />
                             <span class="sr-only">{project.stack}</span>
                           </TooltipTrigger>
@@ -388,7 +390,7 @@ export function CommandPalette(props: CommandPaletteProps) {
                           as={CommandShortcut}
                           class="flex max-w-[40%] items-center justify-end font-normal"
                         >
-                          <StackIcon stack={project.stack} class="h-3.5 w-3.5" />
+                          <ProjectAvatar project={project} class="h-3.5 w-3.5" noTooltip />
                           <span class="sr-only">{project.stack}</span>
                         </TooltipTrigger>
                         <TooltipContent>{project.stack}</TooltipContent>

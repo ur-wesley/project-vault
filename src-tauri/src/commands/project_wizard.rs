@@ -458,6 +458,7 @@ pub async fn create_project_from_template(
                 file_count: 0,
                 size_bytes: 0,
                 last_edited_at_ms: None,
+                icon_path: None,
             };
             let inserted = db::upsert_project(&pool, &placeholder).await?;
 
@@ -536,6 +537,7 @@ pub async fn create_project_from_template(
                 file_count: files_written as u64,
                 size_bytes: 0,
                 last_edited_at_ms: None,
+                icon_path: None,
             };
             let inserted = db::upsert_project(&pool, &placeholder).await?;
 
@@ -618,6 +620,7 @@ pub async fn create_project_from_template(
                 file_count: 0,
                 size_bytes: 0,
                 last_edited_at_ms: None,
+                icon_path: None,
             };
             let inserted = db::upsert_project(&pool, &placeholder).await?;
 

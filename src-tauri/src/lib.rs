@@ -96,6 +96,12 @@ pub fn run() {
                             sql: include_str!("../migrations/009_clipboard_history_unique_hash.sql"),
                             kind: MigrationKind::Up,
                         },
+                        Migration {
+                            version: 10,
+                            description: "icon_path",
+                            sql: include_str!("../migrations/010_icon_path.sql"),
+                            kind: MigrationKind::Up,
+                        },
                     ],
                 )
                 .build(),

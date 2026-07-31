@@ -1,5 +1,6 @@
 import { Show, createMemo } from "solid-js";
 import { StackIcon } from "~/components/StackIcon";
+import { ProjectAvatar } from "~/components/ProjectAvatar";
 import { Button } from "~/components/ui/button";
 import { Tooltip, TooltipContent, TooltipTrigger } from "~/components/ui/tooltip";
 import { useI18n } from "~/lib/i18n-context";
@@ -55,6 +56,9 @@ export function ProjectCard(props: {
           <div class="flex items-center gap-1.5">
             <Show when={props.project.tags.includes("monorepo")}>
               <StackIcon stack="monorepo" class="size-3.5 shrink-0 opacity-80" />
+            </Show>
+            <Show when={props.project.iconPath}>
+              <ProjectAvatar project={props.project} class="size-5 shrink-0" noTooltip />
             </Show>
             <p class="truncate text-sm font-bold leading-tight text-foreground group-hover:text-primary transition-colors">
               {props.project.name}

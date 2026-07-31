@@ -226,6 +226,7 @@ pub async fn refresh_project(
     let draft = reg.detect(std::path::Path::new(&existing.path));
 
     let needs_update = draft.as_ref().map(|d| {
+        let icon_path = crate::discovery::find_project_icon(&d.root);
         d.stack != existing.stack
             || d.name != existing.name
             || d.github_owner != existing.github_owner
@@ -233,6 +234,7 @@ pub async fn refresh_project(
             || d.runtime_hint != existing.runtime_hint
             || d.tasks.len() != existing.tasks.len()
             || d.tags.len() != existing.tags.len()
+            || icon_path != existing.icon_path
     }).unwrap_or(false);
 
     if needs_update {
@@ -245,6 +247,7 @@ pub async fn refresh_project(
             dto.github_repo = d.github_repo;
             dto.tasks = d.tasks;
             dto.tags = d.tags;
+            dto.icon_path = crate::discovery::find_project_icon(&d.root);
             db::upsert_project(&pool, &dto).await?;
             crate::models::emit_project_changed(&app, &project_id, "scan");
         }

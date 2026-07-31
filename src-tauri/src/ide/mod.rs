@@ -15,6 +15,7 @@ const CREATE_NO_WINDOW: u32 = 0x08000000;
 
 mod common;
 mod constants;
+mod icon;
 mod scanner;
 mod jetbrains;
 #[cfg(windows)] mod windows;

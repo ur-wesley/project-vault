@@ -7,7 +7,7 @@ import { invoke } from "@tauri-apps/api/core";
 
 import { Portal } from "solid-js/web";
 
-import { StackIcon } from "~/components/StackIcon";
+import { ProjectAvatar } from "~/components/ProjectAvatar";
 import { Badge } from "~/components/ui/badge";
 import { Button } from "~/components/ui/button";
 import { Separator } from "~/components/ui/separator";
@@ -117,7 +117,7 @@ export const ProjectDetailHeader: Component<ProjectDetailHeaderProps> = (
                           variant="secondary"
                           class="inline-flex size-6 shrink-0 items-center justify-center p-0.5"
                         >
-                          <StackIcon stack={p().stack} class="size-4" />
+                          <ProjectAvatar project={p()} class="size-4" noTooltip />
                         </Badge>
                       </TooltipTrigger>
                       <TooltipContent>{p().stack}</TooltipContent>
@@ -346,13 +346,26 @@ export const ProjectDetailHeader: Component<ProjectDetailHeaderProps> = (
                             if (ex) void m().onOpenIde(p().id, ex);
                           }}
                         >
-                          <Show when={m().selectedIdeOption()?.icon}>
-                            <span
-                              class={cn(
-                                "iconify size-4.5",
-                                m().selectedIdeOption()?.icon,
-                              )}
-                            />
+                          <Show
+                            when={m().selectedIdeOption()?.iconData}
+                            fallback={
+                              <Show when={m().selectedIdeOption()?.icon}>
+                                <span
+                                  class={cn(
+                                    "iconify size-4.5",
+                                    m().selectedIdeOption()?.icon,
+                                  )}
+                                />
+                              </Show>
+                            }
+                          >
+                            {(src) => (
+                              <img
+                                src={src()}
+                                alt=""
+                                class="size-4.5 shrink-0 object-contain"
+                              />
+                            )}
                           </Show>
                           <span class="max-w-[120px] truncate">
                             {m().selectedIdeOption()?.label ??
@@ -390,13 +403,26 @@ export const ProjectDetailHeader: Component<ProjectDetailHeaderProps> = (
                                 m().onIdeSelected(p().id, opt.executable)
                               }
                             >
-                              <Show when={opt.icon}>
-                                <span
-                                  class={cn(
-                                    "iconify size-4 shrink-0 text-muted-foreground",
-                                    opt.icon,
-                                  )}
-                                />
+                              <Show
+                                when={opt.iconData}
+                                fallback={
+                                  <Show when={opt.icon}>
+                                    <span
+                                      class={cn(
+                                        "iconify size-4 shrink-0 text-muted-foreground",
+                                        opt.icon,
+                                      )}
+                                    />
+                                  </Show>
+                                }
+                              >
+                                {(src) => (
+                                  <img
+                                    src={src()}
+                                    alt=""
+                                    class="size-4 shrink-0 object-contain"
+                                  />
+                                )}
                               </Show>
                               <span class="flex-1 text-xs font-bold tracking-tight text-foreground">
                                 {opt.label}

@@ -6,6 +6,7 @@ export type IdeSelectOption = Readonly<{
   textValue: string;
   executable: string;
   icon: string | null;
+  iconData: string | null;
 }>;
 
 export type MoveLocationOption = Readonly<{
