@@ -108,14 +108,17 @@ Store and retrieve persistent configuration values. Storage keys are automatical
 * **`vault.settings.get(key: string) -> string | nil`**: Retrieves a saved string option.
 * **`vault.settings.set(key: string, value: string)`**: Saves a string configuration value.
 
+Read-only access to non-secret application settings is available separately:
+* **`vault.settings.get_app(key: string) -> string | nil`**: Reads an allowlisted app setting by its raw key (e.g. `ui_locale`, `shell_path`, `auto_index_projects`). Secret keys such as `github_token` are not readable. Unknown or disallowed keys raise a runtime error.
+
 ### 2.6 Theming & Stylesheet Injection (`vault.theme`)
 Build custom style overrides:
-* **`vault.theme.get_mode() -> string`**: Returns the current application theme mode (`"dark"` or `"light"`).
+* **`vault.theme.get_mode() -> string`**: Returns the current application theme mode (`"dark"` or `"light"`). Reads the `ui_theme` app setting when present; defaults to `"dark"`.
 * **`vault.theme.inject_css(css: string)`**: Dynamically injects a CSS stylesheet into the application webview.
 
 ### 2.7 Internationalization (`vault.i18n`)
 Retrieve active application language options for localized dialogue rendering:
-* **`vault.i18n.get_locale() -> string`**: Asynchronously retrieves the active UI locale setting (e.g., `"en"`, `"de"`).
+* **`vault.i18n.get_locale() -> string`**: Asynchronously retrieves the active UI locale setting (e.g., `"en"`, `"de"`). Prefer this over `vault.settings.get_app("ui_locale")` for locale lookups.
 
 ### 2.8 Plugin dependencies (`vault.plugin`, `vault.external`)
 

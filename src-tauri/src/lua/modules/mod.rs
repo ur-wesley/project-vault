@@ -8,6 +8,7 @@ pub struct ModuleContext {
     pub plugin_id: Option<String>,
 }
 
+pub mod app_settings;
 pub mod external_api;
 pub mod plugin_api;
 pub mod log;

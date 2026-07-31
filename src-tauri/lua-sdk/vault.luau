@@ -110,6 +110,8 @@ export type VaultSettings = {
     get: (key: string) -> string?,
     --- Saves a persisted string value scoped to the current plugin namespace.
     set: (key: string, value: string) -> (),
+    --- Reads a non-secret application setting by its raw key (allowlisted only).
+    get_app: (key: string) -> string?,
 }
 
 export type VaultTheme = {
