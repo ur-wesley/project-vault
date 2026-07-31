@@ -1,12 +1,13 @@
 # SolidJS UI Style Guide
 
-Conventions for building scalable, type-safe, maintainable UI with SolidJS.
+Conventions for building scalable, type-safe, maintainable UI with SolidJS and Tailwind CSS v4.
 
 ## Core Principles
 
-- Use shared UI primitives from `components/ui`, composed from `solid-ui` where appropriate
-- Use Tailwind CSS for styling
-- Use MDI icons via `i-mdi-<icon>` classes
+- Use shared UI primitives in `components/ui` (the `solid-ui` layer), composed from headless primitives and `solid-sonner`
+- Use Tailwind CSS for styling with `@theme` design tokens
+- Use MDI icons via Iconify Tailwind plugin (`i-mdi-<icon>` classes)
+- Prefer maintained `solid-primitives` over ad hoc reimplementation
 - Keep UI and business logic strictly separate
 - Shared context stores must expose a readonly tuple: `readonly [state, actions]`
 - Prefer strong typing, readonly types, and immutable APIs
@@ -15,6 +16,7 @@ Conventions for building scalable, type-safe, maintainable UI with SolidJS.
 - Derive state instead of duplicating it
 - Keep reusable UI domain-agnostic
 - Accessibility is required
+- Use `@ur-wesley/ts-prelude/<subpath>` for `neverthrow` / `ts-pattern` / `remeda` usage
 
 ## Tech Stack
 
@@ -24,6 +26,28 @@ Conventions for building scalable, type-safe, maintainable UI with SolidJS.
 - Use the simplest reactive primitive that solves the problem
 - Avoid unnecessary effects
 - Keep data flow explicit
+- Use `splitProps` / `mergeProps` / `children(() => ...)` for prop forwarding and dynamic children
+
+### Headless Primitives
+
+Build `solid-ui` on top of these layers:
+
+- `@kobalte/core` for accessible primitives (dialog, popover, select, combobox, switch, slider, tooltip, etc.)
+- `@ark-ui/solid` for primitives not in Kobalte (date-picker, etc.)
+- `@corvu/drawer` for the drawer primitive
+- `solid-sonner` for toasts (mount `<Toaster>` once at the root, call `toast()` everywhere else)
+
+Rules:
+
+- `components/ui` wraps these primitives and exposes a stable app-specific API
+- Never import from `features/*` inside `components/ui`
+- Never reach for raw HTML when a primitive already covers the behavior
+
+### Variants and Class Composition
+
+- `class-variance-authority` (`cva`) for variant APIs in `components/ui/*`
+- `clsx` + `tailwind-merge` composed in a single `cn(...)` helper in `lib/utils`
+- Components call `cn(...)` only — never import `clsx` or `twMerge` directly
 
 ### TanStack
 
@@ -31,7 +55,8 @@ Use TanStack libraries where they improve correctness and structure:
 
 - `@tanstack/solid-query` for server state, caching, loading and error states, invalidation, and mutations
 - `@tanstack/solid-table` for complex data tables
-- `@tanstack/solid-router` if the app uses TanStack Router for typed routing and route-driven data loading
+- `@tanstack/solid-router` for typed, file-based routing and route-driven data loading
+- `@tanstack/router-plugin/vite` for the file-based route tree
 
 Rules:
 
@@ -41,20 +66,34 @@ Rules:
 - Normalize server data before passing it into presentational UI
 - Keep mutations in feature actions and services, not in generic UI atoms
 
-### UI Components
+### solid-primitives
 
-- Shared UI must live in `components/ui`
-- Prefer `solid-ui` components and patterns as the baseline for shared primitives
-- Wrap or compose `solid-ui` components locally to keep app-specific APIs stable
-- Shared UI must be domain-agnostic
-- Feature-specific components should compose shared UI primitives
+Use `solid-primitives` whenever they fit. Prefer them over hand-rolled equivalents.
+
+Common ones:
+
+- `event-listener` — typed DOM listeners
+- `media` — media queries
+- `i18n` — dictionary provider
+- `geolocation` — browser geolocation
+- `keyed`, `storage` — keyed signals and persistence
+- `throttle` / `debounce` — rate limiting
+- `mutation-observer`, `resize-observer`, `intersection-observer` — DOM observation
+
+Rules:
+
+- Prefer maintained primitives over ad hoc reimplementation
+- Keep primitive usage explicit and typed
+- If a primitive exists, do not reimplement it inline
 
 ### Styling
 
-- Use Tailwind CSS utility classes directly in JSX
-- Prefer design tokens and semantic conventions
+- Tailwind CSS v4 via `@tailwindcss/vite`
+- Tokens declared in `src/index.css` via `@theme` (oklch palette, radii, fonts)
+- Theme switching via `[data-theme="..."]` selectors and `color-scheme`
+- Iconify plugin loaded with `prefix: "i"` (`@iconify/tailwind4` + `@iconify-json/mdi`)
+- Prefer semantic utility names tied to tokens over arbitrary values
 - Avoid arbitrary values unless justified
-- Use Tailwind utilities to size, color, and align `i-mdi-<icon>` icons
 
 ### Typing
 
@@ -62,16 +101,16 @@ Rules:
 - Never use `any`
 - Prefer `unknown` and narrow properly
 - Props, context values, actions, and utility return types must be typed
+- Import from `@ur-wesley/ts-prelude/<subpath>` — never from the package root
 
 ## Project Structure
 
-- `components/ui`: reusable, domain-agnostic UI built from local primitives and `solid-ui` compositions
+- `components/ui`: the `solid-ui` layer — reusable, domain-agnostic UI built from primitives
 - `features/*`: domain-specific logic and composed components
 - `services`: API and side-effect integrations
-- `types`: shared types
 - `utils`: pure helpers
-- `pages`: route-level assembly
-- `routes`: route components and route logic
+- `routes`: file-based route components and route logic
+- `lib`: cross-cutting helpers (e.g. `cn(...)`, `i18n`)
 
 ## Atomic Design
 
@@ -90,8 +129,8 @@ Rules:
 ## Import Boundaries
 
 - `components/ui` must not import from `features/*`
-- Features may import from `components/ui`, `types`, and `utils`
-- Pages may compose features and shared UI
+- Features may import from `components/ui`, `utils`, and `lib`
+- Routes may compose features and shared UI
 - Avoid circular dependencies
 
 ## Component Rules
@@ -100,10 +139,10 @@ Rules:
 - Keep props minimal and explicit
 - Export every component prop type
 - Mark props readonly
-- Prefer explicit unions for variants
-- Avoid boolean prop explosion
+- Prefer `cva` for variants — avoid boolean prop explosion
 - Use `children` intentionally
 - Prefer composition over overly generic slot APIs
+- Use `splitProps` / `mergeProps` for prop forwarding
 
 ## UI vs Logic
 
@@ -140,7 +179,7 @@ Rules:
 All shared context stores must return:
 
 ```ts
-readonly [state, actions]
+readonly [state, actions];
 ```
 
 Rules:
@@ -163,6 +202,7 @@ Naming:
 - App-wide state belongs in top-level providers
 - Server state should usually live in TanStack Query, not duplicated in context
 - Derive display state instead of storing duplicate flags
+- SSE / streamed responses must be wrapped in `ResultAsync` and surface loading / empty / error / success states; never throw across the boundary
 
 ## TypeScript Rules
 
@@ -170,7 +210,7 @@ Naming:
 - All exported functions must have explicit return types
 - All props, context values, actions, and utilities must be typed
 - Use readonly by default
-- Prefer `neverthrow` for helpers and services with recoverable failure paths
+- Always import through `@ur-wesley/ts-prelude/<subpath>` — never from `neverthrow`, `ts-pattern`, or `remeda` directly
 - Prefer:
   - `Readonly<T>`
   - `readonly T[]`
@@ -183,19 +223,22 @@ Naming:
 ## Styling Rules
 
 - Use Tailwind CSS utilities in JSX
-- Keep spacing, radii, colors, and typography aligned to design tokens
-- Extract repeated patterns into reusable component APIs
+- Keep spacing, radii, colors, and typography aligned to `@theme` tokens
+- Extract repeated patterns into reusable component APIs (cva variants, named molecules)
 - Interactive components should define:
   - default
   - hover
-  - focus-visible
+  - `focus-visible`
   - active
   - disabled
-  - error if applicable
+  - `aria-invalid` if applicable
+  - `data-[state=...]` for stateful primitives (open, checked, etc.)
 
 ## Icons
 
-- Use MDI icons via `i-mdi-<icon>` classes
+- Use MDI icons via the Iconify Tailwind plugin: `i-mdi-<icon>`
+- Configure the plugin with `prefix: "i"`
+- Color and size with `text-*` and `size-*` utilities
 - Decorative icons must use `aria-hidden="true"`
 - Icon-only controls must have an accessible label
 - Prefer standard MDI icons over ad hoc custom SVGs when possible
@@ -240,23 +283,55 @@ Rules:
 - Keep fetching out of low-level shared UI
 - Normalize API data before passing to presentational components
 - Handle loading, empty, error, and success states explicitly
+- Wrap streamed / SSE responses in `ResultAsync`; never throw past the boundary
 
 ## Helpers and Error Modeling
 
-- Prefer `neverthrow` for helpers and services with recoverable failure paths
-- Use `Result<T, E>` or `ResultAsync<T, E>` for explicit error handling
-- Keep error types narrow, typed, and domain-specific
-- Convert unknown or external errors into typed errors at module boundaries
-- Reserve thrown errors for exceptional cases, framework boundaries, or fatal failures
+Always import through `@ur-wesley/ts-prelude/<subpath>`. The package root exports only `VERSION` — never import from it for application logic.
 
-Use `neverthrow` especially for:
+### Subpaths in scope
+
+| Subpath | Used for | Replaces |
+| --- | --- | --- |
+| `/result` | `Result`, `ResultAsync`, `ok`, `err`, `matchResult`, `runCatching`, `traverse`, `combineWithAllErrors` | direct `neverthrow` |
+| `/option` | `Option<T>` for nullable values, `fromNullable`, `map`, `andThen`, `getOrElse`, `zip` | `T \| null` chains |
+| `/match` | `match` + `R` / `O` / `P` for exhaustive branching on `Result` / `Option` / tagged unions | direct `ts-pattern` |
+| `/pipe` | `pipe` / `flow` / `tap` / `dbg` for left-to-right composition | direct `remeda` |
+| `/scope` | `let_`, `run`, `apply`, `also`, `with_`, `ifSome`, `ifOk`, `ifErr`, `require` | inline IIFEs |
+| `/interop` | `fromNullable`, `toOption`, `toResult` at API boundaries | manual narrowing |
+| `/types` | `brand`, `tag`, `assertNever`, `refine`, `head` for ADTs and branded types | hand-rolled brands |
+| `/record` | `copy`, `update`, `updatePath` for immutable updates | spread-mutation smell |
+| `/async` | `retry`, `withTimeout`, `race`, `parallel`, `asyncTraverse` for `ResultAsync` | hand-rolled retry / timeout |
+| `/data/<fn>` | one remeda function per file when only one helper is needed (`filter`, `groupBy`, `sortBy`, `uniqueBy`, `find`, `chunk`, `partition`, `omit`, `pick`, …) | `import * as R from "remeda"` |
+| `/log` | structured logging via consola — `logger.info`, `logger.withTag(...)` | `console.*` |
+
+### Out of scope (mentioned briefly)
+
+- `/config` — typesafe env config; useful in services and tooling, not in components
+- `/wire` — composition-root only; not a service locator
+- `/resource` — `defer` / `usingResource` / `using` / `usingAsync` for `Disposable`
+- `/lazy` — `lazy` / `once` memoization
+- `/iter` — lazy iterator combinators (`fromArray`, `flatMap`, `take`, `skip`, `enumerate`)
+
+### When to use which module
+
+- nullable value → `fromNullable` / `toOption` (`/option`, `/interop`)
+- fallible operation → `ok` / `err` / `runCatching` (`/result`)
+- exhaustive branching → `match` + `R` / `O` / `P` + `.exhaustive()` (`/match`)
+- transform in place → `let_` or `pipe(value, fn1, fn2)` (`/scope`, `/pipe`)
+- side-effect logging → `logger` from `/log`, or `tap` / `dbg` in pipes (`/pipe`)
+- single array helper → `data/<name>` (`/data/<fn>`)
+- branded / ADT types → `brand` / `tag` / `assertNever` (`/types`)
+- retries / timeouts → `retry` / `withTimeout` (`/async`)
+
+### Use `@ur-wesley/ts-prelude` especially for
 
 - parsing and validation helpers
 - API response normalization
 - mapping DTOs to domain models
 - feature services with recoverable failures
 
-Avoid using it in:
+### Avoid it in
 
 - simple UI event handlers
 - trivial synchronous helpers that cannot fail
@@ -267,6 +342,7 @@ Avoid using it in:
 - Use error boundaries at route and major feature boundaries
 - Provide graceful fallbacks
 - Distinguish recoverable UI errors from fatal app errors
+- Pair route-level `<ErrorBoundary>` with `@ur-wesley/ts-prelude/result` errors; never `throw` a `Result.err` upstream
 
 ## Performance
 
@@ -276,25 +352,6 @@ Avoid using it in:
 - Avoid broad reactive reads in large components
 - Lazy-load heavy route sections when useful
 - Avoid premature optimization that harms clarity
-
-## solid-primitives
-
-Use `solid-primitives` when they improve correctness or ergonomics.
-
-Examples:
-
-- click outside
-- media queries
-- event listeners
-- resize observers
-- keyboard shortcuts
-- persisted signals
-- element bounds
-
-Rules:
-
-- Prefer maintained primitives over ad hoc reimplementation
-- Keep primitive usage explicit and typed
 
 ## Naming
 
@@ -343,12 +400,14 @@ Reusable UI components should document:
 
 ### Do
 
-- build shared UI in `components/ui`
-- compose shared primitives from `solid-ui` where it reduces custom boilerplate
+- build shared UI in `components/ui` as the `solid-ui` layer
+- compose shared primitives from Kobalte / Ark UI / Corvu / `solid-sonner` / `cva`
+- use `solid-primitives` when they fit
+- use `@ur-wesley/ts-prelude/<subpath>` for `neverthrow` / `ts-pattern` / `remeda` usage
 - keep business logic out of presentational components
 - use readonly tuple context stores
-- use Tailwind CSS consistently
-- use `i-mdi-<icon>` for icons
+- use Tailwind v4 with `@theme` tokens consistently
+- use `i-mdi-<icon>` for icons via the Iconify plugin
 - use TanStack Query for server state
 - use strong typing everywhere
 - derive state where possible
@@ -356,6 +415,8 @@ Reusable UI components should document:
 
 ### Don't
 
+- import from `@ur-wesley/ts-prelude` (root export is `VERSION` only)
+- import from `neverthrow`, `ts-pattern`, or `remeda` directly
 - fetch data inside atoms
 - mutate shared state outside actions
 - place feature logic in generic UI components
@@ -363,3 +424,5 @@ Reusable UI components should document:
 - create giant configurable components by default
 - duplicate the same state in multiple places
 - bypass shared UI primitives without reason
+- reimplement what `solid-primitives` already provides
+- `throw` across a recoverable boundary
