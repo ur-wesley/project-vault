@@ -63,7 +63,7 @@ export async function openClipboardOverlay(): Promise<void> {
     decorations: false,
     alwaysOnTop: true,
     skipTaskbar: true,
-    transparent: false,
+    transparent: true,
     resizable: false,
     focus: false,
     visible: false,

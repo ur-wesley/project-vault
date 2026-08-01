@@ -224,3 +224,140 @@ pub fn pick_screenshot_directory(app: AppHandle) -> Result<Option<String>, Stabl
     let result = app.dialog().file().blocking_pick_folder();
     Ok(result.map(|p| p.to_string()))
 }
+
+#[tauri::command]
+pub fn select_region() -> Result<Option<crate::models::RegionSelectionResultDto>, StableError> {
+    let monitors = Monitor::all()
+        .map_err(|e| StableError::new("SCREENSHOT_CAPTURE", format!("failed to list monitors: {e}")))?;
+
+    if monitors.is_empty() {
+        return Err(StableError::new("SCREENSHOT_CAPTURE", "no monitors found"));
+    }
+
+    let mut min_x = i32::MAX;
+    let mut min_y = i32::MAX;
+    let mut max_x = i32::MIN;
+    let mut max_y = i32::MIN;
+
+    for m in &monitors {
+        let x = m.x().unwrap_or(0);
+        let y = m.y().unwrap_or(0);
+        let w = m.width().unwrap_or(0) as i32;
+        let h = m.height().unwrap_or(0) as i32;
+        if x < min_x { min_x = x; }
+        if y < min_y { min_y = y; }
+        if x + w > max_x { max_x = x + w; }
+        if y + h > max_y { max_y = y + h; }
+    }
+
+    let canvas_w = (max_x - min_x) as u32;
+    let canvas_h = (max_y - min_y) as u32;
+
+    // Collect monitor info (positions) before spawning thread — Monitor isn't Send
+    let mut monitor_info: Vec<(i32, i32)> = Vec::new();
+    for m in &monitors {
+        monitor_info.push((m.x().unwrap_or(0), m.y().unwrap_or(0)));
+    }
+
+    // Channel for passing captured image to overlay
+    let (img_tx, img_rx) = std::sync::mpsc::channel();
+
+    // Spawn capture in background thread — overlay appears immediately
+    std::thread::spawn(move || {
+        let mut captures: Vec<(i32, i32, RgbaImage)> = Vec::new();
+        for (mx, my) in monitor_info {
+            // Re-enumerate monitors in the thread (Monitor isn't Send)
+            if let Ok(all) = Monitor::all() {
+                for m in all {
+                    if m.x().unwrap_or(0) == mx && m.y().unwrap_or(0) == my {
+                        if let Ok(img) = m.capture_image() {
+                            captures.push((mx, my, img));
+                        }
+                        break;
+                    }
+                }
+            }
+        }
+
+        let mut canvas = RgbaImage::from_pixel(canvas_w, canvas_h, Rgba([0, 0, 0, 255]));
+        let canvas_stride = canvas_w as usize * 4;
+
+        for (mx, my, img) in &captures {
+            let offset_x = (*mx - min_x) as u32;
+            let offset_y = (*my - min_y) as u32;
+            let copy_w = img.width().min(canvas_w - offset_x) as usize;
+            let copy_h = img.height().min(canvas_h - offset_y) as usize;
+            let src_stride = img.width() as usize * 4;
+
+            for row in 0..copy_h {
+                let src_start = row * src_stride;
+                let dst_start = ((offset_y as usize + row) * canvas_stride) + (offset_x as usize * 4);
+                let src_end = src_start + copy_w * 4;
+                let dst_end = dst_start + copy_w * 4;
+                let buf: &mut [u8] = canvas.as_mut();
+                buf[dst_start..dst_end].copy_from_slice(&img.as_raw()[src_start..src_end]);
+            }
+        }
+
+        let rgba = canvas.into_raw();
+        let _ = img_tx.send((rgba, canvas_w, canvas_h));
+    });
+
+    // Show overlay immediately — it displays "Capturing..." until image arrives
+    let selection = crate::screenshot_overlay::run_selection_overlay(img_rx)
+        .map_err(|e| StableError::new("SCREENSHOT_CAPTURE", e.message))?;
+
+    let Some(sel) = selection else { return Ok(None) };
+
+    // Zero-dimension = clipboard copy or file save (already handled in overlay)
+    if sel.width == 0 || sel.height == 0 {
+        return Ok(Some(crate::models::RegionSelectionResultDto {
+            x: 0, y: 0, width: 0, height: 0,
+            image_base64: String::new(),
+            image_width: 0,
+            image_height: 0,
+        }));
+    }
+
+    // Re-capture for annotation (fast single-monitor capture, or we could cache)
+    // For now, capture all screens again — this is fast since it's a single xcap call
+    let monitors2 = Monitor::all()
+        .map_err(|e| StableError::new("SCREENSHOT_CAPTURE", format!("failed to list monitors: {e}")))?;
+    let mut captures2: Vec<(i32, i32, RgbaImage)> = Vec::new();
+    for m in monitors2 {
+        let mx = m.x().unwrap_or(0);
+        let my = m.y().unwrap_or(0);
+        let img = m.capture_image()
+            .map_err(|e| StableError::new("SCREENSHOT_CAPTURE", format!("capture failed: {e}")))?;
+        captures2.push((mx, my, img));
+    }
+    let mut canvas2 = RgbaImage::from_pixel(canvas_w, canvas_h, Rgba([0, 0, 0, 255]));
+    let canvas_stride2 = canvas_w as usize * 4;
+    for (mx, my, img) in &captures2 {
+        let offset_x = (*mx - min_x) as u32;
+        let offset_y = (*my - min_y) as u32;
+        let copy_w = img.width().min(canvas_w - offset_x) as usize;
+        let copy_h = img.height().min(canvas_h - offset_y) as usize;
+        let src_stride = img.width() as usize * 4;
+        for row in 0..copy_h {
+            let src_start = row * src_stride;
+            let dst_start = ((offset_y as usize + row) * canvas_stride2) + (offset_x as usize * 4);
+            let src_end = src_start + copy_w * 4;
+            let dst_end = dst_start + copy_w * 4;
+            let buf: &mut [u8] = canvas2.as_mut();
+            buf[dst_start..dst_end].copy_from_slice(&img.as_raw()[src_start..src_end]);
+        }
+    }
+
+    let jpeg_base64 = encode_jpeg_base64(&canvas2, 85)?;
+
+    Ok(Some(crate::models::RegionSelectionResultDto {
+        x: sel.x,
+        y: sel.y,
+        width: sel.width,
+        height: sel.height,
+        image_base64: jpeg_base64,
+        image_width: canvas_w,
+        image_height: canvas_h,
+    }))
+}

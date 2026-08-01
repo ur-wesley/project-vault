@@ -316,22 +316,14 @@ export const ClipboardHistoryOverlay: Component = () => {
 
   return (
     <div
-      class="fixed inset-0 bg-black/25"
-      onMouseDown={(e) => {
-        if (e.target !== e.currentTarget || clearOpen() || busy()) return;
-        void closeOverlay();
+      class="absolute flex flex-col gap-2.5 overflow-hidden rounded-xl border border-border bg-background p-3 shadow-2xl"
+      style={{
+        left: `${panelOffset.x}px`,
+        top: `${panelOffset.y}px`,
+        width: `${CLIPBOARD_PANEL_WIDTH}px`,
+        height: `${CLIPBOARD_PANEL_HEIGHT}px`,
       }}
     >
-      <div
-        class="absolute flex flex-col gap-2.5 overflow-hidden rounded-xl border border-border bg-background p-3 shadow-2xl"
-        style={{
-          left: `${panelOffset.x}px`,
-          top: `${panelOffset.y}px`,
-          width: `${CLIPBOARD_PANEL_WIDTH}px`,
-          height: `${CLIPBOARD_PANEL_HEIGHT}px`,
-        }}
-        onMouseDown={(e) => e.stopPropagation()}
-      >
         <button
           type="button"
           class="absolute right-3 top-3 z-10 flex size-8 items-center justify-center rounded-full text-muted-foreground transition-colors hover:bg-accent hover:text-foreground"
@@ -441,7 +433,6 @@ export const ClipboardHistoryOverlay: Component = () => {
             </AlertDialogFooter>
           </AlertDialogContent>
         </AlertDialog>
-      </div>
     </div>
   );
 };
