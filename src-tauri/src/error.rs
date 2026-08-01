@@ -21,6 +21,14 @@ impl StableError {
     }
 }
 
+impl std::fmt::Display for StableError {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        write!(f, "[{}] {}", self.code, self.message)
+    }
+}
+
+impl std::error::Error for StableError {}
+
 pub type Result<T> = std::result::Result<T, StableError>;
 
 // ---------------------------------------------------------------------------
@@ -41,6 +49,7 @@ pub mod codes {
     pub const GITHUB_DEVICE_TIMEOUT: &str = "GITHUB_DEVICE_TIMEOUT";
     pub const GITHUB_DEVICE_DENIED: &str = "GITHUB_DEVICE_DENIED";
     pub const EMPTY_SELECTION: &str = "EMPTY_SELECTION";
+    pub const SCHEMA_INCOMPATIBLE: &str = "SCHEMA_INCOMPATIBLE";
 }
 
 // ---------------------------------------------------------------------------

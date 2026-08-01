@@ -9,10 +9,20 @@ export function SearchResultItem(props: {
   hit: SearchHitDto;
   rootPath: string;
   topScore: number;
-  onClick: (path: string, line: number) => void;
+  onClick: (path: string, line: number, query: string) => void;
+  query: string;
 }) {
   const { t } = useI18n();
-  const hitCount = () => props.hit.lineNumbers.length;
+  // Hit count for the badge. For content matches this is the number of
+  // matched lines; for path-only matches the backend emits one highlight
+  // and an empty lineNumbers list, so we fall back to the highlight count
+  // (otherwise path hits render as "0 hits").
+  const hitCount = () => {
+    if (props.hit.lineNumbers.length > 0) {
+      return props.hit.lineNumbers.length;
+    }
+    return Math.max(1, props.hit.highlights.length);
+  };
 
   const absPath = createMemo(async () => {
     try {
@@ -25,14 +35,14 @@ export function SearchResultItem(props: {
   const handleLineClick = async (e: MouseEvent, line: number) => {
     e.stopPropagation();
     const p = await absPath();
-    if (p) props.onClick(p, line);
+    if (p) props.onClick(p, line, props.query);
   };
 
   const handleCardClick = async () => {
     const p = await absPath();
     if (!p) return;
     const line = props.hit.lineNumbers.length > 0 ? props.hit.lineNumbers[0] : 0;
-    props.onClick(p, line);
+    props.onClick(p, line, props.query);
   };
 
   // Tantivy's snippet HTML is safe — user content is escaped, only the

@@ -553,15 +553,19 @@ export function FileTree(props: {
     return Math.max(...data.map((h) => h.score));
   });
 
-  const onResultClick = (path: string, line: number) => {
+  const [scrollToQuery, setScrollToQuery] = createSignal("");
+
+  const onResultClick = (path: string, line: number, query: string) => {
     setPreviewPath(path);
     setScrollToLine(line);
+    setScrollToQuery(query);
     props.onSubDetailChange?.(`${path}::${line}`);
   };
 
   const onBackToResults = () => {
     setPreviewPath(null);
     setScrollToLine(0);
+    setScrollToQuery("");
     props.onSubDetailChange?.(null);
   };
 
@@ -759,6 +763,7 @@ export function FileTree(props: {
                           hit={hit}
                           rootPath={props.rootPath}
                           topScore={topScore()}
+                          query={searchQuery()}
                           onClick={onResultClick}
                         />
                       )}
@@ -773,6 +778,7 @@ export function FileTree(props: {
                 path={path()}
                 projectRoot={props.rootPath}
                 scrollToLine={scrollToLine()}
+                scrollToQuery={scrollToQuery()}
                 onBackToResults={isSearching() ? onBackToResults : undefined}
                 backLabel={t("projectDetail.searchResults") as string}
                 onNavigate={onFileTreeClick}
