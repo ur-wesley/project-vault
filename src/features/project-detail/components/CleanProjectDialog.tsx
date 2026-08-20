@@ -27,6 +27,25 @@ export function CleanProjectDialog(props: {
   const [cleanResetTracked, setCleanResetTracked] = createSignal(false);
   const [cleanError, setCleanError] = createSignal<string | null>(null);
 
+  const allSelected = () => {
+    const preview = cleanPreview();
+    return (
+      preview != null &&
+      preview.entries.length > 0 &&
+      cleanSelected().size === preview.entries.length
+    );
+  };
+
+  const toggleSelectAll = () => {
+    const preview = cleanPreview();
+    if (!preview) return;
+    if (allSelected()) {
+      setCleanSelected(new Set());
+    } else {
+      setCleanSelected(new Set(preview.entries.map((e) => e.path)));
+    }
+  };
+
   const onOpen = async () => {
     console.log("[CleanProjectDialog] onOpen called");
     setCleanPreview(null);
@@ -163,12 +182,24 @@ export function CleanProjectDialog(props: {
         </div>
         <Show when={cleanPreview()?.entries && cleanPreview()!.entries.length > 0}>
           <div class="flex items-center justify-between rounded-md bg-muted/40 px-3 py-2 text-sm font-medium">
-            <span>
-              {(() => {
-                const selectedCount = cleanSelected().size;
-                return t("projectDetail.cleanTotal", { count: selectedCount }) as string;
-              })()}
-            </span>
+            <div class="flex items-center gap-2">
+              <Button
+                type="button"
+                variant="ghost"
+                size="sm"
+                class="h-7 px-2 text-xs text-muted-foreground hover:text-foreground"
+                onClick={toggleSelectAll}
+              >
+                {allSelected()
+                  ? (t("common.deselectAll") as string)
+                  : (t("common.selectAll") as string)}
+              </Button>
+              <span>
+                {t("projectDetail.cleanTotal", {
+                  count: cleanSelected().size,
+                }) as string}
+              </span>
+            </div>
             <span class="font-mono">
               {formatBytes(
                 cleanPreview()!.entries
