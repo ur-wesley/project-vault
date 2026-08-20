@@ -17,6 +17,7 @@ import { getLocationProjectSizes, listProjects, importProject } from "~/services
 import { pickLibraryFolder } from "~/services/tauri/pickers";
 import { queryKeys } from "~/services/query-keys";
 import type { LocationDto, MoveProjectProgress } from "~/types/dto";
+import { settingElementId } from "~/features/settings/lib/settings-index";
 
 import { LocationWorkProgress } from "./components/LocationWorkProgress";
 import { LibraryLocationDiskBlock } from "./components/LibraryLocationDiskBlock";
@@ -304,7 +305,7 @@ export const LocationManager: Component = () => {
   const diskRowForPath = (path: string) => diskQ.data?.find((d) => d.path === path);
 
   return (
-    <div class="flex flex-col gap-4">
+    <div id={settingElementId("locations")} class="flex flex-col gap-4">
       <div class="space-y-1">
         <h3 class="text-sm font-bold uppercase tracking-wider text-primary/80">
           {t('locations.title') as string}

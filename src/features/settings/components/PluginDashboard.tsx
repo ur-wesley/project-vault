@@ -12,6 +12,7 @@ import { Tabs, TabsList, TabsTrigger, TabsContent } from "~/components/ui/tabs";
 import { TextField, TextFieldInput } from "~/components/ui/text-field";
 import { Select } from "~/components/ui/select";
 import { getPluginLogStore } from "~/lib/plugin-log-store";
+import { settingElementId } from "../lib/settings-index";
 
 // Interfaces
 interface PluginCommandMetadata {
@@ -711,7 +712,7 @@ export const PluginDashboard: Component<{ t: (key: string, params?: Record<strin
   });
 
   return (
-    <div class="space-y-6 animate-in fade-in duration-300 select-none">
+    <div id={settingElementId("plugins")} class="space-y-6 animate-in fade-in duration-300 select-none">
       
       {/* stats header dashboard */}
       <div class="grid grid-cols-2 md:grid-cols-5 gap-3 bg-muted/10 border border-muted/30 rounded-lg p-3 relative overflow-hidden backdrop-blur">

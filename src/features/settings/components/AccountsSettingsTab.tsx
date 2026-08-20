@@ -3,6 +3,7 @@ import { isTauri } from "@tauri-apps/api/core";
 import { Button } from "~/components/ui/button";
 import { TabsContent } from "~/components/ui/tabs";
 import { TextField, TextFieldInput } from "~/components/ui/text-field";
+import { settingElementId } from "../lib/settings-index";
 
 export type AccountsSettingsTabProps = Readonly<{
   t: (key: string) => string;
@@ -19,7 +20,7 @@ export type AccountsSettingsTabProps = Readonly<{
 export const AccountsSettingsTab: Component<AccountsSettingsTabProps> = (props) => {
   return (
     <TabsContent value="accounts" class="space-y-8 outline-none animate-in fade-in duration-300">
-      <section class="space-y-4">
+      <section id={settingElementId("accounts-github")} class="space-y-4">
         <div class="space-y-1">
           <h3 class="text-sm font-bold uppercase tracking-wider text-primary/80">{props.t("settings.githubTitle")}</h3>
           <p class="text-xs text-muted-foreground">
@@ -86,7 +87,7 @@ export const AccountsSettingsTab: Component<AccountsSettingsTabProps> = (props) 
             </Show>
           </div>
 
-          <div class="grid gap-2 pt-2">
+          <div id={settingElementId("accounts-github-token")} class="grid gap-2 pt-2">
             <label class="text-[10px] font-bold text-muted-foreground uppercase tracking-widest">
               {props.t("settings.githubToken")}
             </label>

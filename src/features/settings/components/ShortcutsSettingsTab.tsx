@@ -12,6 +12,7 @@ import {
 } from "~/lib/shortcut-registry";
 import { useShortcuts } from "~/lib/shortcut-context";
 import { useI18n } from "~/lib/i18n-context";
+import { settingElementId } from "../lib/settings-index";
 
 function normalizeKey(key: string): string {
   const lower = key.toLowerCase();
@@ -239,7 +240,10 @@ export const ShortcutsSettingsTab: Component<ShortcutsSettingsTabProps> = (props
   );
 
   const renderRow = (row: ShortcutRow) => (
-    <div class="flex items-center justify-between px-4 py-3 border-b last:border-b-0">
+    <div
+      id={settingElementId(`shortcut-${row.action.replace(/:/g, "-")}`)}
+      class="flex items-center justify-between px-4 py-3 border-b last:border-b-0"
+    >
       <span class="text-sm">{row.label}</span>
       <Show
         when={editing() === row.action}
@@ -272,7 +276,7 @@ export const ShortcutsSettingsTab: Component<ShortcutsSettingsTabProps> = (props
 
   return (
     <div class="space-y-6 animate-in fade-in duration-300">
-      <div class="flex items-center justify-between">
+      <div id={settingElementId("shortcuts-title")} class="flex items-center justify-between">
         <div>
           <h3 class="text-sm font-semibold">
             {props.t("settings.shortcutsTitle")}
@@ -291,7 +295,7 @@ export const ShortcutsSettingsTab: Component<ShortcutsSettingsTabProps> = (props
         </Button>
       </div>
 
-      <section class="space-y-2">
+      <section id={settingElementId("shortcuts-app")} class="space-y-2">
         <header>
           <h4 class="text-xs font-semibold uppercase tracking-wider text-muted-foreground">
             {props.t("settings.shortcutsAppSection")}
@@ -302,7 +306,7 @@ export const ShortcutsSettingsTab: Component<ShortcutsSettingsTabProps> = (props
         </div>
       </section>
 
-      <section class="space-y-2">
+      <section id={settingElementId("shortcuts-hotkey")} class="space-y-2">
         <header>
           <h4 class="text-xs font-semibold uppercase tracking-wider text-muted-foreground">
             {props.t("settings.shortcutsHotkeySection")}

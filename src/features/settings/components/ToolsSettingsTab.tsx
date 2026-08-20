@@ -3,6 +3,7 @@ import { Select } from "~/components/ui/select";
 import { TabsContent } from "~/components/ui/tabs";
 import { TextField, TextFieldInput } from "~/components/ui/text-field";
 import { cn } from "~/lib/utils";
+import { settingElementId } from "../lib/settings-index";
 
 export type ToolsSettingsTabProps = Readonly<{
   t: (key: string) => string;
@@ -64,7 +65,7 @@ export const ToolsSettingsTab: Component<ToolsSettingsTabProps> = (props) => {
 
   return (
     <TabsContent value="tools" class="space-y-8 outline-none animate-in fade-in duration-300">
-      <section class="space-y-4">
+      <section id={settingElementId("tools-external-apps")} class="space-y-4">
         <div class="space-y-1">
           <h3 class="text-sm font-bold uppercase tracking-wider text-primary/80">{props.t("settings.externalAppsTitle")}</h3>
           <p class="text-xs text-muted-foreground">
@@ -72,7 +73,7 @@ export const ToolsSettingsTab: Component<ToolsSettingsTabProps> = (props) => {
           </p>
         </div>
         <div class="grid gap-6">
-          <div class="grid gap-2">
+          <div id={settingElementId("tools-default-ide")} class="grid gap-2">
             <label class="text-[10px] font-bold text-muted-foreground uppercase tracking-widest">
               {props.t("settings.defaultIde")}
             </label>
@@ -129,7 +130,7 @@ export const ToolsSettingsTab: Component<ToolsSettingsTabProps> = (props) => {
             </Select>
           </div>
 
-          <div class="grid gap-2">
+          <div id={settingElementId("tools-default-shell")} class="grid gap-2">
             <label class="text-[10px] font-bold text-muted-foreground uppercase tracking-widest">
               {props.t("settings.defaultShell")}
             </label>
@@ -172,7 +173,7 @@ export const ToolsSettingsTab: Component<ToolsSettingsTabProps> = (props) => {
             </Select>
           </div>
 
-          <div class="grid gap-2">
+          <div id={settingElementId("tools-custom-shell-path")} class="grid gap-2">
             <label class="text-[10px] font-bold text-muted-foreground uppercase tracking-widest">
               {props.t("settings.customShellPath")}
             </label>
@@ -193,7 +194,7 @@ export const ToolsSettingsTab: Component<ToolsSettingsTabProps> = (props) => {
         </div>
       </section>
 
-      <section class="space-y-4">
+      <section id={settingElementId("tools-system-tools")} class="space-y-4">
         <div class="space-y-1">
           <h3 class="text-sm font-bold uppercase tracking-wider text-primary/80">{props.t("settings.systemToolsTitle")}</h3>
           <p class="text-xs text-muted-foreground">

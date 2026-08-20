@@ -4,6 +4,7 @@ import { Button } from "~/components/ui/button";
 import { TextField, TextFieldInput, TextFieldTextArea } from "~/components/ui/text-field";
 import { listProjectTemplates, saveProjectTemplates } from "~/services/tauri/templates";
 import type { TemplateSummaryDto } from "~/types/dto";
+import { settingElementId } from "../lib/settings-index";
 
 interface TemplatesSettingsTabProps {
   t: (key: string, args?: Record<string, unknown>) => string;
@@ -154,7 +155,7 @@ export const TemplatesSettingsTab: Component<TemplatesSettingsTabProps> = (props
   };
 
   return (
-    <div class="space-y-6 animate-in fade-in duration-300">
+    <div id={settingElementId("templates")} class="space-y-6 animate-in fade-in duration-300">
       <div class="flex items-center justify-between">
         <div>
           <h3 class="text-sm font-semibold">{props.t("templates.title")}</h3>

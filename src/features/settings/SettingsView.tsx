@@ -20,6 +20,8 @@ import { ShortcutsSettingsTab } from "./components/ShortcutsSettingsTab";
 import { TemplatesSettingsTab } from "./components/TemplatesSettingsTab";
 import { PluginsSettingsTab } from "./components/PluginsSettingsTab";
 import { NotificationSettingsTab } from "./components/NotificationSettingsTab";
+import { SettingsSearch } from "./components/SettingsSearch";
+import { jumpToSetting } from "./lib/jump-to-setting";
 
 async function safeConfirm(message: string): Promise<boolean> {
   if (isTauri()) {
@@ -86,6 +88,13 @@ export const SettingsView: Component<SettingsViewProps> = (props) => {
 
       <div class="flex-1 overflow-hidden px-6 py-6">
         <div class="mx-auto w-full max-w-6xl h-full flex flex-col gap-6">
+          <SettingsSearch
+            t={tAny}
+            onSelect={(item) => {
+              props.onTabChange(item.tab);
+              requestAnimationFrame(() => jumpToSetting(item.id));
+            }}
+          />
           <Tabs
             value={props.activeTab}
             onChange={props.onTabChange}
@@ -118,7 +127,7 @@ export const SettingsView: Component<SettingsViewProps> = (props) => {
               </TabsTrigger>
             </TabsList>
 
-            <div class="w-full flex-1 overflow-y-auto scrollbar-none">
+            <div class="w-full flex-1 overflow-y-auto px-1 scrollbar-none [&_[data-setting-highlight]]:rounded-md [&_[data-setting-highlight]]:ring-2 [&_[data-setting-highlight]]:ring-primary/50 [&_[data-setting-highlight]]:transition-shadow">
               <GeneralSettingsTab
                 t={tAny}
                 selectedLocale={model.selectedLocale()}
