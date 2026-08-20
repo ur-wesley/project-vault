@@ -13,14 +13,14 @@ const LANGUAGE_COLORS: Record<string, string> = {
   kt: "#A97BFF", kotlin: "#A97BFF", sql: "#e38c00", toml: "#9c4221", yaml: "#cb171e",
   yml: "#cb171e", json: "#29b544", html: "#e34c26", css: "#563d7c", md: "#083fa1",
   sh: "#89e051", bash: "#89e051", docker: "#384d54", dockerfile: "#384d54", plaintext: "#cccccc",
-  lua: "#000080", luau: "#000080",
+  lua: "#000080", luau: "#000080", dart: "#00B4AB",
 };
 
 const LANG_NAME_MAP: Record<string, string> = {
   js: "JavaScript", jsx: "JavaScript", ts: "TypeScript", tsx: "TypeScript",
   rs: "Rust", py: "Python", cs: "C#", cpp: "C++", c: "C", rb: "Ruby",
   ex: "Elixir", kt: "Kotlin", yml: "YAML", md: "Markdown",
-  lua: "Lua", luau: "Lua",
+  lua: "Lua", luau: "Lua", dart: "Dart",
 };
 
 export function LanguageBar(props: { projectId: string }) {
@@ -39,17 +39,19 @@ export function LanguageBar(props: { projectId: string }) {
     const data = q.data;
     if (!data || Object.keys(data).length === 0) return [];
 
+    const otherLabel = t("projectDetail.languageOther") as string;
     const total = Object.values(data).reduce((a, b) => a + b, 0);
     const grouped = new Map<
       string,
       { count: number; color: string; ext: string }
     >();
     for (const [ext, count] of Object.entries(data)) {
-      const name = LANG_NAME_MAP[ext] || ext.toUpperCase();
-      const color = LANGUAGE_COLORS[ext] || "#888888";
+      const isOther = !LANG_NAME_MAP[ext] && !LANGUAGE_COLORS[ext];
+      const name = LANG_NAME_MAP[ext] ?? (isOther ? otherLabel : ext.toUpperCase());
+      const color = LANGUAGE_COLORS[ext] ?? "#888888";
       const existing = grouped.get(name);
       if (existing) existing.count += count;
-      else grouped.set(name, { count, color, ext });
+      else grouped.set(name, { count, color, ext: isOther ? "other" : ext });
     }
     const list = Array.from(grouped.entries())
       .map(([name, info]) => ({
@@ -63,12 +65,18 @@ export function LanguageBar(props: { projectId: string }) {
     const major = list.filter((s) => s.percent >= threshold);
     const minor = list.filter((s) => s.percent < threshold);
     if (minor.length > 0) {
-      major.push({
-        ext: "other",
-        name: t("projectDetail.languageOther") as string,
-        percent: minor.reduce((sum, s) => sum + s.percent, 0),
-        color: "#666666",
-      });
+      const minorPercent = minor.reduce((sum, s) => sum + s.percent, 0);
+      const otherIdx = major.findIndex((s) => s.ext === "other");
+      if (otherIdx >= 0) {
+        major[otherIdx].percent += minorPercent;
+      } else {
+        major.push({
+          ext: "other",
+          name: otherLabel,
+          percent: minorPercent,
+          color: "#666666",
+        });
+      }
     }
     return major;
   });

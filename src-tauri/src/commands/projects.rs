@@ -328,6 +328,8 @@ const IGNORED_EXTENSIONS: &[&str] = &[
     "pdf", "doc", "docx", "xls", "xlsx", "ppt", "pptx", "odt", "ods", "odp",
     // Config / data
     "json", "toml", "yaml", "yml", "xml", "ini", "cfg", "conf", "lock", "env", "properties",
+    "arb", "plist", "pbxproj", "xcconfig", "storyboard", "xib", "entitlements",
+    "gradle", "iml", "sln", "csproj", "vcxproj", "filters",
     // Text / markup / data
     "md", "mdx", "markdown", "txt", "rtf", "log", "csv", "tsv",
 ];
