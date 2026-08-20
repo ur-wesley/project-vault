@@ -18,7 +18,7 @@ export const ProjectAvatar: Component<{
 
   return (
     <Show
-      when={props.project.iconPath && !failed()}
+      when={!failed() && props.project.iconPath}
       fallback={
         <StackIcon
           stack={props.project.stack}
