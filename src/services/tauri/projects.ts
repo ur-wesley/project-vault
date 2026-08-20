@@ -59,6 +59,10 @@ export function touchProjectOpened(id: string) {
   return tauriInvoke<ProjectDto>("touch_project_opened", { id });
 }
 
+export function touchProjectViewed(id: string) {
+  return tauriInvoke<ProjectDto>("touch_project_viewed", { id });
+}
+
 export function importProject(payload: ImportProjectPayload) {
   return tauriInvoke<void>("import_project", { payload });
 }

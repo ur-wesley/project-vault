@@ -127,6 +127,7 @@ pub async fn run_location_scan_impl(
             runtime_hint: d.runtime_hint,
             favorite: false,
             last_opened_at_ms: None,
+            last_viewed_at_ms: None,
             total_playtime_ms: 0,
             tasks: d.tasks,
             tags: d.tags,

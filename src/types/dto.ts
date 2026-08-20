@@ -48,6 +48,7 @@ export type ProjectDto = {
   runtimeHint: string | null;
   favorite: boolean;
   lastOpenedAtMs: number | null;
+  lastViewedAtMs: number | null;
   totalPlaytimeMs: number;
   tasks: TaskDto[];
   tags: string[];

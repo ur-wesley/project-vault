@@ -46,6 +46,7 @@ pub struct ProjectDto {
     pub runtime_hint: Option<String>,
     pub favorite: bool,
     pub last_opened_at_ms: Option<i64>,
+    pub last_viewed_at_ms: Option<i64>,
     pub total_playtime_ms: i64,
     pub tasks: Vec<TaskDto>,
     pub tags: Vec<String>,

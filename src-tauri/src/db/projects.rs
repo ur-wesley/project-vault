@@ -16,6 +16,7 @@ struct ProjectRow {
     runtime_hint: Option<String>,
     favorite: i32,
     last_opened_at_ms: Option<i64>,
+    last_viewed_at_ms: Option<i64>,
     total_playtime_ms: i64,
     tasks_json: String,
     tags_json: String,
@@ -41,6 +42,7 @@ fn row_to_dto(r: ProjectRow) -> Result<ProjectDto, StableError> {
         runtime_hint: r.runtime_hint,
         favorite: r.favorite != 0,
         last_opened_at_ms: r.last_opened_at_ms,
+        last_viewed_at_ms: r.last_viewed_at_ms,
         total_playtime_ms: r.total_playtime_ms,
         tasks,
         tags,
@@ -55,7 +57,7 @@ fn row_to_dto(r: ProjectRow) -> Result<ProjectDto, StableError> {
 
 pub async fn list_projects(pool: &Pool<Sqlite>) -> Result<Vec<ProjectDto>, StableError> {
     let rows: Vec<ProjectRow> = sqlx::query_as(
-        "SELECT id, location_id, name, path, stack, runtime_hint, favorite, last_opened_at_ms, total_playtime_ms, tasks_json, tags_json, github_owner, github_repo, file_count, size_bytes, last_edited_at_ms, icon_path FROM projects ORDER BY name ASC",
+        "SELECT id, location_id, name, path, stack, runtime_hint, favorite, last_opened_at_ms, last_viewed_at_ms, total_playtime_ms, tasks_json, tags_json, github_owner, github_repo, file_count, size_bytes, last_edited_at_ms, icon_path FROM projects ORDER BY name ASC",
     )
     .fetch_all(pool)
     .await
@@ -69,7 +71,7 @@ pub async fn list_projects(pool: &Pool<Sqlite>) -> Result<Vec<ProjectDto>, Stabl
 
 pub async fn get_project(pool: &Pool<Sqlite>, id: &str) -> Result<ProjectDto, StableError> {
     let row: Option<ProjectRow> = sqlx::query_as(
-        "SELECT id, location_id, name, path, stack, runtime_hint, favorite, last_opened_at_ms, total_playtime_ms, tasks_json, tags_json, github_owner, github_repo, file_count, size_bytes, last_edited_at_ms, icon_path FROM projects WHERE id = ?1",
+        "SELECT id, location_id, name, path, stack, runtime_hint, favorite, last_opened_at_ms, last_viewed_at_ms, total_playtime_ms, tasks_json, tags_json, github_owner, github_repo, file_count, size_bytes, last_edited_at_ms, icon_path FROM projects WHERE id = ?1",
     )
     .bind(id)
     .fetch_optional(pool)
@@ -346,6 +348,21 @@ pub async fn touch_project_opened(
     get_project(pool, id).await
 }
 
+pub async fn touch_project_viewed(
+    pool: &Pool<Sqlite>,
+    id: &str,
+) -> Result<ProjectDto, StableError> {
+    let now = super::now_ms();
+    let _ = get_project(pool, id).await?;
+    sqlx::query("UPDATE projects SET last_viewed_at_ms = ?1 WHERE id = ?2")
+        .bind(now)
+        .bind(id)
+        .execute(pool)
+        .await
+        .map_err(|e| StableError::new(codes::DB_ERROR, e.to_string()))?;
+    get_project(pool, id).await
+}
+
 pub async fn update_project_tasks(
     pool: &Pool<Sqlite>,
     id: &str,
@@ -364,7 +381,7 @@ pub async fn update_project_tasks(
 
 pub async fn find_project_by_path(pool: &Pool<Sqlite>, path: &str) -> Result<ProjectDto, StableError> {
     let row: Option<ProjectRow> = sqlx::query_as(
-        "SELECT id, location_id, name, path, stack, runtime_hint, favorite, last_opened_at_ms, total_playtime_ms, tasks_json, tags_json, github_owner, github_repo, file_count, size_bytes, last_edited_at_ms, icon_path FROM projects WHERE path = ?1",
+        "SELECT id, location_id, name, path, stack, runtime_hint, favorite, last_opened_at_ms, last_viewed_at_ms, total_playtime_ms, tasks_json, tags_json, github_owner, github_repo, file_count, size_bytes, last_edited_at_ms, icon_path FROM projects WHERE path = ?1",
     )
     .bind(path)
     .fetch_optional(pool)

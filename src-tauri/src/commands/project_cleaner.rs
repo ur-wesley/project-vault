@@ -510,6 +510,7 @@ mod tests {
             runtime_hint: None,
             favorite: false,
             last_opened_at_ms: Some(0),
+            last_viewed_at_ms: None,
             total_playtime_ms: 0,
             tasks: vec![],
             tags: vec![],

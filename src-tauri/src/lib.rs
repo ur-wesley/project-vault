@@ -102,6 +102,12 @@ pub fn run() {
                             sql: include_str!("../migrations/010_icon_path.sql"),
                             kind: MigrationKind::Up,
                         },
+                        Migration {
+                            version: 11,
+                            description: "last_viewed",
+                            sql: include_str!("../migrations/011_last_viewed.sql"),
+                            kind: MigrationKind::Up,
+                        },
                     ],
                 )
                 .build(),
@@ -317,6 +323,7 @@ pub fn run() {
             commands::projects::set_project_tag,
             commands::projects::remove_project_tag,
             commands::projects::touch_project_opened,
+            commands::projects::touch_project_viewed,
 
             commands::projects::refresh_project,
             commands::projects::move_project,

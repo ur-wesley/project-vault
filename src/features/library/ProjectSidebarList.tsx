@@ -32,6 +32,7 @@ import { queryKeys } from "~/services/query-keys";
 import type { ProjectDto } from "~/types/dto";
 import type { StableError } from "~/types/error";
 import { projectIdeStorageKey } from "../project-detail/lib/ide-storage";
+import { sortSidebarProjects } from "./sort-sidebar-projects";
 import { toast } from "solid-sonner";
 
 
@@ -129,13 +130,7 @@ export function ProjectSidebarList(props: {
     void qc.invalidateQueries({ queryKey: queryKeys.projects });
   };
 
-  const sortedProjects = createMemo(() => {
-    const projects = q.data ?? [];
-    return [...projects].sort((a, b) => {
-      if (a.favorite === b.favorite) return 0;
-      return a.favorite ? -1 : 1;
-    });
-  });
+  const sortedProjects = createMemo(() => sortSidebarProjects(q.data ?? []));
 
   const handleDelete = async (project: ProjectDto) => {
     if (!window.confirm(t("projectDetail.deleteProjectTitle") as string)) return;

@@ -1,5 +1,5 @@
 import { createQuery, useQueryClient } from "@tanstack/solid-query";
-import { Show, type Accessor, createMemo, createSignal, onMount, onCleanup, createEffect } from "solid-js";
+import { Show, type Accessor, createMemo, createSignal, on, onMount, onCleanup, createEffect } from "solid-js";
 
 import iconUrl from "../icon.png";
 
@@ -30,7 +30,7 @@ import { rescanAllLibraryFolders } from "~/lib/rescan-library";
 import { stableErrorMessage } from "~/lib/invoke-error";
 import { GITHUB_TOKEN_SETTING_KEY, fetchGitHubViewer } from "~/services/github";
 import { runGithubDeviceSignIn } from "~/services/github-device-signin";
-import { getProject, listProjects } from "~/services/tauri/projects";
+import { getProject, listProjects, touchProjectViewed } from "~/services/tauri/projects";
 import { listLocations } from "~/services/tauri/locations";
 import { getSetting, setSetting } from "~/services/tauri/settings";
 import { isGithubDeviceConfigured } from "~/services/tauri/github-auth";
@@ -38,6 +38,7 @@ import { listAllProcesses } from "~/services/tauri/sessions";
 import { checkForUpdates } from "~/services/tauri/updates";
 import { stopAllProjectProcesses } from "~/services/tauri/processes";
 import { queryKeys } from "~/services/query-keys";
+import type { ProjectDto } from "~/types/dto";
 import { isTauri, invoke } from "@tauri-apps/api/core";
 import { getCurrentWindow } from "@tauri-apps/api/window";
 import { listen } from "@tauri-apps/api/event";
@@ -125,6 +126,18 @@ function App() {
       return r.value;
     },
   }));
+
+  createEffect(
+    on(projectDetailId, (id) => {
+      if (!id) return;
+      const now = Date.now();
+      qc.setQueryData<ProjectDto[]>(queryKeys.projects, (old) => {
+        if (!old) return old;
+        return old.map((p) => (p.id === id ? { ...p, lastViewedAtMs: now } : p));
+      });
+      void touchProjectViewed(id);
+    }),
+  );
 
   const scanMinsQ = createQuery(() => ({
     queryKey: ["settings", "scan_interval_minutes"] as const,

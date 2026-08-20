@@ -213,6 +213,18 @@ pub async fn touch_project_opened(
 }
 
 #[tauri::command]
+pub async fn touch_project_viewed(
+    app: AppHandle,
+    db: State<'_, DbInstances>,
+    id: String,
+) -> Result<ProjectDto, StableError> {
+    let pool = db::sqlite_pool(&*db).await?;
+    let project = db::touch_project_viewed(&pool, &id).await?;
+    crate::models::emit_project_changed(&app, &id, "viewed");
+    Ok(project)
+}
+
+#[tauri::command]
 pub async fn refresh_project(
     app: AppHandle,
     db: State<'_, DbInstances>,

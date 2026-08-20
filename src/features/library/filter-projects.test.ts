@@ -13,6 +13,7 @@ function project(over: Partial<ProjectDto> & { name: string }): ProjectDto {
     runtimeHint: null,
     favorite: over.favorite ?? false,
     lastOpenedAtMs: over.lastOpenedAtMs ?? null,
+    lastViewedAtMs: over.lastViewedAtMs ?? null,
     totalPlaytimeMs: 0,
     tasks: [],
     tags: [],
