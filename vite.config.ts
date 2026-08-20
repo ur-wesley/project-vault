@@ -37,14 +37,14 @@ export default defineConfig(async () => ({
   },
   resolve: {
     alias: {
-      "~": path.resolve(__dirname, "./src"),
+      "~": path.resolve(import.meta.dirname, "./src"),
     },
   },
   build: {
     rollupOptions: {
       input: {
-        main: path.resolve(__dirname, "index.html"),
-        "clipboard-overlay": path.resolve(__dirname, "clipboard-overlay.html"),
+        main: path.resolve(import.meta.dirname, "index.html"),
+        "clipboard-overlay": path.resolve(import.meta.dirname, "clipboard-overlay.html"),
       },
     },
   },
