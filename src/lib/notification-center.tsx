@@ -12,6 +12,7 @@ import { listen, type UnlistenFn } from "@tauri-apps/api/event";
 import { invoke } from "@tauri-apps/api/core";
 import { isTauri } from "@tauri-apps/api/core";
 import { toast, type ExternalToast } from "solid-sonner";
+import { shouldSendOsNotification } from "~/lib/notification-os-gate";
 import { useWindowFocus } from "~/lib/use-window-focus";
 import { sendOsNotification } from "~/services/tauri/notifications";
 import { getSetting, setSetting } from "~/services/tauri/settings";
@@ -173,10 +174,15 @@ export const NotificationCenterProvider: ParentComponent = (props) => {
   const unreadCount = createMemo(() => items().filter((i) => !i.read).length);
 
   const maybeSendOs = (item: NotificationItem) => {
-    if (item.system === "never") return;
-    if (item.system !== "always" && !systemEnabled()) return;
-    if (item.system === "auto" && isFocused()) return;
-    if (item.systemSent) return;
+    if (
+      !shouldSendOsNotification(item, {
+        quiet: quiet(),
+        systemEnabled: systemEnabled(),
+        focused: isFocused(),
+      })
+    ) {
+      return;
+    }
     void sendOsNotification(item.title, item.body);
     setItems((prev) =>
       prev.map((p) => (p.id === item.id ? { ...p, systemSent: true } : p)),
