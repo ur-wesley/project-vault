@@ -28,19 +28,18 @@ jobs:
           echo "VITE_GITHUB_DEVICE_CLIENT_ID=${{ secrets.GH_DEVICE_CLIENT_ID }}" > .env
 
       - name: Sync version from tag
+        if: startsWith(github.ref, 'refs/tags/v')
         shell: pwsh
         run: |
           $tag = "${{ github.ref_name }}"
           $version = $tag -replace '^v',''
+          if ($version -notmatch '^[0-9]+\.[0-9]+\.[0-9]+(-[0-9A-Za-z.-]+)?(\+[0-9A-Za-z.-]+)?$') {
+            throw "Tag '$tag' is not semver (got '$version')"
+          }
           Write-Host "Syncing version to $version"
 
-          # Update Cargo.toml
           (Get-Content src-tauri/Cargo.toml) -replace '^version = "[^"]+"', "version = `"$version`"" | Set-Content src-tauri/Cargo.toml
-
-          # Update tauri.conf.json
           (Get-Content src-tauri/tauri.conf.json) -replace '"version": "[^"]+"', "`"version`": `"$version`"" | Set-Content src-tauri/tauri.conf.json
-
-          # Update package.json
           (Get-Content package.json) -replace '"version": "[^"]+"', "`"version`": `"$version`"" | Set-Content package.json
 
       - name: Generate Changelog
