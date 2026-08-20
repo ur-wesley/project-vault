@@ -702,6 +702,12 @@ const en = {
     killAllConfirm: "Sure?",
     closeConfirm: "There are {count} running task(s). Close anyway?",
   },
+  plugins: {
+    sidebarPages: "Plugins",
+    sidebarEmpty: "No pinned plugin pages yet",
+    managePlugins: "Manage plugins",
+    unpinPage: "Unpin from sidebar",
+  },
   globalTerminal: {
     title: "Terminal",
     tooltip: "Toggle Terminal",

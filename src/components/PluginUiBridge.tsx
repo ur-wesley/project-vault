@@ -2,6 +2,7 @@ import { createEffect, createMemo, createSignal, onCleanup, onMount, Show, For }
 import { listen } from "@tauri-apps/api/event";
 import { invoke } from "@tauri-apps/api/core";
 import { upsertFooterSegment, removeFooterSegment, clearPluginFooterSegments, type PluginFooterColor } from "~/lib/plugin-footer";
+import { upsertPluginPage, removePluginPage } from "~/lib/plugin-pages";
 import {
   upsertHeaderWidget,
   removeHeaderWidget,
@@ -60,6 +61,7 @@ export function PluginUiBridge(props: {
   projectId?: string | null;
   detailTab?: string | null;
   subDetail?: string | null;
+  onOpenPluginPage?: (pluginId: string, pageId: string) => void;
 }) {
   const { t } = useI18n();
   const center = useNotificationCenter();
@@ -342,6 +344,25 @@ export function PluginUiBridge(props: {
 
       unlistens.push(await listen<{ pluginId: string; id: string }>("plugin:clear-header-widget", (event) => {
         removeHeaderWidget(event.payload.pluginId, event.payload.id);
+      }));
+
+      unlistens.push(await listen<{
+        pluginId: string;
+        id: string;
+        title?: string;
+        itemCommand?: string;
+        items: { id: string; label: string; detail?: string; icon?: string }[];
+      }>("plugin:set-page", (event) => {
+        const { pluginId, id, title, itemCommand, items } = event.payload;
+        upsertPluginPage({ pluginId, id, title, itemCommand, items });
+      }));
+
+      unlistens.push(await listen<{ pluginId: string; id: string }>("plugin:clear-page", (event) => {
+        removePluginPage(event.payload.pluginId, event.payload.id);
+      }));
+
+      unlistens.push(await listen<{ pluginId: string; pageId: string }>("plugin:open-page", (event) => {
+        props.onOpenPluginPage?.(event.payload.pluginId, event.payload.pageId);
       }));
 
       unlistens.push(

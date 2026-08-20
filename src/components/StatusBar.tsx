@@ -1,6 +1,7 @@
 import { For, Show, createMemo, onCleanup, type Component } from "solid-js";
 import { invoke } from "@tauri-apps/api/core";
 import { useI18n } from "~/lib/i18n-context";
+import type { AppView } from "~/lib/app-url";
 import { useEventHub } from "~/lib/event-hub-context";
 import { useNotificationCenter } from "~/lib/notification-center";
 import { pluginFooterSegments, type PluginFooterColor } from "~/lib/plugin-footer";
@@ -11,7 +12,7 @@ import { Tooltip, TooltipContent, TooltipTrigger } from "~/components/ui/tooltip
 import { NotificationCenter } from "~/components/NotificationCenter";
 
 export const StatusBar: Component<{
-  activeView: "library" | "project" | "processes" | "settings";
+  activeView: AppView;
   projectName?: string | null;
   projectId?: string | null;
   onShowProcesses: () => void;

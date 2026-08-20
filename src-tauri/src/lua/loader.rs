@@ -16,6 +16,19 @@ use tauri::Emitter;
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
+pub struct PluginPageMetadata {
+    pub id: String,
+    pub title: String,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub icon: Option<String>,
+    #[serde(default)]
+    pub default_pinned: bool,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub command: Option<String>,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
 pub struct PluginCommandMetadata {
     pub id: String,
     pub title: String,
@@ -36,6 +49,8 @@ pub struct PluginInfo {
     pub category: Option<String>,
     pub enabled: bool,
     pub commands: Vec<PluginCommandMetadata>,
+    #[serde(default, skip_serializing_if = "Vec::is_empty")]
+    pub pages: Vec<PluginPageMetadata>,
     #[serde(skip_serializing_if = "Option::is_none")]
     pub locales: Option<serde_json::Value>,
     #[serde(skip_serializing_if = "Option::is_none")]
@@ -97,8 +112,38 @@ pub fn repo_slug(repo: &str) -> String {
         .to_string()
 }
 
+pub fn pv_plugins_workspace_root() -> Option<PathBuf> {
+    let root = Path::new(env!("CARGO_MANIFEST_DIR"))
+        .join("..")
+        .join("pv-plugins");
+    if root.join("plugins.registry.luau").is_file() {
+        Some(root)
+    } else {
+        None
+    }
+}
+
+fn workspace_plugin_root(spec: &PluginSpec) -> Option<PathBuf> {
+    let root = pv_plugins_workspace_root()?;
+    let subdir = spec
+        .dir
+        .as_deref()
+        .filter(|d| !d.is_empty())
+        .unwrap_or(&spec.id);
+    let candidate = root.join(subdir);
+    if candidate.join("init.luau").is_file() {
+        Some(candidate)
+    } else {
+        None
+    }
+}
+
 pub fn plugin_root_candidates(plugins_dir: &Path, spec: &PluginSpec) -> Vec<PathBuf> {
     let mut candidates = Vec::new();
+    #[cfg(debug_assertions)]
+    if let Some(ws) = workspace_plugin_root(spec) {
+        candidates.push(ws);
+    }
     if let Some(ref repo) = spec.repo {
         let base = plugins_dir.join("repos").join(repo_slug(repo));
         if let Some(ref dir) = spec.dir {
@@ -165,6 +210,7 @@ pub struct PluginInitMetadata {
     pub version: Option<String>,
     pub category: Option<String>,
     pub commands: Option<Vec<PluginCommandMetadata>>,
+    pub pages: Option<Vec<PluginPageMetadata>>,
     pub locales: Option<serde_json::Value>,
     pub options: Option<serde_json::Value>,
     pub config: Option<serde_json::Value>,
@@ -252,6 +298,37 @@ pub fn registry_entry_to_spec(entry: &PluginRegistryEntry, repo_url: &str) -> Pl
         enabled: true,
         config: None,
         options: None,
+    }
+}
+
+fn parse_pages_from_table(table: &mlua::Table) -> Option<Vec<PluginPageMetadata>> {
+    let pages_tbl: mlua::Table = table.get("pages").ok()?;
+    let mut pages = Vec::new();
+    for page_table in pages_tbl.sequence_values::<mlua::Table>().flatten() {
+        let Ok(id) = page_table.get::<String>("id") else {
+            continue;
+        };
+        let title = page_table
+            .get::<String>("title")
+            .unwrap_or_else(|_| id.clone());
+        let icon = page_table.get::<String>("icon").ok();
+        let default_pinned = page_table
+            .get::<bool>("defaultPinned")
+            .or_else(|_| page_table.get::<bool>("default_pinned"))
+            .unwrap_or(false);
+        let command = page_table.get::<String>("command").ok();
+        pages.push(PluginPageMetadata {
+            id,
+            title,
+            icon,
+            default_pinned,
+            command,
+        });
+    }
+    if pages.is_empty() {
+        None
+    } else {
+        Some(pages)
     }
 }
 
@@ -354,8 +431,16 @@ pub fn parse_plugin_init_metadata_str(content: &str, current_plugin_root: Option
         }
     }
     let chunk = format!("return (function()\n{}\nend)()", content);
-    let Ok(mlua::Value::Table(table)) = lua.load(&chunk).eval() else {
-        return meta;
+    let table = match lua.load(&chunk).eval() {
+        Ok(mlua::Value::Table(table)) => table,
+        Ok(_) => {
+            eprintln!("[plugins] failed to evaluate init metadata: expected plugin table");
+            return meta;
+        }
+        Err(e) => {
+            eprintln!("[plugins] failed to evaluate init metadata chunk: {e}");
+            return meta;
+        }
     };
     if let Ok(n) = table.get::<String>("name") {
         meta.name = Some(n);
@@ -382,6 +467,7 @@ pub fn parse_plugin_init_metadata_str(content: &str, current_plugin_root: Option
         .ok()
         .and_then(|v| lua.from_value::<serde_json::Value>(v).ok());
     meta.commands = parse_commands_from_table(&table);
+    meta.pages = parse_pages_from_table(&table);
     if let Ok(lazy) = table.get::<bool>("lazy") {
         meta.lazy = Some(lazy);
     }
@@ -541,6 +627,8 @@ impl PluginManager {
                 cmd.plugin_id = spec.id.clone();
             }
 
+            let pages = meta.pages.clone().unwrap_or_default();
+
             plugins.push(PluginInfo {
                 id: spec.id.clone(),
                 name,
@@ -549,6 +637,7 @@ impl PluginManager {
                 category,
                 enabled,
                 commands,
+                pages,
                 locales,
                 options,
                 active_option: None,
@@ -1292,17 +1381,10 @@ pub fn topological_sort_specs(plugins: &mut Vec<PluginSpec>) -> Result<(), Strin
 #[cfg(test)]
 mod tests {
     use super::*;
-    use std::path::{Path, PathBuf};
+    use std::path::PathBuf;
 
     fn pv_plugins_fixture_root() -> Option<PathBuf> {
-        let root = Path::new(env!("CARGO_MANIFEST_DIR"))
-            .join("..")
-            .join("pv-plugins");
-        if root.join("plugins.registry.luau").is_file() {
-            Some(root)
-        } else {
-            None
-        }
+        pv_plugins_workspace_root()
     }
 
     fn make_spec(id: &str, deps: Option<Vec<&str>>) -> PluginSpec {
@@ -1397,6 +1479,25 @@ mod tests {
         let commands = meta.commands.expect("commands from init.luau");
         assert!(commands.iter().any(|c| c.id == "mark_project"));
         assert!(commands.iter().any(|c| c.id == "quick_menu"));
+    }
+
+    #[test]
+    fn test_read_plugin_init_metadata_git_hygiene_pages() {
+        let Some(repo_root) = pv_plugins_fixture_root() else {
+            eprintln!("skipping: pv-plugins submodule not initialized");
+            return;
+        };
+        let init_path = repo_root.join("git-hygiene").join("init.luau");
+        if !init_path.is_file() {
+            eprintln!("skipping: git-hygiene init.luau not present");
+            return;
+        }
+        let meta = read_plugin_init_metadata(&init_path);
+        let pages = meta.pages.expect("pages from init.luau");
+        let dirty = pages.iter().find(|p| p.id == "dirty").expect("dirty page");
+        assert_eq!(dirty.title, "Git Hygiene");
+        assert!(dirty.default_pinned);
+        assert_eq!(dirty.command.as_deref(), Some("show_dirty"));
     }
 
     #[test]

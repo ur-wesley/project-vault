@@ -14,8 +14,20 @@ const TAB_VALUES = new Set<string>(PROJECT_DETAIL_TABS);
 export const PROJECTS_PATH_PREFIX = "/projects";
 export const SETTINGS_PATH = "/settings";
 export const PROCESSES_PATH = "/processes";
+export const PLUGINS_PATH_PREFIX = "/plugins";
 
-const SETTINGS_TABS = new Set(["general", "locations", "tools", "shortcuts", "templates", "accounts"]);
+const SETTINGS_TABS = new Set([
+  "general",
+  "locations",
+  "tools",
+  "shortcuts",
+  "templates",
+  "plugins",
+  "accounts",
+  "notifications",
+]);
+
+export type AppView = "library" | "project" | "processes" | "settings" | "plugin";
 
 function normalizeTab(tab: string | null): string {
   if (tab != null && tab.length > 0 && TAB_VALUES.has(tab)) {
@@ -36,7 +48,9 @@ export function readAppUrl(): {
   tab: string;
   subDetail: string | null;
   settingsTab: string;
-  view: "library" | "project" | "processes" | "settings";
+  pluginId: string | null;
+  pluginPageId: string | null;
+  view: AppView;
 } {
   if (typeof window === "undefined") {
     return {
@@ -44,19 +58,58 @@ export function readAppUrl(): {
       tab: "readme",
       subDetail: null,
       settingsTab: "general",
+      pluginId: null,
+      pluginPageId: null,
       view: "library",
     };
   }
   const path = window.location.pathname;
 
   if (path === PROCESSES_PATH) {
-    return { projectId: null, tab: "readme", subDetail: null, settingsTab: "general", view: "processes" };
+    return {
+      projectId: null,
+      tab: "readme",
+      subDetail: null,
+      settingsTab: "general",
+      pluginId: null,
+      pluginPageId: null,
+      view: "processes",
+    };
   }
 
   if (path === SETTINGS_PATH || path.startsWith(`${SETTINGS_PATH}/`)) {
     const parts = path.split("/");
     const settingsTab = normalizeSettingsTab(parts[2] || null);
-    return { projectId: null, tab: "readme", subDetail: null, settingsTab, view: "settings" };
+    return {
+      projectId: null,
+      tab: "readme",
+      subDetail: null,
+      settingsTab,
+      pluginId: null,
+      pluginPageId: null,
+      view: "settings",
+    };
+  }
+
+  if (path.startsWith(`${PLUGINS_PATH_PREFIX}/`)) {
+    const parts = path.split("/").filter(Boolean);
+    if (parts.length >= 3 && parts[0] === "plugins") {
+      try {
+        const pluginId = decodeURIComponent(parts[1]!);
+        const pluginPageId = decodeURIComponent(parts[2]!);
+        return {
+          projectId: null,
+          tab: "readme",
+          subDetail: null,
+          settingsTab: "general",
+          pluginId,
+          pluginPageId,
+          view: "plugin",
+        };
+      } catch {
+        // fall through to library
+      }
+    }
   }
 
   const esc = PROJECTS_PATH_PREFIX.replace(/\//g, "\\/");
@@ -69,6 +122,8 @@ export function readAppUrl(): {
       tab: "readme",
       subDetail: null,
       settingsTab: "general",
+      pluginId: null,
+      pluginPageId: null,
       view: "library",
     };
   }
@@ -77,13 +132,23 @@ export function readAppUrl(): {
     const projectId = decodeURIComponent(m[1]!);
     const tab = normalizeTab(m[2] || null);
     const subDetail = m[3] ? decodeURIComponent(m[3]) : null;
-    return { projectId, tab, subDetail, settingsTab: "general", view: "project" };
+    return {
+      projectId,
+      tab,
+      subDetail,
+      settingsTab: "general",
+      pluginId: null,
+      pluginPageId: null,
+      view: "project",
+    };
   } catch {
     return {
       projectId: null,
       tab: "readme",
       subDetail: null,
       settingsTab: "general",
+      pluginId: null,
+      pluginPageId: null,
       view: "library",
     };
   }
@@ -100,6 +165,10 @@ export function buildProjectUrl(projectId: string, tab: string, subDetail?: stri
 
 export function buildSettingsUrl(tab: string): string {
   return `${SETTINGS_PATH}/${normalizeSettingsTab(tab)}`;
+}
+
+export function buildPluginPageUrl(pluginId: string, pageId: string): string {
+  return `${PLUGINS_PATH_PREFIX}/${encodeURIComponent(pluginId)}/${encodeURIComponent(pageId)}`;
 }
 
 function currentLocationKey(): string {
@@ -146,13 +215,21 @@ export function pushUrlToProcesses(): void {
   window.history.pushState({ view: "processes" }, "", PROCESSES_PATH);
 }
 
+export function pushUrlToPluginPage(pluginId: string, pageId: string): void {
+  if (typeof window === "undefined") return;
+  const want = buildPluginPageUrl(pluginId, pageId);
+  if (currentLocationKey() === want) return;
+  window.history.pushState({ view: "plugin", pluginId, pageId }, "", want);
+}
+
 export function replaceUrlToLibrary(): void {
   if (typeof window === "undefined") return;
   if (window.location.pathname === "/") return;
   if (
     window.location.pathname.startsWith(`${PROJECTS_PATH_PREFIX}/`) ||
     window.location.pathname.startsWith(SETTINGS_PATH) ||
-    window.location.pathname === PROCESSES_PATH
+    window.location.pathname === PROCESSES_PATH ||
+    window.location.pathname.startsWith(`${PLUGINS_PATH_PREFIX}/`)
   ) {
     window.history.replaceState({}, "", "/");
   }
@@ -164,7 +241,8 @@ export function pushUrlToLibrary(): void {
   if (
     window.location.pathname.startsWith(`${PROJECTS_PATH_PREFIX}/`) ||
     window.location.pathname.startsWith(SETTINGS_PATH) ||
-    window.location.pathname === PROCESSES_PATH
+    window.location.pathname === PROCESSES_PATH ||
+    window.location.pathname.startsWith(`${PLUGINS_PATH_PREFIX}/`)
   ) {
     window.history.pushState({}, "", "/");
   }

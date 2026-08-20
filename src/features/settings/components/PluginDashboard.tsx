@@ -40,6 +40,13 @@ interface PluginInfo {
   category?: string;
   enabled: boolean;
   commands: PluginCommandMetadata[];
+  pages?: Array<{
+    id: string;
+    title: string;
+    icon?: string;
+    defaultPinned: boolean;
+    command?: string;
+  }>;
   locales?: Record<string, unknown>;
   options?: { id: string; label: string }[];
   activeOption?: string;

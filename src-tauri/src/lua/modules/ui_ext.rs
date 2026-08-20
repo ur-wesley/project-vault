@@ -198,6 +198,73 @@ pub fn register(lua: &Lua, vault: &Table, ctx: &ModuleContext) -> Result<()> {
             })?,
         )?;
 
+        let app_page = app.clone();
+        ui.set(
+            "set_page",
+            lua.create_function(move |lua, options_val: mlua::Value| {
+                #[derive(serde::Deserialize, serde::Serialize)]
+                struct PageItem {
+                    id: String,
+                    label: String,
+                    detail: Option<String>,
+                    icon: Option<String>,
+                }
+                #[derive(serde::Deserialize)]
+                struct PageOptions {
+                    id: String,
+                    title: Option<String>,
+                    #[serde(rename = "itemCommand")]
+                    item_command: Option<String>,
+                    items: Vec<PageItem>,
+                }
+                let opts: PageOptions = lua.from_value(options_val)?;
+                let pid = lua.globals().get::<Option<String>>("__current_plugin_id")
+                    .ok()
+                    .flatten()
+                    .unwrap_or_else(|| "unknown".to_string());
+                let _ = app_page.emit("plugin:set-page", serde_json::json!({
+                    "pluginId": pid,
+                    "id": opts.id,
+                    "title": opts.title,
+                    "itemCommand": opts.item_command,
+                    "items": opts.items,
+                }));
+                Ok(())
+            })?,
+        )?;
+
+        let app_page_clear = app.clone();
+        ui.set(
+            "clear_page",
+            lua.create_function(move |lua, id: String| {
+                let pid = lua.globals().get::<Option<String>>("__current_plugin_id")
+                    .ok()
+                    .flatten()
+                    .unwrap_or_else(|| "unknown".to_string());
+                let _ = app_page_clear.emit("plugin:clear-page", serde_json::json!({
+                    "pluginId": pid,
+                    "id": id,
+                }));
+                Ok(())
+            })?,
+        )?;
+
+        let app_page_open = app.clone();
+        ui.set(
+            "open_page",
+            lua.create_function(move |lua, page_id: String| {
+                let pid = lua.globals().get::<Option<String>>("__current_plugin_id")
+                    .ok()
+                    .flatten()
+                    .unwrap_or_else(|| "unknown".to_string());
+                let _ = app_page_open.emit("plugin:open-page", serde_json::json!({
+                    "pluginId": pid,
+                    "pageId": page_id,
+                }));
+                Ok(())
+            })?,
+        )?;
+
         vault.set("ui", ui)?;
     }
     Ok(())

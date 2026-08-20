@@ -38,7 +38,7 @@ end
 return plugin
 ```
 
-Optional fields: `locales`, `config`, `options`, `category`, `get_decorations`, and lifecycle via the `init` command (see [plugins.md](./plugins.md)).
+Optional fields: `locales`, `config`, `options`, `category`, `pages`, `get_decorations`, and lifecycle via the `init` command (see [plugins.md](./plugins.md)).
 
 Lazy-loading hooks (usually on `init.luau`, not in the registry):
 
@@ -77,6 +77,57 @@ end
 ```
 
 After mutating the repo with `vault.git.run` or `vault.shell.execute`, publish `project:changed` with `changeType = "git"` so the UI and other plugins stay in sync (see [plugins.md](./plugins.md#210-git-vaultgit)).
+
+## Plugin pages
+
+Plugins can declare **list pages** — full main views (like Processes), optionally pinned in the sidebar.
+
+### Declare pages in `init.luau`
+
+```lua
+pages = {
+  {
+    id = "dirty",
+    title = "Git Hygiene",
+    icon = "mdi--broom",
+    defaultPinned = true,
+    command = "show_dirty",
+  },
+},
+```
+
+| Field | Purpose |
+|-------|---------|
+| `id` | Page id (scoped to the plugin) |
+| `title` | Sidebar label and default page title |
+| `icon` | Optional Iconify icon for the sidebar |
+| `defaultPinned` | When `true`, the page appears in the sidebar until the user unpins it |
+| `command` | Plugin command run when the page is opened (load / refresh content) |
+
+### Push list content
+
+Use the same item shape as `show_quick_pick`:
+
+```lua
+vault.ui.set_page({
+  id = "dirty",
+  title = "3 project(s) need attention",
+  itemCommand = "open_item",
+  items = {
+    { id = "section_dirty", label = "Dirty (2)", icon = "mdi--alert-circle" },
+    { id = "<projectId>", label = "My App", detail = "Uncommitted changes", icon = "mdi--circle" },
+  },
+})
+vault.ui.open_page("dirty")
+```
+
+* **`vault.ui.set_page(options)`** — create or update page content (`id`, optional `title`, optional `itemCommand`, `items`).
+* **`vault.ui.open_page(pageId)`** — navigate the host to `/plugins/<pluginId>/<pageId>`.
+* **`vault.ui.clear_page(pageId)`** — remove stored page content.
+
+When a row is clicked, the host runs `itemCommand` with context `{ pageId, itemId }`. Section rows (`id` starting with `section_`) are not clickable.
+
+Pin state is stored per machine in `localStorage`; users can pin or unpin from the page header or sidebar context menu.
 
 ## Where files live on disk
 

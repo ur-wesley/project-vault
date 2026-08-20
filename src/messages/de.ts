@@ -702,6 +702,12 @@ const de = {
     killAllConfirm: "Sicher?",
     closeConfirm: "Es gibt {count} laufende Aufgabe(n). Trotzdem schließen?",
   },
+  plugins: {
+    sidebarPages: "Plugins",
+    sidebarEmpty: "Noch keine angehefteten Plugin-Seiten",
+    managePlugins: "Plugins verwalten",
+    unpinPage: "Aus Seitenleiste lösen",
+  },
   globalTerminal: {
     title: "Terminal",
     tooltip: "Terminal umschalten",

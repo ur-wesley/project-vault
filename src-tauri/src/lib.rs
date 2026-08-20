@@ -195,6 +195,13 @@ pub fn run() {
                     return;
                 }
 
+                #[cfg(debug_assertions)]
+                if let Some(ws_root) = crate::lua::loader::pv_plugins_workspace_root() {
+                    if let Err(e) = watcher.watch(&ws_root, RecursiveMode::Recursive) {
+                        eprintln!("[watcher] Failed to watch pv-plugins workspace: {:?}", e);
+                    }
+                }
+
                 // Keep the watcher alive in this thread/task
                 let _watcher_holder = watcher;
 

@@ -230,6 +230,21 @@ export type HeaderWidgetOptions = {
     color: FooterColor?,
 }
 
+export type PluginPageMetadata = {
+    id: string,
+    title: string,
+    icon: string?,
+    defaultPinned: boolean?,
+    command: string?,
+}
+
+export type PluginPageOptions = {
+    id: string,
+    title: string?,
+    itemCommand: string?,
+    items: { QuickPickItem },
+}
+
 export type VaultUI = {
     --- Prompts the user with a text input box. Returns the entered string or nil if cancelled.
     show_input_box: (options: InputBoxOptions) -> string?,
@@ -250,6 +265,12 @@ export type VaultUI = {
     clear_header_widget: (id: string) -> (),
     --- Renders a beautiful markdown viewer dialog modal with the given raw markdown content.
     show_markdown_dialog: (title: string, markdownContent: string) -> (),
+    --- Creates or updates a persistent plugin page (list view).
+    set_page: (options: PluginPageOptions) -> (),
+    --- Removes a plugin page by its id.
+    clear_page: (id: string) -> (),
+    --- Navigates the host UI to a declared plugin page.
+    open_page: (id: string) -> (),
 }
 
 export type VaultMise = {
@@ -348,6 +369,7 @@ export type PluginTable = {
     externals: ({ string } | ExternalDependencySpec)?,
     exports: any?,
     commands: { PluginCommandMetadata }?,
+    pages: { PluginPageMetadata }?,
     cmd: { string }?,
     keys: { string }?,
     event: { string }?,

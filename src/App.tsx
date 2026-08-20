@@ -9,6 +9,8 @@ import {
   pushUrlToProcesses,
   pushUrlToProject,
   pushUrlToSettings,
+  pushUrlToPluginPage,
+  type AppView,
 } from "~/lib/app-url";
 
 import { CommandPalette } from "~/features/command-palette";
@@ -18,6 +20,8 @@ import { ProjectDetailView } from "~/features/project-detail";
 import { ProcessesView } from "~/features/processes";
 import { NewProjectWizardDialog } from "~/features/project-wizard";
 import { SettingsView } from "~/features/settings";
+import { PluginPageView } from "~/features/plugin-page/PluginPageView";
+import { PluginSidebarList } from "~/features/plugin-page/PluginSidebarList";
 import { StatusBar } from "~/components/StatusBar";
 import { GlobalTerminalDrawer } from "~/components/GlobalTerminalDrawer";
 import { UpdateDialog, getSkippedVersion } from "~/components/UpdateDialog";
@@ -55,12 +59,14 @@ import {
   ContextMenuSeparator,
   ContextMenuTrigger,
 } from "~/components/ui/context-menu";
+import { Tabs, TabsContent, TabsList, TabsTrigger } from "~/components/ui/tabs";
 
 import { Tooltip, TooltipContent, TooltipTrigger } from "~/components/ui/tooltip";
 import {
   Sidebar,
   SidebarContent,
   SidebarFooter,
+  SidebarGroup,
   SidebarHeader,
   SidebarInset,
   SidebarProvider,
@@ -92,13 +98,24 @@ function App() {
   const [libraryFilter, setLibraryFilter] = createSignal("touched-10d");
   const [wizardOpen, setWizardOpen] = createSignal(false);
   const initialUrl = readAppUrl();
-  const [activeView, setActiveView] = createSignal<"library" | "project" | "processes" | "settings">(
-    initialUrl.view,
-  );
+  const [activeView, setActiveView] = createSignal<AppView>(initialUrl.view);
   const [projectDetailId, setProjectDetailId] = createSignal<string | null>(initialUrl.projectId);
   const [detailTab, setDetailTab] = createSignal(initialUrl.tab);
   const [subDetail, setSubDetail] = createSignal<string | null>(initialUrl.subDetail);
   const [settingsTab, setSettingsTab] = createSignal(initialUrl.settingsTab);
+  const [pluginPagePluginId, setPluginPagePluginId] = createSignal<string | null>(initialUrl.pluginId);
+  const [pluginPageId, setPluginPageId] = createSignal<string | null>(initialUrl.pluginPageId);
+  const [pluginPinRevision, setPluginPinRevision] = createSignal(0);
+  const [sidebarTab, setSidebarTab] = createSignal<"projects" | "plugins">(
+    localStorage.getItem("pv-sidebar-tab") === "plugins" ? "plugins" : "projects",
+  );
+  createEffect(on(sidebarTab, (v) => localStorage.setItem("pv-sidebar-tab", v)));
+  createEffect(
+    on(activeView, (view) => {
+      if (view === "plugin") setSidebarTab("plugins");
+      else if (view === "project" || view === "library") setSidebarTab("projects");
+    }),
+  );
   const [_ghSignInBusy, setGhSignInBusy] = createSignal(false);
   const [commandPaletteOpen, setCommandPaletteOpen] = createSignal(false);
   const [updatePopupOpen, setUpdatePopupOpen] = createSignal(false);
@@ -168,6 +185,83 @@ function App() {
     refetchInterval: 3000,
     enabled: isTauri(),
   }));
+
+  const pluginsQ = createQuery(() => ({
+    queryKey: ["plugins", "list"] as const,
+    queryFn: async () => {
+      if (!isTauri()) return [];
+      return invoke<
+        Array<{
+          id: string;
+          name: string;
+          enabled: boolean;
+          pages: Array<{
+            id: string;
+            title: string;
+            icon?: string;
+            defaultPinned: boolean;
+            command?: string;
+          }>;
+        }>
+      >("list_plugins");
+    },
+    enabled: isTauri(),
+  }));
+
+  const activePluginPageMeta = createMemo(() => {
+    const pid = pluginPagePluginId();
+    const pgid = pluginPageId();
+    if (!pid || !pgid) return undefined;
+    const plugin = (pluginsQ.data ?? []).find((p) => p.id === pid);
+    const page = plugin?.pages?.find((p) => p.id === pgid);
+    if (!page) return undefined;
+    return {
+      pluginId: pid,
+      pageId: pgid,
+      title: page.title,
+      icon: page.icon,
+      defaultPinned: page.defaultPinned,
+      command: page.command,
+    };
+  });
+
+  let lastPluginPageLoadKey = "";
+
+  const runPluginPageCommand = (pid: string, pgid: string, force = false) => {
+    const meta = activePluginPageMeta();
+    if (!meta?.command) return;
+    const key = `${pid}:${pgid}`;
+    if (!force && key === lastPluginPageLoadKey) return;
+    lastPluginPageLoadKey = key;
+    void invoke("execute_plugin_command", {
+      pluginId: pid,
+      commandId: meta.command,
+      context: { pageId: pgid },
+    }).catch((e) => console.error("plugin page command failed", e));
+  };
+
+  const openPluginPage = (pluginId: string, pageId: string) => {
+    const same =
+      activeView() === "plugin" &&
+      pluginPagePluginId() === pluginId &&
+      pluginPageId() === pageId;
+    setActiveView("plugin");
+    setPluginPagePluginId(pluginId);
+    setPluginPageId(pageId);
+    setProjectDetailId(null);
+    if (same) {
+      runPluginPageCommand(pluginId, pageId, true);
+    }
+  };
+
+  createEffect(() => {
+    if (activeView() !== "plugin") return;
+    const pid = pluginPagePluginId();
+    const pgid = pluginPageId();
+    if (!pid || !pgid) return;
+    pluginsQ.data;
+    runPluginPageCommand(pid, pgid);
+  });
 
   const runningProcessCount = createMemo(() =>
     (processesQ.data ?? []).filter((p) => p.state === "running" || p.state === "starting").length,
@@ -371,6 +465,8 @@ function App() {
       setDetailTab(n.tab);
       setSubDetail(n.subDetail);
       setSettingsTab(n.settingsTab);
+      setPluginPagePluginId(n.pluginId);
+      setPluginPageId(n.pluginPageId);
       setPathname(window.location.pathname);
     };
 
@@ -456,6 +552,19 @@ function App() {
           fn();
         }
       });
+
+      void listen<{ pluginId: string; enabled: boolean }>("plugin:status-changed", (event) => {
+        void qc.invalidateQueries({ queryKey: ["plugins", "list"] });
+        if (!event.payload.enabled && activeView() === "plugin" && pluginPagePluginId() === event.payload.pluginId) {
+          setActiveView("library");
+          setPluginPagePluginId(null);
+          setPluginPageId(null);
+        }
+      });
+
+      void listen("plugin:reload", () => {
+        void qc.invalidateQueries({ queryKey: ["plugins", "list"] });
+      });
     }
 
     onCleanup(() => {
@@ -501,6 +610,16 @@ function App() {
       return;
     }
 
+    if (v === "plugin") {
+      const pid = pluginPagePluginId();
+      const pgid = pluginPageId();
+      if (pid && pgid) {
+        pushUrlToPluginPage(pid, pgid);
+      }
+      setPathname(window.location.pathname);
+      return;
+    }
+
     if (id == null) {
       pushUrlToLibrary();
       setPathname(window.location.pathname);
@@ -531,6 +650,9 @@ function App() {
     if (activeView() === "processes") {
       return t("processes.title") as string;
     }
+    if (activeView() === "plugin") {
+      return activePluginPageMeta()?.title ?? pluginPageId() ?? (t("app.title") as string);
+    }
     if (projectDetailId() == null) {
       return t("app.title") as string;
     }
@@ -551,6 +673,9 @@ function App() {
       s = `${t("processes.title") as string} \u2013 ${appName}`;
     } else if (view === "settings") {
       s = `${t("settings.title") as string} \u2013 ${appName}`;
+    } else if (view === "plugin") {
+      const pageTitle = activePluginPageMeta()?.title;
+      s = pageTitle ? `${pageTitle} \u2013 ${appName}` : appName;
     } else if (projectName != null && projectName.length > 0 && projectName !== appName) {
       s = `${projectName} \u2013 ${appName}`;
     }
@@ -607,6 +732,7 @@ function App() {
         projectId={projectDetailId()}
         detailTab={detailTab()}
         subDetail={subDetail()}
+        onOpenPluginPage={(pluginId, pageId) => openPluginPage(pluginId, pageId)}
       />
       <SidebarProvider>
         <SidebarToggleListener />
@@ -619,6 +745,8 @@ function App() {
                 setActiveView("library");
                 setProjectDetailId(null);
                 setSubDetail(null);
+                setPluginPagePluginId(null);
+                setPluginPageId(null);
               }}
             >
               <img
@@ -646,63 +774,117 @@ function App() {
               onOpenCommandPalette={() => setCommandPaletteOpen(true)}
             />
           </SidebarHeader>
-          <SidebarContent class="flex min-h-0 flex-1 flex-col gap-1">
-            <ProjectSidebarList
-              selectedProjectId={projectDetailId}
-              onSelectProject={(id) => {
-                setActiveView("project");
-                setDetailTab("readme");
-                setSubDetail(null);
-                setProjectDetailId(id);
-              }}
-              onPlayError={(msg) => {
-                toast.error(msg);
-              }}
-              onOpenLocations={() => {
-                setActiveView("settings");
-                setSettingsTab("locations");
-              }}
-              onOpenNewProject={() => setWizardOpen(true)}
-            />
+          <SidebarContent class="flex min-h-0 flex-1 flex-col gap-1 overflow-hidden">
+            <Tabs
+              value={sidebarTab()}
+              onChange={(v) => setSidebarTab(v as "projects" | "plugins")}
+              class="flex min-h-0 flex-1 flex-col"
+            >
+              <div class="shrink-0 px-2 pt-1">
+                <TabsList class="grid h-8 w-full shrink-0 grid-cols-2 p-0.5 bg-sidebar-accent/40">
+                  <TabsTrigger
+                    value="projects"
+                    class="text-xs data-[selected]:bg-sidebar data-[selected]:text-sidebar-foreground"
+                  >
+                    {t("library.sidebarProjects") as string}
+                  </TabsTrigger>
+                  <TabsTrigger
+                    value="plugins"
+                    class="text-xs data-[selected]:bg-sidebar data-[selected]:text-sidebar-foreground"
+                  >
+                    {t("plugins.sidebarPages") as string}
+                    <Show when={runningProcessCount() > 0}>
+                      <span class="ml-1 flex h-4 min-w-4 items-center justify-center rounded-full bg-primary px-1 text-[9px] font-bold text-primary-foreground">
+                        {runningProcessCount()}
+                      </span>
+                    </Show>
+                  </TabsTrigger>
+                </TabsList>
+              </div>
+              <TabsContent
+                forceMount
+                value="projects"
+                class="mt-1 hidden min-h-0 flex-1 flex-col overflow-hidden data-[selected]:flex"
+              >
+                <ProjectSidebarList
+                  selectedProjectId={projectDetailId}
+                  onSelectProject={(id) => {
+                    setActiveView("project");
+                    setDetailTab("readme");
+                    setSubDetail(null);
+                    setProjectDetailId(id);
+                  }}
+                  onPlayError={(msg) => {
+                    toast.error(msg);
+                  }}
+                  onOpenLocations={() => {
+                    setActiveView("settings");
+                    setSettingsTab("locations");
+                  }}
+                  onOpenNewProject={() => setWizardOpen(true)}
+                />
+              </TabsContent>
+              <TabsContent
+                forceMount
+                value="plugins"
+                class="mt-1 hidden min-h-0 flex-1 flex-col overflow-hidden data-[selected]:flex"
+              >
+                <div class="min-h-0 flex-1 overflow-y-auto">
+                  <PluginSidebarList
+                    activePluginId={pluginPagePluginId()}
+                    activePageId={pluginPageId()}
+                    pinRevision={pluginPinRevision()}
+                    onOpenPage={(pluginId, pageId) => openPluginPage(pluginId, pageId)}
+                    onPinChange={() => setPluginPinRevision((n) => n + 1)}
+                    onManagePlugins={() => {
+                      setActiveView("settings");
+                      setSettingsTab("plugins");
+                    }}
+                  />
+                </div>
+                <SidebarGroup class="shrink-0 px-2 pt-0 pb-1">
+                  <ContextMenu>
+                    <ContextMenuTrigger as="div" class="contents">
+                      <Button
+                        variant="ghost"
+                        size="sm"
+                        class={
+                          "h-7 w-full justify-start gap-2 px-1.5 text-sidebar-foreground hover:bg-sidebar-accent hover:text-sidebar-accent-foreground " +
+                          (activeView() === "processes" ? "bg-sidebar-accent text-sidebar-accent-foreground" : "")
+                        }
+                        onClick={() => setActiveView("processes")}
+                      >
+                        <span class="iconify mdi--application-cog-outline size-6 opacity-70" />
+                        <span class="text-xs">{t("processes.title") as string}</span>
+                        <Show when={runningProcessCount() > 0}>
+                          <span class="ml-auto flex h-4 min-w-4 items-center justify-center rounded-full bg-primary px-1 text-[9px] font-bold text-primary-foreground">
+                            {runningProcessCount()}
+                          </span>
+                        </Show>
+                      </Button>
+                    </ContextMenuTrigger>
+                    <ContextMenuContent>
+                      <ContextMenuItem
+                        onSelect={() => {
+                          const running = (processesQ.data ?? []).filter(
+                            (p) => p.state === "running" || p.state === "starting",
+                          );
+                          const projectIds = new Set(running.map((p) => p.projectId));
+                          for (const pid of projectIds) {
+                            void stopAllProjectProcesses(pid);
+                          }
+                        }}
+                      >
+                        <span class="iconify mdi--close-circle-outline size-4" />
+                        <span>Close everything</span>
+                      </ContextMenuItem>
+                    </ContextMenuContent>
+                  </ContextMenu>
+                </SidebarGroup>
+              </TabsContent>
+            </Tabs>
           </SidebarContent>
           <SidebarFooter class="border-t border-sidebar-border px-2 py-1.5">
-            <ContextMenu>
-              <ContextMenuTrigger as="div" class="contents">
-                <Button
-                  variant="ghost"
-                  size="sm"
-                  class={
-                    "h-7 w-full justify-start gap-2 px-1.5 text-sidebar-foreground hover:bg-sidebar-accent hover:text-sidebar-accent-foreground " +
-                    (activeView() === "processes" ? "bg-sidebar-accent text-sidebar-accent-foreground" : "")
-                  }
-                  onClick={() => setActiveView("processes")}
-                >
-                  <span class="iconify mdi--application-cog-outline size-6 opacity-70" />
-                  <span class="text-xs">{t("processes.title") as string}</span>
-                  <Show when={runningProcessCount() > 0}>
-                    <span class="ml-auto flex h-4 min-w-4 items-center justify-center rounded-full bg-primary px-1 text-[9px] font-bold text-primary-foreground">
-                      {runningProcessCount()}
-                    </span>
-                  </Show>
-                </Button>
-              </ContextMenuTrigger>
-              <ContextMenuContent>
-                <ContextMenuItem
-                  onSelect={() => {
-                    const running = (processesQ.data ?? []).filter(
-                      (p) => p.state === "running" || p.state === "starting",
-                    );
-                    const projectIds = new Set(running.map((p) => p.projectId));
-                    for (const pid of projectIds) {
-                      void stopAllProjectProcesses(pid);
-                    }
-                  }}
-                >
-                  <span class="iconify mdi--close-circle-outline size-4" />
-                  <span>Close everything</span>
-                </ContextMenuItem>
-              </ContextMenuContent>
-            </ContextMenu>
             <div class="flex items-center gap-1">
               <ContextMenu>
                 <ContextMenuTrigger as="div" class="contents">
@@ -851,6 +1033,16 @@ function App() {
                   setSubDetail(null);
                   setProjectDetailId(id);
                 }}
+              />
+            </Show>
+
+            <Show when={activeView() === "plugin" && pluginPagePluginId() && pluginPageId()}>
+              <PluginPageView
+                pluginId={pluginPagePluginId()!}
+                pageId={pluginPageId()!}
+                meta={activePluginPageMeta()}
+                pinRevision={pluginPinRevision()}
+                onPinChange={() => setPluginPinRevision((n) => n + 1)}
               />
             </Show>
           </div>

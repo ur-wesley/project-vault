@@ -148,6 +148,11 @@ Request interaction with the user:
     * `projectId`: The database ID of the target project.
     * `filePath`: The absolute local file path to open.
     * `line`: (Optional) The 1-indexed line number to automatically scroll the editor preview to.
+* **`vault.ui.set_page(options: table)`**: Creates or updates a plugin list page (main view). Same item shape as `show_quick_pick`, plus `id`, optional `title`, optional `itemCommand`.
+* **`vault.ui.open_page(pageId: string)`**: Navigates to `/plugins/<pluginId>/<pageId>`.
+* **`vault.ui.clear_page(pageId: string)`**: Removes page content from the host store.
+
+Declare pages in `init.luau` with a `pages` array (`id`, `title`, optional `icon`, `defaultPinned`, optional `command`). See [creating-plugins.md](./creating-plugins.md#plugin-pages).
 
 ### 2.10 Git (`vault.git`)
 
