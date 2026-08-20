@@ -12,6 +12,7 @@ import { Tabs, TabsList, TabsTrigger, TabsContent } from "~/components/ui/tabs";
 import { TextField, TextFieldInput } from "~/components/ui/text-field";
 import { Select } from "~/components/ui/select";
 import { getPluginLogStore } from "~/lib/plugin-log-store";
+import { configDefaultToString } from "~/lib/plugin-config-value";
 import { settingElementId } from "../lib/settings-index";
 
 // Interfaces
@@ -28,7 +29,7 @@ interface PluginConfigItem {
   label: string;
   description?: string;
   type: string;
-  default?: string;
+  default?: string | boolean | number;
   options?: { id: string; label: string }[];
 }
 
@@ -152,10 +153,10 @@ export const PluginDashboard: Component<{ t: (key: string, params?: Record<strin
           const dbKey = `plugin:${pluginId}:${item.key}`;
           try {
             const val = await invoke<string | null>("get_setting", { key: dbKey });
-            values[item.key] = val !== null ? val : (item.default || "");
+            values[item.key] = val !== null ? val : configDefaultToString(item.default);
           } catch (e: unknown) {
             console.error("Failed to load setting:", e);
-            values[item.key] = item.default || "";
+            values[item.key] = configDefaultToString(item.default);
           }
         }
         setConfigValues(prev => ({ ...prev, [pluginId]: values }));
@@ -1074,7 +1075,8 @@ export const PluginDashboard: Component<{ t: (key: string, params?: Record<strin
                       <div class="space-y-2">
                         <For each={asPluginConfigList(plugin.config)}>
                           {(cfg) => {
-                            const currentVal = () => (configValues()[plugin.id] || {})[cfg.key] ?? cfg.default ?? "";
+                            const currentVal = () =>
+                              (configValues()[plugin.id] || {})[cfg.key] ?? configDefaultToString(cfg.default);
                             const fieldId = `cfg-${plugin.id}-${cfg.key}`;
                             return (
                               <div class="flex flex-col gap-1">
