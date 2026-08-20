@@ -424,6 +424,7 @@ pub fn run() {
             commands::issues::delete_all_local_issues,
             commands::sizes::get_location_project_sizes,
             commands::sizes::get_largest_entries,
+            commands::sizes::get_dir_size_breakdown,
             tunnel::commands::check_tunnel_available,
             tunnel::commands::trust_portless_ca,
             tunnel::commands::start_tunnel_proxy,

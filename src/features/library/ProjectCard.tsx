@@ -1,4 +1,4 @@
-import { Show, createMemo } from "solid-js";
+import { Show, createMemo, createSignal } from "solid-js";
 import { StackIcon } from "~/components/StackIcon";
 import { ProjectAvatar } from "~/components/ProjectAvatar";
 import { Button } from "~/components/ui/button";
@@ -9,6 +9,7 @@ import { formatRelativeTime } from "~/lib/format-date";
 import { formatBytes } from "~/lib/format-bytes";
 import { cn } from "~/lib/utils";
 import type { ProjectDto } from "~/types/dto";
+import { ProjectDiskUsageDialog } from "./ProjectDiskUsageDialog";
 
 export function ProjectCard(props: {
   project: ProjectDto;
@@ -22,6 +23,7 @@ export function ProjectCard(props: {
 }) {
   const { t, localeCode } = useI18n();
   const { getLivePlaytimeMs } = useLivePlaytime();
+  const [diskUsageOpen, setDiskUsageOpen] = createSignal(false);
 
   const livePlaytimeMs = createMemo(() =>
     getLivePlaytimeMs(props.project.id, props.project.totalPlaytimeMs)(),
@@ -125,16 +127,28 @@ export function ProjectCard(props: {
               <span class="text-[10px] font-mono font-medium text-muted-foreground">
                 {props.project.fileCount}
               </span>
-              <Show when={props.project.sizeBytes > 0}>
-                <span class="mx-0.5 h-2.5 w-px bg-border/60" />
+            </TooltipTrigger>
+            <TooltipContent>{t("library.fileCount") as string}</TooltipContent>
+          </Tooltip>
+          <Show when={props.project.sizeBytes > 0}>
+            <Tooltip>
+              <TooltipTrigger
+                as="button"
+                type="button"
+                class="flex items-center gap-1 rounded bg-muted/50 px-1.5 py-0.5 transition-colors hover:bg-muted/80 hover:text-foreground"
+                onClick={(e) => {
+                  e.stopPropagation();
+                  setDiskUsageOpen(true);
+                }}
+              >
                 <span class="iconify mdi--harddisk text-muted-foreground/60 size-3" />
                 <span class="text-[10px] font-mono font-medium text-muted-foreground">
                   {formatBytes(props.project.sizeBytes)}
                 </span>
-              </Show>
-            </TooltipTrigger>
-            <TooltipContent>{`${t("library.fileCount") as string} · ${t("library.projectSize") as string}`}</TooltipContent>
-          </Tooltip>
+              </TooltipTrigger>
+              <TooltipContent>{t("library.diskUsageViewBreakdown") as string}</TooltipContent>
+            </Tooltip>
+          </Show>
           <Show
             when={
               formatRelativeTime(props.project.lastEditedAtMs, localeCode()) ||
@@ -259,6 +273,13 @@ export function ProjectCard(props: {
           <span class="truncate">{t("projectDetail.tabTerminal")}</span>
         </button>
       </div>
+      <ProjectDiskUsageDialog
+        open={diskUsageOpen()}
+        onOpenChange={setDiskUsageOpen}
+        projectName={props.project.name}
+        projectPath={props.project.path}
+        projectSizeBytes={props.project.sizeBytes}
+      />
     </div>
   );
 }

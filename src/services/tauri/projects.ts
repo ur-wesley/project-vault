@@ -89,6 +89,24 @@ export function getLargestEntries(path: string, limit: number) {
   );
 }
 
+export type DirSizeEntry = {
+  name: string;
+  path: string;
+  sizeBytes: number;
+  isDir: boolean;
+  isSkip: boolean;
+};
+
+export type DirSizeBreakdown = {
+  path: string;
+  totalBytes: number;
+  entries: DirSizeEntry[];
+};
+
+export function getDirSizeBreakdown(path: string) {
+  return tauriInvoke<DirSizeBreakdown>("get_dir_size_breakdown", { path });
+}
+
 export function exportLibrarySnapshot() {
   return tauriInvoke<ExportSnapshotDto>("export_library_snapshot");
 }

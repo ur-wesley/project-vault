@@ -7,7 +7,7 @@ use walkdir::WalkDir;
 
 use crate::db;
 use crate::error::{codes, StableError};
-use crate::project_move::should_skip_path;
+use crate::project_move::{is_skip_name, should_skip_path};
 
 #[derive(Serialize)]
 #[serde(rename_all = "camelCase")]
@@ -165,4 +165,121 @@ fn count_all_dir_unfiltered(dir: &Path) -> u64 {
         }
     }
     total
+}
+
+#[derive(Serialize)]
+#[serde(rename_all = "camelCase")]
+pub struct DirSizeEntry {
+    pub name: String,
+    pub path: String,
+    pub size_bytes: u64,
+    pub is_dir: bool,
+    pub is_skip: bool,
+}
+
+#[derive(Serialize)]
+#[serde(rename_all = "camelCase")]
+pub struct DirSizeBreakdown {
+    pub path: String,
+    pub total_bytes: u64,
+    pub entries: Vec<DirSizeEntry>,
+}
+
+pub fn compute_dir_size_breakdown(root: &Path) -> Result<DirSizeBreakdown, StableError> {
+    if !root.is_dir() {
+        return Err(StableError::new(codes::INVALID_PATH, "not a directory"));
+    }
+
+    let mut entries: Vec<DirSizeEntry> = Vec::new();
+    if let Ok(dir_entries) = std::fs::read_dir(root) {
+        for entry in dir_entries.flatten() {
+            let entry_path = entry.path();
+            let name = entry
+                .file_name()
+                .to_str()
+                .unwrap_or("")
+                .to_string();
+            if name.is_empty() {
+                continue;
+            }
+            let is_dir = entry_path.is_dir();
+            let size = if is_dir {
+                count_all_dir_unfiltered(&entry_path)
+            } else {
+                entry.metadata().map(|m| m.len()).unwrap_or(0)
+            };
+            entries.push(DirSizeEntry {
+                is_skip: is_skip_name(&name),
+                name,
+                path: entry_path.to_string_lossy().to_string(),
+                size_bytes: size,
+                is_dir,
+            });
+        }
+    }
+
+    entries.sort_by(|a, b| b.size_bytes.cmp(&a.size_bytes));
+    let total_bytes = entries.iter().map(|e| e.size_bytes).sum();
+
+    Ok(DirSizeBreakdown {
+        path: root.to_string_lossy().to_string(),
+        total_bytes,
+        entries,
+    })
+}
+
+#[tauri::command]
+pub async fn get_dir_size_breakdown(path: String) -> Result<DirSizeBreakdown, StableError> {
+    tauri::async_runtime::spawn_blocking(move || compute_dir_size_breakdown(Path::new(&path)))
+        .await
+        .map_err(|e| StableError::new(codes::INTERNAL, e.to_string()))?
+}
+
+#[cfg(test)]
+mod tests {
+    use std::fs::{self, File};
+    use std::io::Write;
+
+    use super::*;
+
+    #[test]
+    fn breakdown_includes_skip_dirs_and_sizes() {
+        let base = std::env::temp_dir().join(format!("pv-size-breakdown-{}", std::process::id()));
+        let _ = fs::remove_dir_all(&base);
+        fs::create_dir_all(&base).unwrap();
+
+        let mut f = File::create(base.join("readme.txt")).unwrap();
+        f.write_all(b"hello").unwrap();
+
+        fs::create_dir_all(base.join("src")).unwrap();
+        let mut f = File::create(base.join("src/main.rs")).unwrap();
+        f.write_all(b"fn main(){}").unwrap();
+
+        fs::create_dir_all(base.join("node_modules/pkg")).unwrap();
+        let mut f = File::create(base.join("node_modules/pkg/index.js")).unwrap();
+        f.write_all(&vec![0u8; 100]).unwrap();
+
+        let result = compute_dir_size_breakdown(&base).unwrap();
+
+        assert_eq!(result.entries.len(), 3);
+
+        let nm = result.entries.iter().find(|e| e.name == "node_modules").unwrap();
+        assert!(nm.is_dir);
+        assert!(nm.is_skip);
+        assert_eq!(nm.size_bytes, 100);
+
+        let src = result.entries.iter().find(|e| e.name == "src").unwrap();
+        assert!(src.is_dir);
+        assert!(!src.is_skip);
+        assert_eq!(src.size_bytes, 10);
+
+        let readme = result.entries.iter().find(|e| e.name == "readme.txt").unwrap();
+        assert!(!readme.is_dir);
+        assert!(!readme.is_skip);
+        assert_eq!(readme.size_bytes, 5);
+
+        assert_eq!(result.total_bytes, 115);
+
+        let _ = fs::remove_dir_all(&base);
+    }
 }

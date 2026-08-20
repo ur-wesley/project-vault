@@ -55,6 +55,7 @@ import { DeleteProjectDialog } from "./DeleteProjectDialog";
 import { CleanProjectDialog } from "./CleanProjectDialog";
 import { TagVersionDialog } from "./TagVersionDialog";
 import { useLivePlaytime } from "~/lib/live-playtime-context";
+import { ProjectDiskUsageDialog } from "~/features/library/ProjectDiskUsageDialog";
 
 import type { ProjectDetailModel } from "../model/createProjectDetailModel";
 
@@ -80,6 +81,7 @@ export const ProjectDetailHeader: Component<ProjectDetailHeaderProps> = (
   const [incomingOpen, setIncomingOpen] = createSignal(false);
   const [copiedPath, setCopiedPath] = createSignal(false);
   const [copiedRemote, setCopiedRemote] = createSignal(false);
+  const [diskUsageOpen, setDiskUsageOpen] = createSignal(false);
 
   const openExternal = (href: string) =>
     isTauri()
@@ -213,6 +215,41 @@ export const ProjectDetailHeader: Component<ProjectDetailHeaderProps> = (
                           {m().ghQ.data?.owner}/{m().ghQ.data?.repo}
                         </p>
                       </Show>
+                      <div class="mt-1 flex flex-wrap items-center gap-1.5">
+                        <Tooltip>
+                          <TooltipTrigger
+                            as="div"
+                            class="flex items-center gap-1 rounded bg-muted/50 px-1.5 py-0.5"
+                          >
+                            <span class="iconify mdi--file-multiple-outline text-muted-foreground/60 size-3" />
+                            <span class="text-[10px] font-mono font-medium text-muted-foreground">
+                              {p().fileCount}
+                            </span>
+                          </TooltipTrigger>
+                          <TooltipContent>{t("library.fileCount") as string}</TooltipContent>
+                        </Tooltip>
+                        <Show when={p().sizeBytes > 0}>
+                          <Tooltip>
+                            <TooltipTrigger
+                              as="button"
+                              type="button"
+                              class="flex items-center gap-1 rounded bg-muted/50 px-1.5 py-0.5 transition-colors hover:bg-muted/80 hover:text-foreground"
+                              onClick={(e) => {
+                                e.stopPropagation();
+                                setDiskUsageOpen(true);
+                              }}
+                            >
+                              <span class="iconify mdi--harddisk text-muted-foreground/60 size-3" />
+                              <span class="text-[10px] font-mono font-medium text-muted-foreground">
+                                {formatBytes(p().sizeBytes)}
+                              </span>
+                            </TooltipTrigger>
+                            <TooltipContent>
+                              {t("library.diskUsageViewBreakdown") as string}
+                            </TooltipContent>
+                          </Tooltip>
+                        </Show>
+                      </div>
                     </div>
                   </div>
                 </div>
@@ -257,11 +294,6 @@ export const ProjectDetailHeader: Component<ProjectDetailHeaderProps> = (
                       </TooltipContent>
                     </Tooltip>
 
-                    <Show when={p().sizeBytes > 0}>
-                      <span class="shrink-0 text-[10px] text-muted-foreground/40">
-                        · {formatBytes(p().sizeBytes)}
-                      </span>
-                    </Show>
                   </div>
                 </div>
               </div>
@@ -1052,6 +1084,16 @@ export const ProjectDetailHeader: Component<ProjectDetailHeaderProps> = (
         open={deleteConfirmOpen()}
         onOpenChange={setDeleteConfirmOpen}
       />
+
+      <Show when={m().projectQ.data}>
+        <ProjectDiskUsageDialog
+          open={diskUsageOpen()}
+          onOpenChange={setDiskUsageOpen}
+          projectName={p().name}
+          projectPath={p().path}
+          projectSizeBytes={p().sizeBytes}
+        />
+      </Show>
     </div>
   );
 };
