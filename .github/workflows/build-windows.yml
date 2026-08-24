@@ -1,4 +1,4 @@
-name: Build Windows App
+name: Build App
 
 on:
   push:
@@ -8,7 +8,18 @@ on:
 
 jobs:
   build:
-    runs-on: windows-latest
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - platform: windows-latest
+            rust_target: x86_64-pc-windows-msvc
+            args: ''
+          - platform: macos-latest
+            rust_target: aarch64-apple-darwin
+            args: '--target aarch64-apple-darwin'
+
+    runs-on: ${{ matrix.platform }}
     permissions:
       contents: write
 
@@ -28,7 +39,7 @@ jobs:
           echo "VITE_GITHUB_DEVICE_CLIENT_ID=${{ secrets.GH_DEVICE_CLIENT_ID }}" > .env
 
       - name: Sync version from tag
-        if: startsWith(github.ref, 'refs/tags/v')
+        if: startsWith(github.ref, 'refs/tags/v') && runner.os == 'Windows'
         shell: pwsh
         run: |
           $tag = "${{ github.ref_name }}"
@@ -42,6 +53,22 @@ jobs:
           (Get-Content src-tauri/tauri.conf.json) -replace '"version": "[^"]+"', "`"version`": `"$version`"" | Set-Content src-tauri/tauri.conf.json
           (Get-Content package.json) -replace '"version": "[^"]+"', "`"version`": `"$version`"" | Set-Content package.json
 
+      - name: Sync version from tag
+        if: startsWith(github.ref, 'refs/tags/v') && runner.os == 'macOS'
+        shell: bash
+        run: |
+          tag="${{ github.ref_name }}"
+          version="${tag#v}"
+          if ! [[ "$version" =~ ^[0-9]+\.[0-9]+\.[0-9]+(-[0-9A-Za-z.-]+)?(\+[0-9A-Za-z.-]+)?$ ]]; then
+            echo "Tag '$tag' is not semver (got '$version')"
+            exit 1
+          fi
+          echo "Syncing version to $version"
+
+          sed -i '' "s/^version = \"[^\"]*\"/version = \"$version\"/" src-tauri/Cargo.toml
+          sed -i '' "s/\"version\": \"[^\"]*\"/\"version\": \"$version\"/" src-tauri/tauri.conf.json
+          sed -i '' "s/\"version\": \"[^\"]*\"/\"version\": \"$version\"/" package.json
+
       - name: Generate Changelog
         id: changelog
         shell: bash
@@ -49,16 +76,13 @@ jobs:
           CURRENT_TAG="${{ github.ref_name }}"
           PREV_TAG=$(git for-each-ref --sort=-creatordate --format '%(refname:short)' refs/tags | sed -n '2p')
 
-          # Generate changelog into a file, avoiding commit/tag operations
           if [ -n "$PREV_TAG" ] && [ "$PREV_TAG" != "$CURRENT_TAG" ]; then
             npx changelogen@latest --no-commit --no-tag --from "$PREV_TAG" > CHANGELOG_RAW.txt
           else
             npx changelogen@latest --no-commit --no-tag > CHANGELOG_RAW.txt
           fi
 
-          # Extract markdown starting from the first '##' line
           sed -n '/^## /,$p' CHANGELOG_RAW.txt > CHANGELOG_BODY.md
-          # Set as output
           echo "body<<EOF" >> $GITHUB_OUTPUT
           cat CHANGELOG_BODY.md >> $GITHUB_OUTPUT
           echo "EOF" >> $GITHUB_OUTPUT
@@ -68,16 +92,14 @@ jobs:
 
       - name: Setup Rust
         uses: dtolnay/rust-toolchain@stable
-
-      - name: Install Tauri dependencies
-        run: |
-          rustup target add x86_64-pc-windows-msvc
+        with:
+          targets: ${{ matrix.rust_target }}
 
       - name: Cache Rust dependencies
         uses: Swatinem/rust-cache@v2
         with:
           workspaces: src-tauri
-          shared-key: tauri-release
+          shared-key: tauri-release-${{ matrix.platform }}
           cache-targets: true
           cache-all-crates: true
           save-if: true
@@ -94,3 +116,4 @@ jobs:
           releaseBody: ${{ steps.changelog.outputs.body }}
           releaseDraft: false
           prerelease: false
+          args: ${{ matrix.args }}
