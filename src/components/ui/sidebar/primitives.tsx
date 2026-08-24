@@ -79,7 +79,7 @@ export const Sidebar: Component<SidebarProps> = (rawProps) => {
         >
           <div
             class={cn(
-              "w-(--sidebar-width) relative h-svh bg-transparent transition-[width] duration-200 ease-linear",
+              "w-(--sidebar-width) relative h-full bg-transparent transition-[width] duration-200 ease-linear",
               "group-data-[collapsible=offcanvas]:w-0",
               "group-data-[side=right]:rotate-180",
               local.variant === "floating" || local.variant === "inset"
@@ -89,7 +89,7 @@ export const Sidebar: Component<SidebarProps> = (rawProps) => {
           />
           <div
             class={cn(
-              "w-(--sidebar-width) fixed inset-y-0 z-10 hidden h-svh transition-[left,right,width] duration-200 ease-linear md:flex",
+              "w-(--sidebar-width) fixed top-[var(--titlebar-height,0px)] bottom-0 z-10 hidden transition-[left,right,width] duration-200 ease-linear md:flex",
               local.side === "left"
                 ? "left-0 group-data-[collapsible=offcanvas]:left-[calc(var(--sidebar-width)*-1)]"
                 : "right-0 group-data-[collapsible=offcanvas]:right-[calc(var(--sidebar-width)*-1)]",
@@ -184,7 +184,7 @@ export const SidebarInset: Component<ComponentProps<"main">> = (props) => {
   return (
     <main
       class={cn(
-        "relative flex min-h-svh flex-1 flex-col bg-background",
+        "relative flex min-h-0 flex-1 flex-col bg-background",
         "peer-data-[variant=inset]:min-h-[calc(100svh-theme(spacing.4))] md:peer-data-[variant=inset]:m-2 md:peer-data-[state=collapsed]:peer-data-[variant=inset]:ml-2 md:peer-data-[variant=inset]:ml-0 md:peer-data-[variant=inset]:rounded-xl md:peer-data-[variant=inset]:shadow",
         local.class,
       )}

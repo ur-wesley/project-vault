@@ -1,6 +1,6 @@
 [package]
 name = "project-vault"
-version = "0.10.2"
+version = "0.10.6"
 description = "Steam for dev Projects!"
 authors = ["Wesley"]
 edition = "2021"
@@ -51,7 +51,7 @@ zip = { version = "2", default-features = false, features = ["deflate"] }
 tokio = { version = "1", default-features = false, features = ["time", "sync", "rt", "process"] }
 async-trait = "0.1"
 dotenvy = "0.15.7"
-tantivy = "0.21"
+tantivy = "0.22"
 regex = "1"
 once_cell = "1"
 thiserror = "1"

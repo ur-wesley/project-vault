@@ -734,9 +734,14 @@ function App() {
         subDetail={subDetail()}
         onOpenPluginPage={(pluginId, pageId) => openPluginPage(pluginId, pageId)}
       />
-      <SidebarProvider>
+      <SidebarProvider
+        class="relative h-svh overflow-hidden"
+        style={{ "--titlebar-height": "2.25rem" }}
+      >
         <SidebarToggleListener />
         <StackIconSafelist />
+        <WindowTitleBar title={windowHeaderTitle} />
+        <div class="absolute inset-x-0 bottom-0 top-[var(--titlebar-height,0px)] flex min-h-0">
         <Sidebar collapsible="offcanvas" variant="sidebar">
           <SidebarHeader class="gap-0 border-b-0 p-0">
             <div
@@ -972,8 +977,7 @@ function App() {
             </div>
           </SidebarFooter>
         </Sidebar>
-        <SidebarInset class="flex max-h-svh flex-col overflow-hidden">
-          <WindowTitleBar title={windowHeaderTitle} />
+        <SidebarInset class="flex min-h-0 flex-1 flex-col overflow-hidden">
           <Toaster position="bottom-right" richColors />
           <div class="flex min-h-0 flex-1 flex-col overflow-hidden">
             <Show when={activeView() === "settings"}>
@@ -1057,6 +1061,7 @@ function App() {
             onOpenUpdatePopup={() => setUpdatePopupOpen(true)}
           />
         </SidebarInset>
+        </div>
         <GlobalTerminalDrawer />
         <UpdateDialog
           open={updatePopupOpen()}

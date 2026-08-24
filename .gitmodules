@@ -1,3 +1,4 @@
 [submodule "pv-plugins"]
 	path = pv-plugins
 	url = https://github.com/ur-wesley/pv-plugins
+	fetchRecurseSubmodules = false

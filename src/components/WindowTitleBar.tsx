@@ -149,7 +149,7 @@ export const WindowTitleBar: Component<WindowTitleBarProps> = (props) => {
     <header
       data-tauri-drag-region
       class={cn(
-        "flex h-9 min-h-9 w-full shrink-0 select-none items-stretch border-b border-border bg-background/95 backdrop-blur supports-[backdrop-filter]:bg-background/80",
+        "flex h-9 min-h-9 w-full shrink-0 select-none items-stretch border-b border-border bg-background/95 backdrop-blur supports-[backdrop-filter]:bg-background/80 fixed top-0 left-0 right-0 z-50",
         isTauri() && isMac() ? "pt-1" : "pt-0.5",
       )}
     >

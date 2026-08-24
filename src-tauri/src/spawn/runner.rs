@@ -81,9 +81,7 @@ pub fn spawn_in_new_console(
     stack: &str,
 ) -> Result<std::process::Child, StableError> {
     let inner = if use_mise {
-        let mut mise_cmd = get_mise_tool_args(runtime_hint, stack);
-        mise_cmd.push(argv.join(" "));
-        mise_cmd.join(" ")
+        get_mise_tool_args(runtime_hint, stack, argv).join(" ")
     } else {
         argv.join(" ")
     };
@@ -115,9 +113,7 @@ pub fn spawn_in_new_console(
     stack: &str,
 ) -> Result<std::process::Child, StableError> {
     let inner = if use_mise {
-        let mut mise_cmd = get_mise_tool_args(runtime_hint, stack);
-        mise_cmd.push(argv.join(" "));
-        mise_cmd.join(" ")
+        get_mise_tool_args(runtime_hint, stack, argv).join(" ")
     } else {
         argv.join(" ")
     };

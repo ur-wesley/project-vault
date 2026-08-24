@@ -208,6 +208,9 @@ fn foreground_hwnd(app: &AppHandle) -> Option<windows::Win32::Foundation::HWND> 
         .and_then(|guard| guard.map(|h| windows::Win32::Foundation::HWND(h as *mut _)))
 }
 
+#[cfg(not(windows))]
+pub fn save_foreground_hwnd(_app: &AppHandle) {}
+
 #[cfg(windows)]
 pub fn save_foreground_hwnd(app: &AppHandle) {
     use windows::Win32::UI::WindowsAndMessaging::GetForegroundWindow;

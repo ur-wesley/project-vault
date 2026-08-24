@@ -5,7 +5,7 @@ use tantivy::schema::{
     Field, IndexRecordOption, Schema, TextFieldIndexing, TextOptions, INDEXED, STORED, STRING,
 };
 use tantivy::tokenizer::{LowerCaser, SimpleTokenizer, TextAnalyzer};
-use tantivy::{Index, IndexWriter, TantivyError};
+use tantivy::{Index, IndexWriter, TantivyDocument, TantivyError};
 
 use crate::error::{codes, StableError};
 
@@ -277,9 +277,9 @@ pub fn open_index(base: &Path, project_id: &str) -> Result<Index, StableError> {
 }
 
 /// Create a new index writer with a reasonable buffer size (50 MB).
-pub fn index_writer(index: &Index) -> Result<IndexWriter, StableError> {
+pub fn index_writer(index: &Index) -> Result<IndexWriter<TantivyDocument>, StableError> {
     index
-        .writer(50_000_000)
+        .writer::<TantivyDocument>(50_000_000)
         .map_err(|e| StableError::new(codes::INTERNAL, format!("failed to create index writer: {e}")))
 }
 

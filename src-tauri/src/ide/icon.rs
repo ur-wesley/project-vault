@@ -300,10 +300,11 @@ pub fn icon_data_for(path: &Path) -> Option<String> {
     let icns_path = find_icns(bundle)?;
     let bytes = std::fs::read(icns_path).ok()?;
     let chunks = parse_icns(&bytes)?;
-    match pick_best_chunk(&chunks)? {
+    let chunk = pick_best_chunk(&chunks)?;
+    match chunk {
         IcnsChunk::Png { data, .. } => Some(data_url_png(data)),
-        IcnsChunk::Argb { data, size } => {
-            let png = argb_to_png(data, *size)?;
+        IcnsChunk::Argb { data, .. } => {
+            let png = argb_to_png(data, chunk.size())?;
             Some(data_url_png(&png))
         }
     }
@@ -415,7 +416,7 @@ fn parse_icns(bytes: &[u8]) -> Option<Vec<IcnsChunk<'_>>> {
 /// Prefer the largest PNG-carrying chunk; fall back to the largest ARGB
 /// chunk when the container has no PNG data at all.
 #[cfg(target_os = "macos")]
-fn pick_best_chunk<'a>(chunks: &[IcnsChunk<'a>]) -> Option<&IcnsChunk<'a>> {
+fn pick_best_chunk<'a>(chunks: &'a [IcnsChunk<'a>]) -> Option<&'a IcnsChunk<'a>> {
     let png = chunks
         .iter()
         .filter(|c| matches!(c, IcnsChunk::Png { .. }))

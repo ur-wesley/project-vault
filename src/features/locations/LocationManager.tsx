@@ -11,7 +11,7 @@ import { useEventHub } from "~/lib/event-hub-context";
 import { useI18n } from "~/lib/i18n-context";
 import { formatBytes } from "~/lib/format-bytes";
 import { rescanAllLibraryFolders } from "~/lib/rescan-library";
-import { diskSpaceForPaths, listLocations, removeLocation, updateLocation } from "~/services/tauri/locations";
+import { addLocation, diskSpaceForPaths, listLocations, removeLocation, updateLocation } from "~/services/tauri/locations";
 import { scanLibraryLocation } from "~/services/tauri/scanning";
 import { getLocationProjectSizes, listProjects, importProject } from "~/services/tauri/projects";
 import { pickLibraryFolder } from "~/services/tauri/pickers";

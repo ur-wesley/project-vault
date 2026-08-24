@@ -6,8 +6,8 @@ use std::time::SystemTime;
 use ignore::WalkBuilder;
 use tantivy::collector::TopDocs;
 use tantivy::query::TermQuery;
-use tantivy::schema::IndexRecordOption;
-use tantivy::{doc, Index, IndexWriter, Term};
+use tantivy::schema::{IndexRecordOption, Value};
+use tantivy::{doc, Index, IndexWriter, TantivyDocument, Term};
 
 use crate::search::{
     guess_language, index_writer, is_binary, open_index, write_schema_version, SearchSchema,
@@ -101,7 +101,7 @@ pub fn build_project_index(
 /// Index a single file into the given writer.
 fn index_single_file(
     schema: &SearchSchema,
-    writer: &mut IndexWriter,
+    writer: &mut IndexWriter<TantivyDocument>,
     project_path: &Path,
     file_path: &Path,
 ) -> Result<(), StableError> {
@@ -202,7 +202,7 @@ fn read_doc_mtime(index: &Index, schema: &SearchSchema, rel_path: &str) -> Optio
     let term_query = TermQuery::new(term, IndexRecordOption::Basic);
     let top = searcher.search(&term_query, &TopDocs::with_limit(1)).ok()?;
     let (_score, addr) = top.first()?;
-    let doc = searcher.doc(*addr).ok()?;
+    let doc = searcher.doc::<TantivyDocument>(*addr).ok()?;
     let val = doc.get_first(schema.mtime)?;
     val.as_u64()
 }

@@ -3,8 +3,8 @@ use std::path::Path;
 use tantivy::query::{
     BooleanQuery, BoostQuery, FuzzyTermQuery, Occur, PhraseQuery, Query, QueryParser, TermQuery,
 };
-use tantivy::schema::IndexRecordOption;
-use tantivy::{Index, Snippet, SnippetGenerator, Term};
+use tantivy::schema::{IndexRecordOption, Value};
+use tantivy::{Index, Snippet, SnippetGenerator, TantivyDocument, Term};
 
 use crate::error::{codes, StableError};
 use crate::models::{SearchHitDto, SearchSnippetDto};
@@ -45,16 +45,16 @@ pub fn search_project_index(
 
     let mut hits = Vec::new();
     for (score, doc_address) in top_docs {
-        if let Ok(doc) = searcher.doc(doc_address) {
+        if let Ok(doc) = searcher.doc::<TantivyDocument>(doc_address) {
             let path = doc
                 .get_first(schema.path)
-                .and_then(|v| v.as_text())
+                .and_then(|v| v.as_str())
                 .unwrap_or("")
                 .to_string();
 
             let content = doc
                 .get_first(schema.content)
-                .and_then(|v| v.as_text())
+                .and_then(|v| v.as_str())
                 .unwrap_or("")
                 .to_string();
 
@@ -380,7 +380,7 @@ fn preprocess_query(query: &str) -> String {
 fn build_snippets(
     content_gen: Option<&SnippetGenerator>,
     path_gen: Option<&SnippetGenerator>,
-    doc: &tantivy::Document,
+    doc: &TantivyDocument,
     content: &str,
     path: &str,
 ) -> (Vec<SearchSnippetDto>, Vec<usize>) {
