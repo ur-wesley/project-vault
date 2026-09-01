@@ -76,8 +76,6 @@ function groupEntries(items: ClipboardEntryDto[], t: (k: string) => string): Gro
   return groups;
 }
 
-const AUTO_HIDE_GRACE_MS = 300;
-
 function matchesSearch(item: ClipboardEntryDto, query: string): boolean {
   const hay = `${item.preview} ${item.contentText ?? ""} ${(item.meta?.filePaths ?? []).join(" ")}`.toLowerCase();
   const q = query.toLowerCase();
@@ -260,12 +258,27 @@ export const ClipboardHistoryOverlay: Component = () => {
 
   onMount(() => {
     const unlistens: (() => void)[] = [];
-    const shownAt = Date.now();
     const win = getCurrentWindow();
+    let closed = false;
+    let blurTimer: ReturnType<typeof setTimeout> | undefined;
 
-    const shouldDismissOnFocusLoss = () => {
-      if (clearOpen() || busy()) return false;
-      return Date.now() - shownAt > AUTO_HIDE_GRACE_MS;
+    const focusSearch = () => searchRef?.focus();
+    const onGainedFocus = () => {
+      if (blurTimer !== undefined) {
+        clearTimeout(blurTimer);
+        blurTimer = undefined;
+      }
+      focusSearch();
+    };
+    const dismiss = () => {
+      if (closed || clearOpen() || busy()) return;
+      closed = true;
+      void closeOverlay();
+    };
+    const onLostFocus = () => {
+      if (closed || clearOpen() || busy()) return;
+      if (blurTimer !== undefined) clearTimeout(blurTimer);
+      blurTimer = setTimeout(dismiss, 80);
     };
 
     void prepareClipboardOverlayWindow().catch(() => {});
@@ -273,19 +286,15 @@ export const ClipboardHistoryOverlay: Component = () => {
     document.addEventListener("keydown", handleListKeyDown, true);
     unlistens.push(() => document.removeEventListener("keydown", handleListKeyDown, true));
 
-    const onWindowBlur = () => {
-      if (!shouldDismissOnFocusLoss()) return;
-      void closeOverlay();
-    };
-    window.addEventListener("blur", onWindowBlur);
-    unlistens.push(() => window.removeEventListener("blur", onWindowBlur));
+    window.addEventListener("focus", onGainedFocus);
+    unlistens.push(() => window.removeEventListener("focus", onGainedFocus));
+    window.addEventListener("blur", onLostFocus);
+    unlistens.push(() => window.removeEventListener("blur", onLostFocus));
 
     void win
       .onFocusChanged(({ payload: focused }) => {
-        if (focused) return;
-        if (shouldDismissOnFocusLoss()) {
-          void closeOverlay();
-        }
+        if (focused) onGainedFocus();
+        else onLostFocus();
       })
       .then((fn) => unlistens.push(fn))
       .catch(() => {});
@@ -295,9 +304,10 @@ export const ClipboardHistoryOverlay: Component = () => {
     }).then((fn) => unlistens.push(fn));
 
     onCleanup(() => {
+      if (blurTimer !== undefined) clearTimeout(blurTimer);
       for (const fn of unlistens) fn();
     });
-    queueMicrotask(() => searchRef?.focus());
+    focusSearch();
   });
 
   const filterLabel = () => {
@@ -336,6 +346,7 @@ export const ClipboardHistoryOverlay: Component = () => {
           <input
             ref={searchRef}
             type="text"
+            autofocus
             class="h-9 min-w-0 flex-1 bg-transparent text-sm outline-none placeholder:text-muted-foreground"
             placeholder={tStr("clipboardHistory.searchPlaceholder")}
             value={search()}

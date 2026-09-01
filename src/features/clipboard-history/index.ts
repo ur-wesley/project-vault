@@ -56,7 +56,7 @@ export async function openClipboardOverlay(): Promise<void> {
     transparent: true,
     shadow: false,
     resizable: false,
-    focus: false,
+    focus: true,
     visible: false,
   });
 
@@ -78,7 +78,7 @@ export async function openClipboardOverlay(): Promise<void> {
   await win.setMinSize(size);
   await win.setMaxSize(size);
 
-  await win.show();
   await win.setShadow(true);
+  await win.show();
   await win.setFocus();
 }
