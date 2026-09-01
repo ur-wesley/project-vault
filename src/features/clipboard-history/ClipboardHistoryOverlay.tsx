@@ -195,8 +195,6 @@ export const ClipboardHistoryOverlay: Component = () => {
     if (clearOpen()) return;
 
     const items = flatEntries();
-    const target = e.target as HTMLElement;
-    const inSearch = target.tagName === "INPUT" || target.tagName === "TEXTAREA";
 
     if (e.key === "Escape") {
       e.preventDefault();
@@ -249,7 +247,8 @@ export const ClipboardHistoryOverlay: Component = () => {
         else void deleteSelected();
         break;
       case "p":
-        if (inSearch) return;
+      case "P":
+        if (!e.ctrlKey && !e.metaKey) return;
         e.preventDefault();
         void togglePinSelected();
         break;

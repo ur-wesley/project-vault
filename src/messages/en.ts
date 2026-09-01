@@ -676,7 +676,7 @@ const en = {
     groupYesterday: "Yesterday",
     groupThisWeek: "This week",
     groupOlder: "Older",
-    footerHints: "↑↓ navigate · Enter paste · Del delete · Shift+Del clear · P pin · Tab filter · Esc close",
+    footerHints: "↑↓ navigate · Enter paste · Del delete · Shift+Del clear · Ctrl+P pin · Tab filter · Esc close",
     clearTitle: "Clear clipboard history?",
     clearDescription: "Unpinned entries will be removed. Pinned entries are kept.",
     clearConfirm: "Clear unpinned",

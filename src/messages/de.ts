@@ -676,7 +676,7 @@ const de = {
     groupYesterday: "Gestern",
     groupThisWeek: "Diese Woche",
     groupOlder: "Älter",
-    footerHints: "↑↓ navigieren · Enter einfügen · Entf löschen · Umschalt+Entf leeren · P anheften · Tab Filter · Esc schließen",
+    footerHints: "↑↓ navigieren · Enter einfügen · Entf löschen · Umschalt+Entf leeren · Strg+P anheften · Tab Filter · Esc schließen",
     clearTitle: "Zwischenablage-Verlauf leeren?",
     clearDescription: "Nicht angeheftete Einträge werden entfernt. Angeheftete bleiben erhalten.",
     clearConfirm: "Nicht angeheftete löschen",
