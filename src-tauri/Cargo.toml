@@ -38,6 +38,7 @@ tauri-plugin-store = "2"
 tauri-plugin-global-shortcut = "2"
 tauri-plugin-deep-link = "2"
 sqlx = { version = "0.8.6", default-features = false, features = ["runtime-tokio", "sqlite"] }
+sha2 = "0.10"
 uuid = { version = "1", features = ["v4"] }
 toml = "0.8"
 toml_edit = "0.22"

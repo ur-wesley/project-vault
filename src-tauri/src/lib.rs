@@ -31,85 +31,92 @@ mod tools;
 use tauri::{Manager, Emitter};
 use tauri_plugin_sql::{Builder as SqlPluginBuilder, Migration, MigrationKind};
 
+fn sql_migrations() -> Vec<Migration> {
+    vec![
+        Migration {
+            version: 1,
+            description: "initial",
+            sql: db::normalize_sql(include_str!("../migrations/001_initial.sql")),
+            kind: MigrationKind::Up,
+        },
+        Migration {
+            version: 2,
+            description: "github_info",
+            sql: db::normalize_sql(include_str!("../migrations/002_github_info.sql")),
+            kind: MigrationKind::Up,
+        },
+        Migration {
+            version: 3,
+            description: "file_count",
+            sql: db::normalize_sql(include_str!("../migrations/003_file_count.sql")),
+            kind: MigrationKind::Up,
+        },
+        Migration {
+            version: 4,
+            description: "last_edited",
+            sql: db::normalize_sql(include_str!("../migrations/004_last_edited.sql")),
+            kind: MigrationKind::Up,
+        },
+        Migration {
+            version: 5,
+            description: "task_runtime",
+            sql: db::normalize_sql(include_str!("../migrations/005_task_runtime.sql")),
+            kind: MigrationKind::Up,
+        },
+        Migration {
+            version: 6,
+            description: "size_bytes",
+            sql: db::normalize_sql(include_str!("../migrations/006_size_bytes.sql")),
+            kind: MigrationKind::Up,
+        },
+        Migration {
+            version: 7,
+            description: "issues",
+            sql: db::normalize_sql(include_str!("../migrations/007_issues.sql")),
+            kind: MigrationKind::Up,
+        },
+        Migration {
+            version: 8,
+            description: "clipboard_history",
+            sql: db::normalize_sql(include_str!("../migrations/008_clipboard_history.sql")),
+            kind: MigrationKind::Up,
+        },
+        Migration {
+            version: 9,
+            description: "clipboard_history_unique_hash",
+            sql: db::normalize_sql(include_str!(
+                "../migrations/009_clipboard_history_unique_hash.sql"
+            )),
+            kind: MigrationKind::Up,
+        },
+        Migration {
+            version: 10,
+            description: "icon_path",
+            sql: db::normalize_sql(include_str!("../migrations/010_icon_path.sql")),
+            kind: MigrationKind::Up,
+        },
+        Migration {
+            version: 11,
+            description: "last_viewed",
+            sql: db::normalize_sql(include_str!("../migrations/011_last_viewed.sql")),
+            kind: MigrationKind::Up,
+        },
+    ]
+}
+
 #[cfg_attr(mobile, tauri::mobile_entry_point)]
 pub fn run() {
+    let migrations = sql_migrations();
+    let eol_pairs: Vec<(i64, &str)> = migrations.iter().map(|m| (m.version, m.sql)).collect();
+    db::repair_applied_migration_eols(&eol_pairs);
+
     tauri::Builder::default()
         .plugin(tauri_plugin_window_state::Builder::new().build())
         .plugin(tauri_plugin_store::Builder::new().build())
         .plugin(tauri_plugin_global_shortcut::Builder::new().build())
         .plugin(
             SqlPluginBuilder::default()
-                .add_migrations(
-                    db::DB_URL,
-                    vec![
-                        Migration {
-                            version: 1,
-                            description: "initial",
-                            sql: include_str!("../migrations/001_initial.sql"),
-                            kind: MigrationKind::Up,
-                        },
-                        Migration {
-                            version: 2,
-                            description: "github_info",
-                            sql: include_str!("../migrations/002_github_info.sql"),
-                            kind: MigrationKind::Up,
-                        },
-                        Migration {
-                            version: 3,
-                            description: "file_count",
-                            sql: include_str!("../migrations/003_file_count.sql"),
-                            kind: MigrationKind::Up,
-                        },
-                        Migration {
-                            version: 4,
-                            description: "last_edited",
-                            sql: include_str!("../migrations/004_last_edited.sql"),
-                            kind: MigrationKind::Up,
-                        },
-                        Migration {
-                            version: 5,
-                            description: "task_runtime",
-                            sql: include_str!("../migrations/005_task_runtime.sql"),
-                            kind: MigrationKind::Up,
-                        },
-                        Migration {
-                            version: 6,
-                            description: "size_bytes",
-                            sql: include_str!("../migrations/006_size_bytes.sql"),
-                            kind: MigrationKind::Up,
-                        },
-                        Migration {
-                            version: 7,
-                            description: "issues",
-                            sql: include_str!("../migrations/007_issues.sql"),
-                            kind: MigrationKind::Up,
-                        },
-                        Migration {
-                            version: 8,
-                            description: "clipboard_history",
-                            sql: include_str!("../migrations/008_clipboard_history.sql"),
-                            kind: MigrationKind::Up,
-                        },
-                        Migration {
-                            version: 9,
-                            description: "clipboard_history_unique_hash",
-                            sql: include_str!("../migrations/009_clipboard_history_unique_hash.sql"),
-                            kind: MigrationKind::Up,
-                        },
-                        Migration {
-                            version: 10,
-                            description: "icon_path",
-                            sql: include_str!("../migrations/010_icon_path.sql"),
-                            kind: MigrationKind::Up,
-                        },
-                        Migration {
-                            version: 11,
-                            description: "last_viewed",
-                            sql: include_str!("../migrations/011_last_viewed.sql"),
-                            kind: MigrationKind::Up,
-                        },
-                    ],
-                )
+                .add_migrations(db::DB_URL, migrations)
                 .build(),
         )
         .plugin(tauri_plugin_single_instance::init(|app, args, _cwd| {
