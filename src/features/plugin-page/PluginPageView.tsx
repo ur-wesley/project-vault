@@ -4,6 +4,7 @@ import { Button } from "~/components/ui/button";
 import { getPluginPage } from "~/lib/plugin-pages";
 import { isPluginPagePinned, togglePluginPagePinned } from "~/lib/plugin-page-pins";
 import { useI18n } from "~/lib/i18n-context";
+import { PluginIcon } from "~/components/PluginIcon";
 
 export type PluginPageMeta = {
   pluginId: string;
@@ -64,9 +65,7 @@ export const PluginPageView: Component<{
   return (
     <div class="flex min-h-0 flex-1 flex-col overflow-hidden">
       <div class="flex shrink-0 items-center gap-2 border-b border-border/50 px-4 py-3">
-        <Show when={props.meta?.icon}>
-          <span class={`iconify ${props.meta!.icon} size-5 shrink-0 opacity-70`} />
-        </Show>
+        <PluginIcon icon={props.meta?.icon} class="size-5 shrink-0 opacity-70" />
         <h1 class="min-w-0 flex-1 truncate text-sm font-semibold">{displayTitle()}</h1>
         <Button
           variant="ghost"
@@ -108,9 +107,7 @@ export const PluginPageView: Component<{
                     class="flex w-full cursor-default select-none items-center gap-2 rounded-sm px-4 py-2 text-left text-sm outline-none transition-colors text-foreground hover:bg-accent/50"
                     onClick={() => void handleItemClick(item.id)}
                   >
-                    <Show when={item.icon}>
-                      <span class={`iconify ${item.icon} size-4 shrink-0 opacity-70`} />
-                    </Show>
+                    <PluginIcon icon={item.icon} class="size-4 shrink-0 opacity-70" />
                     <div class="flex min-w-0 flex-col">
                       <span class="truncate font-medium">{item.label}</span>
                       <Show when={item.detail}>

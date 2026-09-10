@@ -17,6 +17,7 @@ import {
   ContextMenuTrigger,
 } from "~/components/ui/context-menu";
 import { useI18n } from "~/lib/i18n-context";
+import { PluginIcon } from "~/components/PluginIcon";
 import { isPluginPagePinned, setPluginPagePinned } from "~/lib/plugin-page-pins";
 import { pluginPages } from "~/lib/plugin-pages";
 
@@ -154,7 +155,7 @@ export const PluginSidebarList: Component<{
                           when={entry.page.icon}
                           fallback={<span class="iconify mdi--puzzle-outline size-4 opacity-70" />}
                         >
-                          <span class={`iconify ${entry.page.icon} size-4 opacity-70`} />
+                          <PluginIcon icon={entry.page.icon} class="size-4 opacity-70" />
                         </Show>
                         <span class="truncate">{entry.page.title}</span>
                       </SidebarMenuButton>

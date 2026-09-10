@@ -10,6 +10,7 @@ coverage/
 dist/
 dist-tauri/
 public/file-icons/
+public/iconify/
 
 # Misc
 *.pem

@@ -10,6 +10,7 @@ import { createQuery } from "@tanstack/solid-query";
 import { isTauri } from "@tauri-apps/api/core";
 import { Tooltip, TooltipContent, TooltipTrigger } from "~/components/ui/tooltip";
 import { NotificationCenter } from "~/components/NotificationCenter";
+import { PluginIcon } from "~/components/PluginIcon";
 
 export const StatusBar: Component<{
   activeView: AppView;
@@ -101,9 +102,7 @@ export const StatusBar: Component<{
                     onClick={() => seg.command && handleFooterSegmentClick(seg.pluginId, seg.command)}
                     class={`flex shrink-0 items-center gap-1 rounded px-1.5 py-0.5 text-[10px] transition-colors ${footerColorClass(seg.color)} ${seg.command ? "cursor-pointer" : "cursor-default"}`}
                   >
-                    <Show when={seg.icon}>
-                      <span class={`iconify ${seg.icon} size-3`} />
-                    </Show>
+                    <PluginIcon icon={seg.icon} class="size-3" />
                     <span class="font-mono">{seg.text}</span>
                   </TooltipTrigger>
                   <Show when={seg.tooltip}>
@@ -129,9 +128,7 @@ export const StatusBar: Component<{
                     onClick={() => seg.command && handleFooterSegmentClick(seg.pluginId, seg.command)}
                     class={`flex shrink-0 items-center gap-1 rounded px-1.5 py-0.5 text-[10px] transition-colors ${footerColorClass(seg.color)} ${seg.command ? "cursor-pointer" : "cursor-default"}`}
                   >
-                    <Show when={seg.icon}>
-                      <span class={`iconify ${seg.icon} size-3`} />
-                    </Show>
+                    <PluginIcon icon={seg.icon} class="size-3" />
                     <span class="font-mono">{seg.text}</span>
                   </TooltipTrigger>
                   <Show when={seg.tooltip}>

@@ -26,6 +26,7 @@ import { useI18n } from "~/lib/i18n-context";
 import { toast } from "solid-sonner";
 import { notify } from "~/lib/notification-center";
 import { isLiveSessionState } from "~/lib/session-state";
+import { PluginIcon } from "~/components/PluginIcon";
 import { deleteProjectTask } from "~/services/tauri/tasks";
 import { enableTunnel, disableTunnel, getTunnelStatus } from "~/services/tauri/tunnel";
 import type { ProjectDto, TaskDto } from "~/types/dto";
@@ -367,9 +368,10 @@ export function TasksTabPanel(props: {
                           {(dec) => (
                             <Tooltip>
                               <TooltipTrigger>
-                                <span 
-                                  class={cn("iconify size-3.5 shrink-0 cursor-pointer mx-0.5", dec.icon)} 
-                                  style={{ color: dec.color }}
+                                <PluginIcon
+                                  icon={dec.icon}
+                                  class="size-3.5 shrink-0 cursor-pointer mx-0.5"
+                                  style={dec.color ? { color: dec.color } : undefined}
                                   onClick={(e) => {
                                     e.stopPropagation();
                                     if (dec.command) {
@@ -434,7 +436,7 @@ export function TasksTabPanel(props: {
                                   }}
                                 >
                                   <Show when={dec.icon}>
-                                    <span class={cn("iconify mr-0.5 size-2.5", dec.icon)} />
+                                    <PluginIcon icon={dec.icon} class="mr-0.5 size-2.5" />
                                   </Show>
                                   {dec.label}
                                 </Badge>

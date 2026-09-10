@@ -8,6 +8,7 @@ import { invoke } from "@tauri-apps/api/core";
 import { Portal } from "solid-js/web";
 
 import { ProjectAvatar } from "~/components/ProjectAvatar";
+import { PluginIcon } from "~/components/PluginIcon";
 import { Badge } from "~/components/ui/badge";
 import { Button } from "~/components/ui/button";
 import { Separator } from "~/components/ui/separator";
@@ -332,9 +333,7 @@ export const ProjectDetailHeader: Component<ProjectDetailHeaderProps> = (
                                 when={w.type === "button"}
                                 fallback={
                                   <span class={cn("inline-flex items-center gap-1.5 rounded-full border px-2.5 py-0.5 text-[10px] font-bold cursor-default", colorClass())}>
-                                    <Show when={w.icon}>
-                                      <span class={cn("iconify size-3.5", w.icon)} />
-                                    </Show>
+                                    <PluginIcon icon={w.icon} class="size-3.5" />
                                     {w.text}
                                   </span>
                                 }
@@ -344,9 +343,7 @@ export const ProjectDetailHeader: Component<ProjectDetailHeaderProps> = (
                                   onClick={executeWidget}
                                   class={cn("flex h-7 items-center gap-1.5 rounded-full border px-3 text-[10px] font-bold transition-all active:scale-95", colorClass())}
                                 >
-                                  <Show when={w.icon}>
-                                    <span class={cn("iconify size-3.5", w.icon)} />
-                                  </Show>
+                                  <PluginIcon icon={w.icon} class="size-3.5" />
                                   {w.text}
                                 </button>
                               </Show>

@@ -24,6 +24,7 @@ import { FilePreview } from "~/features/project-detail/components/FilePreview";
 import { IssueMarkdown } from "~/features/project-detail/components/IssueMarkdown";
 import { useNotificationCenter } from "~/lib/notification-center";
 import { isGitStatusChangeType } from "~/lib/git-status-sync";
+import { PluginIcon } from "~/components/PluginIcon";
 
 interface BridgeQuickPickItem {
   id: string;
@@ -690,9 +691,7 @@ export function PluginUiBridge(props: {
                       onClick={() => resolveQuickPick(item.id)}
                       onPointerMove={() => setQpSelectedIdx(idx())}
                     >
-                      <Show when={item.icon}>
-                        <span class={`iconify ${item.icon} size-4 shrink-0 opacity-70`} />
-                      </Show>
+                      <PluginIcon icon={item.icon} class="size-4 shrink-0 opacity-70" />
                       <div class="flex min-w-0 flex-col">
                         <span class="truncate font-medium">{item.label}</span>
                         <Show when={item.detail}>

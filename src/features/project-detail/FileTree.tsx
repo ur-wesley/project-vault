@@ -18,6 +18,7 @@ import { Badge } from "~/components/ui/badge";
 import { invoke } from "@tauri-apps/api/core";
 import { fetchTabDecorations, getElementDecorations, decorationsVersion } from "~/lib/plugin-decorations";
 import { FileIcon } from "~/components/FileIcon";
+import { PluginIcon } from "~/components/PluginIcon";
 
 const SKIP = new Set([
   "node_modules",
@@ -159,9 +160,10 @@ function Folder(props: {
           {(dec) => (
             <Tooltip>
               <TooltipTrigger>
-                <span 
-                  class={cn("iconify size-3.5 shrink-0 cursor-pointer", dec.icon)} 
-                  style={{ color: dec.color }}
+                <PluginIcon
+                  icon={dec.icon}
+                  class="size-3.5 shrink-0 cursor-pointer"
+                  style={dec.color ? { color: dec.color } : undefined}
                   onClick={(e) => {
                     e.stopPropagation();
                     if (dec.command) {
@@ -202,7 +204,7 @@ function Folder(props: {
                   }}
                 >
                   <Show when={dec.icon}>
-                    <span class={cn("iconify mr-0.5 size-2.5", dec.icon)} />
+                    <PluginIcon icon={dec.icon} class="mr-0.5 size-2.5" />
                   </Show>
                   {dec.label}
                 </Badge>
@@ -293,9 +295,10 @@ function FileItem(props: {
         {(dec) => (
           <Tooltip>
             <TooltipTrigger>
-              <span 
-                class={cn("iconify size-3.5 shrink-0 cursor-pointer", dec.icon)} 
-                style={{ color: dec.color }}
+              <PluginIcon
+                icon={dec.icon}
+                class="size-3.5 shrink-0 cursor-pointer"
+                style={dec.color ? { color: dec.color } : undefined}
                 onClick={(e) => {
                   e.stopPropagation();
                   if (dec.command) {
@@ -336,7 +339,7 @@ function FileItem(props: {
                 }}
               >
                 <Show when={dec.icon}>
-                  <span class={cn("iconify mr-0.5 size-2.5", dec.icon)} />
+                  <PluginIcon icon={dec.icon} class="mr-0.5 size-2.5" />
                 </Show>
                 {dec.label}
               </Badge>
