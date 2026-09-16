@@ -40,6 +40,7 @@ import {
   embeddedTerminalGetBuffer,
 } from "~/services/tauri/terminal";
 import type { Result } from "neverthrow";
+import { formatCommandTitle, parseCommandFromLine } from "./parse-command-title";
 
 const WEB_LINK_REGEX = /https?:\/\/[^\s"<>|`{}[\]^]+/g;
 const ESC_BLUR_WINDOW_MS = 450;
@@ -106,30 +107,6 @@ export type TerminalHostInstance = {
   sessionId?: string;
   attachSessionId?: string;
 };
-
-const MAX_TITLE_LEN = 30;
-const PROMPT_TERMINATORS = ["$ ", "# ", "> ", "% "];
-
-function parseCommandFromLine(text: string): string | null {
-  let line = text.trim();
-  if (!line) return null;
-
-  for (const terminator of PROMPT_TERMINATORS) {
-    const idx = line.lastIndexOf(terminator);
-    if (idx !== -1) {
-      line = line.slice(idx + terminator.length);
-      break;
-    }
-  }
-
-  line = line.trim();
-  return line || null;
-}
-
-function formatCommandTitle(cmd: string): string {
-  if (cmd.length <= MAX_TITLE_LEN) return cmd;
-  return `${cmd.slice(0, MAX_TITLE_LEN)}…`;
-}
 
 export function TerminalHost(props: {
   instance: TerminalHostInstance;
@@ -277,10 +254,12 @@ export function TerminalHost(props: {
         if (e.key === "Enter" && term) {
           const onCommandEntered = untrack(() => props.onCommandEntered);
           if (onCommandEntered) {
-            const currentLine = term.buffer.active.getLine(term.buffer.active.cursorY);
+            const buffer = term.buffer.active;
+            const currentLine = buffer.getLine(buffer.cursorY);
             let lineText = "";
             if (currentLine) {
-              for (let x = 0; x < currentLine.length; x++) {
+              const endX = buffer.cursorX;
+              for (let x = 0; x < endX; x++) {
                 const cell = currentLine.getCell(x);
                 lineText += cell?.getChars() ?? "";
               }
