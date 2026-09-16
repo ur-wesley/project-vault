@@ -2,6 +2,8 @@ import { createQuery } from "@tanstack/solid-query";
 import {
   For,
   Show,
+  createEffect,
+  onCleanup,
   type Accessor,
 } from "solid-js";
 import { toast } from "solid-sonner";
@@ -92,6 +94,33 @@ export function EmbeddedTerminalPane(props: {
   const updateInstanceName = (id: string, command: string) => {
     props.onUpdateName?.(id, command);
   };
+
+  createEffect(() => {
+    if (!props.active) return;
+
+    const handler = (e: KeyboardEvent) => {
+      const mod = e.ctrlKey || e.metaKey;
+      if (!mod || e.altKey) return;
+
+      if (e.key === "t" || e.key === "T") {
+        e.preventDefault();
+        e.stopPropagation();
+        void createInstance();
+        return;
+      }
+
+      if (e.key === "w" || e.key === "W") {
+        const activeId = props.activeId();
+        if (!activeId) return;
+        e.preventDefault();
+        e.stopPropagation();
+        closeInstance(activeId);
+      }
+    };
+
+    window.addEventListener("keydown", handler, { capture: true });
+    onCleanup(() => window.removeEventListener("keydown", handler, { capture: true }));
+  });
 
   return (
     <div
