@@ -11,7 +11,9 @@ import {
   pushUrlToSettings,
   pushUrlToPluginPage,
   type AppView,
+  type ProjectDetailTab,
 } from "~/lib/app-url";
+import { lastTabFor, rememberTab } from "~/lib/project-last-tab";
 
 import { CommandPalette } from "~/features/command-palette";
 import { LibraryView, ProjectSidebarList } from "~/features/library";
@@ -116,6 +118,22 @@ function App() {
       else if (view === "project" || view === "library") setSidebarTab("projects");
     }),
   );
+
+  function openProject(id: string, tab?: ProjectDetailTab) {
+    setActiveView("project");
+    setDetailTab(tab ?? lastTabFor(id));
+    setSubDetail(null);
+    setProjectDetailId(id);
+  }
+
+  createEffect(() => {
+    const id = projectDetailId();
+    const tab = detailTab();
+    if (id && activeView() === "project") {
+      rememberTab(id, tab);
+    }
+  });
+
   const [_ghSignInBusy, setGhSignInBusy] = createSignal(false);
   const [commandPaletteOpen, setCommandPaletteOpen] = createSignal(false);
   const [updatePopupOpen, setUpdatePopupOpen] = createSignal(false);
@@ -381,10 +399,7 @@ function App() {
 
   createEffect(() => {
     const listener = hub.on("project:opened", (payload) => {
-      setActiveView("project");
-      setDetailTab("readme");
-      setSubDetail(null);
-      setProjectDetailId(payload.projectId);
+      openProject(payload.projectId);
     });
     onCleanup(() => listener());
   });
@@ -535,14 +550,13 @@ function App() {
         "plugin:open-project-file",
         (event) => {
           const { projectId, filePath, line } = event.payload;
-          setActiveView("project");
-          setProjectDetailId(projectId);
           if (filePath && filePath !== "") {
+            setActiveView("project");
+            setProjectDetailId(projectId);
             setDetailTab("files");
             setSubDetail(`${filePath}::${line}`);
           } else {
-            setDetailTab("readme");
-            setSubDetail(null);
+            openProject(projectId);
           }
         }
       ).then((fn) => {
@@ -721,10 +735,7 @@ function App() {
       onOpenSettings={() => setActiveView("settings")}
       onOpenNewProject={() => setWizardOpen(true)}
       onSelectProject={(p) => {
-        setActiveView("project");
-        setDetailTab("readme");
-        setSubDetail(null);
-        setProjectDetailId(p.id);
+        openProject(p.id);
       }}
       activeProjectId={projectDetailId()}
     >
@@ -814,10 +825,7 @@ function App() {
                 <ProjectSidebarList
                   selectedProjectId={projectDetailId}
                   onSelectProject={(id) => {
-                    setActiveView("project");
-                    setDetailTab("readme");
-                    setSubDetail(null);
-                    setProjectDetailId(id);
+                    openProject(id);
                   }}
                   onPlayError={(msg) => {
                     toast.error(msg);
@@ -1000,16 +1008,10 @@ function App() {
                   onFilterChange={setLibraryFilter}
                   selectedProjectId={projectDetailId}
                   onOpenProject={(id) => {
-                    setActiveView("project");
-                    setDetailTab("readme");
-                    setSubDetail(null);
-                    setProjectDetailId(id);
+                    openProject(id);
                   }}
                   onOpenProjectTab={(id, tab) => {
-                    setActiveView("project");
-                    setDetailTab(tab as "readme" | "issues" | "files" | "tasks" | "terminal" | "history");
-                    setSubDetail(null);
-                    setProjectDetailId(id);
+                    openProject(id, tab as ProjectDetailTab);
                   }}
                 />
               </div>
@@ -1032,10 +1034,7 @@ function App() {
             <Show when={activeView() === "processes"}>
               <ProcessesView
                 onOpenProject={(id) => {
-                  setActiveView("project");
-                  setDetailTab("readme");
-                  setSubDetail(null);
-                  setProjectDetailId(id);
+                  openProject(id);
                 }}
               />
             </Show>
@@ -1073,10 +1072,7 @@ function App() {
           open={wizardOpen()}
           onOpenChange={setWizardOpen}
           onOpenProjectTerminal={(id) => {
-            setActiveView("project");
-            setProjectDetailId(id);
-            setDetailTab("terminal");
-            setSubDetail(null);
+            openProject(id, "terminal");
           }}
         />
         <Show when={screenshot.appState() === "selecting"}>
