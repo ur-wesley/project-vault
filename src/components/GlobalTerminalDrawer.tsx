@@ -79,8 +79,8 @@ export function GlobalTerminalDrawer() {
 
     const id = crypto.randomUUID();
     store.setInstances((current) => [
-      { id, name: label, defaultName: label, shell: targetShell, icon },
       ...current.filter((item) => item.id !== id),
+      { id, name: label, defaultName: label, shell: targetShell, icon },
     ]);
     store.setActiveId(id);
   };
@@ -107,10 +107,16 @@ export function GlobalTerminalDrawer() {
       }
     }
 
-    const nextInstances = store.instances().filter((item) => item.id !== id);
+    const instances = store.instances();
+    const closedIdx = instances.findIndex((item) => item.id === id);
+    const nextInstances = instances.filter((item) => item.id !== id);
     store.setInstances(nextInstances);
     if (store.activeId() === id) {
-      store.setActiveId(nextInstances.length > 0 ? nextInstances[0]!.id : null);
+      const nextActive =
+        nextInstances.length > 0
+          ? nextInstances[Math.min(closedIdx, nextInstances.length - 1)]!.id
+          : null;
+      store.setActiveId(nextActive);
     }
   };
 

@@ -34,7 +34,7 @@ export function useProjectTerminal(props: UseProjectTerminalProps) {
       shell: instance.shell,
       icon: instance.icon,
     };
-    store().setInstances((current) => [nextInstance, ...current.filter((item) => item.id !== id)]);
+    store().setInstances((current) => [...current.filter((item) => item.id !== id), nextInstance]);
     store().setActiveId(id);
   };
 
@@ -92,10 +92,16 @@ export function useProjectTerminal(props: UseProjectTerminalProps) {
       }
     }
 
-    const nextInstances = terminalInstances().filter((item) => item.id !== id);
+    const instances = terminalInstances();
+    const closedIdx = instances.findIndex((item) => item.id === id);
+    const nextInstances = instances.filter((item) => item.id !== id);
     store().setInstances(nextInstances);
     if (activeTerminalId() === id) {
-      store().setActiveId(nextInstances.length > 0 ? nextInstances[0]!.id : null);
+      const nextActive =
+        nextInstances.length > 0
+          ? nextInstances[Math.min(closedIdx, nextInstances.length - 1)]!.id
+          : null;
+      store().setActiveId(nextActive);
     }
 
     void qc.invalidateQueries({ queryKey: ["projects", props.projectId(), "active-sessions"] });
@@ -131,7 +137,6 @@ export function useProjectTerminal(props: UseProjectTerminalProps) {
       (item) => item.attachSessionId === sessionId || item.sessionId === sessionId,
     );
     if (existing) {
-      store().setInstances((current) => [existing, ...current.filter((item) => item.id !== existing.id)]);
       store().setActiveId(existing.id);
       if (focus) props.onDetailTabChange("terminal");
       return;
@@ -144,7 +149,7 @@ export function useProjectTerminal(props: UseProjectTerminalProps) {
       icon: "mdi--application-variable-outline",
       attachSessionId: sessionId,
     };
-    store().setInstances((current) => [newInstance, ...current.filter((item) => item.id !== id)]);
+    store().setInstances((current) => [...current.filter((item) => item.id !== id), newInstance]);
     store().setActiveId(id);
     if (focus) props.onDetailTabChange("terminal");
   };
