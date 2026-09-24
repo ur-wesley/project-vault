@@ -8,10 +8,12 @@ const host = process.env.TAURI_DEV_HOST;
 
 // https://vite.dev/config/
 export default defineConfig(async () => ({
-  plugins: [solid()],
+  // solid-refresh HMR imports can't resolve under vitest — disable HMR there only.
+  // @ts-expect-error process is a nodejs global
+  plugins: [solid({ hot: !process.env.VITEST })],
   test: {
     environment: "node",
-    include: ["src/**/*.test.ts"],
+    include: ["src/**/*.test.{ts,tsx}"],
   },
 
   // Vite options tailored for Tauri development and only applied in `tauri dev` or `tauri build`
@@ -45,6 +47,7 @@ export default defineConfig(async () => ({
       input: {
         main: path.resolve(import.meta.dirname, "index.html"),
         "clipboard-overlay": path.resolve(import.meta.dirname, "clipboard-overlay.html"),
+        "canvas-window": path.resolve(import.meta.dirname, "canvas-window.html"),
       },
     },
   },

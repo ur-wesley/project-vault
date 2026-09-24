@@ -1,0 +1,6 @@
+{
+  "$schema": "https://raw.githubusercontent.com/oxc-project/oxc/main/crates/oxc_linter/src/snapshots/json_schema.json",
+  "rules": {
+    "no-nested-ternary": "error"
+  }
+}

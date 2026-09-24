@@ -4,10 +4,7 @@ import { fileURLToPath } from "node:url";
 
 const root = join(dirname(fileURLToPath(import.meta.url)), "..");
 const sourcePath = join(root, "node_modules/@iconify-json/file-icons/icons.json");
-const supplementPath = join(
-  root,
-  "node_modules/@iconify-json/devicon-plain/icons.json",
-);
+const supplementPath = join(root, "node_modules/@iconify-json/devicon-plain/icons.json");
 const outDir = join(root, "public/file-icons");
 
 const raw = JSON.parse(readFileSync(sourcePath, "utf8"));

@@ -3,7 +3,7 @@ name: Build App
 on:
   push:
     tags:
-      - 'v*'
+      - "v*"
   workflow_dispatch:
 
 jobs:
@@ -14,10 +14,10 @@ jobs:
         include:
           - platform: windows-latest
             rust_target: x86_64-pc-windows-msvc
-            args: ''
+            args: ""
           - platform: macos-latest
             rust_target: aarch64-apple-darwin
-            args: '--target aarch64-apple-darwin'
+            args: "--target aarch64-apple-darwin"
 
     runs-on: ${{ matrix.platform }}
     permissions:
@@ -112,7 +112,7 @@ jobs:
           VITE_GITHUB_DEVICE_CLIENT_ID: ${{ secrets.GH_DEVICE_CLIENT_ID }}
         with:
           tagName: project-vault-v__VERSION__
-          releaseName: 'Project Vault v__VERSION__'
+          releaseName: "Project Vault v__VERSION__"
           releaseBody: ${{ steps.changelog.outputs.body }}
           releaseDraft: false
           prerelease: false
