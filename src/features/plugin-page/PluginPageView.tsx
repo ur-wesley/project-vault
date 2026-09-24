@@ -1,10 +1,16 @@
-import { For, Show, createMemo, type Component } from "solid-js";
+import { For, Show, createMemo, createSignal, type Component } from "solid-js";
 import { invoke } from "@tauri-apps/api/core";
 import { Button } from "~/components/ui/button";
-import { getPluginPage } from "~/lib/plugin-pages";
-import { isPluginPagePinned, togglePluginPagePinned } from "~/lib/plugin-page-pins";
+import { getPluginPage } from "~/lib/plugin/plugin-pages";
+import { isPluginPagePinned, togglePluginPagePinned } from "~/lib/plugin/plugin-page-pins";
 import { useI18n } from "~/lib/i18n-context";
 import { PluginIcon } from "~/components/PluginIcon";
+import {
+  PluginViewRenderer,
+  viewContainsFillTable,
+  type AnyViewSpec,
+} from "~/features/plugin-ui/views/PluginViewRenderer";
+import { findRowCommand } from "~/features/plugin-ui/types";
 
 export type PluginPageMeta = {
   pluginId: string;
@@ -33,8 +39,23 @@ export const PluginPageView: Component<{
     return isPluginPagePinned(props.pluginId, props.pageId, props.meta?.defaultPinned ?? false);
   });
 
-  const isNonActionItem = (itemId: string) =>
-    itemId.startsWith("section_") || itemId === "empty";
+  const isNonActionItem = (itemId: string) => itemId.startsWith("section_") || itemId === "empty";
+
+  const viewSpec = createMemo(() => content()?.view as AnyViewSpec | undefined);
+
+  const isFillLayout = createMemo(() => viewContainsFillTable(viewSpec()));
+
+  const viewRowCommand = createMemo(() => {
+    const page = content();
+    if (!page) return undefined;
+    return page.itemCommand ?? findRowCommand(page.view);
+  });
+
+  const pageActions = createMemo(() => content()?.actions ?? []);
+
+  // Which header action is awaiting its backend round-trip (single
+  // lua-worker queue can take a while under load — show it as busy).
+  const [pendingAction, setPendingAction] = createSignal<string | null>(null);
 
   const handleItemClick = async (itemId: string) => {
     const page = content();
@@ -53,12 +74,41 @@ export const PluginPageView: Component<{
     }
   };
 
+  const handleViewRowClick = async (rowId: string, cmd?: string) => {
+    // Prefer the clicked table's own rowCommand (per-table routing);
+    // fall back to the page-level command for specs without one.
+    const target = cmd || viewRowCommand();
+    if (!target) return;
+    try {
+      await invoke("execute_plugin_command", {
+        pluginId: props.pluginId,
+        commandId: target,
+        context: { pageId: props.pageId, itemId: rowId },
+      });
+    } catch (e) {
+      console.error("plugin page row click failed", e);
+    }
+  };
+
+  const handleActionClick = async (action: { id: string; command?: string }) => {
+    const commandId = action.command || action.id;
+    if (!commandId || pendingAction() !== null) return;
+    setPendingAction(action.id);
+    try {
+      await invoke("execute_plugin_command", {
+        pluginId: props.pluginId,
+        commandId,
+        context: { pageId: props.pageId },
+      });
+    } catch (e) {
+      console.error("plugin page action failed", e);
+    } finally {
+      setPendingAction(null);
+    }
+  };
+
   const handleTogglePin = () => {
-    togglePluginPagePinned(
-      props.pluginId,
-      props.pageId,
-      props.meta?.defaultPinned ?? false,
-    );
+    togglePluginPagePinned(props.pluginId, props.pageId, props.meta?.defaultPinned ?? false);
     props.onPinChange?.();
   };
 
@@ -67,12 +117,36 @@ export const PluginPageView: Component<{
       <div class="flex shrink-0 items-center gap-2 border-b border-border/50 px-4 py-3">
         <PluginIcon icon={props.meta?.icon} class="size-5 shrink-0 opacity-70" />
         <h1 class="min-w-0 flex-1 truncate text-sm font-semibold">{displayTitle()}</h1>
+        <For each={pageActions()}>
+          {(action) => (
+            <Button
+              variant="ghost"
+              size="sm"
+              class="h-7 shrink-0 gap-1.5 px-2 text-xs disabled:opacity-50"
+              title={action.label}
+              disabled={pendingAction() === action.id}
+              onClick={() => void handleActionClick(action)}
+            >
+              <Show
+                when={pendingAction() === action.id}
+                fallback={
+                  <Show when={action.icon}>
+                    <span class={`iconify size-4 opacity-70 ${action.icon}`} />
+                  </Show>
+                }
+              >
+                <span class="iconify mdi--loading animate-spin size-4 opacity-70" />
+              </Show>
+              <span class="hidden xl:inline">{action.label}</span>
+            </Button>
+          )}
+        </For>
         <Button
           variant="ghost"
           size="icon"
           class="size-7 shrink-0"
           onClick={handleTogglePin}
-          title={pinned() ? "Unpin from sidebar" : "Pin to sidebar"}
+          title={pinned() ? (t("plugins.unpinPage") as string) : (t("plugins.pinPage") as string)}
         >
           <span
             class={`iconify size-4 ${pinned() ? "mdi--pin text-primary" : "mdi--pin-outline opacity-60"}`}
@@ -80,45 +154,65 @@ export const PluginPageView: Component<{
         </Button>
       </div>
 
-      <div class="min-h-0 flex-1 overflow-y-auto p-2">
+      <div
+        class="min-h-0 flex-1 p-2"
+        classList={{
+          "overflow-y-auto": !isFillLayout(),
+          "overflow-hidden flex flex-col": isFillLayout(),
+        }}
+      >
         <Show
-          when={(content()?.items.length ?? 0) > 0}
+          when={viewSpec()}
           fallback={
-            <p class="px-2 py-8 text-center text-sm text-muted-foreground">
-              {t("settings.pluginsUiNoResults") as string}
-            </p>
+            <Show
+              when={(content()?.items.length ?? 0) > 0}
+              fallback={
+                <p class="px-2 py-8 text-center text-sm text-muted-foreground">
+                  {t("settings.pluginsUiNoResults") as string}
+                </p>
+              }
+            >
+              <For each={content()?.items ?? []}>
+                {(item) => {
+                  const isSection = () =>
+                    isNonActionItem(item.id) || (!content()?.itemCommand && !item.id);
+                  return (
+                    <Show
+                      when={!isSection()}
+                      fallback={
+                        <div class="px-2 py-1.5 text-xs font-medium text-muted-foreground">
+                          {item.label}
+                        </div>
+                      }
+                    >
+                      <button
+                        type="button"
+                        class="flex w-full cursor-default select-none items-center gap-2 rounded-sm px-4 py-2 text-left text-sm outline-none transition-colors text-foreground hover:bg-accent/50"
+                        onClick={() => void handleItemClick(item.id)}
+                      >
+                        <PluginIcon icon={item.icon} class="size-4 shrink-0 opacity-70" />
+                        <div class="flex min-w-0 flex-col">
+                          <span class="truncate font-medium">{item.label}</span>
+                          <Show when={item.detail}>
+                            <span class="truncate text-xs text-muted-foreground">
+                              {item.detail}
+                            </span>
+                          </Show>
+                        </div>
+                      </button>
+                    </Show>
+                  );
+                }}
+              </For>
+            </Show>
           }
         >
-          <For each={content()?.items ?? []}>
-            {(item) => {
-              const isSection = () =>
-                isNonActionItem(item.id) || (!content()?.itemCommand && !item.id);
-              return (
-                <Show
-                  when={!isSection()}
-                  fallback={
-                    <div class="px-2 py-1.5 text-xs font-medium text-muted-foreground">
-                      {item.label}
-                    </div>
-                  }
-                >
-                  <button
-                    type="button"
-                    class="flex w-full cursor-default select-none items-center gap-2 rounded-sm px-4 py-2 text-left text-sm outline-none transition-colors text-foreground hover:bg-accent/50"
-                    onClick={() => void handleItemClick(item.id)}
-                  >
-                    <PluginIcon icon={item.icon} class="size-4 shrink-0 opacity-70" />
-                    <div class="flex min-w-0 flex-col">
-                      <span class="truncate font-medium">{item.label}</span>
-                      <Show when={item.detail}>
-                        <span class="truncate text-xs text-muted-foreground">{item.detail}</span>
-                      </Show>
-                    </div>
-                  </button>
-                </Show>
-              );
-            }}
-          </For>
+          {(spec) => (
+            <PluginViewRenderer
+              spec={spec()}
+              onRowClick={(rowId, cmd) => void handleViewRowClick(rowId, cmd)}
+            />
+          )}
         </Show>
       </div>
     </div>

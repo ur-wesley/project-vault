@@ -18,7 +18,11 @@ import { useI18n } from "~/lib/i18n-context";
 import { stableErrorMessage } from "~/lib/invoke-error";
 import { rescanAllLibraryFolders } from "~/lib/rescan-library";
 import { listLocations } from "~/services/tauri/locations";
-import { createProjectFromTemplate, listProjectTemplates, runTemplateCommand } from "~/services/tauri/templates";
+import {
+  createProjectFromTemplate,
+  listProjectTemplates,
+  runTemplateCommand,
+} from "~/services/tauri/templates";
 import { getProjectTerminalStore } from "~/features/project-detail/model/global-terminal-store";
 import { queryKeys } from "~/services/query-keys";
 import type { TemplateSummaryDto } from "~/types/dto";
@@ -68,15 +72,19 @@ export function NewProjectWizardDialog(props: {
   const templateOptions = createMemo((): TemplateOption[] => {
     const data = templatesQ.data;
     if (!data) return [];
-    return data.map((t) => ({ value: t.id, label: t.name, textValue: `${t.name} ${t.description}` }));
+    return data.map((t) => ({
+      value: t.id,
+      label: t.name,
+      textValue: `${t.name} ${t.description}`,
+    }));
   });
 
   const selectedLocation = createMemo(() =>
     locationOptions().find((o) => o.value === locationId()),
   );
 
-    const selectedTemplateOption = createMemo(
-    () => templateOptions().find((o) => o.value === templateId()),
+  const selectedTemplateOption = createMemo(() =>
+    templateOptions().find((o) => o.value === templateId()),
   );
 
   const selectedTemplate = createMemo((): TemplateSummaryDto | undefined => {
@@ -104,7 +112,10 @@ export function NewProjectWizardDialog(props: {
     }
     return {
       type: "files" as const,
-      fileCount: typeof config.files === "object" && config.files !== null ? Object.keys(config.files).length : 0,
+      fileCount:
+        typeof config.files === "object" && config.files !== null
+          ? Object.keys(config.files).length
+          : 0,
     };
   });
 
@@ -165,7 +176,10 @@ export function NewProjectWizardDialog(props: {
       const cmd = result.sessionId;
       const projectId = result.projectId;
       const cwdMode = (tmplConfig?.cwd as string) ?? "project";
-      const cwd = cwdMode === "project" ? result.projectPath : (locationsQ.data?.find((l) => l.id === lid)?.path ?? result.projectPath);
+      const cwd =
+        cwdMode === "project"
+          ? result.projectPath
+          : (locationsQ.data?.find((l) => l.id === lid)?.path ?? result.projectPath);
 
       const runR = await runTemplateCommand({ command: cmd, cwd });
       if (runR.isErr()) {
@@ -340,8 +354,14 @@ export function NewProjectWizardDialog(props: {
                 </Show>
                 <Show when={preview().type === "git"}>
                   <div class="text-xs space-y-0.5">
-                    <p><span class="text-muted-foreground">{t("wizard.source") as string}:</span> {preview().source}</p>
-                    <p><span class="text-muted-foreground">{t("wizard.branch") as string}:</span> {preview().branch}</p>
+                    <p>
+                      <span class="text-muted-foreground">{t("wizard.source") as string}:</span>{" "}
+                      {preview().source}
+                    </p>
+                    <p>
+                      <span class="text-muted-foreground">{t("wizard.branch") as string}:</span>{" "}
+                      {preview().branch}
+                    </p>
                   </div>
                 </Show>
                 <Show when={preview().type === "files"}>

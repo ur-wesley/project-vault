@@ -1,12 +1,20 @@
-import { Show, type Component } from "solid-js";
+import { Index, Show, createSignal, type Component } from "solid-js";
 import { isTauri } from "@tauri-apps/api/core";
 import { Button } from "~/components/ui/button";
 import { TabsContent } from "~/components/ui/tabs";
 import { TextField, TextFieldInput } from "~/components/ui/text-field";
+import { stableErrorMessage } from "~/lib/invoke-error";
+import {
+  blankDokployServer,
+  defaultServerName,
+  dokployTestConnection,
+  normalizeServerUrl,
+  type DokployServer,
+} from "~/services/tauri/dokploy";
 import { settingElementId } from "../lib/settings-index";
 
 export type AccountsSettingsTabProps = Readonly<{
-  t: (key: string) => string;
+  t: (key: string, args?: any) => string;
   busy: boolean;
   ghViewerQ: { data?: any | null };
   ghDeviceReadyQ: { isSuccess: boolean; isLoading: boolean; data?: boolean };
@@ -15,60 +23,141 @@ export type AccountsSettingsTabProps = Readonly<{
   githubUserCode: string;
   githubToken: string;
   setGithubToken: (v: string) => void;
+  dokployServers: DokployServer[];
+  setDokployServers: (v: DokployServer[]) => void;
+}>;
+
+type TestState = Readonly<{
+  ok: boolean;
+  message: string;
 }>;
 
 export const AccountsSettingsTab: Component<AccountsSettingsTabProps> = (props) => {
+  const [testingId, setTestingId] = createSignal<string | null>(null);
+  const [testResults, setTestResults] = createSignal<Record<string, TestState>>({});
+
+  const updateServer = (id: string, patch: Partial<DokployServer>) => {
+    props.setDokployServers(
+      props.dokployServers.map((s) => (s.id === id ? { ...s, ...patch } : s)),
+    );
+  };
+
+  const onAddServer = () => {
+    props.setDokployServers([...props.dokployServers, blankDokployServer()]);
+  };
+
+  const onRemoveServer = (id: string) => {
+    props.setDokployServers(props.dokployServers.filter((s) => s.id !== id));
+    setTestResults((prev) => {
+      const next = { ...prev };
+      delete next[id];
+      return next;
+    });
+  };
+
+  const onTestServer = async (server: DokployServer) => {
+    setTestingId(server.id);
+    setTestResults((prev) => {
+      const next = { ...prev };
+      delete next[server.id];
+      return next;
+    });
+    try {
+      const url = normalizeServerUrl(server.url);
+      const r = await dokployTestConnection(url, server.apiKey.trim());
+      if (r.isErr()) {
+        setTestResults((prev) => ({
+          ...prev,
+          [server.id]: {
+            ok: false,
+            message: stableErrorMessage((k: string) => props.t(k), r.error),
+          },
+        }));
+      } else {
+        // Fill the name from the URL host when empty, so rows stay readable.
+        if (!server.name.trim() && url) {
+          updateServer(server.id, { name: defaultServerName(url) });
+        }
+        setTestResults((prev) => ({
+          ...prev,
+          [server.id]: {
+            ok: true,
+            message: props.t("settings.dokployTestOk").replace("{count}", String(r.value)),
+          },
+        }));
+      }
+    } finally {
+      setTestingId(null);
+    }
+  };
+
   return (
     <TabsContent value="accounts" class="space-y-8 outline-none animate-in fade-in duration-300">
       <section id={settingElementId("accounts-github")} class="space-y-4">
         <div class="space-y-1">
-          <h3 class="text-sm font-bold uppercase tracking-wider text-primary/80">{props.t("settings.githubTitle")}</h3>
-          <p class="text-xs text-muted-foreground">
-            {props.t("settings.githubDescription")}
-          </p>
+          <h3 class="text-sm font-bold uppercase tracking-wider text-primary/80">
+            {props.t("settings.githubTitle")}
+          </h3>
+          <p class="text-xs text-muted-foreground">{props.t("settings.githubDescription")}</p>
         </div>
 
         <div class="grid gap-6">
           <div class="flex flex-col gap-3">
             <div class="flex flex-wrap items-center gap-3">
-              <Show when={props.ghViewerQ.data} fallback={
+              <Show
+                when={props.ghViewerQ.data}
+                fallback={
                   <Button
-                      type="button"
-                      variant="secondary"
-                      class="w-full bg-muted/40 h-10"
-                      disabled={
-                          props.busy ||
-                          !isTauri() ||
-                          props.ghDeviceReadyQ.isLoading ||
-                          (props.ghDeviceReadyQ.isSuccess && !props.ghDeviceReadyQ.data)
-                      }
-                      onClick={() => props.onGithubDeviceSignIn()}
+                    type="button"
+                    variant="secondary"
+                    class="w-full bg-muted/40 h-10"
+                    disabled={
+                      props.busy ||
+                      !isTauri() ||
+                      props.ghDeviceReadyQ.isLoading ||
+                      (props.ghDeviceReadyQ.isSuccess && !props.ghDeviceReadyQ.data)
+                    }
+                    onClick={() => props.onGithubDeviceSignIn()}
                   >
-                      <span class="iconify mdi--github mr-2 h-4 w-4" />
-                      {props.t("settings.githubSignIn")}
+                    <span class="iconify mdi--github mr-2 h-4 w-4" />
+                    {props.t("settings.githubSignIn")}
                   </Button>
-              }>
-                  <div class="flex items-center gap-3 rounded-xl border border-primary/20 bg-primary/5 p-4 w-full shadow-sm">
-                      <div class="size-12 rounded-full bg-primary/10 flex items-center justify-center border-2 border-background shrink-0 overflow-hidden shadow-sm">
-                          <Show when={props.ghViewerQ.data!.avatarUrl} fallback={<span class="iconify mdi--account size-7 text-primary/60" />}>
-                              <img src={props.ghViewerQ.data!.avatarUrl!} alt="Avatar" class="size-full object-cover" />
-                          </Show>
-                      </div>
-                      <div class="min-w-0 flex-1">
-                          <p class="text-sm font-bold leading-tight truncate">{props.ghViewerQ.data!.login}</p>
-                          <p class="text-[10px] text-primary/70 uppercase tracking-widest font-black mt-0.5">{props.t("settings.authenticated")}</p>
-                      </div>
-                      <Button
-                          variant="ghost"
-                          size="sm"
-                          class="h-8 text-[10px] font-bold uppercase tracking-tighter text-muted-foreground hover:text-destructive hover:bg-destructive/5"
-                          onClick={() => props.onSignOut()}
-                      >
-                          {props.t("settings.signOut")}
-                      </Button>
+                }
+              >
+                <div class="flex items-center gap-3 rounded-xl border border-primary/20 bg-primary/5 p-4 w-full shadow-sm">
+                  <div class="size-12 rounded-full bg-primary/10 flex items-center justify-center border-2 border-background shrink-0 overflow-hidden shadow-sm">
+                    <Show
+                      when={props.ghViewerQ.data!.avatarUrl}
+                      fallback={<span class="iconify mdi--account size-7 text-primary/60" />}
+                    >
+                      <img
+                        src={props.ghViewerQ.data!.avatarUrl!}
+                        alt="Avatar"
+                        class="size-full object-cover"
+                      />
+                    </Show>
                   </div>
+                  <div class="min-w-0 flex-1">
+                    <p class="text-sm font-bold leading-tight truncate">
+                      {props.ghViewerQ.data!.login}
+                    </p>
+                    <p class="text-[10px] text-primary/70 uppercase tracking-widest font-black mt-0.5">
+                      {props.t("settings.authenticated")}
+                    </p>
+                  </div>
+                  <Button
+                    variant="ghost"
+                    size="sm"
+                    class="h-8 text-[10px] font-bold uppercase tracking-tighter text-muted-foreground hover:text-destructive hover:bg-destructive/5"
+                    onClick={() => props.onSignOut()}
+                  >
+                    {props.t("settings.signOut")}
+                  </Button>
+                </div>
               </Show>
-              <Show when={isTauri() && props.ghDeviceReadyQ.isSuccess && !props.ghDeviceReadyQ.data}>
+              <Show
+                when={isTauri() && props.ghDeviceReadyQ.isSuccess && !props.ghDeviceReadyQ.data}
+              >
                 <p class="text-xs text-destructive/80 font-medium leading-tight p-2 bg-destructive/5 border border-destructive/10 rounded-md">
                   {props.t("settings.githubDeviceNotConfigured")}
                 </p>
@@ -103,6 +192,150 @@ export const AccountsSettingsTab: Component<AccountsSettingsTabProps> = (props) 
               />
             </TextField>
           </div>
+        </div>
+      </section>
+
+      <section id={settingElementId("accounts-dokploy")} class="space-y-4">
+        <div class="space-y-1">
+          <h3 class="text-sm font-bold uppercase tracking-wider text-primary/80">
+            {props.t("settings.dokployTitle")}
+          </h3>
+          <p class="text-xs text-muted-foreground">{props.t("settings.dokployDescription")}</p>
+        </div>
+
+        <div class="space-y-3">
+          <Show
+            when={props.dokployServers.length > 0}
+            fallback={
+              <p class="rounded bg-muted/40 p-2 text-xs text-muted-foreground">
+                {props.t("settings.dokployNoServers")}
+              </p>
+            }
+          >
+            {/*
+              Index (not For): rows reconcile by position, so typing in an
+              input replaces the row's data without unmounting the <input>
+              underneath the cursor. For reconciles by object identity and
+              would drop focus after every keystroke (each edit creates a
+              new server object).
+            */}
+            <Index each={props.dokployServers}>
+              {(server, i) => (
+                <div class="space-y-2 rounded-xl border border-border/60 bg-muted/20 p-3">
+                  <div class="grid gap-2 sm:grid-cols-[1fr_2fr_auto] sm:items-end">
+                    <div class="grid gap-1">
+                      <label class="text-[10px] font-bold text-muted-foreground uppercase tracking-widest">
+                        {props.t("settings.dokployServerName")}
+                      </label>
+                      <TextField>
+                        <TextFieldInput
+                          type="text"
+                          autocomplete="off"
+                          class="bg-muted/30 h-10"
+                          placeholder={props.t("settings.dokployServerNamePlaceholder")}
+                          value={server().name}
+                          onInput={(e) =>
+                            updateServer(server().id, { name: e.currentTarget.value })
+                          }
+                          disabled={props.busy}
+                        />
+                      </TextField>
+                    </div>
+                    <div class="grid gap-1">
+                      <label class="text-[10px] font-bold text-muted-foreground uppercase tracking-widest">
+                        {props.t("settings.dokployUrl")}
+                      </label>
+                      <TextField>
+                        <TextFieldInput
+                          type="url"
+                          autocomplete="off"
+                          class="bg-muted/30 h-10"
+                          placeholder={props.t("settings.dokployUrlPlaceholder")}
+                          value={server().url}
+                          onInput={(e) => updateServer(server().id, { url: e.currentTarget.value })}
+                          disabled={props.busy}
+                        />
+                      </TextField>
+                    </div>
+                    <Button
+                      type="button"
+                      variant="ghost"
+                      size="sm"
+                      class="h-9 text-muted-foreground hover:text-destructive"
+                      disabled={props.busy}
+                      onClick={() => onRemoveServer(server().id)}
+                    >
+                      {props.t("settings.dokployRemoveServer")}
+                    </Button>
+                  </div>
+
+                  <div
+                    id={i === 0 ? settingElementId("accounts-dokploy-key") : undefined}
+                    class="grid gap-1"
+                  >
+                    <label class="text-[10px] font-bold text-muted-foreground uppercase tracking-widest">
+                      {props.t("settings.dokployApiKey")}
+                    </label>
+                    <TextField>
+                      <TextFieldInput
+                        type="password"
+                        autocomplete="off"
+                        class="bg-muted/30 h-10"
+                        placeholder={props.t("settings.dokployApiKeyPlaceholder")}
+                        value={server().apiKey}
+                        onInput={(e) =>
+                          updateServer(server().id, { apiKey: e.currentTarget.value })
+                        }
+                        disabled={props.busy}
+                      />
+                    </TextField>
+                  </div>
+
+                  <div class="flex flex-wrap items-center gap-3">
+                    <Button
+                      type="button"
+                      variant="secondary"
+                      class="h-9"
+                      disabled={props.busy || testingId() === server().id || !isTauri()}
+                      onClick={() => void onTestServer(server())}
+                    >
+                      <Show
+                        when={testingId() === server().id}
+                        fallback={<span class="iconify mdi--connection mr-2 h-4 w-4" />}
+                      >
+                        <span class="iconify mdi--loading animate-spin size-3.5" />
+                      </Show>
+                      {props.t("settings.dokployTest")}
+                    </Button>
+                    <Show when={testResults()[server().id]}>
+                      {(res) => (
+                        <p
+                          class="text-xs font-medium"
+                          classList={{
+                            "text-green-500": res().ok,
+                            "text-destructive": !res().ok,
+                          }}
+                        >
+                          {res().message}
+                        </p>
+                      )}
+                    </Show>
+                  </div>
+                </div>
+              )}
+            </Index>
+          </Show>
+
+          <Button
+            type="button"
+            variant="secondary"
+            class="h-9"
+            disabled={props.busy}
+            onClick={() => onAddServer()}
+          >
+            <span class="iconify mdi--plus mr-2 h-4 w-4" />
+            {props.t("settings.dokployAddServer")}
+          </Button>
         </div>
       </section>
     </TabsContent>

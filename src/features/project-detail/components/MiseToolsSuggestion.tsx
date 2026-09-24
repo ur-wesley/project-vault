@@ -37,8 +37,7 @@ export const MiseToolsSuggestion: Component<{
     }
   };
 
-  const selectedTools = () =>
-    props.suggestions.filter((s) => selected().has(s.name));
+  const selectedTools = () => props.suggestions.filter((s) => selected().has(s.name));
 
   return (
     <Show when={props.suggestions.length > 0}>
@@ -102,7 +101,9 @@ export const MiseToolsSuggestion: Component<{
             class="h-5 text-[9px] text-muted-foreground hover:text-foreground px-1.5"
             onClick={toggleSelectAll}
           >
-            {allSelected() ? (t("common.deselectAll") as string) : (t("common.selectAll") as string)}
+            {allSelected()
+              ? (t("common.deselectAll") as string)
+              : (t("common.selectAll") as string)}
           </Button>
           <Button
             type="button"

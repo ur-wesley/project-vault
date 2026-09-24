@@ -8,7 +8,7 @@ import { listDiscoveredIdes } from "~/services/tauri/ide";
 import { listAvailableShells, listDiscoveredTools } from "~/services/tauri/terminal";
 import { deleteAllIndices } from "~/services/tauri/search";
 import { checkForUpdates, installUpdate } from "~/services/tauri/updates";
-import { notify } from "~/lib/notification-center";
+import { notify } from "~/lib/notification-store";
 import { getAutostartEnabled, setAutostartEnabled } from "~/services/tauri/autostart";
 import { getSetting, setSetting } from "~/services/tauri/settings";
 import {
@@ -18,12 +18,21 @@ import {
 import type { ClipboardHistorySettingsDto } from "~/types/dto";
 import { checkTunnelAvailable, startTunnelProxy, stopTunnelProxy } from "~/services/tauri/tunnel";
 import { GITHUB_TOKEN_SETTING_KEY, fetchGitHubViewer } from "~/services/github";
+import {
+  DOKPLOY_API_KEY_SETTING_KEY,
+  DOKPLOY_SERVERS_SETTING_KEY,
+  DOKPLOY_URL_SETTING_KEY,
+  migrateLegacyServers,
+  normalizeServerUrl,
+  parseServersSetting,
+  serializeServersSetting,
+  type DokployServer,
+} from "~/services/tauri/dokploy";
 import { runGithubDeviceSignIn } from "~/services/github-device-signin";
 import { stableErrorMessage } from "~/lib/invoke-error";
 import { queryKeys } from "~/services/query-keys";
 import { rescanAllLibraryFolders } from "~/lib/rescan-library";
 import type { Locale } from "~/messages";
-
 
 const SHELL_KEY = "shell_path";
 const SCAN_KEY = "scan_interval_minutes";
@@ -38,6 +47,7 @@ const PORTLESS_PROXY_PORT_KEY = "tunnel_proxy_port";
 const PORTLESS_TLS_KEY = "tunnel_tls_enabled";
 const GLOBAL_TERMINAL_CWD_KEY = "global_terminal_cwd";
 const SCREENSHOT_SAVE_DIR_KEY = "screenshot_save_dir";
+const PROJECT_TABS_ENABLED_KEY = "ui_project_tabs_enabled";
 
 export type UseSettingsModelProps = Readonly<{
   t: (key: string, args?: any) => string;
@@ -60,6 +70,7 @@ export function useSettingsModel(props: UseSettingsModelProps) {
   const [portlessTls, setPortlessTls] = createSignal(false);
   const [portlessAvailable, setPortlessAvailable] = createSignal(false);
   const [githubToken, setGithubToken] = createSignal("");
+  const [dokployServers, setDokployServers] = createSignal<DokployServer[]>([]);
   const [githubUserCode, setGithubUserCode] = createSignal("");
   const [globalTerminalCwd, setGlobalTerminalCwd] = createSignal("");
   const [screenshotSaveDir, setScreenshotSaveDir] = createSignal("");
@@ -67,15 +78,39 @@ export function useSettingsModel(props: UseSettingsModelProps) {
   const [clipboardMaxEntries, setClipboardMaxEntries] = createSignal("200");
   const [clipboardDedupSeconds, setClipboardDedupSeconds] = createSignal("2");
   const [clipboardShowSource, setClipboardShowSource] = createSignal(true);
+  const [projectTabsEnabled, setProjectTabsEnabled] = createSignal(true);
   const [busy, setBusy] = createSignal(false);
 
   const settingsQ = createQuery(() => ({
     queryKey: ["settings", "view"] as const,
     queryFn: async () => {
-      const [sh, scan, gh, di, ds, loc, ai, au, as, pe, pp, pt, gtc, ssd, clip] = await Promise.all([
+      const [
+        sh,
+        scan,
+        gh,
+        dkServers,
+        dkUrl,
+        dkKey,
+        di,
+        ds,
+        loc,
+        ai,
+        au,
+        as,
+        pe,
+        pp,
+        pt,
+        gtc,
+        ssd,
+        clip,
+        pte,
+      ] = await Promise.all([
         getSetting(SHELL_KEY),
         getSetting(SCAN_KEY),
         getSetting(GITHUB_TOKEN_SETTING_KEY),
+        getSetting(DOKPLOY_SERVERS_SETTING_KEY),
+        getSetting(DOKPLOY_URL_SETTING_KEY),
+        getSetting(DOKPLOY_API_KEY_SETTING_KEY),
         getSetting(DEFAULT_IDE_KEY),
         getSetting(DEFAULT_SHELL_KEY),
         getSetting(LOCALE_KEY),
@@ -88,10 +123,14 @@ export function useSettingsModel(props: UseSettingsModelProps) {
         getSetting(GLOBAL_TERMINAL_CWD_KEY),
         getSetting(SCREENSHOT_SAVE_DIR_KEY),
         getClipboardHistorySettings(),
+        getSetting(PROJECT_TABS_ENABLED_KEY),
       ]);
       if (sh.isErr()) throw new Error(sh.error.message);
       if (scan.isErr()) throw new Error(scan.error.message);
       if (gh.isErr()) throw new Error(gh.error.message);
+      if (dkServers.isErr()) throw new Error(dkServers.error.message);
+      if (dkUrl.isErr()) throw new Error(dkUrl.error.message);
+      if (dkKey.isErr()) throw new Error(dkKey.error.message);
       if (di.isErr()) throw new Error(di.error.message);
       if (ds.isErr()) throw new Error(ds.error.message);
       if (loc.isErr()) throw new Error(loc.error.message);
@@ -103,14 +142,21 @@ export function useSettingsModel(props: UseSettingsModelProps) {
       if (gtc.isErr()) throw new Error(gtc.error.message);
       if (ssd.isErr()) throw new Error(ssd.error.message);
       if (clip.isErr()) throw new Error(clip.error.message);
+      if (pte.isErr()) throw new Error(pte.error.message);
 
       const tunnelR = await checkTunnelAvailable();
       setPortlessAvailable(tunnelR.isOk() ? tunnelR.value : false);
 
+      let dokployServers = parseServersSetting(dkServers.value ?? "");
+      if (dokployServers.length === 0) {
+        // Migrate pre-multi-server installs exactly once (persisted on save).
+        dokployServers = migrateLegacyServers(dkUrl.value ?? "", dkKey.value ?? "");
+      }
       return {
         shell: sh.value ?? "",
         scan: scan.value ?? "0",
         githubToken: gh.value ?? "",
+        dokployServers,
         defaultIde: di.value ?? "",
         defaultShell: ds.value ?? "",
         locale: loc.value ?? "en",
@@ -123,6 +169,7 @@ export function useSettingsModel(props: UseSettingsModelProps) {
         globalTerminalCwd: gtc.value ?? "",
         screenshotSaveDir: ssd.value ?? "",
         clipboard: clip.value,
+        projectTabsEnabled: pte.value !== "false",
       };
     },
   }));
@@ -181,6 +228,7 @@ export function useSettingsModel(props: UseSettingsModelProps) {
       setShellPath(d.shell);
       setScanMinutes(d.scan);
       setGithubToken(d.githubToken);
+      setDokployServers(d.dokployServers);
       setDefaultIde(d.defaultIde);
       setDefaultShell(d.defaultShell);
       setSelectedLocale((d.locale as Locale) || props.locale());
@@ -196,6 +244,7 @@ export function useSettingsModel(props: UseSettingsModelProps) {
       setClipboardMaxEntries(String(d.clipboard.maxEntries));
       setClipboardDedupSeconds(String(d.clipboard.dedupSeconds));
       setClipboardShowSource(d.clipboard.showSource);
+      setProjectTabsEnabled(d.projectTabsEnabled);
     }
   });
 
@@ -221,10 +270,34 @@ export function useSettingsModel(props: UseSettingsModelProps) {
         return;
       }
 
+      const servers = dokployServers().map((s) => ({
+        ...s,
+        name: s.name.trim(),
+        url: normalizeServerUrl(s.url),
+        apiKey: s.apiKey.trim(),
+      }));
+      for (const s of servers) {
+        if (!s.url || !s.apiKey) {
+          toast.error(props.t("settings.dokployNoServers"), { id: "settings" });
+          return;
+        }
+        if (!s.url.startsWith("http://") && !s.url.startsWith("https://")) {
+          toast.error(props.t("settings.dokployNoServers"), { id: "settings" });
+          return;
+        }
+      }
+      const serversPayload = serializeServersSetting(servers);
+      setDokployServers(servers);
+
       for (const [key, val] of [
         [SHELL_KEY, shellPath()],
         [SCAN_KEY, scanMinutes().trim() || "0"],
         [GITHUB_TOKEN_SETTING_KEY, githubToken()],
+        [DOKPLOY_SERVERS_SETTING_KEY, serversPayload],
+        // Clear legacy single-pair keys after migration so the list is the
+        // single source of truth (backend keeps them as read fallback).
+        [DOKPLOY_URL_SETTING_KEY, ""],
+        [DOKPLOY_API_KEY_SETTING_KEY, ""],
         [DEFAULT_IDE_KEY, defaultIde()],
         [DEFAULT_SHELL_KEY, defaultShell()],
         [LOCALE_KEY, selectedLocale()],
@@ -236,6 +309,7 @@ export function useSettingsModel(props: UseSettingsModelProps) {
         [PORTLESS_TLS_KEY, portlessTls() ? "true" : "false"],
         [GLOBAL_TERMINAL_CWD_KEY, globalTerminalCwd()],
         [SCREENSHOT_SAVE_DIR_KEY, screenshotSaveDir()],
+        [PROJECT_TABS_ENABLED_KEY, projectTabsEnabled() ? "true" : "false"],
       ] as const) {
         const r = await setSetting(key, val);
         if (r.isErr()) {
@@ -249,6 +323,9 @@ export function useSettingsModel(props: UseSettingsModelProps) {
       });
       void qc.invalidateQueries({
         predicate: (q) => Array.isArray(q.queryKey) && q.queryKey[0] === "github",
+      });
+      void qc.invalidateQueries({
+        predicate: (q) => Array.isArray(q.queryKey) && q.queryKey[0] === "dokploy",
       });
 
       if (portlessEnabled()) {
@@ -352,7 +429,9 @@ export function useSettingsModel(props: UseSettingsModelProps) {
         system: "auto",
       });
     } catch (e) {
-      toast.error(props.t("settings.rebuildDatabaseError", { message: String(e) }), { id: "settings" });
+      toast.error(props.t("settings.rebuildDatabaseError", { message: String(e) }), {
+        id: "settings",
+      });
     } finally {
       setBusy(false);
     }
@@ -389,17 +468,14 @@ export function useSettingsModel(props: UseSettingsModelProps) {
         toast.success(props.t("settings.noUpdateAvailable"), { id: "settings" });
         return;
       }
-      toast.info(
-        props.t("settings.updateAvailable", { version: update.version }),
-        {
-          id: "settings",
-          duration: 30000,
-          action: {
-            label: props.t("updater.install"),
-            onClick: () => void onInstallUpdate(),
-          },
+      toast.info(props.t("settings.updateAvailable", { version: update.version }), {
+        id: "settings",
+        duration: 30000,
+        action: {
+          label: props.t("updater.install"),
+          onClick: () => void onInstallUpdate(),
         },
-      );
+      });
     } finally {
       setBusy(false);
     }
@@ -437,6 +513,8 @@ export function useSettingsModel(props: UseSettingsModelProps) {
     portlessAvailable,
     githubToken,
     setGithubToken,
+    dokployServers,
+    setDokployServers,
     githubUserCode,
     globalTerminalCwd,
     setGlobalTerminalCwd,
@@ -450,6 +528,8 @@ export function useSettingsModel(props: UseSettingsModelProps) {
     setClipboardDedupSeconds,
     clipboardShowSource,
     setClipboardShowSource,
+    projectTabsEnabled,
+    setProjectTabsEnabled,
     busy,
     onSave,
     onGithubDeviceSignIn,

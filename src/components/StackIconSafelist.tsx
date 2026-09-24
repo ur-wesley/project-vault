@@ -123,5 +123,43 @@ export const StackIconSafelist: Component = () => (
     <span class="iconify mdi--redo" />
     <span class="iconify mdi--clipboard-text-multiple" />
     <span class="iconify mdi--content-save" />
+
+    {/* Canvas Icons */}
+    <span class="iconify mdi--git" />
+    <span class="iconify mdi--play-circle-outline" />
+    <span class="iconify mdi--docker" />
+    <span class="iconify mdi--jira" />
+    <span class="iconify mdi--check-decagram-outline" />
+    <span class="iconify mdi--cloud-check-outline" />
+    <span class="iconify mdi--notebook-outline" />
+    <span class="iconify mdi--file-code-outline" />
+    <span class="iconify mdi--console" />
+    <span class="iconify mdi--web" />
+    <span class="iconify mdi--server-network" />
+    <span class="iconify mdi--application-outline" />
+    <span class="iconify mdi--monitor-dashboard" />
+    <span class="iconify mdi--package-variant-closed" />
+    <span class="iconify mdi--view-dashboard-outline" />
+    <span class="iconify mdi--tools" />
+    <span class="iconify mdi--link-variant" />
+    <span class="iconify mdi--arrow-right-circle-outline" />
+    <span class="iconify mdi--window-maximize" />
+    <span class="iconify mdi--window-minimize" />
+    <span class="iconify mdi--resize-bottom-right" />
+    <span class="iconify mdi--fit-to-page-outline" />
+    <span class="iconify mdi--grid" />
+    <span class="iconify mdi--cursor-move" />
+    <span class="iconify mdi--source-branch" />
+    <span class="iconify mdi--view-quilt-outline" />
+    <span class="iconify mdi--sync" />
+    <span class="iconify mdi--open-in-new" />
+    <span class="iconify mdi--refresh" />
+    <span class="iconify mdi--power" />
+    <span class="iconify mdi--play" />
+    <span class="iconify mdi--cloud-upload" />
+    <span class="iconify mdi--swap-horizontal" />
+    <span class="iconify mdi--broom" />
+    <span class="iconify mdi--lock-outline" />
+    <span class="iconify mdi--cancel" />
   </div>
 );

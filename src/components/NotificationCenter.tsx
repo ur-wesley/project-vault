@@ -11,7 +11,7 @@ import {
   useNotificationCenter,
   type NotificationItem,
   type NotificationSeverity,
-} from "~/lib/notification-center";
+} from "~/lib/notification-store";
 import { cn } from "~/lib/utils";
 
 const SEVERITY_ICON: Record<NotificationSeverity, string> = {
@@ -65,10 +65,30 @@ function groupItems(items: NotificationItem[], t: (k: string) => unknown): Group
   }
 
   const groups: Group[] = [];
-  if (today.length) groups.push({ key: "today", label: t("notificationCenter.groupToday") as string, items: today });
-  if (yesterday.length) groups.push({ key: "yesterday", label: t("notificationCenter.groupYesterday") as string, items: yesterday });
-  if (thisWeek.length) groups.push({ key: "thisWeek", label: t("notificationCenter.groupThisWeek") as string, items: thisWeek });
-  if (older.length) groups.push({ key: "older", label: t("notificationCenter.groupOlder") as string, items: older });
+  if (today.length)
+    groups.push({
+      key: "today",
+      label: t("notificationCenter.groupToday") as string,
+      items: today,
+    });
+  if (yesterday.length)
+    groups.push({
+      key: "yesterday",
+      label: t("notificationCenter.groupYesterday") as string,
+      items: yesterday,
+    });
+  if (thisWeek.length)
+    groups.push({
+      key: "thisWeek",
+      label: t("notificationCenter.groupThisWeek") as string,
+      items: thisWeek,
+    });
+  if (older.length)
+    groups.push({
+      key: "older",
+      label: t("notificationCenter.groupOlder") as string,
+      items: older,
+    });
   return groups;
 }
 
@@ -95,21 +115,35 @@ const NotificationRow: Component<{
     >
       {/* Header Row: Icon, App Name/Source, Unread Badge, Time */}
       <div class="flex items-center gap-1.5 text-[10px] uppercase tracking-wide text-muted-foreground/60">
-        <div class={cn("flex size-5 shrink-0 items-center justify-center rounded-md", SEVERITY_BG[props.item.severity])}>
+        <div
+          class={cn(
+            "flex size-5 shrink-0 items-center justify-center rounded-md",
+            SEVERITY_BG[props.item.severity],
+          )}
+        >
           <span class={cn("iconify size-3", iconName(), SEVERITY_COLOR[props.item.severity])} />
         </div>
         <span class="font-medium truncate">{props.item.source ?? props.sourceSystemLabel}</span>
         <Show when={!props.item.read}>
-          <span class="inline-flex h-1.5 w-1.5 shrink-0 rounded-full bg-primary" aria-hidden="true" />
+          <span
+            class="inline-flex h-1.5 w-1.5 shrink-0 rounded-full bg-primary"
+            aria-hidden="true"
+          />
         </Show>
-        <span class="ml-auto font-mono text-[9px] text-muted-foreground/70">{formatTime(props.item.createdAt)}</span>
+        <span class="ml-auto font-mono text-[9px] text-muted-foreground/70">
+          {formatTime(props.item.createdAt)}
+        </span>
       </div>
 
       {/* Title & Body Content */}
       <div class="flex min-w-0 flex-col gap-0.5 pl-0.5">
-        <span class="truncate text-xs font-semibold leading-snug text-foreground">{props.item.title}</span>
+        <span class="truncate text-xs font-semibold leading-snug text-foreground">
+          {props.item.title}
+        </span>
         <Show when={props.item.body}>
-          <p class="whitespace-pre-wrap text-xs leading-snug text-muted-foreground">{props.item.body}</p>
+          <p class="whitespace-pre-wrap text-xs leading-snug text-muted-foreground">
+            {props.item.body}
+          </p>
         </Show>
         <Show when={props.item.progress}>
           {(progress) => (
@@ -281,8 +315,12 @@ export const NotificationCenter: Component<{ projectId?: string | null }> = (pro
               fallback={
                 <div class="flex flex-col items-center gap-2 px-4 py-10 text-center">
                   <span class="iconify mdi--bell-off-outline size-7 text-muted-foreground/50" />
-                  <span class="text-xs font-medium text-muted-foreground">{t("notificationCenter.empty") as string}</span>
-                  <span class="max-w-[260px] text-[10px] text-muted-foreground/70">{t("notificationCenter.emptyHint") as string}</span>
+                  <span class="text-xs font-medium text-muted-foreground">
+                    {t("notificationCenter.empty") as string}
+                  </span>
+                  <span class="max-w-[260px] text-[10px] text-muted-foreground/70">
+                    {t("notificationCenter.emptyHint") as string}
+                  </span>
                 </div>
               }
             >
@@ -320,7 +358,9 @@ export const NotificationCenter: Component<{ projectId?: string | null }> = (pro
               {t("notificationCenter.quiet") as string}
             </span>
             <div class="flex items-center gap-2">
-              <span class="text-[10px] text-muted-foreground/60">{t("notificationCenter.quietHint") as string}</span>
+              <span class="text-[10px] text-muted-foreground/60">
+                {t("notificationCenter.quietHint") as string}
+              </span>
               <Switch
                 checked={center.quiet()}
                 onChange={center.setQuiet}

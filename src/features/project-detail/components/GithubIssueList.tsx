@@ -17,6 +17,12 @@ import type { ExtendedIssueRow } from "../model/useGithubIssues";
 type IssueFilterState = "all" | "open" | "closed";
 type FilterOption = { value: IssueFilterState; label: string };
 
+function getIssueStateIcon(row: Pick<ExtendedIssueRow, "isPending" | "state">): string {
+  if (row.isPending) return "mdi--loading animate-spin text-muted-foreground";
+  if (row.state === "open") return "mdi--alert-circle-outline text-green-500";
+  return "mdi--check-circle-outline text-purple-500";
+}
+
 export function GithubIssueList(props: {
   filteredIssues: () => ExtendedIssueRow[];
   issuesQ: { isPending: boolean; isError: boolean; isSuccess: boolean; error: unknown };
@@ -42,14 +48,14 @@ export function GithubIssueList(props: {
         <div class="mb-4 flex flex-col gap-3 border-b border-border/50 pb-4 shrink-0">
           <div class="flex items-center justify-between">
             <div class="flex items-center gap-3">
-              <span class="text-sm font-semibold">
-                {props.t("projectDetail.githubIssues")}
-              </span>
+              <span class="text-sm font-semibold">{props.t("projectDetail.githubIssues")}</span>
               <Badge variant="secondary" class="h-5 px-1.5 text-[10px] tabular-nums font-mono">
                 {props.filteredIssues().length}
               </Badge>
 
-              <Show when={props.github != null && props.localIssuesCount > 0 && props.syncDismissed}>
+              <Show
+                when={props.github != null && props.localIssuesCount > 0 && props.syncDismissed}
+              >
                 <Tooltip>
                   <TooltipTrigger
                     as={Button}
@@ -59,21 +65,22 @@ export function GithubIssueList(props: {
                     onClick={() => props.onSync()}
                     disabled={props.syncPending}
                   >
-                    <Show when={props.syncPending} fallback={<span class="iconify mdi--cloud-upload h-3.5 w-3.5" />}>
+                    <Show
+                      when={props.syncPending}
+                      fallback={<span class="iconify mdi--cloud-upload h-3.5 w-3.5" />}
+                    >
                       <span class="iconify mdi--loading animate-spin h-3.5 w-3.5" />
                     </Show>
                   </TooltipTrigger>
                   <TooltipContent class="text-xs">
-                    {props.t("projectDetail.syncLocalIssuesTooltip", { count: props.localIssuesCount })}
+                    {props.t("projectDetail.syncLocalIssuesTooltip", {
+                      count: props.localIssuesCount,
+                    })}
                   </TooltipContent>
                 </Tooltip>
               </Show>
             </div>
-            <Button
-              size="sm"
-              class="h-8 gap-1.5 px-3"
-              onClick={() => props.onNewIssue()}
-            >
+            <Button size="sm" class="h-8 gap-1.5 px-3" onClick={() => props.onNewIssue()}>
               <span class="iconify mdi--plus h-4 w-4" />
               {props.t("projectDetail.newIssue")}
             </Button>
@@ -97,9 +104,7 @@ export function GithubIssueList(props: {
                 value={props.filterOptions.find((o) => o.value === props.filter)}
                 onChange={(o) => o && props.onFilterChange(o.value)}
                 itemComponent={(p) => (
-                  <SelectItem item={p.item}>
-                    {p.item.rawValue.label}
-                  </SelectItem>
+                  <SelectItem item={p.item}>{p.item.rawValue.label}</SelectItem>
                 )}
               >
                 <SelectTrigger class="h-8 bg-muted/30 text-xs">
@@ -147,28 +152,26 @@ export function GithubIssueList(props: {
                         : "cursor-pointer hover:bg-muted/30",
                     )}
                     onClick={() =>
-                      !row.isPending && props.onSelectIssue(`${row.number}:${row.isLocal ? "local" : "github"}`)
+                      !row.isPending &&
+                      props.onSelectIssue(`${row.number}:${row.isLocal ? "local" : "github"}`)
                     }
                   >
                     <div class="flex items-start gap-2">
                       <span
                         class={cn(
                           "iconify h-4 w-4 shrink-0 mt-0.5",
-                          row.isPending
-                            ? "mdi--loading animate-spin text-muted-foreground"
-                            : row.state === "open"
-                              ? "mdi--alert-circle-outline text-green-500"
-                              : "mdi--check-circle-outline text-purple-500",
+                          getIssueStateIcon(row),
                         )}
                       />
                       <div class="min-w-0 flex-1 space-y-1">
                         <div class="flex items-center gap-2 justify-between">
                           <div class="flex items-center gap-2 min-w-0 flex-1">
-                            <span class="min-w-0 truncate text-sm font-medium">
-                              {row.title}
-                            </span>
+                            <span class="min-w-0 truncate text-sm font-medium">{row.title}</span>
                             <Show when={row.isLocal}>
-                              <Badge variant="outline" class="h-4 px-1 text-[8px] font-bold uppercase tracking-tighter border-primary/30 text-primary/70">
+                              <Badge
+                                variant="outline"
+                                class="h-4 px-1 text-[8px] font-bold uppercase tracking-tighter border-primary/30 text-primary/70"
+                              >
                                 local
                               </Badge>
                             </Show>
@@ -188,9 +191,7 @@ export function GithubIssueList(props: {
                         </div>
                         <Show when={row.labels.length > 0}>
                           <div class="flex flex-wrap gap-1">
-                            <For each={row.labels}>
-                              {(l) => <LabelBadge label={l} />}
-                            </For>
+                            <For each={row.labels}>{(l) => <LabelBadge label={l} />}</For>
                           </div>
                         </Show>
                       </div>
@@ -199,7 +200,9 @@ export function GithubIssueList(props: {
                       <span>
                         {(() => {
                           const date = new Date(row.updatedAt);
-                          return isNaN(date.getTime()) ? "recently" : date.toLocaleDateString(props.localeCode);
+                          return isNaN(date.getTime())
+                            ? "recently"
+                            : date.toLocaleDateString(props.localeCode);
                         })()}
                       </span>
                       <span>•</span>

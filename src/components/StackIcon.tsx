@@ -32,9 +32,7 @@ export const StackIcon: Component<
   return (
     <Show when={!local.noTooltip} fallback={icon}>
       <Tooltip>
-        <TooltipTrigger class="flex items-center justify-center">
-          {icon}
-        </TooltipTrigger>
+        <TooltipTrigger class="flex items-center justify-center">{icon}</TooltipTrigger>
         <TooltipContent>{tooltipText}</TooltipContent>
       </Tooltip>
     </Show>

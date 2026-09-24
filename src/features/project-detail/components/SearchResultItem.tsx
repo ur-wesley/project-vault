@@ -59,8 +59,7 @@ export function SearchResultItem(props: {
 
   // Dim hits whose score is well below the top score in the result set.
   // Threshold mirrors the design doc: 0.3 × topScore.
-  const isLowScore = () =>
-    props.topScore > 0 && props.hit.score < 0.3 * props.topScore;
+  const isLowScore = () => props.topScore > 0 && props.hit.score < 0.3 * props.topScore;
 
   return (
     <div
@@ -84,7 +83,9 @@ export function SearchResultItem(props: {
 
       <Show when={hitCount() > 0}>
         <div class="flex flex-wrap gap-1 mb-1.5">
-          <span class="text-[9px] text-muted-foreground/70 uppercase tracking-wider self-center mr-0.5">{t("projectDetail.searchLinesLabel") as string}</span>
+          <span class="text-[9px] text-muted-foreground/70 uppercase tracking-wider self-center mr-0.5">
+            {t("projectDetail.searchLinesLabel") as string}
+          </span>
           <For each={props.hit.lineNumbers}>
             {(num) => (
               <button

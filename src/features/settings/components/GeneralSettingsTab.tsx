@@ -10,7 +10,7 @@ import { debugScanLocation } from "~/services/tauri/scanning";
 import { trustPortlessCa } from "~/services/tauri/tunnel";
 import { pickScreenshotDirectory } from "~/services/tauri/screenshot";
 import { toast } from "solid-sonner";
-import { notify } from "~/lib/notification-center";
+import { notify } from "~/lib/notification-store";
 import pkg from "../../../../package.json";
 import { settingElementId } from "../lib/settings-index";
 
@@ -45,6 +45,8 @@ export type GeneralSettingsTabProps = Readonly<{
   setClipboardDedupSeconds: (v: string) => void;
   clipboardShowSource: boolean;
   setClipboardShowSource: (v: boolean) => void;
+  projectTabsEnabled: boolean;
+  setProjectTabsEnabled: (v: boolean) => void;
   busy: boolean;
   onExport: () => void;
   onOpenAppDataDir?: () => void;
@@ -60,8 +62,8 @@ export const GeneralSettingsTab: Component<GeneralSettingsTabProps> = (props) =>
     { value: "de", label: props.t("settings.languageGerman"), textValue: "Deutsch" },
   ]);
 
-  const currentLocaleOption = createMemo(() =>
-    localeOptions().find(o => o.value === props.selectedLocale) ?? localeOptions()[0]
+  const currentLocaleOption = createMemo(
+    () => localeOptions().find((o) => o.value === props.selectedLocale) ?? localeOptions()[0],
   );
 
   const [debugPath, setDebugPath] = createSignal("");
@@ -80,12 +82,18 @@ export const GeneralSettingsTab: Component<GeneralSettingsTabProps> = (props) =>
         return;
       }
       const data = r.value;
-      const rawLines = data.raw.map((d: any) => `  [RAW] ${d.name} | stack=${d.stack} | tags=[${d.tags?.join(", ") ?? ""}] | path=${d.root}`);
-      const filteredLines = data.filtered.map((d: any) => `  [OUT] ${d.name} | stack=${d.stack} | tags=[${d.tags?.join(", ") ?? ""}] | path=${d.root}`);
+      const rawLines = data.raw.map(
+        (d: any) =>
+          `  [RAW] ${d.name} | stack=${d.stack} | tags=[${d.tags?.join(", ") ?? ""}] | path=${d.root}`,
+      );
+      const filteredLines = data.filtered.map(
+        (d: any) =>
+          `  [OUT] ${d.name} | stack=${d.stack} | tags=[${d.tags?.join(", ") ?? ""}] | path=${d.root}`,
+      );
       setDebugResult(
         `Raw drafts: ${data.raw.length}\n${rawLines.join("\n")}\n\n` +
-        `Filtered: ${data.filtered.length} | monorepos=${data.monoreposExpanded} | warnings=${data.workspaceWarnings}\n` +
-        filteredLines.join("\n")
+          `Filtered: ${data.filtered.length} | monorepos=${data.monoreposExpanded} | warnings=${data.workspaceWarnings}\n` +
+          filteredLines.join("\n"),
       );
     } catch (e) {
       setDebugResult(`Exception: ${String(e)}`);
@@ -98,10 +106,10 @@ export const GeneralSettingsTab: Component<GeneralSettingsTabProps> = (props) =>
     <TabsContent value="general" class="space-y-8 outline-none animate-in fade-in duration-300">
       <section id={settingElementId("general-interface")} class="space-y-4">
         <div class="space-y-1">
-          <h3 class="text-sm font-bold uppercase tracking-wider text-primary/80">{props.t("settings.interfaceTitle")}</h3>
-          <p class="text-xs text-muted-foreground">
-            {props.t("settings.interfaceDescription")}
-          </p>
+          <h3 class="text-sm font-bold uppercase tracking-wider text-primary/80">
+            {props.t("settings.interfaceTitle")}
+          </h3>
+          <p class="text-xs text-muted-foreground">{props.t("settings.interfaceDescription")}</p>
         </div>
         <div class="grid gap-6">
           <div id={settingElementId("general-language")} class="grid gap-2">
@@ -158,9 +166,7 @@ export const GeneralSettingsTab: Component<GeneralSettingsTabProps> = (props) =>
             <label class="text-[10px] font-bold text-muted-foreground uppercase tracking-widest">
               {props.t("settings.autoIndexTitle")}
             </label>
-            <p class="text-xs text-muted-foreground">
-              {props.t("settings.autoIndexDescription")}
-            </p>
+            <p class="text-xs text-muted-foreground">{props.t("settings.autoIndexDescription")}</p>
             <div class="flex items-start space-x-3 pt-1">
               <Checkbox
                 id="auto-index"
@@ -168,10 +174,7 @@ export const GeneralSettingsTab: Component<GeneralSettingsTabProps> = (props) =>
                 onChange={(checked) => props.setAutoIndex(checked)}
               />
               <div class="grid gap-1.5 leading-none pt-0.5">
-                <Label
-                  for="auto-index"
-                  class="text-sm font-medium leading-none cursor-pointer"
-                >
+                <Label for="auto-index" class="text-sm font-medium leading-none cursor-pointer">
                   {props.t("settings.autoIndexToggle")}
                 </Label>
               </div>
@@ -182,9 +185,7 @@ export const GeneralSettingsTab: Component<GeneralSettingsTabProps> = (props) =>
             <label class="text-[10px] font-bold text-muted-foreground uppercase tracking-widest">
               {props.t("settings.updatesTitle")}
             </label>
-            <p class="text-xs text-muted-foreground">
-              {props.t("settings.updatesDescription")}
-            </p>
+            <p class="text-xs text-muted-foreground">{props.t("settings.updatesDescription")}</p>
             <div class="flex items-start space-x-3 pt-1">
               <Checkbox
                 id="auto-check-updates"
@@ -200,7 +201,10 @@ export const GeneralSettingsTab: Component<GeneralSettingsTabProps> = (props) =>
                 </Label>
               </div>
             </div>
-            <div id={settingElementId("general-check-for-updates")} class="flex items-center gap-2 pt-1">
+            <div
+              id={settingElementId("general-check-for-updates")}
+              class="flex items-center gap-2 pt-1"
+            >
               <Show when={props.onCheckForUpdates}>
                 <Button
                   variant="outline"
@@ -212,9 +216,7 @@ export const GeneralSettingsTab: Component<GeneralSettingsTabProps> = (props) =>
                   {props.t("settings.checkForUpdates")}
                 </Button>
               </Show>
-              <span class="text-[10px] text-muted-foreground font-mono">
-                v{pkg.version}
-              </span>
+              <span class="text-[10px] text-muted-foreground font-mono">v{pkg.version}</span>
             </div>
           </div>
 
@@ -222,9 +224,7 @@ export const GeneralSettingsTab: Component<GeneralSettingsTabProps> = (props) =>
             <label class="text-[10px] font-bold text-muted-foreground uppercase tracking-widest">
               {props.t("settings.autoStartTitle")}
             </label>
-            <p class="text-xs text-muted-foreground">
-              {props.t("settings.autoStartDescription")}
-            </p>
+            <p class="text-xs text-muted-foreground">{props.t("settings.autoStartDescription")}</p>
             <div class="flex items-start space-x-3 pt-1">
               <Checkbox
                 id="auto-start"
@@ -232,11 +232,32 @@ export const GeneralSettingsTab: Component<GeneralSettingsTabProps> = (props) =>
                 onChange={(checked) => props.setAutoStart(checked)}
               />
               <div class="grid gap-1.5 leading-none pt-0.5">
+                <Label for="auto-start" class="text-sm font-medium leading-none cursor-pointer">
+                  {props.t("settings.autoStartToggle")}
+                </Label>
+              </div>
+            </div>
+          </div>
+
+          <div id={settingElementId("general-project-tabs")} class="grid gap-2">
+            <label class="text-[10px] font-bold text-muted-foreground uppercase tracking-widest">
+              {props.t("settings.projectTabsTitle")}
+            </label>
+            <p class="text-xs text-muted-foreground">
+              {props.t("settings.projectTabsDescription")}
+            </p>
+            <div class="flex items-start space-x-3 pt-1">
+              <Checkbox
+                id="project-tabs-enabled"
+                checked={props.projectTabsEnabled}
+                onChange={(checked) => props.setProjectTabsEnabled(checked)}
+              />
+              <div class="grid gap-1.5 leading-none pt-0.5">
                 <Label
-                  for="auto-start"
+                  for="project-tabs-enabled"
                   class="text-sm font-medium leading-none cursor-pointer"
                 >
-                  {props.t("settings.autoStartToggle")}
+                  {props.t("settings.projectTabsToggle")}
                 </Label>
               </div>
             </div>
@@ -246,9 +267,7 @@ export const GeneralSettingsTab: Component<GeneralSettingsTabProps> = (props) =>
             <label class="text-[10px] font-bold text-muted-foreground uppercase tracking-widest">
               {props.t("settings.terminalTitle")}
             </label>
-            <p class="text-xs text-muted-foreground">
-              {props.t("settings.terminalDescription")}
-            </p>
+            <p class="text-xs text-muted-foreground">{props.t("settings.terminalDescription")}</p>
             <div class="grid gap-2">
               <label class="text-[10px] font-bold text-muted-foreground uppercase tracking-widest">
                 {props.t("settings.globalTerminalCwd")}
@@ -274,9 +293,7 @@ export const GeneralSettingsTab: Component<GeneralSettingsTabProps> = (props) =>
             <label class="text-[10px] font-bold text-muted-foreground uppercase tracking-widest">
               {props.t("settings.screenshotTitle")}
             </label>
-            <p class="text-xs text-muted-foreground">
-              {props.t("settings.screenshotDescription")}
-            </p>
+            <p class="text-xs text-muted-foreground">{props.t("settings.screenshotDescription")}</p>
             <div class="grid gap-2">
               <label class="text-[10px] font-bold text-muted-foreground uppercase tracking-widest">
                 {props.t("settings.screenshotSaveDir")}
@@ -319,20 +336,28 @@ export const GeneralSettingsTab: Component<GeneralSettingsTabProps> = (props) =>
 
       <section id={settingElementId("general-clipboard")} class="space-y-4">
         <div class="space-y-1">
-          <h3 class="text-sm font-bold uppercase tracking-wider text-primary/80">{props.t("settings.clipboardHistoryTitle")}</h3>
+          <h3 class="text-sm font-bold uppercase tracking-wider text-primary/80">
+            {props.t("settings.clipboardHistoryTitle")}
+          </h3>
           <p class="text-xs text-muted-foreground">
             {props.t("settings.clipboardHistoryDescription")}
           </p>
         </div>
         <div class="grid gap-6">
-          <div id={settingElementId("general-clipboard-enabled")} class="flex items-start space-x-3">
+          <div
+            id={settingElementId("general-clipboard-enabled")}
+            class="flex items-start space-x-3"
+          >
             <Checkbox
               id="clipboard-enabled"
               checked={props.clipboardEnabled}
               onChange={(checked) => props.setClipboardEnabled(checked)}
             />
             <div class="grid gap-1.5 leading-none pt-0.5">
-              <Label for="clipboard-enabled" class="text-sm font-medium leading-none cursor-pointer">
+              <Label
+                for="clipboard-enabled"
+                class="text-sm font-medium leading-none cursor-pointer"
+              >
                 {props.t("settings.clipboardHistoryEnabled")}
               </Label>
             </div>
@@ -369,7 +394,10 @@ export const GeneralSettingsTab: Component<GeneralSettingsTabProps> = (props) =>
               />
             </TextField>
           </div>
-          <div id={settingElementId("general-clipboard-show-source")} class="flex items-start space-x-3">
+          <div
+            id={settingElementId("general-clipboard-show-source")}
+            class="flex items-start space-x-3"
+          >
             <Checkbox
               id="clipboard-show-source"
               checked={props.clipboardShowSource}
@@ -377,7 +405,10 @@ export const GeneralSettingsTab: Component<GeneralSettingsTabProps> = (props) =>
               disabled={!props.clipboardEnabled}
             />
             <div class="grid gap-1.5 leading-none pt-0.5">
-              <Label for="clipboard-show-source" class="text-sm font-medium leading-none cursor-pointer">
+              <Label
+                for="clipboard-show-source"
+                class="text-sm font-medium leading-none cursor-pointer"
+              >
                 {props.t("settings.clipboardHistoryShowSource")}
               </Label>
             </div>
@@ -390,10 +421,10 @@ export const GeneralSettingsTab: Component<GeneralSettingsTabProps> = (props) =>
 
       <section id={settingElementId("general-portless")} class="space-y-4">
         <div class="space-y-1">
-          <h3 class="text-sm font-bold uppercase tracking-wider text-primary/80">{props.t("settings.portlessTitle")}</h3>
-          <p class="text-xs text-muted-foreground">
-            {props.t("settings.portlessDescription")}
-          </p>
+          <h3 class="text-sm font-bold uppercase tracking-wider text-primary/80">
+            {props.t("settings.portlessTitle")}
+          </h3>
+          <p class="text-xs text-muted-foreground">{props.t("settings.portlessDescription")}</p>
         </div>
         <div class="grid gap-6">
           <Show when={!props.portlessAvailable}>
@@ -467,10 +498,7 @@ export const GeneralSettingsTab: Component<GeneralSettingsTabProps> = (props) =>
                 disabled={!props.portlessEnabled}
               />
               <div class="grid gap-1.5 leading-none pt-0.5">
-                <Label
-                  for="portless-tls"
-                  class="text-sm font-medium leading-none cursor-pointer"
-                >
+                <Label for="portless-tls" class="text-sm font-medium leading-none cursor-pointer">
                   {props.t("settings.portlessTls")}
                 </Label>
               </div>
@@ -508,10 +536,10 @@ export const GeneralSettingsTab: Component<GeneralSettingsTabProps> = (props) =>
 
       <section id={settingElementId("general-data")} class="space-y-4">
         <div class="space-y-1">
-          <h3 class="text-sm font-bold uppercase tracking-wider text-primary/80">{props.t("settings.dataTitle")}</h3>
-          <p class="text-xs text-muted-foreground">
-            {props.t("settings.dataDescription")}
-          </p>
+          <h3 class="text-sm font-bold uppercase tracking-wider text-primary/80">
+            {props.t("settings.dataTitle")}
+          </h3>
+          <p class="text-xs text-muted-foreground">{props.t("settings.dataDescription")}</p>
         </div>
         <div id={settingElementId("general-export")} class="flex flex-wrap gap-2">
           <Button
@@ -542,10 +570,10 @@ export const GeneralSettingsTab: Component<GeneralSettingsTabProps> = (props) =>
 
       <section id={settingElementId("general-maintenance")} class="space-y-4">
         <div class="space-y-1">
-          <h3 class="text-sm font-bold uppercase tracking-wider text-destructive/80">{props.t("settings.maintenanceTitle")}</h3>
-          <p class="text-xs text-muted-foreground">
-            {props.t("settings.maintenanceDescription")}
-          </p>
+          <h3 class="text-sm font-bold uppercase tracking-wider text-destructive/80">
+            {props.t("settings.maintenanceTitle")}
+          </h3>
+          <p class="text-xs text-muted-foreground">{props.t("settings.maintenanceDescription")}</p>
         </div>
         <div class="flex flex-wrap gap-2">
           <Show when={props.onRebuildDatabase}>

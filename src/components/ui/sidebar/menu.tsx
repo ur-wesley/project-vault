@@ -202,11 +202,7 @@ export const SidebarMenuSubButton = <T extends ValidComponent = "a">(
   rawProps: PolymorphicProps<T, SidebarMenuSubButtonProps<T>>,
 ) => {
   const props = mergeProps({ size: "md" }, rawProps);
-  const [local, others] = splitProps(props as any, [
-    "size",
-    "isActive",
-    "class",
-  ]);
+  const [local, others] = splitProps(props as any, ["size", "isActive", "class"]);
 
   return (
     <Polymorphic<SidebarMenuSubButtonProps>

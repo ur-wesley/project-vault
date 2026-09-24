@@ -1,5 +1,4 @@
 import { Show, createResource, createSignal, type Component } from "solid-js";
-import { createHighlighter } from "shiki";
 import { Button } from "~/components/ui/button";
 import {
   Dialog,
@@ -10,6 +9,7 @@ import {
 } from "~/components/ui/dialog";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "~/components/ui/tabs";
 import { IssueMarkdown } from "~/features/project-detail/components/IssueMarkdown";
+import { getHighlighterPromise, VAULT_CODE_THEME } from "~/services/code-highlighter";
 import creatingPluginsMd from "../../../../docs/creating-plugins.md?raw";
 import pluginsMd from "../../../../docs/plugins.md?raw";
 import vaultLuau from "../../../../src-tauri/lua-sdk/vault.luau?raw";
@@ -32,12 +32,7 @@ export const PluginDocsDialog: Component<PluginDocsDialogProps> = (props) => {
   const [docTab, setDocTab] = createSignal<DocTab>("creating");
   const [copied, setCopied] = createSignal(false);
 
-  const [highlighter] = createResource(async () =>
-    createHighlighter({
-      themes: ["github-dark"],
-      langs: ["luau"],
-    }),
-  );
+  const [highlighter] = createResource(() => getHighlighterPromise());
 
   const [vaultHtml] = createResource(
     () => highlighter(),
@@ -45,7 +40,11 @@ export const PluginDocsDialog: Component<PluginDocsDialogProps> = (props) => {
       if (!hl) return null;
       return hl.codeToHtml(vaultLuau, {
         lang: "luau",
-        theme: "github-dark",
+        // Same token-var theme in both slots: vars resolve against the
+        // active app/community theme, so code follows presets automatically.
+        themes: { light: VAULT_CODE_THEME, dark: VAULT_CODE_THEME },
+        // CSS variables only, so the dual-theme CSS can switch palettes.
+        defaultColor: false,
         transformers: [
           {
             line(node, line) {

@@ -24,9 +24,30 @@ const TAB_LABEL_KEYS: Record<string, string> = {
   plugins: "settings.tabPlugins",
   accounts: "settings.tabAccounts",
   notifications: "settings.tabNotifications",
+  mcp: "settings.tabMcp",
 };
 
 const STATIC_SETTINGS_ITEMS: SettingsSearchItem[] = [
+  {
+    id: "mcp-server",
+    tab: "mcp",
+    labelKey: "settings.mcpTitle",
+    descriptionKey: "settings.mcpDescription",
+    extraKeys: [
+      "settings.mcpEnableServer",
+      "settings.mcpPort",
+      "settings.mcpAuthTitle",
+      "settings.mcpRequireAuth",
+      "settings.mcpConfigTitle",
+    ],
+  },
+  {
+    id: "mcp-auth",
+    tab: "mcp",
+    labelKey: "settings.mcpAuthTitle",
+    descriptionKey: "settings.mcpAuthDescription",
+    extraKeys: ["settings.mcpRequireAuth", "settings.mcpAuthToken"],
+  },
   {
     id: "general-interface",
     tab: "general",
@@ -58,6 +79,13 @@ const STATIC_SETTINGS_ITEMS: SettingsSearchItem[] = [
     descriptionKey: "settings.maintenanceDescription",
   },
   { id: "general-language", tab: "general", labelKey: "settings.language" },
+  {
+    id: "general-project-tabs",
+    tab: "general",
+    labelKey: "settings.projectTabsTitle",
+    descriptionKey: "settings.projectTabsDescription",
+    extraKeys: ["settings.projectTabsToggle"],
+  },
   { id: "general-scan-interval", tab: "general", labelKey: "settings.scanInterval" },
   {
     id: "general-auto-index",
@@ -169,6 +197,13 @@ const STATIC_SETTINGS_ITEMS: SettingsSearchItem[] = [
   },
   { id: "accounts-github-token", tab: "accounts", labelKey: "settings.githubToken" },
   {
+    id: "accounts-dokploy",
+    tab: "accounts",
+    labelKey: "settings.dokployTitle",
+    descriptionKey: "settings.dokployDescription",
+  },
+  { id: "accounts-dokploy-key", tab: "accounts", labelKey: "settings.dokployApiKey" },
+  {
     id: "notifications-title",
     tab: "notifications",
     labelKey: "settings.notificationsTitle",
@@ -209,8 +244,18 @@ const STATIC_SETTINGS_ITEMS: SettingsSearchItem[] = [
     labelKey: "settings.testNotificationLabel",
     descriptionKey: "settings.testNotificationDesc",
   },
-  { id: "locations", tab: "locations", labelKey: "locations.title", descriptionKey: "locations.description" },
-  { id: "templates", tab: "templates", labelKey: "templates.title", descriptionKey: "templates.description" },
+  {
+    id: "locations",
+    tab: "locations",
+    labelKey: "locations.title",
+    descriptionKey: "locations.description",
+  },
+  {
+    id: "templates",
+    tab: "templates",
+    labelKey: "templates.title",
+    descriptionKey: "templates.description",
+  },
   {
     id: "plugins",
     tab: "plugins",
@@ -247,10 +292,7 @@ function scoreAgainst(query: string, target: string): number {
   return Math.max(fuzzyScore(query, target), fuzzyScore(compact(query), compact(target)));
 }
 
-export function filterSettings(
-  query: string,
-  t: (key: string) => string,
-): SettingsSearchResult[] {
+export function filterSettings(query: string, t: (key: string) => string): SettingsSearchResult[] {
   const q = query.trim();
   if (!q) return [];
 

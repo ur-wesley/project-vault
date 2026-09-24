@@ -4,7 +4,6 @@ import { useI18n } from "~/lib/i18n-context";
 
 import { MoveProjectDialog } from "./components/MoveProjectDialog";
 import { MiseToolsSuggestion } from "./components/MiseToolsSuggestion";
-import { ProjectDetailBanners } from "./components/ProjectDetailBanners";
 import { ProjectDetailHeader } from "./components/ProjectDetailHeader";
 import { ProjectDetailShortcutListener } from "./components/ProjectDetailShortcutListener";
 import { ProjectMainTabs } from "./components/ProjectMainTabs";
@@ -21,7 +20,6 @@ const ProjectDetailView: Component<ProjectDetailViewProps> = (props) => {
         detailTab={props.detailTab}
         onDetailTabChange={props.onDetailTabChange}
       />
-      <ProjectDetailBanners model={model} />
       <ProjectDetailHeader model={model} />
       <Show when={model.projectQ.isPending}>
         <p class="p-6 text-sm text-muted-foreground">{t("library.loading") as string}</p>
@@ -29,7 +27,13 @@ const ProjectDetailView: Component<ProjectDetailViewProps> = (props) => {
       <Show when={model.projectQ.isError}>
         <p class="p-6 text-sm text-destructive">{t("library.error") as string}</p>
       </Show>
-      <Show when={!model.miseSuggestionsDismissed() && model.miseSuggestionsQ.data && (model.miseSuggestionsQ.data?.length ?? 0) > 0}>
+      <Show
+        when={
+          !model.miseSuggestionsDismissed() &&
+          model.miseSuggestionsQ.data &&
+          (model.miseSuggestionsQ.data?.length ?? 0) > 0
+        }
+      >
         <div class="px-4">
           <MiseToolsSuggestion
             suggestions={model.miseSuggestionsQ.data ?? []}

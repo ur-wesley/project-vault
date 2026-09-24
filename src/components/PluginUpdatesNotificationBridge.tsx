@@ -1,7 +1,7 @@
 import { createEffect, createSignal, type Component } from "solid-js";
 import { invoke, isTauri } from "@tauri-apps/api/core";
 import { createQuery, useQueryClient } from "@tanstack/solid-query";
-import { useNotificationCenter } from "~/lib/notification-center";
+import { useNotificationCenter } from "~/lib/notification-store";
 
 export const PLUGIN_UPDATES_NOTIFICATION_ID = "plugin-updates-pending";
 

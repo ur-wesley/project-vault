@@ -34,12 +34,28 @@ const AnnotationToolbar: Component<AnnotationToolbarProps> = (props) => {
   const [showColorPicker, setShowColorPicker] = createSignal(false);
 
   const tools = () => [
-    { tool: "select" as const, icon: "iconify mdi--cursor-default", label: t("screenshot.toolSelect") },
-    { tool: "arrow" as const, icon: "iconify mdi--arrow-top-right", label: t("screenshot.toolArrow") },
-    { tool: "rectangle" as const, icon: "iconify mdi--rectangle-outline", label: t("screenshot.toolRectangle") },
+    {
+      tool: "select" as const,
+      icon: "iconify mdi--cursor-default",
+      label: t("screenshot.toolSelect"),
+    },
+    {
+      tool: "arrow" as const,
+      icon: "iconify mdi--arrow-top-right",
+      label: t("screenshot.toolArrow"),
+    },
+    {
+      tool: "rectangle" as const,
+      icon: "iconify mdi--rectangle-outline",
+      label: t("screenshot.toolRectangle"),
+    },
     { tool: "freehand" as const, icon: "iconify mdi--draw", label: t("screenshot.toolDraw") },
     { tool: "text" as const, icon: "iconify mdi--format-text", label: t("screenshot.toolText") },
-    { tool: "highlight" as const, icon: "iconify mdi--marker", label: t("screenshot.toolHighlight") },
+    {
+      tool: "highlight" as const,
+      icon: "iconify mdi--marker",
+      label: t("screenshot.toolHighlight"),
+    },
   ];
 
   return (
@@ -80,13 +96,18 @@ const AnnotationToolbar: Component<AnnotationToolbarProps> = (props) => {
           <TooltipContent>{t("screenshot.color")}</TooltipContent>
         </Tooltip>
         <Show when={showColorPicker()}>
-          <div class="absolute bottom-10 left-1/2 z-50 flex flex-wrap gap-1 rounded-lg border border-border bg-background p-2 shadow-lg" style={{ width: "120px", transform: "translateX(-50%)" }}>
+          <div
+            class="absolute bottom-10 left-1/2 z-50 flex flex-wrap gap-1 rounded-lg border border-border bg-background p-2 shadow-lg"
+            style={{ width: "120px", transform: "translateX(-50%)" }}
+          >
             <For each={COLORS}>
               {(c) => (
                 <button
                   type="button"
                   class="size-6 rounded-full border border-border transition-transform hover:scale-110"
-                  classList={{ "ring-2 ring-primary ring-offset-2 ring-offset-background": props.color === c }}
+                  classList={{
+                    "ring-2 ring-primary ring-offset-2 ring-offset-background": props.color === c,
+                  }}
                   style={{ "background-color": c }}
                   onClick={() => {
                     props.onColorChange(c);

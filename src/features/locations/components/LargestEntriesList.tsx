@@ -3,16 +3,10 @@ import { For, Show } from "solid-js";
 import { getLargestEntries } from "~/services/tauri/projects";
 import { formatBytes } from "~/lib/format-bytes";
 import { cn } from "~/lib/utils";
-import {
-  HoverCard,
-  HoverCardContent,
-  HoverCardTrigger,
-} from "~/components/ui/hover-card";
+import { HoverCard, HoverCardContent, HoverCardTrigger } from "~/components/ui/hover-card";
 import { useI18n } from "~/lib/i18n-context";
 
-export function LargestEntriesHoverIcon(props: {
-  path: string;
-}) {
+export function LargestEntriesHoverIcon(props: { path: string }) {
   const { t } = useI18n();
 
   const q = createQuery(() => ({

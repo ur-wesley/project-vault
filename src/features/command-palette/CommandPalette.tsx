@@ -1,5 +1,13 @@
 import { createQuery, useQueryClient } from "@tanstack/solid-query";
-import { For, Show, createEffect, createMemo, createSignal, onCleanup, type ParentProps } from "solid-js";
+import {
+  For,
+  Show,
+  createEffect,
+  createMemo,
+  createSignal,
+  onCleanup,
+  type ParentProps,
+} from "solid-js";
 import { isTauri, invoke } from "@tauri-apps/api/core";
 import { listen } from "@tauri-apps/api/event";
 
@@ -227,11 +235,7 @@ export function CommandPalette(props: CommandPaletteProps) {
 
     // Projects
     for (const p of allProjects()) {
-      const score = Math.max(
-        fuzzyScore(s, p.name),
-        fuzzyScore(s, p.path),
-        fuzzyScore(s, p.stack),
-      );
+      const score = Math.max(fuzzyScore(s, p.name), fuzzyScore(s, p.path), fuzzyScore(s, p.stack));
       if (score > 0) {
         items.push({
           id: `project-${p.id}`,
@@ -252,11 +256,7 @@ export function CommandPalette(props: CommandPaletteProps) {
   return (
     <>
       {props.children}
-      <CommandDialog
-        open={open()}
-        onOpenChange={setOpen}
-        filter={() => 1}
-      >
+      <CommandDialog open={open()} onOpenChange={setOpen} filter={() => 1}>
         <CommandInput
           placeholder={t("commandPalette.placeholder") as string}
           onValueChange={setSearch}
@@ -323,7 +323,9 @@ export function CommandPalette(props: CommandPaletteProps) {
               </CommandGroup>
               <Show when={(pluginCmdsQ.data ?? []).length > 0}>
                 <CommandSeparator />
-                <CommandGroup heading={t("commandPalette.pluginCommands") as string ?? "Plugin Commands"}>
+                <CommandGroup
+                  heading={(t("commandPalette.pluginCommands") as string) ?? "Plugin Commands"}
+                >
                   <For each={pluginCmdsQ.data ?? []}>
                     {(cmd) => {
                       const isProjectScope = cmd.scope === "project";
@@ -362,11 +364,7 @@ export function CommandPalette(props: CommandPaletteProps) {
                             as={CommandShortcut}
                             class="flex max-w-[40%] items-center justify-end font-normal"
                           >
-                            <ProjectAvatar
-                              project={project}
-                              class="h-3.5 w-3.5"
-                              noTooltip
-                            />
+                            <ProjectAvatar project={project} class="h-3.5 w-3.5" noTooltip />
                             <span class="sr-only">{project.stack}</span>
                           </TooltipTrigger>
                           <TooltipContent>{project.stack}</TooltipContent>

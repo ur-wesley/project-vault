@@ -2,7 +2,7 @@ import { createEffect, type Component } from "solid-js";
 import { isTauri } from "@tauri-apps/api/core";
 import { listen } from "@tauri-apps/api/event";
 import { useQueryClient } from "@tanstack/solid-query";
-import { useNotificationCenter } from "~/lib/notification-center";
+import { useNotificationCenter } from "~/lib/notification-store";
 
 type DiscoveryEvent = {
   repo: string;

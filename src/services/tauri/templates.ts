@@ -1,4 +1,10 @@
-import type { TemplateSummaryDto, CreateProjectPayload, CreateProjectResultDto, RunTemplateCommandPayload, RunTemplateCommandResultDto } from "~/types/dto";
+import type {
+  TemplateSummaryDto,
+  CreateProjectPayload,
+  CreateProjectResultDto,
+  RunTemplateCommandPayload,
+  RunTemplateCommandResultDto,
+} from "~/types/dto";
 import { tauriInvoke } from "./utils";
 
 export function listProjectTemplates() {

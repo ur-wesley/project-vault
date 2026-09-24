@@ -29,8 +29,7 @@ export const ProjectDetailShortcutListener: Component<ProjectDetailShortcutListe
         const idx = PROJECT_DETAIL_TABS.findIndex((tab) => tab === current);
         const base = idx >= 0 ? idx : 0;
         const delta = action === "project-tab:next" ? 1 : -1;
-        const next =
-          (base + delta + PROJECT_DETAIL_TABS.length) % PROJECT_DETAIL_TABS.length;
+        const next = (base + delta + PROJECT_DETAIL_TABS.length) % PROJECT_DETAIL_TABS.length;
         props.onDetailTabChange(PROJECT_DETAIL_TABS[next]!);
         return;
       }

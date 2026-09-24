@@ -57,7 +57,10 @@ export function useScreenshot() {
       }
     },
 
-    async selectSource(source: CaptureSource, t: (key: string, args?: Record<string, unknown>) => string) {
+    async selectSource(
+      source: CaptureSource,
+      t: (key: string, args?: Record<string, unknown>) => string,
+    ) {
       setAppState("closed");
 
       try {
@@ -91,7 +94,12 @@ export function useScreenshot() {
           // Crop the selected region from the returned image
           const cropped = await screenshotService.cropImage(
             resultR.value.imageBase64,
-            { x: resultR.value.x, y: resultR.value.y, width: resultR.value.width, height: resultR.value.height },
+            {
+              x: resultR.value.x,
+              y: resultR.value.y,
+              width: resultR.value.width,
+              height: resultR.value.height,
+            },
             resultR.value.imageWidth,
             resultR.value.imageHeight,
           );
@@ -145,7 +153,10 @@ export function useScreenshot() {
       setImageData(null);
     },
 
-    async copyToClipboard(data: Uint8Array, t: (key: string, args?: Record<string, unknown>) => string) {
+    async copyToClipboard(
+      data: Uint8Array,
+      t: (key: string, args?: Record<string, unknown>) => string,
+    ) {
       try {
         await screenshotService.copyPngToClipboard(data);
         toast.success(t("screenshot.copied"));

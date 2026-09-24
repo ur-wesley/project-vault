@@ -2,11 +2,7 @@ import { For, Show, createMemo } from "solid-js";
 import { openPath } from "@tauri-apps/plugin-opener";
 import { formatBytes } from "~/lib/format-bytes";
 import { useI18n } from "~/lib/i18n-context";
-import {
-  Tooltip,
-  TooltipContent,
-  TooltipTrigger,
-} from "~/components/ui/tooltip";
+import { Tooltip, TooltipContent, TooltipTrigger } from "~/components/ui/tooltip";
 import { LargestEntriesHoverIcon } from "./LargestEntriesList";
 
 type ProjectSizeEntry = {
@@ -31,18 +27,12 @@ export function ProjectSizeTreemap(props: ProjectSizeTableProps) {
   const { t } = useI18n();
 
   const sorted = createMemo(() =>
-    [...props.projects]
-      .filter((p) => p.sizeBytes > 0)
-      .sort((a, b) => b.sizeBytes - a.sizeBytes),
+    [...props.projects].filter((p) => p.sizeBytes > 0).sort((a, b) => b.sizeBytes - a.sizeBytes),
   );
 
-  const totalSize = createMemo(() =>
-    sorted().reduce((s, p) => s + p.sizeBytes, 0),
-  );
+  const totalSize = createMemo(() => sorted().reduce((s, p) => s + p.sizeBytes, 0));
 
-  const maxSize = createMemo(() =>
-    sorted().reduce((m, p) => Math.max(m, p.sizeBytes), 0),
-  );
+  const maxSize = createMemo(() => sorted().reduce((m, p) => Math.max(m, p.sizeBytes), 0));
 
   const handleOpenFileManager = async (path: string) => {
     if (!path) return;
@@ -60,11 +50,20 @@ export function ProjectSizeTreemap(props: ProjectSizeTableProps) {
           {sorted().length} projects · {formatBytes(totalSize())}
         </span>
         <span class="flex items-center gap-1.5">
-          <span class="inline-block h-2 w-2 rounded-sm" style={{ "background-color": "hsl(0,70%,55%)" }} />
+          <span
+            class="inline-block h-2 w-2 rounded-sm"
+            style={{ "background-color": "hsl(0,70%,55%)" }}
+          />
           <span>{t("locations.large") as string}</span>
-          <span class="inline-block h-2 w-2 rounded-sm" style={{ "background-color": "hsl(120,60%,50%)" }} />
+          <span
+            class="inline-block h-2 w-2 rounded-sm"
+            style={{ "background-color": "hsl(120,60%,50%)" }}
+          />
           <span>{t("locations.medium") as string}</span>
-          <span class="inline-block h-2 w-2 rounded-sm" style={{ "background-color": "hsl(240,50%,55%)" }} />
+          <span
+            class="inline-block h-2 w-2 rounded-sm"
+            style={{ "background-color": "hsl(240,50%,55%)" }}
+          />
           <span>{t("locations.small") as string}</span>
         </span>
       </div>
@@ -79,9 +78,15 @@ export function ProjectSizeTreemap(props: ProjectSizeTableProps) {
           <table class="w-full text-left text-[11px]">
             <thead class="sticky top-0 z-10 bg-muted/80 backdrop-blur-sm">
               <tr class="border-b border-border/40">
-                <th class="px-3 py-1.5 font-semibold text-muted-foreground">{t("locations.projectColumn") as string}</th>
-                <th class="px-3 py-1.5 font-semibold text-muted-foreground w-24">{t("locations.sizeColumn") as string}</th>
-                <th class="px-3 py-1.5 font-semibold text-muted-foreground w-16 text-right">{t("locations.percentageColumn") as string}</th>
+                <th class="px-3 py-1.5 font-semibold text-muted-foreground">
+                  {t("locations.projectColumn") as string}
+                </th>
+                <th class="px-3 py-1.5 font-semibold text-muted-foreground w-24">
+                  {t("locations.sizeColumn") as string}
+                </th>
+                <th class="px-3 py-1.5 font-semibold text-muted-foreground w-16 text-right">
+                  {t("locations.percentageColumn") as string}
+                </th>
               </tr>
             </thead>
             <tbody>
@@ -113,7 +118,10 @@ export function ProjectSizeTreemap(props: ProjectSizeTableProps) {
                                   void handleOpenFileManager(project.path);
                                 }}
                               >
-                                <span class="iconify mdi--folder-open h-3.5 w-3.5" aria-hidden="true" />
+                                <span
+                                  class="iconify mdi--folder-open h-3.5 w-3.5"
+                                  aria-hidden="true"
+                                />
                               </TooltipTrigger>
                               <TooltipContent class="text-xs">
                                 {t("library.openInFileManager") as string}

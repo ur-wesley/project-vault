@@ -14,9 +14,19 @@ export const queryKeys = {
   githubRepo: (projectId: string) => ["github", "repo", projectId] as const,
   gitStatus: (projectId: string) => ["git", "status", projectId] as const,
   gitIncoming: (projectId: string) => ["git", "incoming", projectId] as const,
+  gitChangedFiles: (projectId: string) => ["git", "changed-files", projectId] as const,
+  gitFileDiff: (projectId: string, path: string) => ["git", "file-diff", projectId, path] as const,
   projectReadme: (projectId: string) => ["github", "readme", "fs", projectId] as const,
   githubProjectIssues: (projectId: string) => ["github", "issues", "project", projectId] as const,
+  githubActionRuns: (projectId: string) => ["github", "actions", "runs", projectId] as const,
+  githubWorkflows: (projectId: string) => ["github", "actions", "workflows", projectId] as const,
+  dokployMatches: (projectId: string) => ["dokploy", "matches", projectId] as const,
+  dokployStatus: (kind: string, id: string, serverId?: string) =>
+    ["dokploy", "status", kind, serverId ?? "", id] as const,
+  dokployProviders: () => ["dokploy", "providers"] as const,
+  dokployServices: (projectId: string) => ["dokploy", "services", projectId] as const,
   projectIndexMeta: (projectId: string) => ["project", projectId, "index-meta"] as const,
-  projectSearch: (projectId: string, query: string) => ["project", projectId, "search", query] as const,
+  projectSearch: (projectId: string, query: string) =>
+    ["project", projectId, "search", query] as const,
   clipboardHistory: (kind?: string) => ["clipboard", "history", kind ?? "all"] as const,
 };

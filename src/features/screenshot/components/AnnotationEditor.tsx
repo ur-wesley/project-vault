@@ -1,11 +1,4 @@
-import {
-  type Component,
-  createSignal,
-  createEffect,
-  onMount,
-  onCleanup,
-  Show,
-} from "solid-js";
+import { type Component, createSignal, createEffect, onMount, onCleanup, Show } from "solid-js";
 import { Button } from "~/components/ui/button";
 import { useI18n } from "~/lib/i18n-context";
 import AnnotationToolbar from "./AnnotationToolbar";
@@ -109,7 +102,9 @@ const AnnotationEditor: Component<AnnotationEditorProps> = (props) => {
     if (tool() !== "select") return;
     const pt = getCanvasPoint(e);
     if (!pt) return;
-    const clicked = [...annotations()].reverse().find((ann) => ann.tool === "text" && hitTest(ann, pt));
+    const clicked = [...annotations()]
+      .reverse()
+      .find((ann) => ann.tool === "text" && hitTest(ann, pt));
     if (clicked && clicked.tool === "text") {
       setEditingTextAnnotationId(clicked.id);
       setTextInput({
@@ -194,8 +189,8 @@ const AnnotationEditor: Component<AnnotationEditorProps> = (props) => {
           prev.map((ann) =>
             ann.id === selectedAnnotationId()
               ? resizeAnnotation(ann, activeResizeHandle()!.id, pt)
-              : ann
-          )
+              : ann,
+          ),
         );
         redraw();
         return;
@@ -207,8 +202,8 @@ const AnnotationEditor: Component<AnnotationEditorProps> = (props) => {
         if (dx !== 0 || dy !== 0) {
           setAnnotations((prev) =>
             prev.map((ann) =>
-              ann.id === selectedAnnotationId() ? moveAnnotation(ann, dx, dy) : ann
-            )
+              ann.id === selectedAnnotationId() ? moveAnnotation(ann, dx, dy) : ann,
+            ),
           );
           dragStartPt = pt;
           redraw();
@@ -237,15 +232,9 @@ const AnnotationEditor: Component<AnnotationEditorProps> = (props) => {
 
     if (!isDrawing() || !currentAnnotation) return;
 
-    if (
-      currentAnnotation.tool === "arrow" ||
-      currentAnnotation.tool === "rectangle"
-    ) {
+    if (currentAnnotation.tool === "arrow" || currentAnnotation.tool === "rectangle") {
       currentAnnotation.end = pt;
-    } else if (
-      currentAnnotation.tool === "freehand" ||
-      currentAnnotation.tool === "highlight"
-    ) {
+    } else if (currentAnnotation.tool === "freehand" || currentAnnotation.tool === "highlight") {
       currentAnnotation.points.push(pt);
     }
 
@@ -308,10 +297,8 @@ const AnnotationEditor: Component<AnnotationEditorProps> = (props) => {
     if (editingTextAnnotationId()) {
       setAnnotations((prev) =>
         prev.map((a) =>
-          a.id === editingTextAnnotationId() && a.tool === "text"
-            ? { ...a, text: val }
-            : a
-        )
+          a.id === editingTextAnnotationId() && a.tool === "text" ? { ...a, text: val } : a,
+        ),
       );
     } else {
       const ann: Annotation = {
@@ -391,7 +378,11 @@ const AnnotationEditor: Component<AnnotationEditorProps> = (props) => {
 
   const handleKeyDown = (e: KeyboardEvent) => {
     if (textInput()) return;
-    if (selectedAnnotationId() && tool() === "select" && (e.key === "Delete" || e.key === "Backspace")) {
+    if (
+      selectedAnnotationId() &&
+      tool() === "select" &&
+      (e.key === "Delete" || e.key === "Backspace")
+    ) {
       e.preventDefault();
       pushUndo();
       setAnnotations((prev) => prev.filter((a) => a.id !== selectedAnnotationId()));
@@ -476,14 +467,19 @@ const AnnotationEditor: Component<AnnotationEditorProps> = (props) => {
         onMouseLeave={handleMouseLeave}
         onDblClick={handleDblClick}
       >
-        <Show when={imageLoaded()} fallback={<span class="text-muted-foreground">{t("screenshot.loading")}</span>}>
+        <Show
+          when={imageLoaded()}
+          fallback={<span class="text-muted-foreground">{t("screenshot.loading")}</span>}
+        >
           <canvas
             ref={canvasRef}
             class="rounded shadow-2xl"
             style={{
-              cursor: tool() === "select"
-                ? (hoveredHandleCursor() || (activeResizeHandle() ? activeResizeHandle()!.cursor : "default"))
-                : "none"
+              cursor:
+                tool() === "select"
+                  ? hoveredHandleCursor() ||
+                    (activeResizeHandle() ? activeResizeHandle()!.cursor : "default")
+                  : "none",
             }}
           />
         </Show>

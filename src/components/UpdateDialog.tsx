@@ -1,9 +1,7 @@
 import { createSignal, createResource, Show, type Component } from "solid-js";
-import { marked } from "marked";
-import DOMPurify from "dompurify";
 import { toast } from "solid-sonner";
 import { useI18n } from "~/lib/i18n-context";
-import { notify } from "~/lib/notification-center";
+import { notify } from "~/lib/notification-store";
 import { Button } from "~/components/ui/button";
 import {
   Dialog,
@@ -15,6 +13,7 @@ import {
 } from "~/components/ui/dialog";
 import { installUpdate, type UpdateInfoDto } from "~/services/tauri/updates";
 import { stableErrorMessage } from "~/lib/invoke-error";
+import { renderMarkdownHtml } from "~/services/markdown";
 
 const SKIPPED_UPDATE_KEY = "project-vault:skipped-update";
 
@@ -47,8 +46,7 @@ export const UpdateDialog: Component<{
     () => props.updateInfo?.notes ?? "",
     async (notes) => {
       if (!notes) return "";
-      const parsed = await marked.parse(notes);
-      return DOMPurify.sanitize(parsed);
+      return await renderMarkdownHtml(notes);
     },
   );
 
@@ -97,26 +95,27 @@ export const UpdateDialog: Component<{
 
         <Show when={props.updateInfo?.notes}>
           <div class="max-h-80 overflow-y-auto rounded-md bg-muted/30 p-4 prose prose-sm dark:prose-invert">
-            <Show when={notesHtml()} fallback={<p class="animate-pulse text-muted-foreground text-sm">{t("common.rendering") as string}</p>}>
-              <article class="markdown-body !bg-transparent !p-0 !text-sm" innerHTML={notesHtml()!} />
+            <Show
+              when={notesHtml()}
+              fallback={
+                <p class="animate-pulse text-muted-foreground text-sm">
+                  {t("common.rendering") as string}
+                </p>
+              }
+            >
+              <article
+                class="markdown-body !bg-transparent !p-0 !text-sm"
+                innerHTML={notesHtml()!}
+              />
             </Show>
           </div>
         </Show>
 
         <DialogFooter class="gap-2 sm:gap-2">
-          <Button
-            variant="ghost"
-            size="sm"
-            disabled={installing()}
-            onClick={() => void onSkip()}
-          >
+          <Button variant="ghost" size="sm" disabled={installing()} onClick={() => void onSkip()}>
             {t("updater.skipVersion")}
           </Button>
-          <Button
-            size="sm"
-            disabled={installing()}
-            onClick={() => void onInstall()}
-          >
+          <Button size="sm" disabled={installing()} onClick={() => void onInstall()}>
             <Show when={installing()}>
               <span class="iconify mdi--loading mr-2 size-4 animate-spin" />
             </Show>

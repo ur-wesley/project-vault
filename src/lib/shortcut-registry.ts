@@ -15,9 +15,17 @@ export type ShortcutAction =
   | "project-tab:4"
   | "project-tab:5"
   | "project-tab:6"
+  | "project-tab:7"
+  | "project-tab:8"
   | "project-tab:next"
   | "project-tab:prev"
-  | "project-terminal:focus";
+  | "project-terminal:focus"
+  | "file:save"
+  | "file:save-all"
+  | "file:close-tab"
+  | "file:find"
+  | "file:goto-line"
+  | "file:format";
 
 export const SHORTCUT_SETTING_KEY = "shortcut_registry_v1";
 
@@ -36,9 +44,17 @@ export const DEFAULT_SHORTCUTS: Record<ShortcutAction, string[]> = {
   "project-tab:4": ["Control", "4"],
   "project-tab:5": ["Control", "5"],
   "project-tab:6": ["Control", "6"],
+  "project-tab:7": ["Control", "7"],
+  "project-tab:8": ["Control", "8"],
   "project-tab:next": ["Control", "Tab"],
   "project-tab:prev": ["Control", "Shift", "Tab"],
   "project-terminal:focus": ["Control", "Shift", "t"],
+  "file:save": ["Control", "s"],
+  "file:save-all": ["Control", "Shift", "s"],
+  "file:close-tab": [],
+  "file:find": ["Control", "f"],
+  "file:goto-line": ["Control", "g"],
+  "file:format": ["Shift", "Alt", "f"],
 };
 
 export const SHORTCUT_ACTION_LABEL_KEYS: Record<ShortcutAction, string> = {
@@ -56,9 +72,17 @@ export const SHORTCUT_ACTION_LABEL_KEYS: Record<ShortcutAction, string> = {
   "project-tab:4": "settings.shortcutsLabelProjectTab4",
   "project-tab:5": "settings.shortcutsLabelProjectTab5",
   "project-tab:6": "settings.shortcutsLabelProjectTab6",
+  "project-tab:7": "settings.shortcutsLabelProjectTab7",
+  "project-tab:8": "settings.shortcutsLabelProjectTab8",
   "project-tab:next": "settings.shortcutsLabelProjectTabNext",
   "project-tab:prev": "settings.shortcutsLabelProjectTabPrev",
   "project-terminal:focus": "settings.shortcutsLabelProjectTerminalFocus",
+  "file:save": "settings.shortcutsLabelFileSave",
+  "file:save-all": "settings.shortcutsLabelFileSaveAll",
+  "file:close-tab": "settings.shortcutsLabelFileCloseTab",
+  "file:find": "settings.shortcutsLabelFileFind",
+  "file:goto-line": "settings.shortcutsLabelFileGotoLine",
+  "file:format": "settings.shortcutsLabelFileFormat",
 };
 
 export function isGlobalHotkeyAction(action: string): boolean {
@@ -86,9 +110,7 @@ export async function loadShortcutRegistry(): Promise<Record<string, string[]>> 
   }
 }
 
-export async function saveShortcutRegistry(
-  registry: Record<string, string[]>,
-): Promise<void> {
+export async function saveShortcutRegistry(registry: Record<string, string[]>): Promise<void> {
   const r = await setSetting(SHORTCUT_SETTING_KEY, JSON.stringify(registry));
   if (r.isErr()) throw new Error(r.error.message);
 }

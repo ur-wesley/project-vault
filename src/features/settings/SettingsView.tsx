@@ -20,6 +20,7 @@ import { ShortcutsSettingsTab } from "./components/ShortcutsSettingsTab";
 import { TemplatesSettingsTab } from "./components/TemplatesSettingsTab";
 import { PluginsSettingsTab } from "./components/PluginsSettingsTab";
 import { NotificationSettingsTab } from "./components/NotificationSettingsTab";
+import { McpSettingsTab } from "./components/McpSettingsTab";
 import { SettingsSearch } from "./components/SettingsSearch";
 import { jumpToSetting } from "./lib/jump-to-setting";
 
@@ -101,29 +102,59 @@ export const SettingsView: Component<SettingsViewProps> = (props) => {
             class="flex flex-1 flex-col overflow-hidden"
           >
             <TabsList class="mb-6 h-9 w-full shrink-0 flex justify-start bg-muted/40 p-1">
-              <TabsTrigger value="general" class="flex-1 text-xs font-semibold uppercase tracking-wider">
+              <TabsTrigger
+                value="general"
+                class="flex-1 text-xs font-semibold uppercase tracking-wider"
+              >
                 {t("settings.tabGeneral") as string}
               </TabsTrigger>
-              <TabsTrigger value="locations" class="flex-1 text-xs font-semibold uppercase tracking-wider">
+              <TabsTrigger
+                value="locations"
+                class="flex-1 text-xs font-semibold uppercase tracking-wider"
+              >
                 {t("settings.tabLocations") as string}
               </TabsTrigger>
-              <TabsTrigger value="tools" class="flex-1 text-xs font-semibold uppercase tracking-wider">
+              <TabsTrigger
+                value="tools"
+                class="flex-1 text-xs font-semibold uppercase tracking-wider"
+              >
                 {t("settings.tabTools") as string}
               </TabsTrigger>
-              <TabsTrigger value="shortcuts" class="flex-1 text-xs font-semibold uppercase tracking-wider">
+              <TabsTrigger
+                value="shortcuts"
+                class="flex-1 text-xs font-semibold uppercase tracking-wider"
+              >
                 {t("settings.tabShortcuts") as string}
               </TabsTrigger>
-              <TabsTrigger value="templates" class="flex-1 text-xs font-semibold uppercase tracking-wider">
+              <TabsTrigger
+                value="templates"
+                class="flex-1 text-xs font-semibold uppercase tracking-wider"
+              >
                 {t("settings.tabTemplates") as string}
               </TabsTrigger>
-              <TabsTrigger value="plugins" class="flex-1 text-xs font-semibold uppercase tracking-wider">
-                {t("settings.tabPlugins") as string ?? "Plugins"}
+              <TabsTrigger
+                value="plugins"
+                class="flex-1 text-xs font-semibold uppercase tracking-wider"
+              >
+                {(t("settings.tabPlugins") as string) ?? "Plugins"}
               </TabsTrigger>
-              <TabsTrigger value="accounts" class="flex-1 text-xs font-semibold uppercase tracking-wider">
+              <TabsTrigger
+                value="accounts"
+                class="flex-1 text-xs font-semibold uppercase tracking-wider"
+              >
                 {t("settings.tabAccounts") as string}
               </TabsTrigger>
-              <TabsTrigger value="notifications" class="flex-1 text-xs font-semibold uppercase tracking-wider">
+              <TabsTrigger
+                value="notifications"
+                class="flex-1 text-xs font-semibold uppercase tracking-wider"
+              >
                 {t("settings.tabNotifications") as string}
+              </TabsTrigger>
+              <TabsTrigger
+                value="mcp"
+                class="flex-1 text-xs font-semibold uppercase tracking-wider"
+              >
+                {(t("settings.tabMcp") as string) ?? "MCP"}
               </TabsTrigger>
             </TabsList>
 
@@ -159,6 +190,8 @@ export const SettingsView: Component<SettingsViewProps> = (props) => {
                 setClipboardDedupSeconds={model.setClipboardDedupSeconds}
                 clipboardShowSource={model.clipboardShowSource()}
                 setClipboardShowSource={model.setClipboardShowSource}
+                projectTabsEnabled={model.projectTabsEnabled()}
+                setProjectTabsEnabled={model.setProjectTabsEnabled}
                 busy={model.busy()}
                 onExport={model.onExport}
                 onOpenAppDataDir={onOpenAppDataDir}
@@ -192,7 +225,10 @@ export const SettingsView: Component<SettingsViewProps> = (props) => {
                 <TemplatesSettingsTab t={tAny} />
               </TabsContent>
 
-              <TabsContent value="plugins" class="outline-none animate-in fade-in duration-300">
+              <TabsContent
+                value="plugins"
+                class="outline-none animate-in fade-in duration-300 flex min-h-full flex-col"
+              >
                 <PluginsSettingsTab t={tAny} />
               </TabsContent>
 
@@ -206,15 +242,22 @@ export const SettingsView: Component<SettingsViewProps> = (props) => {
                 githubUserCode={model.githubUserCode()}
                 githubToken={model.githubToken()}
                 setGithubToken={model.setGithubToken}
+                dokployServers={model.dokployServers()}
+                setDokployServers={model.setDokployServers}
               />
 
-              <TabsContent value="notifications" class="outline-none animate-in fade-in duration-300">
+              <TabsContent
+                value="notifications"
+                class="outline-none animate-in fade-in duration-300"
+              >
                 <NotificationSettingsTab />
+              </TabsContent>
+
+              <TabsContent value="mcp" class="outline-none animate-in fade-in duration-300">
+                <McpSettingsTab />
               </TabsContent>
             </div>
           </Tabs>
-
-
         </div>
       </div>
     </div>

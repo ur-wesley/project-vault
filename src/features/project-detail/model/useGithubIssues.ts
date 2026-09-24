@@ -19,7 +19,6 @@ import {
 } from "~/services/tauri/issues";
 import { queryKeys } from "~/services/query-keys";
 
-
 export type ExtendedIssueRow = GitHubIssueRow & { isLocal: boolean };
 
 export type UseGithubIssuesProps = {
@@ -120,18 +119,18 @@ export function useGithubIssues(props: UseGithubIssuesProps) {
         if (r.isErr()) throw r.error;
         return r.value.map(localToExtended);
       }
-      
+
       // Fetch BOTH
       const [localRes, githubRes] = await Promise.all([
         listIssues(props.projectId()),
-        listRepoIssues(g.owner, g.repo)
+        listRepoIssues(g.owner, g.repo),
       ]);
-      
+
       const locals = localRes.isOk() ? localRes.value.map(localToExtended) : [];
       const githubs = githubRes.isOk() ? githubRes.value.map(githubToExtended) : [];
-      
-      return [...locals, ...githubs].sort((a, b) => 
-        new Date(b.updatedAt).getTime() - new Date(a.updatedAt).getTime()
+
+      return [...locals, ...githubs].sort(
+        (a, b) => new Date(b.updatedAt).getTime() - new Date(a.updatedAt).getTime(),
       );
     },
     staleTime: 0,
@@ -153,7 +152,7 @@ export function useGithubIssues(props: UseGithubIssuesProps) {
     mutationFn: async () => {
       const g = props.github();
       if (!g) throw new Error("No GitHub remote configured");
-      
+
       const r = await listIssues(props.projectId());
       if (r.isErr()) throw r.error;
       const locals = r.value;
@@ -162,10 +161,10 @@ export function useGithubIssues(props: UseGithubIssuesProps) {
         await ensureLabelsExist(g.owner, g.repo, issue.tags);
         const cr = await createIssue(g.owner, g.repo, issue.title, issue.body ?? "", issue.tags);
         if (cr.isErr()) throw cr.error;
-        
+
         if (issue.state === "closed") {
-            const up = await closeIssue(g.owner, g.repo, cr.value.number);
-            if (up.isErr()) throw up.error;
+          const up = await closeIssue(g.owner, g.repo, cr.value.number);
+          if (up.isErr()) throw up.error;
         }
       }
 
@@ -183,7 +182,12 @@ export function useGithubIssues(props: UseGithubIssuesProps) {
   }));
 
   const createM = createMutation(() => ({
-    mutationFn: async (args: { title: string; body: string; labels: string[]; local?: boolean }) => {
+    mutationFn: async (args: {
+      title: string;
+      body: string;
+      labels: string[];
+      local?: boolean;
+    }) => {
       const g = props.github();
       if (!g || args.local) {
         const r = await createIssueLocal(props.projectId(), {
@@ -244,7 +248,13 @@ export function useGithubIssues(props: UseGithubIssuesProps) {
   }));
 
   const updateM = createMutation(() => ({
-    mutationFn: async (args: { number: number; title: string; body: string; labels: string[]; isLocal: boolean }) => {
+    mutationFn: async (args: {
+      number: number;
+      title: string;
+      body: string;
+      labels: string[];
+      isLocal: boolean;
+    }) => {
       const g = props.github();
       if (!g || args.isLocal) {
         const r = await updateIssueLocal(props.projectId(), args.number, {
@@ -296,7 +306,9 @@ export function useGithubIssues(props: UseGithubIssuesProps) {
       if (context?.queryKey) {
         qc.setQueryData<ExtendedIssueRow[]>(context.queryKey, (old) => {
           if (!old) return [data];
-          return old.map((i) => (i.number === data.number && i.isLocal === data.isLocal ? data : i));
+          return old.map((i) =>
+            i.number === data.number && i.isLocal === data.isLocal ? data : i,
+          );
         });
       }
       void rawLabelsQ.refetch();
@@ -329,7 +341,9 @@ export function useGithubIssues(props: UseGithubIssuesProps) {
         qc.setQueryData(
           queryKey,
           previousIssues.map((i) =>
-            i.number === args.number && i.isLocal === args.isLocal ? { ...i, state: "closed" as const, isPending: true } : i,
+            i.number === args.number && i.isLocal === args.isLocal
+              ? { ...i, state: "closed" as const, isPending: true }
+              : i,
           ),
         );
       }
@@ -347,7 +361,9 @@ export function useGithubIssues(props: UseGithubIssuesProps) {
         qc.setQueryData<ExtendedIssueRow[]>(context.queryKey, (old) => {
           if (!old) return [];
           return old.map((i) =>
-            i.number === args.number && i.isLocal === args.isLocal ? { ...i, state: "closed" as const, isPending: false } : i,
+            i.number === args.number && i.isLocal === args.isLocal
+              ? { ...i, state: "closed" as const, isPending: false }
+              : i,
           );
         });
       }

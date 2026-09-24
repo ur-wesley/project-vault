@@ -34,7 +34,9 @@ export const TemplatesSettingsTab: Component<TemplatesSettingsTabProps> = (props
   const [formPostCreate, setFormPostCreate] = createSignal("");
   const [formGitSource, setFormGitSource] = createSignal("");
   const [formGitBranch, setFormGitBranch] = createSignal("main");
-  const [formFiles, setFormFiles] = createSignal<Record<string, string>>({ "README.md": "# {name}" });
+  const [formFiles, setFormFiles] = createSignal<Record<string, string>>({
+    "README.md": "# {name}",
+  });
   const [formFileKey, setFormFileKey] = createSignal("");
   const [formFileValue, setFormFileValue] = createSignal("");
 
@@ -68,9 +70,7 @@ export const TemplatesSettingsTab: Component<TemplatesSettingsTabProps> = (props
     if (tmpl.type === "command") {
       setFormCommand((config.command as string) ?? "");
       setFormCwd((config.cwd as string) ?? "project");
-      setFormPostCreate(
-        (config.postCreate as string[])?.join("\n") ?? "",
-      );
+      setFormPostCreate((config.postCreate as string[])?.join("\n") ?? "");
     } else if (tmpl.type === "git") {
       setFormGitSource((config.source as string) ?? "");
       setFormGitBranch((config.branch as string) ?? "main");
@@ -187,7 +187,7 @@ export const TemplatesSettingsTab: Component<TemplatesSettingsTabProps> = (props
             />
           </TextField>
           <div class="flex gap-2">
-            <For each={(["command", "git", "files"] as const)}>
+            <For each={["command", "git", "files"] as const}>
               {(type) => (
                 <button
                   type="button"

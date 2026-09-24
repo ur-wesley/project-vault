@@ -19,6 +19,7 @@ const KPortal = KobalteSelect.Portal;
 const KListbox = KobalteSelect.Listbox;
 const KItem = KobalteSelect.Item;
 const KValue = KobalteSelect.Value;
+const KLabel = KobalteSelect.Label;
 
 type AppSelectTriggerProps<T extends ValidComponent = "button"> = SelectTriggerProps<T> & {
   class?: string | undefined;
@@ -32,7 +33,7 @@ const SelectTrigger = <T extends ValidComponent = "button">(
   return (
     <KTrigger
       class={cn(
-        "flex h-10 w-full items-center justify-between gap-2 rounded-md border border-input bg-transparent px-3 py-2 text-sm ring-offset-background focus:outline-none focus:ring-2 focus:ring-ring focus:ring-offset-2 disabled:cursor-not-allowed disabled:opacity-50 [&>span]:min-w-0 [&>span]:flex-1",
+        "flex h-10 w-full items-center justify-between gap-2 rounded-md border border-input bg-transparent px-3 py-2 text-sm ring-offset-background focus:outline-none focus:ring-2 focus:ring-ring focus:ring-offset-2 disabled:cursor-not-allowed disabled:opacity-50",
         local.class,
       )}
       {...others}
@@ -105,7 +106,10 @@ const SelectItem = <T extends ValidComponent = "li">(
   );
 };
 
-type AppSelectValueProps<Option, T extends ValidComponent = "span"> = SelectValueProps<Option, T> & {
+type AppSelectValueProps<Option, T extends ValidComponent = "span"> = SelectValueProps<
+  Option,
+  T
+> & {
   class?: string | undefined;
 };
 
@@ -113,12 +117,7 @@ const SelectValue = <Option, T extends ValidComponent = "span">(
   props: PolymorphicProps<T, AppSelectValueProps<Option, T>>,
 ) => {
   const [local, others] = splitProps(props as AppSelectValueProps<Option>, ["class"]);
-  return (
-    <KValue
-      class={cn("min-w-0 flex-1 truncate", local.class)}
-      {...others}
-    />
-  );
+  return <KValue class={cn("min-w-0 flex-1 truncate text-left", local.class)} {...others} />;
 };
 
 export const Select = Object.assign(KobalteSelect, {
@@ -127,8 +126,16 @@ export const Select = Object.assign(KobalteSelect, {
   Listbox: SelectListbox,
   Item: SelectItem,
   Value: SelectValue,
+  Label: KLabel,
 });
 
-export { SelectTrigger, SelectContent, SelectItem, SelectListbox, SelectValue };
+export {
+  SelectTrigger,
+  SelectContent,
+  SelectItem,
+  SelectListbox,
+  SelectValue,
+  KLabel as SelectLabel,
+};
 
 export type { SelectRootProps } from "@kobalte/core/select";

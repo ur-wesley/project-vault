@@ -2,11 +2,7 @@ import type { QueryClient } from "@tanstack/solid-query";
 import { queryKeys } from "~/services/query-keys";
 import type { ProjectDto, TaskDto } from "~/types/dto";
 
-export function syncProjectTasksInCache(
-  qc: QueryClient,
-  projectId: string,
-  tasks: TaskDto[],
-) {
+export function syncProjectTasksInCache(qc: QueryClient, projectId: string, tasks: TaskDto[]) {
   qc.setQueryData<ProjectDto>(queryKeys.project(projectId), (old) => {
     if (!old) return old;
     return { ...old, tasks };

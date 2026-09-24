@@ -1,13 +1,16 @@
 import { join } from "@tauri-apps/api/path";
 import { readDir, readTextFile } from "@tauri-apps/plugin-fs";
-import DOMPurify, { type Config as DOMPurifyConfig } from "dompurify";
 import { ResultAsync } from "neverthrow";
-import { marked } from "marked";
 
+import { renderMarkdownHtml } from "~/services/markdown";
+import { mapInvokeError } from "~/services/tauri/utils";
 import { getSetting } from "~/services/tauri/settings";
+import { isRecord } from "~/lib/guards";
 import type { StableError } from "~/types/error";
 
 export const GITHUB_TOKEN_SETTING_KEY = "github_token";
+
+export type GitHubLabel = { name: string; color: string };
 
 export type GitHubIssueRow = Readonly<{
   number: number;
@@ -21,14 +24,46 @@ export type GitHubIssueRow = Readonly<{
   isPending?: boolean; // For optimistic updates
 }>;
 
+type GitHubLabelApi = string | { name?: unknown; color?: unknown };
+
+function mapLabel(l: unknown): GitHubLabel {
+  if (typeof l === "string") return { name: l, color: "cccccc" };
+  if (isRecord(l)) {
+    return {
+      name: typeof l.name === "string" ? l.name : "",
+      color: typeof l.color === "string" ? l.color : "cccccc",
+    };
+  }
+  return { name: "", color: "cccccc" };
+}
+
+function mapLabels(labels: unknown): GitHubLabel[] {
+  return Array.isArray(labels) ? (labels as GitHubLabelApi[]).map(mapLabel) : [];
+}
+
+function asIssueRow(i: unknown): GitHubIssueRow {
+  const r = isRecord(i) ? i : {};
+  const user = isRecord(r.user) ? r.user : undefined;
+  return {
+    number: typeof r.number === "number" ? r.number : 0,
+    title: typeof r.title === "string" ? r.title : "",
+    body: typeof r.body === "string" ? r.body : "",
+    htmlUrl: typeof r.html_url === "string" ? r.html_url : "",
+    state: r.state === "closed" ? "closed" : "open",
+    userLogin: typeof user?.login === "string" ? user.login : null,
+    updatedAt: typeof r.updated_at === "string" ? r.updated_at : "",
+    labels: mapLabels(r.labels),
+  };
+}
+
 async function githubFetch(
   path: string,
   method: string = "GET",
-  body?: any,
+  body?: unknown,
 ): Promise<Response> {
   const token = await loadToken();
   const headers: Record<string, string> = {
-    "Accept": "application/vnd.github+json",
+    Accept: "application/vnd.github+json",
     "X-GitHub-Api-Version": "2022-11-28",
   };
 
@@ -58,7 +93,8 @@ function mapResponseToError(
   if (res.status === 404 && fallback.message.toLowerCase().includes("delete")) {
     return {
       code: "NOT_FOUND",
-      message: "Issue deletion is not supported on this repository (requires admin rights or Enterprise).",
+      message:
+        "Issue deletion is not supported on this repository (requires admin rights or Enterprise).",
     };
   }
   return { code: fallback.code, message: fallback.message };
@@ -79,11 +115,12 @@ export function listRepoLabels(
   return ResultAsync.fromPromise(
     (async () => {
       const res = await githubFetch(`/repos/${owner}/${repo}/labels`);
-      if (!res.ok) throw mapResponseToError(res, { code: "INVOKE_FAILED", message: "Could not load labels." });
-      const data = await res.json();
-      return data.map((l: any) => ({ name: l.name, color: l.color }));
+      if (!res.ok)
+        throw mapResponseToError(res, { code: "INVOKE_FAILED", message: "Could not load labels." });
+      const data: unknown = await res.json();
+      return Array.isArray(data) ? data.map((l) => mapLabel(l)) : [];
     })(),
-    (e) => (e as any).code ? (e as StableError) : { code: "INVOKE_FAILED", message: (e as Error).message },
+    (e) => mapInvokeError(e),
   );
 }
 
@@ -94,15 +131,20 @@ export function fetchGitHubViewer(): ResultAsync<
   return ResultAsync.fromPromise(
     (async () => {
       const res = await githubFetch("/user");
-      if (!res.ok) throw mapResponseToError(res, { code: "INVOKE_FAILED", message: "Could not load GitHub profile." });
-      const data = await res.json();
+      if (!res.ok)
+        throw mapResponseToError(res, {
+          code: "INVOKE_FAILED",
+          message: "Could not load GitHub profile.",
+        });
+      const data: unknown = await res.json();
+      const r = isRecord(data) ? data : {};
       return {
-        login: data.login,
-        avatarUrl: data.avatar_url,
-        profileUrl: data.html_url,
+        login: typeof r.login === "string" ? r.login : "",
+        avatarUrl: typeof r.avatar_url === "string" ? r.avatar_url : null,
+        profileUrl: typeof r.html_url === "string" ? r.html_url : "",
       };
     })(),
-    (e) => (e as any).code ? (e as StableError) : { code: "INVOKE_FAILED", message: (e as Error).message },
+    (e) => mapInvokeError(e),
   );
 }
 
@@ -120,12 +162,19 @@ export function createLabel(
           // Label already exists
           return { name, color };
         }
-        throw mapResponseToError(res, { code: "INVOKE_FAILED", message: `Could not create label ${name}.` });
+        throw mapResponseToError(res, {
+          code: "INVOKE_FAILED",
+          message: `Could not create label ${name}.`,
+        });
       }
-      const data = await res.json();
-      return { name: data.name, color: data.color };
+      const data: unknown = await res.json();
+      const r = isRecord(data) ? data : {};
+      return {
+        name: typeof r.name === "string" ? r.name : name,
+        color: typeof r.color === "string" ? r.color : color,
+      };
     })(),
-    (e) => (e as any).code ? (e as StableError) : { code: "INVOKE_FAILED", message: (e as Error).message },
+    (e) => mapInvokeError(e),
   );
 }
 
@@ -135,28 +184,16 @@ export function listRepoIssues(
 ): ResultAsync<readonly GitHubIssueRow[], StableError> {
   return ResultAsync.fromPromise(
     (async () => {
-      const res = await githubFetch(`/repos/${owner}/${repo}/issues?state=all&per_page=50&sort=updated&direction=desc`);
-      if (!res.ok) throw mapResponseToError(res, { code: "INVOKE_FAILED", message: "Could not load issues." });
-      const data = await res.json();
-      return data
-        .filter((i: any) => i.pull_request == null)
-        .map(
-          (i: any): GitHubIssueRow => ({
-            number: i.number,
-            title: i.title,
-            body: i.body ?? "",
-            htmlUrl: i.html_url,
-            state: i.state as "open" | "closed",
-            userLogin: i.user?.login ?? null,
-            updatedAt: i.updated_at,
-            labels: (i.labels as any[]).map((l) => ({
-              name: typeof l === "string" ? l : l.name ?? "",
-              color: typeof l === "string" ? "cccccc" : l.color ?? "cccccc",
-            })),
-          }),
-        ) as readonly GitHubIssueRow[];
+      const res = await githubFetch(
+        `/repos/${owner}/${repo}/issues?state=all&per_page=50&sort=updated&direction=desc`,
+      );
+      if (!res.ok)
+        throw mapResponseToError(res, { code: "INVOKE_FAILED", message: "Could not load issues." });
+      const data: unknown = await res.json();
+      if (!Array.isArray(data)) return [];
+      return data.filter((i) => !isRecord(i) || i.pull_request == null).map((i) => asIssueRow(i));
     })(),
-    (e) => (e as any).code ? (e as StableError) : { code: "INVOKE_FAILED", message: (e as Error).message },
+    (e) => mapInvokeError(e),
   );
 }
 
@@ -169,24 +206,20 @@ export function createIssue(
 ): ResultAsync<GitHubIssueRow, StableError> {
   return ResultAsync.fromPromise(
     (async () => {
-      const res = await githubFetch(`/repos/${owner}/${repo}/issues`, "POST", { title, body, labels });
-      if (!res.ok) throw mapResponseToError(res, { code: "INVOKE_FAILED", message: "Could not create issue." });
-      const data = await res.json();
-      return {
-        number: data.number,
-        title: data.title,
-        body: data.body ?? "",
-        htmlUrl: data.html_url,
-        state: data.state as "open" | "closed",
-        userLogin: data.user?.login ?? null,
-        updatedAt: data.updated_at,
-        labels: (data.labels as any[]).map((l) => ({
-          name: typeof l === "string" ? l : l.name ?? "",
-          color: typeof l === "string" ? "cccccc" : l.color ?? "cccccc",
-        })),
-      };
+      const res = await githubFetch(`/repos/${owner}/${repo}/issues`, "POST", {
+        title,
+        body,
+        labels,
+      });
+      if (!res.ok)
+        throw mapResponseToError(res, {
+          code: "INVOKE_FAILED",
+          message: "Could not create issue.",
+        });
+      const data: unknown = await res.json();
+      return asIssueRow(data);
     })(),
-    (e) => (e as any).code ? (e as StableError) : { code: "INVOKE_FAILED", message: (e as Error).message },
+    (e) => mapInvokeError(e),
   );
 }
 
@@ -200,24 +233,20 @@ export function updateIssue(
 ): ResultAsync<GitHubIssueRow, StableError> {
   return ResultAsync.fromPromise(
     (async () => {
-      const res = await githubFetch(`/repos/${owner}/${repo}/issues/${number}`, "PATCH", { title, body, labels });
-      if (!res.ok) throw mapResponseToError(res, { code: "INVOKE_FAILED", message: "Could not update issue." });
-      const data = await res.json();
-      return {
-        number: data.number,
-        title: data.title,
-        body: data.body ?? "",
-        htmlUrl: data.html_url,
-        state: data.state as "open" | "closed",
-        userLogin: data.user?.login ?? null,
-        updatedAt: data.updated_at,
-        labels: (data.labels as any[]).map((l) => ({
-          name: typeof l === "string" ? l : l.name ?? "",
-          color: typeof l === "string" ? "cccccc" : l.color ?? "cccccc",
-        })),
-      };
+      const res = await githubFetch(`/repos/${owner}/${repo}/issues/${number}`, "PATCH", {
+        title,
+        body,
+        labels,
+      });
+      if (!res.ok)
+        throw mapResponseToError(res, {
+          code: "INVOKE_FAILED",
+          message: "Could not update issue.",
+        });
+      const data: unknown = await res.json();
+      return asIssueRow(data);
     })(),
-    (e) => (e as any).code ? (e as StableError) : { code: "INVOKE_FAILED", message: (e as Error).message },
+    (e) => mapInvokeError(e),
   );
 }
 
@@ -228,10 +257,13 @@ export function closeIssue(
 ): ResultAsync<void, StableError> {
   return ResultAsync.fromPromise(
     (async () => {
-      const res = await githubFetch(`/repos/${owner}/${repo}/issues/${number}`, "PATCH", { state: "closed" });
-      if (!res.ok) throw mapResponseToError(res, { code: "INVOKE_FAILED", message: "Could not close issue." });
+      const res = await githubFetch(`/repos/${owner}/${repo}/issues/${number}`, "PATCH", {
+        state: "closed",
+      });
+      if (!res.ok)
+        throw mapResponseToError(res, { code: "INVOKE_FAILED", message: "Could not close issue." });
     })(),
-    (e) => (e as any).code ? (e as StableError) : { code: "INVOKE_FAILED", message: (e as Error).message },
+    (e) => mapInvokeError(e),
   );
 }
 
@@ -243,52 +275,37 @@ export function deleteIssue(
   return ResultAsync.fromPromise(
     (async () => {
       const res = await githubFetch(`/repos/${owner}/${repo}/issues/${number}`, "DELETE");
-      if (!res.ok) throw mapResponseToError(res, { code: "INVOKE_FAILED", message: "Could not delete issue." });
+      if (!res.ok)
+        throw mapResponseToError(res, {
+          code: "INVOKE_FAILED",
+          message: "Could not delete issue.",
+        });
     })(),
-    (e) => (e as any).code ? (e as StableError) : { code: "INVOKE_FAILED", message: (e as Error).message },
+    (e) => mapInvokeError(e),
   );
 }
-
-// README logic remains same
-const hookInstalled = { current: false };
-function ensureLinkHook(): void {
-  if (typeof window === "undefined" || hookInstalled.current) return;
-  DOMPurify.addHook("afterSanitizeAttributes", (node) => {
-    if ("target" in node) {
-      const href = node.getAttribute("href");
-      const isExternal = href && /^(https?:\/\/|mailto:|tel:|javascript:)/i.test(href);
-      if (isExternal) {
-        node.setAttribute("target", "_blank");
-        node.setAttribute("rel", "noopener noreferrer");
-      } else {
-        node.removeAttribute("target");
-      }
-    }
-  });
-  hookInstalled.current = true;
-}
-const PURIFY_CONFIG: DOMPurifyConfig = { USE_PROFILES: { html: true } };
-
-const renderer = new marked.Renderer();
-renderer.code = function (token) {
-  const code = token.text;
-  const lang = (token.lang || "").match(/\S*/)?.[0] || "";
-  return `<pre class="notranslate border border-border/40"><button class="markdown-copy-btn" type="button" aria-label="Copy code"><span class="iconify mdi--content-copy h-3.5 w-3.5"></span></button><code class="language-${lang}">${code}</code></pre>`;
-};
 
 export function readProjectReadmeHtml(projectPath: string): ResultAsync<string, StableError> {
   return ResultAsync.fromPromise(
     (async () => {
       const raw = await readFirstReadmeFile(projectPath);
       if (raw == null) throw { code: "NO_LOCAL_README", message: "No README file found." };
-      ensureLinkHook();
-      const html = await marked.parse(raw, { renderer });
-      return DOMPurify.sanitize(html, PURIFY_CONFIG);
+      return await renderMarkdownHtml(raw);
     })(),
-    (e) => (e as any).code ? (e as StableError) : { code: "INVOKE_FAILED", message: (e as Error).message },
+    (e) => mapInvokeError(e),
   );
 }
-const README_NAMES = ["README.md", "Readme.md", "readme.md", "README.MD", "README.mkd", "README.mdown", "README", "README.rst", "README.txt"] as const;
+const README_NAMES = [
+  "README.md",
+  "Readme.md",
+  "readme.md",
+  "README.MD",
+  "README.mkd",
+  "README.mdown",
+  "README",
+  "README.rst",
+  "README.txt",
+] as const;
 async function readFirstReadmeFile(projectRoot: string): Promise<string | null> {
   try {
     const entries = await readDir(projectRoot);

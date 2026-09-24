@@ -1,0 +1,391 @@
+/* Theme-specific markdown styling — bridges app design tokens
+ * (--background, --foreground, --primary, ...) onto the vars consumed by
+ * github-markdown-css, then styles every markdown element with tokens so
+ * community presets (mocha, dracula, nord, ...) apply automatically.
+ * Imported AFTER github-markdown-css in src/App.css so these rules win. */
+
+.markdown-body {
+  background-color: transparent;
+  color: var(--foreground);
+  font-family: var(--font-sans);
+  font-size: 0.9rem;
+  line-height: 1.7;
+
+  --bgColor-default: transparent;
+  --bgColor-muted: var(--muted);
+  --bgColor-neutral-muted: color-mix(in oklch, var(--muted) 60%, transparent);
+  --bgColor-attention-muted: color-mix(in oklch, var(--warning) 15%, transparent);
+  --bgColor-danger-muted: color-mix(in oklch, var(--error) 12%, transparent);
+  --bgColor-success-muted: color-mix(in oklch, var(--success) 12%, transparent);
+  --bgColor-done-muted: color-mix(in oklch, var(--accent) 15%, transparent);
+
+  --fgColor-default: var(--foreground);
+  --fgColor-muted: var(--muted-foreground);
+  --fgColor-accent: var(--primary);
+  --fgColor-success: var(--success);
+  --fgColor-attention: var(--warning);
+  --fgColor-danger: var(--error);
+  --fgColor-done: var(--accent);
+
+  --borderColor-default: var(--border);
+  --borderColor-muted: var(--border);
+  --borderColor-neutral-muted: var(--border);
+  --borderColor-accent-emphasis: var(--primary);
+  --borderColor-success-emphasis: var(--success);
+  --borderColor-attention-emphasis: var(--warning);
+  --borderColor-danger-emphasis: var(--error);
+  --borderColor-done-emphasis: var(--accent);
+
+  --focus-outlineColor: var(--ring);
+
+  /* Code syntax inside plain marked output (non-Shiki) follows theme */
+  --color-prettylights-syntax-comment: var(--muted-foreground);
+  --color-prettylights-syntax-constant: var(--primary);
+  --color-prettylights-syntax-constant-other-reference-link: var(--primary);
+  --color-prettylights-syntax-entity: var(--accent);
+  --color-prettylights-syntax-entity-tag: var(--success);
+  --color-prettylights-syntax-keyword: var(--destructive);
+  --color-prettylights-syntax-string: var(--success);
+  --color-prettylights-syntax-string-regexp: var(--success);
+  --color-prettylights-syntax-variable: var(--warning);
+  --color-prettylights-syntax-markup-heading: var(--primary);
+  --color-prettylights-syntax-markup-list: var(--warning);
+  --color-prettylights-syntax-markup-bold: var(--foreground);
+  --color-prettylights-syntax-markup-italic: var(--foreground);
+  --color-prettylights-syntax-storage-modifier-import: var(--foreground);
+  --color-prettylights-syntax-brackethighlighter-angle: var(--muted-foreground);
+  --color-prettylights-syntax-brackethighlighter-unmatched: var(--error);
+  --color-prettylights-syntax-invalid-illegal-text: var(--error);
+  --color-prettylights-syntax-invalid-illegal-bg: var(--bgColor-danger-muted);
+  --color-prettylights-syntax-carriage-return-text: var(--foreground);
+  --color-prettylights-syntax-carriage-return-bg: var(--error);
+}
+
+html.dark .markdown-body,
+html[data-kb-theme="dark"] .markdown-body {
+  color-scheme: dark;
+}
+
+html:not(.dark):not([data-kb-theme="dark"]) .markdown-body {
+  color-scheme: light;
+}
+
+/* ---- Headings h1-h6 ---- */
+.markdown-body h1,
+.markdown-body h2,
+.markdown-body h3,
+.markdown-body h4,
+.markdown-body h5,
+.markdown-body h6 {
+  font-family: var(--font-heading);
+  color: var(--foreground);
+  border-bottom-color: var(--border);
+  line-height: 1.3;
+}
+
+.markdown-body h1 {
+  font-size: 1.5rem;
+  padding-bottom: 0.4rem;
+  border-bottom-width: 1px;
+  border-bottom-style: solid;
+}
+.markdown-body h2 {
+  font-size: 1.25rem;
+  padding-bottom: 0.35rem;
+  border-bottom-width: 1px;
+  border-bottom-style: solid;
+}
+.markdown-body h3 {
+  font-size: 1.1rem;
+}
+.markdown-body h4 {
+  font-size: 1rem;
+}
+.markdown-body h5 {
+  font-size: 0.9rem;
+  color: var(--muted-foreground);
+}
+.markdown-body h6 {
+  font-size: 0.85rem;
+  color: var(--muted-foreground);
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+}
+
+.markdown-body h1 .anchor,
+.markdown-body h2 .anchor,
+.markdown-body h3 .anchor {
+  color: var(--muted-foreground);
+}
+
+/* ---- Paragraphs, links, text formatting ---- */
+.markdown-body p {
+  color: var(--foreground);
+}
+
+.markdown-body a {
+  color: var(--primary);
+  text-decoration: underline;
+  text-underline-offset: 2px;
+}
+.markdown-body a:hover {
+  color: color-mix(in oklch, var(--primary) 80%, var(--foreground));
+}
+
+.markdown-body strong {
+  color: var(--foreground);
+  font-weight: 700;
+}
+.markdown-body em {
+  color: var(--foreground);
+}
+.markdown-body del {
+  color: var(--muted-foreground);
+}
+.markdown-body ins {
+  color: var(--success);
+  text-decoration: underline;
+}
+.markdown-body mark {
+  background-color: color-mix(in oklch, var(--warning) 30%, transparent);
+  color: var(--foreground);
+  border-radius: var(--radius-sm);
+  padding: 0 0.2em;
+}
+
+/* ---- Blockquotes ---- */
+.markdown-body blockquote {
+  border-left: 0.25rem solid var(--primary);
+  background-color: color-mix(in oklch, var(--muted) 50%, transparent);
+  color: var(--muted-foreground);
+  border-radius: 0 var(--radius-md) var(--radius-md) 0;
+  padding: 0.5rem 1rem;
+  margin: 0.75rem 0;
+}
+.markdown-body blockquote > :first-child {
+  margin-top: 0;
+}
+.markdown-body blockquote > :last-child {
+  margin-bottom: 0;
+}
+
+/* ---- Horizontal rules ---- */
+.markdown-body hr {
+  border: none;
+  border-top: 1px solid var(--border);
+  background: none;
+  height: 1px;
+}
+
+/* ---- Code: inline, blocks, kbd/samp ---- */
+.markdown-body code,
+.markdown-body tt {
+  font-family: var(--font-mono);
+  background-color: color-mix(in oklch, var(--muted) 70%, transparent);
+  color: var(--foreground);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-sm);
+  padding: 0.15em 0.35em;
+  font-size: 0.85em;
+}
+
+.markdown-body pre {
+  background-color: color-mix(in oklch, var(--muted) 55%, transparent);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-md);
+  color: var(--foreground);
+  font-family: var(--font-mono);
+}
+/* Shiki-highlighted fences keep their dual-theme background: this beats
+   `.markdown-body pre` on specificity so --shiki-*-bg vars win. */
+.markdown-body pre.shiki {
+  background-color: var(--shiki-light-bg, transparent);
+}
+html.dark .markdown-body pre.shiki,
+html[data-kb-theme="dark"] .markdown-body pre.shiki {
+  background-color: var(--shiki-dark-bg, transparent);
+}
+.markdown-body pre code,
+.markdown-body pre tt {
+  background: transparent;
+  border: none;
+  padding: 0;
+}
+
+.markdown-body kbd {
+  font-family: var(--font-mono);
+  background-color: var(--muted);
+  border: 1px solid var(--border);
+  border-bottom-width: 2px;
+  border-radius: var(--radius-sm);
+  color: var(--foreground);
+  padding: 0.15em 0.4em;
+  font-size: 0.8em;
+}
+.markdown-body samp {
+  font-family: var(--font-mono);
+  color: var(--muted-foreground);
+}
+
+/* ---- Tables ---- */
+.markdown-body table {
+  border-collapse: collapse;
+}
+.markdown-body table tr {
+  background-color: transparent;
+  border-top: 1px solid var(--border);
+}
+.markdown-body table tr:nth-child(2n) {
+  background-color: color-mix(in oklch, var(--muted) 45%, transparent);
+}
+.markdown-body table th,
+.markdown-body table td {
+  border: 1px solid var(--border);
+  padding: 0.4rem 0.75rem;
+}
+.markdown-body table th {
+  background-color: color-mix(in oklch, var(--muted) 60%, transparent);
+  color: var(--foreground);
+  font-weight: 600;
+}
+
+/* ---- Lists + task lists ---- */
+.markdown-body ul {
+  list-style-type: disc;
+  padding-left: 1.5rem;
+  margin: 0.5rem 0;
+}
+.markdown-body ol {
+  list-style-type: decimal;
+  padding-left: 1.5rem;
+  margin: 0.5rem 0;
+}
+.markdown-body li {
+  margin: 0.25rem 0;
+  color: var(--foreground);
+}
+.markdown-body li::marker {
+  color: var(--primary);
+}
+.markdown-body ul ul,
+.markdown-body ol ul {
+  list-style-type: circle;
+}
+.markdown-body ul ul ul,
+.markdown-body ol ul ul {
+  list-style-type: square;
+}
+.markdown-body .task-list-item {
+  list-style-type: none;
+}
+.markdown-body .task-list-item-checkbox,
+.markdown-body input[type="checkbox"] {
+  accent-color: var(--primary);
+  margin-right: 0.5em;
+}
+
+/* ---- Definition lists ---- */
+.markdown-body dl {
+  padding: 0;
+}
+.markdown-body dl dt {
+  font-weight: 600;
+  font-style: normal;
+  color: var(--foreground);
+  padding: 0;
+  margin-top: 0.75rem;
+}
+.markdown-body dl dd {
+  color: var(--muted-foreground);
+  padding: 0 1rem;
+  margin-bottom: 0.5rem;
+}
+
+/* ---- Images ---- */
+.markdown-body img {
+  border-radius: var(--radius-md);
+  border: 1px solid var(--border);
+  background-color: var(--muted);
+  max-width: 100%;
+}
+.markdown-body img[src*="#gh-dark-mode-only"],
+.markdown-body img[src*="#gh-light-mode-only"] {
+  border: none;
+  background: transparent;
+}
+.markdown-body span.align-center,
+.markdown-body span.align-right {
+  display: block;
+  overflow: auto;
+}
+
+/* ---- Footnotes ---- */
+.markdown-body sup,
+.markdown-body .footnote-ref {
+  font-size: 0.75em;
+}
+.markdown-body .footnote-ref a,
+.markdown-body sup a {
+  text-decoration: none;
+}
+.markdown-body .footnotes {
+  color: var(--muted-foreground);
+  border-top: 1px solid var(--border);
+}
+.markdown-body .footnotes ol {
+  color: var(--muted-foreground);
+}
+
+/* ---- Alerts / callouts (GitHub-style) ---- */
+.markdown-body .markdown-alert {
+  border: 1px solid var(--border);
+  border-left: 0.25rem solid var(--primary);
+  border-radius: var(--radius-md);
+  padding: 0.6rem 1rem;
+  margin: 0.75rem 0;
+  background-color: color-mix(in oklch, var(--muted) 45%, transparent);
+}
+.markdown-body .markdown-alert-note {
+  border-left-color: var(--info);
+}
+.markdown-body .markdown-alert-tip {
+  border-left-color: var(--success);
+}
+.markdown-body .markdown-alert-important {
+  border-left-color: var(--accent);
+}
+.markdown-body .markdown-alert-warning {
+  border-left-color: var(--warning);
+}
+.markdown-body .markdown-alert-caution {
+  border-left-color: var(--error);
+}
+.markdown-body .markdown-alert-title {
+  font-weight: 600;
+  color: var(--foreground);
+  display: flex;
+  align-items: center;
+  gap: 0.4rem;
+  margin-bottom: 0.3rem;
+}
+
+/* ---- Shiki dual-theme code blocks follow app light/dark ----
+   Token colors come only from --shiki-light/--shiki-dark (emitted with
+   defaultColor:false). Background stays on the <pre> only: per-span
+   backgrounds would paint ragged blocks behind each token. */
+.shiki {
+  color: var(--shiki-light, inherit);
+  background-color: var(--shiki-light-bg, transparent);
+}
+.shiki span {
+  color: var(--shiki-light, inherit);
+}
+html.dark .shiki,
+html[data-kb-theme="dark"] .shiki {
+  color: var(--shiki-dark, inherit);
+  background-color: var(--shiki-dark-bg, transparent);
+}
+html.dark .shiki span,
+html[data-kb-theme="dark"] .shiki span {
+  color: var(--shiki-dark, inherit);
+}

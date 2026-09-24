@@ -1,6 +1,8 @@
 export const PROJECT_DETAIL_TABS = [
   "readme",
+  "canvas",
   "issues",
+  "board",
   "files",
   "tasks",
   "terminal",
@@ -175,7 +177,11 @@ function currentLocationKey(): string {
   return window.location.pathname + (window.location.search || "");
 }
 
-export function replaceUrlToProject(projectId: string, tab: string, subDetail?: string | null): void {
+export function replaceUrlToProject(
+  projectId: string,
+  tab: string,
+  subDetail?: string | null,
+): void {
   if (typeof window === "undefined") return;
   const want = buildProjectUrl(projectId, tab, subDetail);
   if (currentLocationKey() === want) return;

@@ -3,7 +3,11 @@ import { Badge } from "~/components/ui/badge";
 import { Button } from "~/components/ui/button";
 import { invoke } from "@tauri-apps/api/core";
 import { cn } from "~/lib/utils";
-import { fetchTabDecorations, getElementDecorations, decorationsVersion } from "~/lib/plugin-decorations";
+import {
+  fetchTabDecorations,
+  getElementDecorations,
+  decorationsVersion,
+} from "~/lib/plugin/plugin-decorations";
 import {
   DropdownMenu,
   DropdownMenuContent,
@@ -24,7 +28,7 @@ import {
 import { Tooltip, TooltipContent, TooltipTrigger } from "~/components/ui/tooltip";
 import { useI18n } from "~/lib/i18n-context";
 import { toast } from "solid-sonner";
-import { notify } from "~/lib/notification-center";
+import { notify } from "~/lib/notification-store";
 import { isLiveSessionState } from "~/lib/session-state";
 import { PluginIcon } from "~/components/PluginIcon";
 import { deleteProjectTask } from "~/services/tauri/tasks";
@@ -43,10 +47,7 @@ async function openUrl(url: string) {
   }
 }
 
-export function TasksTabPanel(props: {
-  project: () => ProjectDto;
-  model: ProjectDetailModel;
-}) {
+export function TasksTabPanel(props: { project: () => ProjectDto; model: ProjectDetailModel }) {
   const { t } = useI18n();
   const m = () => props.model;
 
@@ -95,7 +96,12 @@ export function TasksTabPanel(props: {
       });
     } else {
       const projectName = props.project().path.split(/[\\/]/).pop() ?? "app";
-      const label = taskLabel?.split(": ").pop()?.toLowerCase().replace(/[^a-z0-9]/g, "-") ?? "dev";
+      const label =
+        taskLabel
+          ?.split(": ")
+          .pop()
+          ?.toLowerCase()
+          .replace(/[^a-z0-9]/g, "-") ?? "dev";
       const subdomain = `${projectName}-${label}`;
       const r = await enableTunnel({
         sessionId,
@@ -122,7 +128,9 @@ export function TasksTabPanel(props: {
   const findTaskForSession = (command: string | null | undefined) => {
     if (!command) return null;
     const normalized = normalizeCommand(command);
-    return props.project().tasks.find((t) => normalizeCommand(t.argv.join(" ")) === normalized) ?? null;
+    return (
+      props.project().tasks.find((t) => normalizeCommand(t.argv.join(" ")) === normalized) ?? null
+    );
   };
 
   createEffect(() => {
@@ -159,7 +167,11 @@ export function TasksTabPanel(props: {
       <div class="flex items-center justify-between">
         <Show when={activeCount() > 0}>
           <div class="flex items-center gap-2">
-            <Badge variant="default" round class="h-5 min-w-5 px-1.5 text-[10px] font-black shadow-sm">
+            <Badge
+              variant="default"
+              round
+              class="h-5 min-w-5 px-1.5 text-[10px] font-black shadow-sm"
+            >
               {activeCount()}
             </Badge>
             <span class="text-xs font-bold uppercase tracking-wider text-muted-foreground">
@@ -170,7 +182,9 @@ export function TasksTabPanel(props: {
           </div>
         </Show>
         <div class="flex items-center gap-2">
-          <Show when={m().miseSuggestionsDismissed() && (m().miseSuggestionsQ.data?.length ?? 0) > 0}>
+          <Show
+            when={m().miseSuggestionsDismissed() && (m().miseSuggestionsQ.data?.length ?? 0) > 0}
+          >
             <Popover gutter={8}>
               <PopoverTrigger
                 as={Button}
@@ -224,7 +238,11 @@ export function TasksTabPanel(props: {
                 {t("projectDetail.taskOutputHint") as string}
               </p>
             </div>
-            <Badge variant="default" round class="h-5 min-w-5 px-1.5 text-[10px] font-black shadow-sm">
+            <Badge
+              variant="default"
+              round
+              class="h-5 min-w-5 px-1.5 text-[10px] font-black shadow-sm"
+            >
               {activeSessions().length}
             </Badge>
           </div>
@@ -235,7 +253,11 @@ export function TasksTabPanel(props: {
                   <div class="min-w-0 flex-1">
                     <div class="flex min-w-0 flex-wrap items-center gap-2">
                       <Badge
-                        variant={session.state === "running" || session.state === "starting" ? "default" : "secondary"}
+                        variant={
+                          session.state === "running" || session.state === "starting"
+                            ? "default"
+                            : "secondary"
+                        }
                         round
                         class="h-5 px-2 text-[10px] font-black uppercase tracking-wider"
                       >
@@ -252,10 +274,16 @@ export function TasksTabPanel(props: {
                     </p>
                     <Show when={m().sessionPorts()[session.id]?.length > 0}>
                       <div class="mt-1 flex flex-wrap items-center gap-1.5">
-                        <span class="text-[10px] text-muted-foreground/70">{t("projectDetail.ports") as string}:</span>
+                        <span class="text-[10px] text-muted-foreground/70">
+                          {t("projectDetail.ports") as string}:
+                        </span>
                         <For each={m().sessionPorts()[session.id]}>
                           {(port) => (
-                            <Badge variant="outline" round class="h-4 px-1.5 text-[9px] font-mono font-bold border-primary/30 text-primary/80">
+                            <Badge
+                              variant="outline"
+                              round
+                              class="h-4 px-1.5 text-[9px] font-mono font-bold border-primary/30 text-primary/80"
+                            >
                               :{port}
                             </Badge>
                           )}
@@ -264,12 +292,16 @@ export function TasksTabPanel(props: {
                           type="button"
                           class={`inline-flex h-5 items-center gap-1 rounded-full border px-2 text-[10px] font-medium transition-colors ${
                             tunnelRoutes()[session.id]
-                              ? 'border-green-500/30 bg-green-500/10 text-green-600 hover:bg-green-500/20'
-                              : 'border-border bg-muted/50 text-muted-foreground hover:border-primary/50 hover:bg-primary/5 hover:text-primary'
+                              ? "border-green-500/30 bg-green-500/10 text-green-600 hover:bg-green-500/20"
+                              : "border-border bg-muted/50 text-muted-foreground hover:border-primary/50 hover:bg-primary/5 hover:text-primary"
                           }`}
                           onClick={() => {
                             const task = findTaskForSession(session.command);
-                            void handleToggleTunnel(session.id, m().sessionPorts()[session.id]![0], task?.label);
+                            void handleToggleTunnel(
+                              session.id,
+                              m().sessionPorts()[session.id]![0],
+                              task?.label,
+                            );
                           }}
                         >
                           {tunnelRoutes()[session.id]
@@ -290,12 +322,18 @@ export function TasksTabPanel(props: {
                   </div>
                   <div class="flex items-center gap-1">
                     <Tooltip>
-                      <TooltipTrigger as={Button}
+                      <TooltipTrigger
+                        as={Button}
                         type="button"
                         size="icon"
                         variant="ghost"
                         class="size-7 text-muted-foreground hover:text-foreground hover:bg-background/50"
-                        onClick={() => m().attachToTask(session.id, session.command ?? (t("projectDetail.tabTerminal") as string))}
+                        onClick={() =>
+                          m().attachToTask(
+                            session.id,
+                            session.command ?? (t("projectDetail.tabTerminal") as string),
+                          )
+                        }
                       >
                         <span class="iconify mdi--terminal size-4" />
                       </TooltipTrigger>
@@ -304,21 +342,33 @@ export function TasksTabPanel(props: {
                     <Show when={findTaskForSession(session.command)}>
                       {(task) => (
                         <Tooltip>
-                          <TooltipTrigger as={Button}
+                          <TooltipTrigger
+                            as={Button}
                             type="button"
                             size="icon"
                             variant="ghost"
                             class="size-7 text-muted-foreground hover:text-orange-500 hover:bg-orange-500/5"
-                            onClick={() => void m().restartArgv(props.project(), task().argv, task().cwd, task().concurrent, session.id)}
+                            onClick={() =>
+                              void m().restartArgv(
+                                props.project(),
+                                task().argv,
+                                task().cwd,
+                                task().concurrent,
+                                session.id,
+                              )
+                            }
                           >
                             <span class="iconify mdi--refresh size-4" />
                           </TooltipTrigger>
-                          <TooltipContent>{t("projectDetail.taskRestart") as string}</TooltipContent>
+                          <TooltipContent>
+                            {t("projectDetail.taskRestart") as string}
+                          </TooltipContent>
                         </Tooltip>
                       )}
                     </Show>
                     <Tooltip>
-                      <TooltipTrigger as={Button}
+                      <TooltipTrigger
+                        as={Button}
                         type="button"
                         size="icon"
                         variant="ghost"
@@ -356,7 +406,13 @@ export function TasksTabPanel(props: {
                     const handleRun = async () => {
                       setRunningTaskKey(taskKey);
                       try {
-                        await m().runArgv(props.project(), task.argv, false, task.cwd, task.concurrent);
+                        await m().runArgv(
+                          props.project(),
+                          task.argv,
+                          false,
+                          task.cwd,
+                          task.concurrent,
+                        );
                       } finally {
                         setRunningTaskKey((current) => (current === taskKey ? null : current));
                       }
@@ -378,7 +434,10 @@ export function TasksTabPanel(props: {
                                       void invoke("execute_plugin_command", {
                                         pluginId: dec.pluginId,
                                         commandId: dec.command,
-                                        context: { projectId: props.project().id, elementId: task.originalLabel }
+                                        context: {
+                                          projectId: props.project().id,
+                                          elementId: task.originalLabel,
+                                        },
                                       });
                                     }
                                   }}
@@ -394,25 +453,40 @@ export function TasksTabPanel(props: {
                         <Button
                           type="button"
                           size="sm"
-                          variant={name === (t("projectDetail.taskGroupRoot") as string) ? "default" : "secondary"}
+                          variant={
+                            name === (t("projectDetail.taskGroupRoot") as string)
+                              ? "default"
+                              : "secondary"
+                          }
                           class="h-7 gap-1.5 px-3 transition-all"
                           disabled={busy()}
                           onClick={handleRun}
                         >
-                          <Show when={busy()} fallback={<span class="iconify mdi--play size-3.5 opacity-50" />}>
+                          <Show
+                            when={busy()}
+                            fallback={<span class="iconify mdi--play size-3.5 opacity-50" />}
+                          >
                             <span class="iconify mdi--loading animate-spin size-3.5" />
                           </Show>
                           <span class="font-bold tracking-tight">{task.label}</span>
                         </Button>
 
                         <Show when={task.kind === "mise" || task.kind === "justfile"}>
-                          <Badge variant="outline" round class="h-5 px-1.5 text-[9px] font-black uppercase tracking-wider border-primary/30 text-primary/70">
+                          <Badge
+                            variant="outline"
+                            round
+                            class="h-5 px-1.5 text-[9px] font-black uppercase tracking-wider border-primary/30 text-primary/70"
+                          >
                             {task.kind === "mise" ? "mise" : "just"}
                           </Badge>
                         </Show>
 
                         <Show when={task.concurrent && task.concurrent.length > 0}>
-                          <Badge variant="outline" round class="h-5 px-1.5 text-[9px] font-black uppercase tracking-wider border-orange-400/30 text-orange-500/80">
+                          <Badge
+                            variant="outline"
+                            round
+                            class="h-5 px-1.5 text-[9px] font-black uppercase tracking-wider border-orange-400/30 text-orange-500/80"
+                          >
                             concurrent
                           </Badge>
                         </Show>
@@ -422,15 +496,23 @@ export function TasksTabPanel(props: {
                           {(dec) => (
                             <Tooltip>
                               <TooltipTrigger>
-                                <Badge 
-                                  class={cn("h-4 px-1 text-[8px] font-bold cursor-pointer ml-1", dec.color?.startsWith("bg-") ? dec.color : "bg-primary/10 text-primary border-primary/20")}
+                                <Badge
+                                  class={cn(
+                                    "h-4 px-1 text-[8px] font-bold cursor-pointer ml-1",
+                                    dec.color?.startsWith("bg-")
+                                      ? dec.color
+                                      : "bg-primary/10 text-primary border-primary/20",
+                                  )}
                                   onClick={(e) => {
                                     e.stopPropagation();
                                     if (dec.command) {
                                       void invoke("execute_plugin_command", {
                                         pluginId: dec.pluginId,
                                         commandId: dec.command,
-                                        context: { projectId: props.project().id, elementId: task.originalLabel }
+                                        context: {
+                                          projectId: props.project().id,
+                                          elementId: task.originalLabel,
+                                        },
                                       });
                                     }
                                   }}
@@ -503,7 +585,10 @@ export function TasksTabPanel(props: {
         }}
       />
 
-      <AlertDialog open={deletingTask() != null} onOpenChange={(open) => !open && setDeletingTask(null)}>
+      <AlertDialog
+        open={deletingTask() != null}
+        onOpenChange={(open) => !open && setDeletingTask(null)}
+      >
         <AlertDialogContent>
           <AlertDialogHeader>
             <AlertDialogTitle>{t("projectDetail.deleteTask") as string}</AlertDialogTitle>

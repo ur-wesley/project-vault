@@ -61,9 +61,10 @@ export function CleanProjectDialog(props: {
       console.log("[CleanProjectDialog] state updated, entries:", result.entries.length);
     } catch (err: unknown) {
       console.error("[CleanProjectDialog] cleanPreview error:", err);
-      const msg = err && typeof err === "object" && "message" in err
-        ? (err as { message: string }).message
-        : String(err);
+      const msg =
+        err && typeof err === "object" && "message" in err
+          ? (err as { message: string }).message
+          : String(err);
       setCleanError(msg);
     }
   };
@@ -89,9 +90,7 @@ export function CleanProjectDialog(props: {
     >
       <AlertDialogContent class="sm:max-w-lg">
         <AlertDialogHeader>
-          <AlertDialogTitle>
-            {t("projectDetail.cleanProjectTitle") as string}
-          </AlertDialogTitle>
+          <AlertDialogTitle>{t("projectDetail.cleanProjectTitle") as string}</AlertDialogTitle>
           <AlertDialogDescription>
             {t("projectDetail.cleanProjectDescription") as string}
           </AlertDialogDescription>
@@ -141,9 +140,11 @@ export function CleanProjectDialog(props: {
                                 onChange={(checked) => {
                                   setCleanSelected((prev) => {
                                     const next = new Set(prev);
-                                    checked
-                                      ? next.add(entry.path)
-                                      : next.delete(entry.path);
+                                    if (checked) {
+                                      next.add(entry.path);
+                                    } else {
+                                      next.delete(entry.path);
+                                    }
                                     return next;
                                   });
                                 }}
@@ -156,9 +157,7 @@ export function CleanProjectDialog(props: {
                                     : "mdi--file text-muted-foreground",
                                 )}
                               />
-                              <span class="truncate font-mono text-xs">
-                                {entry.path}
-                              </span>
+                              <span class="truncate font-mono text-xs">{entry.path}</span>
                             </div>
                             <span class="shrink-0 font-mono text-[10px] text-muted-foreground">
                               {formatBytes(entry.sizeBytes)}
@@ -195,15 +194,17 @@ export function CleanProjectDialog(props: {
                   : (t("common.selectAll") as string)}
               </Button>
               <span>
-                {t("projectDetail.cleanTotal", {
-                  count: cleanSelected().size,
-                }) as string}
+                {
+                  t("projectDetail.cleanTotal", {
+                    count: cleanSelected().size,
+                  }) as string
+                }
               </span>
             </div>
             <span class="font-mono">
               {formatBytes(
-                cleanPreview()!.entries
-                  .filter((e) => cleanSelected().has(e.path))
+                cleanPreview()!
+                  .entries.filter((e) => cleanSelected().has(e.path))
                   .reduce((sum, e) => sum + e.sizeBytes, 0),
               )}
             </span>
@@ -216,10 +217,7 @@ export function CleanProjectDialog(props: {
               checked={cleanResetTracked()}
               onChange={setCleanResetTracked}
             />
-            <label
-              for="clean-reset-tracked"
-              class="cursor-pointer text-xs text-muted-foreground"
-            >
+            <label for="clean-reset-tracked" class="cursor-pointer text-xs text-muted-foreground">
               {t("projectDetail.cleanResetTracked") as string}
             </label>
           </div>
@@ -239,10 +237,7 @@ export function CleanProjectDialog(props: {
               });
             }}
           >
-            <Show
-              when={m().isCleaning()}
-              fallback={<span class="iconify mdi--broom size-3.5" />}
-            >
+            <Show when={m().isCleaning()} fallback={<span class="iconify mdi--broom size-3.5" />}>
               <span class="iconify mdi--loading animate-spin size-3.5" />
             </Show>
             {t("projectDetail.cleanConfirm") as string}

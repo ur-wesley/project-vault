@@ -24,6 +24,7 @@ export const SettingsSearch: Component<SettingsSearchProps> = (props) => {
   const [query, setQuery] = createSignal("");
   const [activeIndex, setActiveIndex] = createSignal(0);
   const [dropdownOpen, setDropdownOpen] = createSignal(false);
+  // eslint-disable-next-line no-unassigned-vars -- Solid ref pattern
   let rootRef: HTMLDivElement | undefined;
 
   const results = createMemo(() => filterSettings(query(), props.t));

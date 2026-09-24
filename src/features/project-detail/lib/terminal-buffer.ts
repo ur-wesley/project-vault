@@ -32,6 +32,7 @@ export function hasTerminalContent(sessionId: string): boolean {
     return false;
   }
   // Match ANSI escape sequences
+  // eslint-disable-next-line no-control-regex -- intentional ANSI escape matching
   const ansiRegex = /[\u001b\u009b][[()#;?]*(?:[0-9]{1,4}(?:;[0-9]{0,4})*)?[0-9A-ORZcf-nqry=><]/g;
   for (const chunk of buf) {
     try {
@@ -39,6 +40,7 @@ export function hasTerminalContent(sessionId: string): boolean {
       // Remove ANSI escape sequences
       let clean = decoded.replace(ansiRegex, "");
       // Remove control characters (\x00-\x1F, \x7F-\x9F)
+      // eslint-disable-next-line no-control-regex -- intentional control-char stripping
       clean = clean.replace(/[\x00-\x1F\x7F-\x9F]/g, "");
       // Trim whitespace
       clean = clean.trim();
@@ -51,4 +53,3 @@ export function hasTerminalContent(sessionId: string): boolean {
   }
   return false;
 }
-

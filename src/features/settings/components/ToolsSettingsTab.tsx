@@ -19,19 +19,32 @@ export type ToolsSettingsTabProps = Readonly<{
   setShellPath: (v: string) => void;
 }>;
 
-type IdeOption = { value: string; label: string; textValue: string; icon?: string | null; iconData?: string | null };
+type IdeOption = {
+  value: string;
+  label: string;
+  textValue: string;
+  icon?: string | null;
+  iconData?: string | null;
+};
 type ShellOption = { value: string; label: string; textValue: string; icon?: string | null };
 
 const SHELL_ICON_MAP: Record<string, string> = {
-  "powershell": "mdi--powershell",
-  "pwsh": "mdi--powershell",
-  "cmd": "mdi--console",
-  "nu": "mdi--nix",
-  "bash": "mdi--bash",
-  "zsh": "mdi--bash",
-  "fish": "mdi--fish",
-  "sh": "mdi--console-line",
+  powershell: "mdi--powershell",
+  pwsh: "mdi--powershell",
+  cmd: "mdi--console",
+  nu: "mdi--nix",
+  bash: "mdi--bash",
+  zsh: "mdi--bash",
+  fish: "mdi--fish",
+  sh: "mdi--console-line",
 };
+
+function getToolIconId(toolId: string): string {
+  if (toolId === "mise") return "mdi--cube-outline";
+  if (toolId === "git") return "mdi--git";
+  if (toolId === "portless") return "mdi--lan";
+  return "mdi--file-document-edit-outline";
+}
 
 export const ToolsSettingsTab: Component<ToolsSettingsTabProps> = (props) => {
   const ideOptions = createMemo((): IdeOption[] => {
@@ -46,7 +59,9 @@ export const ToolsSettingsTab: Component<ToolsSettingsTabProps> = (props) => {
     }));
   });
 
-  const selectedIde = createMemo(() => ideOptions().find((o) => o.value === props.defaultIde) ?? null);
+  const selectedIde = createMemo(
+    () => ideOptions().find((o) => o.value === props.defaultIde) ?? null,
+  );
 
   const shellOptions = createMemo((): ShellOption[] => {
     const data = props.shellsQ.data;
@@ -67,10 +82,10 @@ export const ToolsSettingsTab: Component<ToolsSettingsTabProps> = (props) => {
     <TabsContent value="tools" class="space-y-8 outline-none animate-in fade-in duration-300">
       <section id={settingElementId("tools-external-apps")} class="space-y-4">
         <div class="space-y-1">
-          <h3 class="text-sm font-bold uppercase tracking-wider text-primary/80">{props.t("settings.externalAppsTitle")}</h3>
-          <p class="text-xs text-muted-foreground">
-            {props.t("settings.externalAppsDescription")}
-          </p>
+          <h3 class="text-sm font-bold uppercase tracking-wider text-primary/80">
+            {props.t("settings.externalAppsTitle")}
+          </h3>
+          <p class="text-xs text-muted-foreground">{props.t("settings.externalAppsDescription")}</p>
         </div>
         <div class="grid gap-6">
           <div id={settingElementId("tools-default-ide")} class="grid gap-2">
@@ -87,17 +102,17 @@ export const ToolsSettingsTab: Component<ToolsSettingsTabProps> = (props) => {
               itemComponent={(p) => (
                 <Select.Item item={p.item}>
                   <div class="flex items-center gap-2">
-                      <Show
-                        when={p.item.rawValue.iconData}
-                        fallback={
-                          <Show when={p.item.rawValue.icon}>
-                            <span class={cn("iconify shrink-0 size-4", p.item.rawValue.icon!)} />
-                          </Show>
-                        }
-                      >
-                        {(src) => <img src={src()} alt="" class="size-4 shrink-0 object-contain" />}
-                      </Show>
-                      <Select.ItemLabel>{p.item.rawValue.label}</Select.ItemLabel>
+                    <Show
+                      when={p.item.rawValue.iconData}
+                      fallback={
+                        <Show when={p.item.rawValue.icon}>
+                          <span class={cn("iconify shrink-0 size-4", p.item.rawValue.icon!)} />
+                        </Show>
+                      }
+                    >
+                      {(src) => <img src={src()} alt="" class="size-4 shrink-0 object-contain" />}
+                    </Show>
+                    <Select.ItemLabel>{p.item.rawValue.label}</Select.ItemLabel>
                   </div>
                 </Select.Item>
               )}
@@ -125,7 +140,7 @@ export const ToolsSettingsTab: Component<ToolsSettingsTabProps> = (props) => {
                 <span class="iconify mdi--chevron-down h-4 w-4 opacity-50" />
               </Select.Trigger>
               <Select.Content>
-                  <Select.Listbox />
+                <Select.Listbox />
               </Select.Content>
             </Select>
           </div>
@@ -144,10 +159,10 @@ export const ToolsSettingsTab: Component<ToolsSettingsTabProps> = (props) => {
               itemComponent={(p) => (
                 <Select.Item item={p.item}>
                   <div class="flex items-center gap-2">
-                      <Show when={p.item.rawValue.icon}>
-                          <span class={cn("iconify shrink-0 size-4", p.item.rawValue.icon!)} />
-                      </Show>
-                      <Select.ItemLabel>{p.item.rawValue.label}</Select.ItemLabel>
+                    <Show when={p.item.rawValue.icon}>
+                      <span class={cn("iconify shrink-0 size-4", p.item.rawValue.icon!)} />
+                    </Show>
+                    <Select.ItemLabel>{p.item.rawValue.label}</Select.ItemLabel>
                   </div>
                 </Select.Item>
               )}
@@ -155,20 +170,20 @@ export const ToolsSettingsTab: Component<ToolsSettingsTabProps> = (props) => {
               <Select.Trigger class="bg-muted/30 h-10">
                 <Select.Value<ShellOption>>
                   {(s) => (
-                      <div class="flex items-center gap-2 truncate">
-                          <Show when={s.selectedOption()?.icon}>
-                              {(icon) => <span class={cn("iconify shrink-0 size-4", icon())} />}
-                          </Show>
-                          <span class="truncate">
-                              {s.selectedOption()?.label ?? props.t("settings.defaultShellPlaceholder")}
-                          </span>
-                      </div>
+                    <div class="flex items-center gap-2 truncate">
+                      <Show when={s.selectedOption()?.icon}>
+                        {(icon) => <span class={cn("iconify shrink-0 size-4", icon())} />}
+                      </Show>
+                      <span class="truncate">
+                        {s.selectedOption()?.label ?? props.t("settings.defaultShellPlaceholder")}
+                      </span>
+                    </div>
                   )}
                 </Select.Value>
                 <span class="iconify mdi--chevron-down h-4 w-4 opacity-50" />
               </Select.Trigger>
               <Select.Content>
-                  <Select.Listbox />
+                <Select.Listbox />
               </Select.Content>
             </Select>
           </div>
@@ -196,10 +211,10 @@ export const ToolsSettingsTab: Component<ToolsSettingsTabProps> = (props) => {
 
       <section id={settingElementId("tools-system-tools")} class="space-y-4">
         <div class="space-y-1">
-          <h3 class="text-sm font-bold uppercase tracking-wider text-primary/80">{props.t("settings.systemToolsTitle")}</h3>
-          <p class="text-xs text-muted-foreground">
-            {props.t("settings.systemToolsDescription")}
-          </p>
+          <h3 class="text-sm font-bold uppercase tracking-wider text-primary/80">
+            {props.t("settings.systemToolsTitle")}
+          </h3>
+          <p class="text-xs text-muted-foreground">{props.t("settings.systemToolsDescription")}</p>
         </div>
         <Show when={props.toolsQ.isLoading}>
           <p class="text-xs text-muted-foreground">{props.t("settings.systemToolsScanning")}</p>
@@ -208,18 +223,20 @@ export const ToolsSettingsTab: Component<ToolsSettingsTabProps> = (props) => {
           <div class="grid gap-2">
             <For each={props.toolsQ.data}>
               {(tool) => (
-                <div class={cn(
-                  "flex items-center gap-3 rounded-md border px-3 py-2",
-                  tool.available
-                    ? "border-border/40 bg-muted/20"
-                    : "border-border/20 bg-muted/5 opacity-60"
-                )}>
-                  <span class={cn("iconify shrink-0 size-5",
-                    tool.id === "mise" ? "mdi--cube-outline" :
-                    tool.id === "git" ? "mdi--git" :
-                    tool.id === "portless" ? "mdi--lan" :
-                    "mdi--file-document-edit-outline"
-                  )} />
+                <div
+                  class={cn(
+                    "flex items-center gap-3 rounded-md border px-3 py-2",
+                    tool.available
+                      ? "border-border/40 bg-muted/20"
+                      : "border-border/20 bg-muted/5 opacity-60",
+                  )}
+                >
+                  <span
+                    class={cn(
+                      "iconify shrink-0 size-5",
+                      getToolIconId(tool.id),
+                    )}
+                  />
                   <div class="min-w-0 flex-1">
                     <p class="text-xs font-bold truncate">{tool.label}</p>
                     <p class="text-[10px] text-muted-foreground font-mono truncate">
@@ -227,10 +244,14 @@ export const ToolsSettingsTab: Component<ToolsSettingsTabProps> = (props) => {
                     </p>
                   </div>
                   <Show when={tool.available && tool.version}>
-                    <span class="text-[10px] text-muted-foreground bg-muted/50 px-1.5 py-0.5 rounded">{tool.version}</span>
+                    <span class="text-[10px] text-muted-foreground bg-muted/50 px-1.5 py-0.5 rounded">
+                      {tool.version}
+                    </span>
                   </Show>
                   <Show when={!tool.available}>
-                    <span class="text-[10px] text-destructive/80 bg-destructive/10 px-1.5 py-0.5 rounded">{props.t("settings.systemToolsNotDetected")}</span>
+                    <span class="text-[10px] text-destructive/80 bg-destructive/10 px-1.5 py-0.5 rounded">
+                      {props.t("settings.systemToolsNotDetected")}
+                    </span>
                   </Show>
                 </div>
               )}

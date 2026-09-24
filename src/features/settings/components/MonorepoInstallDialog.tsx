@@ -222,12 +222,7 @@ export const MonorepoInstallDialog: Component<{
               </div>
 
               <DialogFooter>
-                <Button
-                  variant="ghost"
-                  size="sm"
-                  onClick={props.onCancel}
-                  disabled={props.busy}
-                >
+                <Button variant="ghost" size="sm" onClick={props.onCancel} disabled={props.busy}>
                   {props.t("common.cancel")}
                 </Button>
                 <Button

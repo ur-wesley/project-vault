@@ -1,4 +1,5 @@
 /* @refresh reload */
+import { invoke } from "@tauri-apps/api/core";
 import { listen } from "@tauri-apps/api/event";
 import { QueryClient, QueryClientProvider } from "@tanstack/solid-query";
 import { onCleanup, onMount, type ParentComponent } from "solid-js";
@@ -9,10 +10,10 @@ import { I18nProvider } from "./lib/i18n-context";
 import { ShortcutProvider } from "./lib/shortcut-context";
 import { useRealtimeProjects } from "./lib/use-realtime-projects";
 import { LivePlaytimeProvider } from "./lib/live-playtime-context";
-import { NotificationCenterProvider } from "./lib/notification-center";
+import { NotificationCenterProvider } from "./lib/notification-store";
 import { PluginUpdatesNotificationHost } from "./components/PluginUpdatesNotificationHost";
 import { PluginDiscoveriesHost } from "./components/PluginDiscoveriesHost";
-import { getPluginLogStore } from "./lib/plugin-log-store";
+import { getPluginLogStore, type BackendPluginLog } from "./lib/plugin/plugin-log-store";
 import { queryKeys } from "./services/query-keys";
 
 const queryClient = new QueryClient({
@@ -44,9 +45,18 @@ const Root: ParentComponent = (props) => {
       void queryClient.invalidateQueries({ queryKey: queryKeys.projects });
     }).then((fn) => unlistens.push(fn));
 
-    void listen<{ pluginId: string; level: "info" | "error"; message: string }>("plugin:log", (event) => {
+    // Subscribe first so nothing emitted after this point is lost, then
+    // backfill everything buffered before subscription (startup logs) and
+    // from before a frontend reload. Hydrate merges, so no duplicates.
+    void listen<BackendPluginLog>("plugin:log", (event) => {
       getPluginLogStore().append(event.payload);
     }).then((fn) => unlistens.push(fn));
+
+    void invoke<BackendPluginLog[]>("get_plugin_logs")
+      .then((entries) => getPluginLogStore().hydrate(entries))
+      .catch(() => {
+        // Web dev without the Tauri backend — console just stays live-only.
+      });
 
     onCleanup(() => {
       for (const fn of unlistens) fn();

@@ -19,6 +19,13 @@ import { getSetting, setSetting } from "~/services/tauri/settings";
 
 export type NotificationSeverity = "info" | "success" | "warning" | "error";
 
+function mapLevelToSeverity(level: string): NotificationSeverity {
+  if (level === "success") return "success";
+  if (level === "error") return "error";
+  if (level === "warn") return "warning";
+  return "info";
+}
+
 export type NotificationAction = {
   id: string;
   label: string;
@@ -184,15 +191,15 @@ export const NotificationCenterProvider: ParentComponent = (props) => {
       return;
     }
     void sendOsNotification(item.title, item.body);
-    setItems((prev) =>
-      prev.map((p) => (p.id === item.id ? { ...p, systemSent: true } : p)),
-    );
+    setItems((prev) => prev.map((p) => (p.id === item.id ? { ...p, systemSent: true } : p)));
   };
 
   const notify: NotificationCenterApi["notify"] = (opts) => {
     const id = opts.id ?? randomId();
     const existing = items().find((i) => i.id === id);
-    const next = existing ? { ...existing, ...newItem(id, opts), read: existing.read } : newItem(id, opts);
+    const next = existing
+      ? { ...existing, ...newItem(id, opts), read: existing.read }
+      : newItem(id, opts);
 
     if (opts.persist === true) {
       setItems((prev) => {
@@ -283,11 +290,7 @@ export const NotificationCenterProvider: ParentComponent = (props) => {
 
     void listen<{ level: string; message: string }>("plugin:notification", (event) => {
       const { level, message } = event.payload;
-      const severity = (
-        level === "success" ? "success" :
-        level === "error" ? "error" :
-        level === "warn" ? "warning" : "info"
-      ) as NotificationSeverity;
+      const severity = mapLevelToSeverity(level);
       notify({
         severity,
         title: message,
@@ -308,11 +311,7 @@ export const NotificationCenterProvider: ParentComponent = (props) => {
       persist?: boolean;
     }>("plugin:notification-rich", (event) => {
       const { pluginId, severity, title, message, source, actions, persist } = event.payload;
-      const sev = (
-        severity === "success" ? "success" :
-        severity === "error" ? "error" :
-        severity === "warn" ? "warning" : "info"
-      ) as NotificationSeverity;
+      const sev = mapLevelToSeverity(severity);
       notify({
         id: `plugin:${pluginId}:${title}:${Date.now()}`,
         severity: sev,
@@ -355,9 +354,7 @@ export const NotificationCenterProvider: ParentComponent = (props) => {
   });
 
   return (
-    <NotificationCenterCtx.Provider value={api}>
-      {props.children}
-    </NotificationCenterCtx.Provider>
+    <NotificationCenterCtx.Provider value={api}>{props.children}</NotificationCenterCtx.Provider>
   );
 };
 
@@ -371,7 +368,10 @@ export function useNotificationCenter(): NotificationCenterApi {
  * Dispatch a plugin action command captured by a notification item.
  * Looks like `plugin:<pluginId>:<commandId>`. Returns true if dispatched.
  */
-export async function runNotificationActionCommand(command: string, projectId?: string | null): Promise<boolean> {
+export async function runNotificationActionCommand(
+  command: string,
+  projectId?: string | null,
+): Promise<boolean> {
   if (!command.startsWith("plugin:")) return false;
   const rest = command.slice("plugin:".length);
   const idx = rest.indexOf(":");

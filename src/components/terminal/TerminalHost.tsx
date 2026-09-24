@@ -117,6 +117,8 @@ export function TerminalHost(props: {
   onError: (msg: string | null) => void;
   onProcessExit?: (id: string, hasContent: boolean) => void;
   onCommandEntered?: (id: string, command: string) => void;
+  /** When false, the terminal never grabs keyboard focus on mount/activation. Defaults to true. */
+  autoFocus?: boolean;
 }) {
   const active = createMemo(() => props.isActivePane && props.activeId() === props.instance.id);
   const hub = useEventHub();
@@ -144,6 +146,7 @@ export function TerminalHost(props: {
     if (!active() || !terminalReady()) return;
     const currentTerm = term;
     if (!currentTerm) return;
+    const noAutoFocus = props.autoFocus === false;
 
     let raf = 0;
     let timer = 0;
@@ -152,7 +155,7 @@ export function TerminalHost(props: {
       timer = window.setTimeout(() => {
         if (!active() || !currentTerm.element) return;
         if (currentTerm.element.offsetParent !== null) {
-          currentTerm.focus();
+          if (!noAutoFocus) currentTerm.focus();
           repaintTerminal(currentTerm, fit, doResize);
         }
       }, 150);
@@ -166,6 +169,7 @@ export function TerminalHost(props: {
 
   createEffect(() => {
     const unsubFocus = hub.on("terminal:focus", () => {
+      if (props.autoFocus === false) return;
       if (!active() || !terminalReady()) return;
       const currentTerm = term;
       if (!currentTerm?.element) return;
@@ -323,7 +327,9 @@ export function TerminalHost(props: {
           props.onProcessExit?.(instanceId, false);
           return;
         }
-        term.writeln("\r\n\x1b[90m" + (t("projectDetail.terminalProcessExited") as string) + "\x1b[0m");
+        term.writeln(
+          "\r\n\x1b[90m" + (t("projectDetail.terminalProcessExited") as string) + "\x1b[0m",
+        );
       });
 
       unData = await unDataPromise;
@@ -355,9 +361,15 @@ export function TerminalHost(props: {
             term = null;
             return;
           }
-          term.writeln("\r\n\x1b[90m" + (t("projectDetail.terminalProcessExited") as string) + "\x1b[0m");
+          term.writeln(
+            "\r\n\x1b[90m" + (t("projectDetail.terminalProcessExited") as string) + "\x1b[0m",
+          );
           setTerminalReady(true);
-          detachWindowRepaint = attachTerminalWindowRepaint(() => term, () => fit, doResize);
+          detachWindowRepaint = attachTerminalWindowRepaint(
+            () => term,
+            () => fit,
+            doResize,
+          );
           return;
         }
       }
@@ -402,7 +414,9 @@ export function TerminalHost(props: {
           props.onProcessExit?.(instanceId, false);
           return;
         }
-        term?.writeln("\r\n\x1b[90m" + (t("projectDetail.terminalProcessExited") as string) + "\x1b[0m");
+        term?.writeln(
+          "\r\n\x1b[90m" + (t("projectDetail.terminalProcessExited") as string) + "\x1b[0m",
+        );
       }
 
       term.onData((data) => {
@@ -414,7 +428,11 @@ export function TerminalHost(props: {
       });
 
       doResize();
-      detachWindowRepaint = attachTerminalWindowRepaint(() => term, () => fit, doResize);
+      detachWindowRepaint = attachTerminalWindowRepaint(
+        () => term,
+        () => fit,
+        doResize,
+      );
 
       ro = new ResizeObserver(() => {
         window.clearTimeout(resizeT);
@@ -438,7 +456,8 @@ export function TerminalHost(props: {
       unData?.();
       unExit?.();
       linkProvider?.dispose();
-      if (cleanupOnKeyDown) node.removeEventListener("keydown", cleanupOnKeyDown, { capture: true });
+      if (cleanupOnKeyDown)
+        node.removeEventListener("keydown", cleanupOnKeyDown, { capture: true });
       term?.dispose();
       term = null;
       fit = null;
@@ -449,10 +468,7 @@ export function TerminalHost(props: {
   return (
     <div
       ref={setContainer}
-      class={cn(
-        "flex-1 min-h-0 outline-none",
-        active() ? "block" : "hidden",
-      )}
+      class={cn("flex-1 min-h-0 outline-none", active() ? "block" : "hidden")}
     />
   );
 }

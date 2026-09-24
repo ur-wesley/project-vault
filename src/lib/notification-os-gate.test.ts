@@ -45,14 +45,10 @@ describe("shouldSendOsNotification", () => {
   });
 
   it("blocks never regardless of other flags", () => {
-    expect(
-      shouldSendOsNotification({ ...baseItem, system: "never" }, baseCtx),
-    ).toBe(false);
+    expect(shouldSendOsNotification({ ...baseItem, system: "never" }, baseCtx)).toBe(false);
   });
 
   it("blocks when already sent", () => {
-    expect(
-      shouldSendOsNotification({ ...baseItem, systemSent: true }, baseCtx),
-    ).toBe(false);
+    expect(shouldSendOsNotification({ ...baseItem, systemSent: true }, baseCtx)).toBe(false);
   });
 });

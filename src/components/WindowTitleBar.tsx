@@ -9,9 +9,15 @@ import { SidebarTrigger } from "~/components/ui/sidebar";
 import { Tooltip, TooltipContent, TooltipTrigger } from "~/components/ui/tooltip";
 import { useI18n } from "~/lib/i18n-context";
 import { cn } from "~/lib/utils";
+import { ProjectTabsBar, type PinnedTabProject } from "~/components/ProjectTabsBar";
 
 type WindowTitleBarProps = Readonly<{
   title: Accessor<string>;
+  showTabs?: boolean;
+  tabs?: PinnedTabProject[];
+  activeTabId?: string | null;
+  onSelectTab?: (id: string) => void;
+  onUnpinTab?: (id: string) => void;
 }>;
 
 function isMacOSPlatform(): boolean {
@@ -32,9 +38,9 @@ const MacWindowDots: Component<{
           type="button"
           class="h-3 w-3 shrink-0 rounded-full bg-[#ff5f57] opacity-90 transition-opacity hover:opacity-100"
           onClick={props.onClose}
-          aria-label={t('window.close') as string}
+          aria-label={t("window.close") as string}
         />
-        <TooltipContent>{t('window.close') as string}</TooltipContent>
+        <TooltipContent>{t("window.close") as string}</TooltipContent>
       </Tooltip>
       <Tooltip>
         <TooltipTrigger
@@ -42,9 +48,9 @@ const MacWindowDots: Component<{
           type="button"
           class="h-3 w-3 shrink-0 rounded-full bg-[#ffbd2e] opacity-90 transition-opacity hover:opacity-100"
           onClick={props.onMinimize}
-          aria-label={t('window.minimize') as string}
+          aria-label={t("window.minimize") as string}
         />
-        <TooltipContent>{t('window.minimize') as string}</TooltipContent>
+        <TooltipContent>{t("window.minimize") as string}</TooltipContent>
       </Tooltip>
       <Tooltip>
         <TooltipTrigger
@@ -52,9 +58,9 @@ const MacWindowDots: Component<{
           type="button"
           class="h-3 w-3 shrink-0 rounded-full bg-[#28c840] opacity-90 transition-opacity hover:opacity-100"
           onClick={props.onMaximize}
-          aria-label={t('window.zoom') as string}
+          aria-label={t("window.zoom") as string}
         />
-        <TooltipContent>{t('window.zoom') as string}</TooltipContent>
+        <TooltipContent>{t("window.zoom") as string}</TooltipContent>
       </Tooltip>
     </div>
   );
@@ -77,7 +83,7 @@ const WinWindowControls: Component<{
         variant="ghost"
         class="h-full rounded-none px-2.5 text-muted-foreground hover:bg-muted/80"
         onClick={props.onMinimize}
-        aria-label={t('window.minimize') as string}
+        aria-label={t("window.minimize") as string}
       >
         <span class="iconify mdi--window-minimize h-3.5 w-3.5" aria-hidden="true" />
       </Button>
@@ -86,7 +92,9 @@ const WinWindowControls: Component<{
         variant="ghost"
         class="h-full rounded-none px-2.5 text-muted-foreground hover:bg-muted/80"
         onClick={props.onMaximize}
-        aria-label={props.maximized ? (t('window.restore') as string) : (t('window.maximize') as string)}
+        aria-label={
+          props.maximized ? (t("window.restore") as string) : (t("window.maximize") as string)
+        }
       >
         <span
           class={
@@ -102,7 +110,7 @@ const WinWindowControls: Component<{
         variant="ghost"
         class="h-full rounded-none px-2.5 text-muted-foreground hover:bg-destructive/20 hover:text-destructive"
         onClick={props.onClose}
-        aria-label={t('window.close') as string}
+        aria-label={t("window.close") as string}
       >
         <span class="iconify mdi--close h-3.5 w-3.5" aria-hidden="true" />
       </Button>
@@ -149,41 +157,61 @@ export const WindowTitleBar: Component<WindowTitleBarProps> = (props) => {
     <header
       data-tauri-drag-region
       class={cn(
-        "flex h-9 min-h-9 w-full shrink-0 select-none items-stretch border-b border-border bg-background/95 backdrop-blur supports-[backdrop-filter]:bg-background/80 fixed top-0 left-0 right-0 z-50",
-        isTauri() && isMac() ? "pt-1" : "pt-0.5",
+        "flex w-full shrink-0 select-none flex-col border-b border-border bg-background/95 backdrop-blur supports-[backdrop-filter]:bg-background/80 fixed top-0 left-0 right-0 z-50",
       )}
     >
-      <Show when={isTauri() && isMac()}>
-        <MacWindowDots onClose={close} onMinimize={minimize} onMaximize={toggleMax} />
-      </Show>
       <div
-        class="flex h-full min-h-0 shrink-0 items-center gap-0.5 px-0.5"
-        data-tauri-drag-region="false"
-      >
-        <SidebarTrigger class="size-7 shrink-0" />
-        <Separator orientation="vertical" class="h-4" />
-      </div>
-      <div
-        class="flex min-h-0 min-w-0 flex-1 items-center self-stretch justify-center overflow-hidden px-2"
         data-tauri-drag-region
+        class={cn(
+          "flex h-9 min-h-9 w-full shrink-0 items-stretch",
+          isTauri() && isMac() ? "pt-1" : "pt-0.5",
+        )}
       >
-        <span
-          data-tauri-drag-region
-          class="w-full min-w-0 max-w-sm truncate text-center text-xs font-medium text-foreground sm:max-w-md sm:text-sm"
+        <Show when={isTauri() && isMac()}>
+          <MacWindowDots onClose={close} onMinimize={minimize} onMaximize={toggleMax} />
+        </Show>
+        <div
+          class="flex h-full min-h-0 shrink-0 items-center gap-0.5 px-0.5"
+          data-tauri-drag-region="false"
         >
-          {props.title()}
-        </span>
+          <SidebarTrigger class="size-7 shrink-0" />
+          <Separator orientation="vertical" class="h-4" />
+        </div>
+        <div
+          class="flex min-h-0 min-w-0 flex-1 items-center self-stretch justify-center overflow-hidden px-2"
+          data-tauri-drag-region
+        >
+          <span
+            data-tauri-drag-region
+            class="w-full min-w-0 max-w-sm truncate text-center text-xs font-medium text-foreground sm:max-w-md sm:text-sm"
+          >
+            {props.title()}
+          </span>
+        </div>
+        <div class="flex shrink-0 items-stretch" data-tauri-drag-region="false">
+          <div id="window-title-bar-actions" class="flex items-stretch" />
+        </div>
+        <Show when={isTauri() && !isMac()}>
+          <WinWindowControls
+            onMinimize={minimize}
+            onMaximize={toggleMax}
+            onClose={close}
+            maximized={maximized()}
+          />
+        </Show>
       </div>
-      <div class="flex shrink-0 items-stretch" data-tauri-drag-region="false">
-        <div id="window-title-bar-actions" class="flex items-stretch" />
-      </div>
-      <Show when={isTauri() && !isMac()}>
-        <WinWindowControls
-          onMinimize={minimize}
-          onMaximize={toggleMax}
-          onClose={close}
-          maximized={maximized()}
-        />
+      <Show when={props.showTabs}>
+        <div
+          class="flex h-9 min-h-9 w-full shrink-0 items-stretch border-t border-border/60"
+          data-tauri-drag-region="false"
+        >
+          <ProjectTabsBar
+            tabs={props.tabs ?? []}
+            activeId={props.activeTabId ?? null}
+            onSelect={(id) => props.onSelectTab?.(id)}
+            onUnpin={(id) => props.onUnpinTab?.(id)}
+          />
+        </div>
       </Show>
     </header>
   );

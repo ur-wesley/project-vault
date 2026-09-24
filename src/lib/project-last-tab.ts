@@ -25,12 +25,14 @@ function normalizeTab(tab: string): ProjectDetailTab {
 }
 
 export function lastTabFor(projectId: string): ProjectDetailTab {
+  if (!projectId) return "readme";
   const tab = readMap()[projectId];
   if (tab != null) return normalizeTab(tab);
   return "readme";
 }
 
 export function rememberTab(projectId: string, tab: string) {
+  if (!projectId) return;
   const map = readMap();
   map[projectId] = normalizeTab(tab);
   writeMap(map);

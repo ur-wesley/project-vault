@@ -89,11 +89,10 @@ export function useProjectMove(props: UseProjectMoveProps) {
     return joinParentName(row.path, pathBasename(p.path));
   });
 
-  const moveDialogDescription = createMemo(
-    (): string =>
-      (moveBusy()
-        ? props.t("projectDetail.moveProjectProgressDescription")
-        : props.t("projectDetail.moveProjectDescription")),
+  const moveDialogDescription = createMemo((): string =>
+    moveBusy()
+      ? props.t("projectDetail.moveProjectProgressDescription")
+      : props.t("projectDetail.moveProjectDescription"),
   );
 
   const moveProgressPhaseLabel = createMemo((): string => {
@@ -144,7 +143,7 @@ export function useProjectMove(props: UseProjectMoveProps) {
       props.showBanner(props.t("projectDetail.moveProjectSameLocation"));
       return;
     }
-    
+
     setMoveBusy(true);
     setMoveProgress(null);
     const unlisten = await listen<MoveProjectProgress>("move-project-progress", (e) => {

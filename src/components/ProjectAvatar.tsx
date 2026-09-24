@@ -12,7 +12,7 @@ export const ProjectAvatar: Component<{
   const [failed, setFailed] = createSignal(false);
 
   createEffect(() => {
-    props.project.iconPath;
+    void props.project.iconPath;
     setFailed(false);
   });
 
@@ -20,11 +20,7 @@ export const ProjectAvatar: Component<{
     <Show
       when={!failed() && props.project.iconPath}
       fallback={
-        <StackIcon
-          stack={props.project.stack}
-          class={props.class}
-          noTooltip={props.noTooltip}
-        />
+        <StackIcon stack={props.project.stack} class={props.class} noTooltip={props.noTooltip} />
       }
     >
       {(iconPath) => (

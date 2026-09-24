@@ -1,6 +1,6 @@
 import { type Component } from "solid-js";
 import { useI18n } from "~/lib/i18n-context";
-import { useNotificationCenter } from "~/lib/notification-center";
+import { useNotificationCenter } from "~/lib/notification-store";
 import { Button } from "~/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "~/components/ui/card";
 import { Separator } from "~/components/ui/separator";
@@ -34,10 +34,15 @@ export const NotificationSettingsTab: Component = () => {
         </CardHeader>
         <CardContent class="flex flex-col gap-2">
           <Separator />
-          <div id={settingElementId("notifications-quiet")} class="flex items-center justify-between gap-4 py-3">
+          <div
+            id={settingElementId("notifications-quiet")}
+            class="flex items-center justify-between gap-4 py-3"
+          >
             <div class="flex flex-col gap-0.5">
               <span class="text-sm font-medium">{t("settings.quietTitle") as string}</span>
-              <span class="text-xs text-muted-foreground">{t("settings.quietDescription") as string}</span>
+              <span class="text-xs text-muted-foreground">
+                {t("settings.quietDescription") as string}
+              </span>
             </div>
             <Switch
               checked={center.quiet()}
@@ -50,10 +55,15 @@ export const NotificationSettingsTab: Component = () => {
             </Switch>
           </div>
           <Separator />
-          <div id={settingElementId("notifications-os")} class="flex items-center justify-between gap-4 py-3">
+          <div
+            id={settingElementId("notifications-os")}
+            class="flex items-center justify-between gap-4 py-3"
+          >
             <div class="flex flex-col gap-0.5">
               <span class="text-sm font-medium">{t("settings.osTitle") as string}</span>
-              <span class="text-xs text-muted-foreground">{t("settings.osDescription") as string}</span>
+              <span class="text-xs text-muted-foreground">
+                {t("settings.osDescription") as string}
+              </span>
             </div>
             <Switch
               checked={center.systemEnabled()}
@@ -66,10 +76,17 @@ export const NotificationSettingsTab: Component = () => {
             </Switch>
           </div>
           <Separator />
-          <div id={settingElementId("notifications-test")} class="flex items-center justify-between gap-4 py-3">
+          <div
+            id={settingElementId("notifications-test")}
+            class="flex items-center justify-between gap-4 py-3"
+          >
             <div class="flex flex-col gap-0.5">
-              <span class="text-sm font-medium">{t("settings.testNotificationLabel") as string}</span>
-              <span class="text-xs text-muted-foreground">{t("settings.testNotificationDesc") as string}</span>
+              <span class="text-sm font-medium">
+                {t("settings.testNotificationLabel") as string}
+              </span>
+              <span class="text-xs text-muted-foreground">
+                {t("settings.testNotificationDesc") as string}
+              </span>
             </div>
             <Button
               type="button"

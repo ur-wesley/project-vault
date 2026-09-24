@@ -201,7 +201,10 @@ export function LocationProjectCleanerDialog(props: LocationProjectCleanerDialog
     setActions((prev) => ({ ...prev, [projectId]: action }));
   };
 
-  const setCategoryAction = (category: ProjectCleanerCategory, action: ProjectCleanerActionKind) => {
+  const setCategoryAction = (
+    category: ProjectCleanerCategory,
+    action: ProjectCleanerActionKind,
+  ) => {
     setActions((prev) => {
       const next = { ...prev };
       for (const row of rows()) {
@@ -228,9 +231,7 @@ export function LocationProjectCleanerDialog(props: LocationProjectCleanerDialog
       }
       const result = r.value;
       if (result.failed.length > 0) {
-        setError(
-          result.failed.map((f) => `${f.projectId}: ${f.error}`).join("\n"),
-        );
+        setError(result.failed.map((f) => `${f.projectId}: ${f.error}`).join("\n"));
       }
       toast.success(
         t("locations.cleanerExecuteSuccess", {
@@ -310,9 +311,7 @@ export function LocationProjectCleanerDialog(props: LocationProjectCleanerDialog
               <Checkbox
                 checked={thresholds().protectFavorites}
                 disabled={scanning() || executing()}
-                onChange={(checked) =>
-                  setThresholds((t) => ({ ...t, protectFavorites: checked }))
-                }
+                onChange={(checked) => setThresholds((t) => ({ ...t, protectFavorites: checked }))}
               />
               {t("locations.cleanerProtectFavorites") as string}
             </label>
@@ -330,7 +329,10 @@ export function LocationProjectCleanerDialog(props: LocationProjectCleanerDialog
                   <span class="iconify mdi--refresh me-1.5 h-3.5 w-3.5" aria-hidden="true" />
                 }
               >
-                <span class="iconify mdi--loading me-1.5 h-3.5 w-3.5 animate-spin" aria-hidden="true" />
+                <span
+                  class="iconify mdi--loading me-1.5 h-3.5 w-3.5 animate-spin"
+                  aria-hidden="true"
+                />
               </Show>
               {t("locations.cleanerRescan") as string}
             </Button>
@@ -343,7 +345,9 @@ export function LocationProjectCleanerDialog(props: LocationProjectCleanerDialog
               </p>
             </Show>
             <Show when={scanning() && rows().length === 0}>
-              <p class="text-sm text-muted-foreground">{t("locations.cleanerScanning") as string}</p>
+              <p class="text-sm text-muted-foreground">
+                {t("locations.cleanerScanning") as string}
+              </p>
             </Show>
             <Show when={!scanning() && rows().length === 0}>
               <p class="text-sm text-muted-foreground">{t("locations.cleanerEmpty") as string}</p>
@@ -384,7 +388,9 @@ export function LocationProjectCleanerDialog(props: LocationProjectCleanerDialog
                             <th class="px-3 py-2">{t("locations.cleanerLastOpened") as string}</th>
                             <th class="px-3 py-2">{t("locations.sizeColumn") as string}</th>
                             <th class="px-3 py-2">{t("locations.cleanerReclaimable") as string}</th>
-                            <th class="w-[12rem] px-3 py-2">{t("locations.cleanerActionColumn") as string}</th>
+                            <th class="w-[12rem] px-3 py-2">
+                              {t("locations.cleanerActionColumn") as string}
+                            </th>
                           </tr>
                         </thead>
                         <tbody>
@@ -393,8 +399,7 @@ export function LocationProjectCleanerDialog(props: LocationProjectCleanerDialog
                               const currentAction = () =>
                                 actions()[row.projectId] ?? row.suggestedAction;
                               const warnDirty = () =>
-                                row.category === "git_dirty" &&
-                                currentAction() !== "skip";
+                                row.category === "git_dirty" && currentAction() !== "skip";
                               return (
                                 <tr class="border-t border-border/40 hover:bg-muted/10">
                                   <td class="px-3 py-2">
@@ -409,11 +414,13 @@ export function LocationProjectCleanerDialog(props: LocationProjectCleanerDialog
                                   </td>
                                   <td class="px-3 py-2 tabular-nums text-muted-foreground">
                                     {row.lastOpenedAtMs
-                                      ? formatRelativeTime(row.lastOpenedAtMs, localeCode()) ??
-                                        "—"
+                                      ? (formatRelativeTime(row.lastOpenedAtMs, localeCode()) ??
+                                        "—")
                                       : "—"}
                                   </td>
-                                  <td class="px-3 py-2 tabular-nums">{formatBytes(row.sizeBytes)}</td>
+                                  <td class="px-3 py-2 tabular-nums">
+                                    {formatBytes(row.sizeBytes)}
+                                  </td>
                                   <td class="px-3 py-2 tabular-nums">
                                     {formatBytes(row.reclaimableBytes)}
                                   </td>
@@ -451,12 +458,14 @@ export function LocationProjectCleanerDialog(props: LocationProjectCleanerDialog
 
           <DialogFooter class="flex flex-wrap items-center justify-between gap-2 border-t border-border/60 px-6 py-4">
             <p class="text-xs text-muted-foreground">
-              {t("locations.cleanerSummary", {
-                clean: stats().cleanCount,
-                delete: stats().deleteCount,
-                unvault: stats().unvaultCount,
-                bytes: formatBytes(stats().reclaimable),
-              }) as string}
+              {
+                t("locations.cleanerSummary", {
+                  clean: stats().cleanCount,
+                  delete: stats().deleteCount,
+                  unvault: stats().unvaultCount,
+                  bytes: formatBytes(stats().reclaimable),
+                }) as string
+              }
             </p>
             <div class="flex gap-2">
               <Button
@@ -473,7 +482,10 @@ export function LocationProjectCleanerDialog(props: LocationProjectCleanerDialog
                 onClick={() => onApply()}
               >
                 <Show when={executing()}>
-                  <span class="iconify mdi--loading me-1.5 h-3.5 w-3.5 animate-spin" aria-hidden="true" />
+                  <span
+                    class="iconify mdi--loading me-1.5 h-3.5 w-3.5 animate-spin"
+                    aria-hidden="true"
+                  />
                 </Show>
                 {t("locations.cleanerApply") as string}
               </Button>
@@ -491,7 +503,11 @@ export function LocationProjectCleanerDialog(props: LocationProjectCleanerDialog
             </AlertDialogDescription>
           </AlertDialogHeader>
           <ul class="max-h-40 overflow-y-auto text-xs font-mono text-muted-foreground">
-            <For each={rows().filter((r) => (actions()[r.projectId] ?? r.suggestedAction) === "delete")}>
+            <For
+              each={rows().filter(
+                (r) => (actions()[r.projectId] ?? r.suggestedAction) === "delete",
+              )}
+            >
               {(row) => <li class="truncate py-0.5">{row.path}</li>}
             </For>
           </ul>

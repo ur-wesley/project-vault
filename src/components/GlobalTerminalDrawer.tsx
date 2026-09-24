@@ -1,9 +1,4 @@
-import {
-  For,
-  Show,
-  createEffect,
-  createSignal,
-} from "solid-js";
+import { For, Show, createEffect, createSignal } from "solid-js";
 import { createQuery } from "@tanstack/solid-query";
 import { toast } from "solid-sonner";
 
@@ -283,9 +278,7 @@ export function GlobalTerminalDrawer() {
 
         {/* Terminal content — flexbox matches exact available height and resizes in real time */}
         <div class="min-h-0 flex-1 p-1 flex flex-col">
-          <div
-            class="relative flex-1 min-h-0 overflow-hidden rounded-sm flex flex-col bg-black/60 backdrop-blur-md"
-          >
+          <div class="relative flex-1 min-h-0 overflow-hidden rounded-sm flex flex-col bg-black/60 backdrop-blur-md">
             <For each={store.instances()}>
               {(inst) => (
                 <TerminalHost

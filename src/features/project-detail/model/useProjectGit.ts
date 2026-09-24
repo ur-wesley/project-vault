@@ -17,7 +17,6 @@ import {
 import { queryKeys } from "~/services/query-keys";
 import { stableErrorMessage } from "~/lib/invoke-error";
 
-
 export type UseProjectGitProps = Readonly<{
   projectId: Accessor<string>;
   isFocused: Accessor<boolean>;
@@ -153,7 +152,10 @@ export function useProjectGit(props: UseProjectGitProps) {
   }));
 
   const bumpVersionMu = createMutation(() => ({
-    mutationFn: async (payload: { bump: "patch" | "minor" | "major" | "beta"; files: string[] }) => {
+    mutationFn: async (payload: {
+      bump: "patch" | "minor" | "major" | "beta";
+      files: string[];
+    }) => {
       const r = await gitBumpVersionAndTag(props.projectId(), payload);
       if (r.isErr()) throw r.error;
       return r.value;
@@ -188,7 +190,11 @@ export function useProjectGit(props: UseProjectGitProps) {
 
   const cleanMu = createMutation(() => ({
     mutationFn: async (payload: { resetTracked: boolean; selectedPaths: string[] }) => {
-      const r = await gitCleanExecute(props.projectId(), payload.resetTracked, payload.selectedPaths);
+      const r = await gitCleanExecute(
+        props.projectId(),
+        payload.resetTracked,
+        payload.selectedPaths,
+      );
       if (r.isErr()) throw r.error;
     },
     onSuccess: () => {
@@ -214,8 +220,10 @@ export function useProjectGit(props: UseProjectGitProps) {
       if (!isGitRepository()) return Promise.resolve();
       return previewVersionsQ.refetch();
     },
-    discoverVersionFiles: (bump: "patch" | "minor" | "major" | "beta") => discoverFilesMu.mutateAsync(bump),
-    bumpVersionAndTag: (payload: { bump: "patch" | "minor" | "major" | "beta"; files: string[] }) => bumpVersionMu.mutate(payload),
+    discoverVersionFiles: (bump: "patch" | "minor" | "major" | "beta") =>
+      discoverFilesMu.mutateAsync(bump),
+    bumpVersionAndTag: (payload: { bump: "patch" | "minor" | "major" | "beta"; files: string[] }) =>
+      bumpVersionMu.mutate(payload),
     isPulling: () => pullMu.isPending,
     isPushing: () => pushMu.isPending,
     isIniting: () => initMu.isPending,
@@ -224,7 +232,8 @@ export function useProjectGit(props: UseProjectGitProps) {
     isDiscoveringFiles: () => discoverFilesMu.isPending,
     isBumpingVersion: () => bumpVersionMu.isPending,
     cleanPreview: () => cleanPreviewMu.mutateAsync(),
-    cleanExecute: (payload: { resetTracked: boolean; selectedPaths: string[] }) => cleanMu.mutateAsync(payload),
+    cleanExecute: (payload: { resetTracked: boolean; selectedPaths: string[] }) =>
+      cleanMu.mutateAsync(payload),
     isCleaningPreview: () => cleanPreviewMu.isPending,
     isCleaning: () => cleanMu.isPending,
   };

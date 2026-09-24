@@ -32,9 +32,7 @@ export const LocationRenameDialog: Component<LocationRenameDialogProps> = (props
             />
             {props.t("locations.renameDialogTitle")}
           </DialogTitle>
-          <DialogDescription>
-            {props.t("locations.renameDialogDescription")}
-          </DialogDescription>
+          <DialogDescription>{props.t("locations.renameDialogDescription")}</DialogDescription>
         </DialogHeader>
         <TextField>
           <TextFieldLabel for="location-rename-name">

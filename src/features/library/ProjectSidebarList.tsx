@@ -2,7 +2,6 @@ import { createQuery, useQueryClient } from "@tanstack/solid-query";
 import { openPath } from "@tauri-apps/plugin-opener";
 import { For, Show, createMemo, type Accessor } from "solid-js";
 
-import { StackIcon } from "~/components/StackIcon";
 import { ProjectAvatar } from "~/components/ProjectAvatar";
 import {
   ContextMenu,
@@ -34,7 +33,6 @@ import type { StableError } from "~/types/error";
 import { projectIdeStorageKey } from "../project-detail/lib/ide-storage";
 import { sortSidebarProjects } from "./sort-sidebar-projects";
 import { toast } from "solid-sonner";
-
 
 export function ProjectSidebarList(props: {
   selectedProjectId: Accessor<string | null>;
@@ -158,7 +156,7 @@ export function ProjectSidebarList(props: {
   };
 
   return (
-    <SidebarGroup class="flex min-h-0 min-w-0 flex-1 flex-col pl-2 pr-0 pt-0 pb-0">
+    <SidebarGroup class="flex min-h-0 min-w-0 flex-1 flex-col pl-2 pr-2 pt-0 pb-0 group-data-[collapsible=icon]:pr-0">
       <div class="flex items-center justify-between px-2 py-1.5 shrink-0">
         <SidebarGroupLabel class="text-[10px] uppercase font-bold tracking-wider opacity-50">
           {t("library.sidebarProjects") as string}
@@ -168,26 +166,24 @@ export function ProjectSidebarList(props: {
             </span>
           </Show>
         </SidebarGroupLabel>
-          <Show when={props.onOpenNewProject}>
-            <Tooltip>
-              <TooltipTrigger
-                as="button"
-                type="button"
-                onClick={() => props.onOpenNewProject?.()}
-                class="flex h-5 w-5 items-center justify-center rounded text-sidebar-foreground/40 transition-colors hover:bg-sidebar-accent hover:text-sidebar-accent-foreground"
-              >
-                <span class="iconify mdi--plus text-sm" />
-              </TooltipTrigger>
-              <TooltipContent>{t("commandPalette.newProject") as string}</TooltipContent>
-            </Tooltip>
-          </Show>
+        <Show when={props.onOpenNewProject}>
+          <Tooltip>
+            <TooltipTrigger
+              as="button"
+              type="button"
+              onClick={() => props.onOpenNewProject?.()}
+              class="flex h-5 w-5 items-center justify-center rounded text-sidebar-foreground/40 transition-colors hover:bg-sidebar-accent hover:text-sidebar-accent-foreground"
+            >
+              <span class="iconify mdi--plus text-sm" />
+            </TooltipTrigger>
+            <TooltipContent>{t("commandPalette.newProject") as string}</TooltipContent>
+          </Tooltip>
+        </Show>
       </div>
       <SidebarGroupContent class="min-h-0 min-w-0 flex-1 overflow-hidden">
         <SidebarMenu class="h-full overflow-y-auto group-data-[collapsible=icon]:pr-0 pb-2">
           <Show when={q.isPending}>
-            <p class="px-2 text-xs text-sidebar-foreground/60">
-              {t("library.loading") as string}
-            </p>
+            <p class="px-2 text-xs text-sidebar-foreground/60">{t("library.loading") as string}</p>
           </Show>
           <Show when={q.isError}>
             <p class="px-2 text-xs text-destructive">{t("library.error") as string}</p>
@@ -208,11 +204,7 @@ export function ProjectSidebarList(props: {
                     >
                       <div class="flex w-full min-w-0 items-center gap-2.5 group-data-[collapsible=icon]:justify-center">
                         <span class="relative flex shrink-0 items-center justify-center self-center text-sidebar-foreground/70">
-                          <ProjectAvatar
-                            project={project}
-                            class="size-6 shrink-0"
-                            noTooltip
-                          />
+                          <ProjectAvatar project={project} class="size-6 shrink-0" noTooltip />
                           <Show when={project.favorite}>
                             <span class="iconify mdi--star absolute -top-1 -right-1 text-[9px] text-yellow-500" />
                           </Show>
@@ -259,8 +251,18 @@ export function ProjectSidebarList(props: {
                     </ContextMenuItem>
                     <ContextMenuSeparator />
                     <ContextMenuItem onSelect={() => void toggleFavorite(project)}>
-                      <span class={project.favorite ? "iconify mdi--star size-4 text-yellow-500" : "iconify mdi--star-outline size-4"} />
-                      <span>{project.favorite ? t("projectDetail.favRemove") : t("projectDetail.favMark") as string}</span>
+                      <span
+                        class={
+                          project.favorite
+                            ? "iconify mdi--star size-4 text-yellow-500"
+                            : "iconify mdi--star-outline size-4"
+                        }
+                      />
+                      <span>
+                        {project.favorite
+                          ? t("projectDetail.favRemove")
+                          : (t("projectDetail.favMark") as string)}
+                      </span>
                     </ContextMenuItem>
                     <ContextMenuSeparator />
                     <ContextMenuItem

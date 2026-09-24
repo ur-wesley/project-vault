@@ -1,4 +1,12 @@
-import { For, Show, createEffect, createSignal, createResource, on, type Component } from "solid-js";
+import {
+  For,
+  Show,
+  createEffect,
+  createSignal,
+  createResource,
+  on,
+  type Component,
+} from "solid-js";
 import { useKeyDownList } from "@solid-primitives/keyboard";
 import { invoke } from "@tauri-apps/api/core";
 import { Button } from "~/components/ui/button";
@@ -44,7 +52,7 @@ function normalizeKey(key: string): string {
     printscreen: "PrintScreen",
     contextmenu: "ContextMenu",
   };
-  return specialMap[lower] ?? (key.charAt(0).toUpperCase() + key.slice(1).toLowerCase());
+  return specialMap[lower] ?? key.charAt(0).toUpperCase() + key.slice(1).toLowerCase();
 }
 
 interface ShortcutsSettingsTabProps {
@@ -70,6 +78,7 @@ export const ShortcutsSettingsTab: Component<ShortcutsSettingsTabProps> = (props
   const shortcuts = useShortcuts();
   const { locale } = useI18n();
   const keysHeld = useKeyDownList();
+  // eslint-disable-next-line no-unassigned-vars -- Solid ref pattern
   let recordingRef: HTMLDivElement | undefined;
   const [editing, setEditing] = createSignal<string | null>(null);
   const [recordingKeys, setRecordingKeys] = createSignal<string[]>([]);
@@ -105,9 +114,17 @@ export const ShortcutsSettingsTab: Component<ShortcutsSettingsTabProps> = (props
       "project-tab:4",
       "project-tab:5",
       "project-tab:6",
+      "project-tab:7",
+      "project-tab:8",
       "project-tab:next",
       "project-tab:prev",
       "project-terminal:focus",
+      "file:save",
+      "file:save-all",
+      "file:close-tab",
+      "file:find",
+      "file:goto-line",
+      "file:format",
     ];
     for (const action of knownAppActions) {
       const labelKey = SHORTCUT_ACTION_LABEL_KEYS[action];
@@ -138,8 +155,7 @@ export const ShortcutsSettingsTab: Component<ShortcutsSettingsTabProps> = (props
 
     for (const action of Object.keys(all)) {
       if (!action.startsWith("plugin:")) continue;
-      const labelKey =
-        SHORTCUT_ACTION_LABEL_KEYS[action as ShortcutAction] ?? null;
+      const labelKey = SHORTCUT_ACTION_LABEL_KEYS[action as ShortcutAction] ?? null;
       list.push({
         action,
         label: labelKey ? (props.t(labelKey) ?? action) : action,
@@ -230,13 +246,15 @@ export const ShortcutsSettingsTab: Component<ShortcutsSettingsTabProps> = (props
         const final = peakKeys();
         if (final.length === 1 && final[0] === "Escape") {
           stopRecording();
+        } else if (final.length === 1 && (final[0] === "Backspace" || final[0] === "Delete")) {
+          void saveBinding(editing()!, []);
         } else if (final.length > 0) {
           void saveBinding(editing()!, final);
         } else {
           stopRecording();
         }
       }
-    })
+    }),
   );
 
   const renderRow = (row: ShortcutRow) => (
@@ -248,27 +266,40 @@ export const ShortcutsSettingsTab: Component<ShortcutsSettingsTabProps> = (props
       <Show
         when={editing() === row.action}
         fallback={
-          <button
-            type="button"
-            disabled={busy()}
-            class="flex h-8 min-w-[6rem] items-center justify-center rounded border bg-muted px-3 text-xs font-mono font-medium transition-colors hover:bg-muted/80 disabled:opacity-50"
-            onClick={() => startRecording(row.action)}
-          >
-            {row.keys.length > 0
-              ? formatShortcut(row.keys)
-              : props.t("settings.shortcutsNone")}
-          </button>
+          <div class="flex items-center gap-1">
+            <button
+              type="button"
+              disabled={busy()}
+              class="flex h-8 min-w-[6rem] items-center justify-center rounded border bg-muted px-3 text-xs font-mono font-medium transition-colors hover:bg-muted/80 disabled:opacity-50"
+              onClick={() => startRecording(row.action)}
+            >
+              {row.keys.length > 0 ? formatShortcut(row.keys) : props.t("settings.shortcutsNone")}
+            </button>
+            <Show when={row.keys.length > 0}>
+              <button
+                type="button"
+                disabled={busy()}
+                aria-label={props.t("settings.shortcutsClear")}
+                title={props.t("settings.shortcutsClear")}
+                class="flex h-8 w-8 items-center justify-center rounded border bg-transparent text-sm text-muted-foreground transition-colors hover:bg-muted hover:text-foreground disabled:opacity-50"
+                onClick={() => void saveBinding(row.action, [])}
+              >
+                ×
+              </button>
+            </Show>
+          </div>
         }
       >
         <div
           ref={recordingRef}
-          class="flex h-8 min-w-[6rem] items-center justify-center rounded border border-primary bg-primary/5 px-3 text-xs font-mono font-medium text-primary animate-pulse outline-none"
+          class="flex h-8 min-w-[6rem] items-center justify-center gap-2 rounded border border-primary bg-primary/5 px-3 text-xs font-mono font-medium text-primary animate-pulse outline-none"
           tabindex={0}
           onBlur={() => stopRecording()}
+          title={props.t("settings.shortcutsClearHint")}
         >
           {recordingKeys().length > 0
             ? formatShortcut(recordingKeys())
-            : props.t("settings.shortcutsPressKeys")}
+            : `${props.t("settings.shortcutsPressKeys")} · ${props.t("settings.shortcutsClearHint")}`}
         </div>
       </Show>
     </div>
@@ -278,19 +309,12 @@ export const ShortcutsSettingsTab: Component<ShortcutsSettingsTabProps> = (props
     <div class="space-y-6 animate-in fade-in duration-300">
       <div id={settingElementId("shortcuts-title")} class="flex items-center justify-between">
         <div>
-          <h3 class="text-sm font-semibold">
-            {props.t("settings.shortcutsTitle")}
-          </h3>
+          <h3 class="text-sm font-semibold">{props.t("settings.shortcutsTitle")}</h3>
           <p class="text-xs text-muted-foreground mt-1">
             {props.t("settings.shortcutsDescription")}
           </p>
         </div>
-        <Button
-          variant="outline"
-          size="sm"
-          disabled={busy()}
-          onClick={() => void resetAll()}
-        >
+        <Button variant="outline" size="sm" disabled={busy()} onClick={() => void resetAll()}>
           {props.t("settings.shortcutsResetAll")}
         </Button>
       </div>

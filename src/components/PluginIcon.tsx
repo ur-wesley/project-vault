@@ -1,6 +1,6 @@
 import { createEffect, createSignal, type Component, type JSX, Show } from "solid-js";
 import { cn } from "~/lib/utils";
-import { loadPluginIcon, pluginIconToSvgString } from "~/lib/plugin-icon";
+import { loadPluginIcon, pluginIconToSvgString } from "~/lib/plugin/plugin-icon";
 
 export const PluginIcon: Component<{
   icon?: string;
@@ -34,10 +34,7 @@ export const PluginIcon: Component<{
     <Show when={svg()}>
       {(html) => (
         <span
-          class={cn(
-            "inline-flex shrink-0 align-middle [&>svg]:h-full [&>svg]:w-full",
-            props.class,
-          )}
+          class={cn("inline-flex shrink-0 align-middle [&>svg]:h-full [&>svg]:w-full", props.class)}
           style={props.style}
           onClick={props.onClick}
           innerHTML={html()}

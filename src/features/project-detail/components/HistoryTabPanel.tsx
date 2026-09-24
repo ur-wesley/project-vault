@@ -14,7 +14,6 @@ import {
 } from "~/components/ui/alert-dialog";
 import { Select, SelectTrigger } from "~/components/ui/select";
 import { useI18n } from "~/lib/i18n-context";
-import { cn } from "~/lib/utils";
 import type { ProjectDetailModel } from "../model/createProjectDetailModel";
 import { formatSessionRange } from "../lib/format";
 
@@ -31,7 +30,9 @@ const statusOptions: StatusOption[] = [
   { value: "cancelled", label: "Cancelled" },
 ];
 
-function statusVariant(state: string): "default" | "secondary" | "outline" | "destructive" | "success" {
+function statusVariant(
+  state: string,
+): "default" | "secondary" | "outline" | "destructive" | "success" {
   switch (state) {
     case "running":
     case "starting":
@@ -46,9 +47,7 @@ function statusVariant(state: string): "default" | "secondary" | "outline" | "de
   }
 }
 
-export function HistoryTabPanel(props: {
-  model: ProjectDetailModel;
-}) {
+export function HistoryTabPanel(props: { model: ProjectDetailModel }) {
   const { t } = useI18n();
   const m = () => props.model;
 
@@ -63,9 +62,7 @@ export function HistoryTabPanel(props: {
           onChange={(o) => o && m().setStatusFilter(o.value as SessionState | "all")}
           itemComponent={(p) => (
             <Select.Item item={p.item}>
-              <Select.ItemLabel class="text-xs">
-                {p.item.rawValue.label}
-              </Select.ItemLabel>
+              <Select.ItemLabel class="text-xs">{p.item.rawValue.label}</Select.ItemLabel>
             </Select.Item>
           )}
         >
@@ -87,7 +84,9 @@ export function HistoryTabPanel(props: {
           {t("history.entries") as string}
         </span>
 
-        <Show when={(m().statusFilter() === "all" ? m().totalCount() : m().filteredCount()) > PAGE_SIZE}>
+        <Show
+          when={(m().statusFilter() === "all" ? m().totalCount() : m().filteredCount()) > PAGE_SIZE}
+        >
           <div class="flex items-center gap-0.5">
             <Button
               type="button"
@@ -100,16 +99,21 @@ export function HistoryTabPanel(props: {
               <span class="iconify mdi--chevron-left size-4" />
             </Button>
             <span class="text-[11px] text-muted-foreground tabular-nums px-1">
-              {m().page() + 1}
-              /
-              {Math.ceil(((m().statusFilter() === "all" ? m().totalCount() : m().filteredCount()) ?? 0) / PAGE_SIZE)}
+              {m().page() + 1}/
+              {Math.ceil(
+                ((m().statusFilter() === "all" ? m().totalCount() : m().filteredCount()) ?? 0) /
+                  PAGE_SIZE,
+              )}
             </span>
             <Button
               type="button"
               variant="ghost"
               size="icon"
               class="size-7"
-              disabled={(m().page() + 1) * PAGE_SIZE >= ((m().statusFilter() === "all" ? m().totalCount() : m().filteredCount()) ?? 0)}
+              disabled={
+                (m().page() + 1) * PAGE_SIZE >=
+                ((m().statusFilter() === "all" ? m().totalCount() : m().filteredCount()) ?? 0)
+              }
               onClick={() => m().setPage((p) => p + 1)}
             >
               <span class="iconify mdi--chevron-right size-4" />
@@ -158,7 +162,13 @@ export function HistoryTabPanel(props: {
         <Show when={m().sessionsQ.isError}>
           <p class="text-sm text-destructive">{t("library.error") as string}</p>
         </Show>
-        <Show when={!m().sessionsQ.isPending && !m().sessionsQ.isError && (m().sessionsQ.data?.length ?? 0) === 0}>
+        <Show
+          when={
+            !m().sessionsQ.isPending &&
+            !m().sessionsQ.isError &&
+            (m().sessionsQ.data?.length ?? 0) === 0
+          }
+        >
           <p class="text-sm text-muted-foreground">{t("history.empty") as string}</p>
         </Show>
         <ul class="space-y-2 text-sm">

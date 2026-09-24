@@ -29,7 +29,7 @@ export const GithubIssueDetail: Component<GithubIssueDetailProps> = (props) => {
             onClick={() => props.onBack()}
           >
             <span class="iconify mdi--arrow-left h-4 w-4" />
-            {props.t('projectDetail.backToList')}
+            {props.t("projectDetail.backToList")}
           </Button>
           <div class="flex items-center gap-2">
             <Button
@@ -39,7 +39,7 @@ export const GithubIssueDetail: Component<GithubIssueDetailProps> = (props) => {
               onClick={() => props.onEdit()}
             >
               <span class="iconify mdi--pencil h-3.5 w-3.5" />
-              {props.t('common.edit')}
+              {props.t("common.edit")}
             </Button>
             <Show when={props.issue.state === "open"}>
               <Button
@@ -55,7 +55,7 @@ export const GithubIssueDetail: Component<GithubIssueDetailProps> = (props) => {
                 <Show when={!props.isClosing}>
                   <span class="iconify mdi--close-circle-outline h-3.5 w-3.5" />
                 </Show>
-                {props.t('common.close')}
+                {props.t("common.close")}
               </Button>
             </Show>
           </div>
@@ -75,12 +75,17 @@ export const GithubIssueDetail: Component<GithubIssueDetailProps> = (props) => {
                     : "mdi--check-circle-outline",
                 )}
               />
-              {props.issue.state === 'open' ? props.t('projectDetail.issueStatusOpen') : props.t('projectDetail.issueStatusClosed')}
+              {props.issue.state === "open"
+                ? props.t("projectDetail.issueStatusOpen")
+                : props.t("projectDetail.issueStatusClosed")}
             </Badge>
             <Show when={props.issue.isLocal}>
-               <Badge variant="outline" class="h-6 px-2 text-[10px] font-black uppercase tracking-wider border-primary/30 text-primary/70">
-                 local
-               </Badge>
+              <Badge
+                variant="outline"
+                class="h-6 px-2 text-[10px] font-black uppercase tracking-wider border-primary/30 text-primary/70"
+              >
+                local
+              </Badge>
             </Show>
             <div class="flex items-center gap-1.5 text-xs text-muted-foreground font-mono">
               <span class="iconify mdi--pound h-3.5 w-3.5 opacity-50" />
@@ -97,11 +102,11 @@ export const GithubIssueDetail: Component<GithubIssueDetailProps> = (props) => {
           </div>
 
           <Show when={props.issue.labels.length > 0}>
-             <div class="flex flex-wrap gap-1.5 mb-5">
-                <For each={props.issue.labels}>
-                   {(l) => <LabelBadge label={l} class="px-2.5 py-1 text-[10px]" />}
-                </For>
-             </div>
+            <div class="flex flex-wrap gap-1.5 mb-5">
+              <For each={props.issue.labels}>
+                {(l) => <LabelBadge label={l} class="px-2.5 py-1 text-[10px]" />}
+              </For>
+            </div>
           </Show>
 
           <h2 class="text-xl font-bold tracking-tight mb-6">{props.issue.title}</h2>
@@ -110,7 +115,9 @@ export const GithubIssueDetail: Component<GithubIssueDetailProps> = (props) => {
             <Show
               when={props.issue.body}
               fallback={
-                <p class="italic text-muted-foreground text-xs">{props.t('projectDetail.noDescription')}</p>
+                <p class="italic text-muted-foreground text-xs">
+                  {props.t("projectDetail.noDescription")}
+                </p>
               }
             >
               <IssueMarkdown content={props.issue.body} />
@@ -118,16 +125,16 @@ export const GithubIssueDetail: Component<GithubIssueDetailProps> = (props) => {
           </div>
 
           <div class="mt-8 flex justify-center pb-6">
-             <Show when={props.issue.htmlUrl}>
-               <Button
-                 variant="link"
-                 class="text-xs text-muted-foreground hover:text-primary gap-1.5"
-                 onClick={() => props.openExternal(props.issue.htmlUrl)}
-               >
-                 <span class="iconify mdi--github h-3.5 w-3.5" />
-                 {props.t('projectDetail.viewOnGithub')}
-               </Button>
-             </Show>
+            <Show when={props.issue.htmlUrl}>
+              <Button
+                variant="link"
+                class="text-xs text-muted-foreground hover:text-primary gap-1.5"
+                onClick={() => props.openExternal(props.issue.htmlUrl)}
+              >
+                <span class="iconify mdi--github h-3.5 w-3.5" />
+                {props.t("projectDetail.viewOnGithub")}
+              </Button>
+            </Show>
           </div>
         </div>
       </div>

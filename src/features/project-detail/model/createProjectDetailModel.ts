@@ -8,8 +8,15 @@ import { toast } from "solid-sonner";
 import { useI18n } from "~/lib/i18n-context";
 import { useWindowFocus } from "~/lib/use-window-focus";
 import { stableErrorMessage } from "~/lib/invoke-error";
-import { notify } from "~/lib/notification-center";
-import { getGitHubRepoForProject, getGitRemoteUrl, getProject, setProjectFavorite, deleteProject as deleteProjectTauri, refreshProject } from "~/services/tauri/projects";
+import { notify } from "~/lib/notification-store";
+import {
+  getGitHubRepoForProject,
+  getGitRemoteUrl,
+  getProject,
+  setProjectFavorite,
+  deleteProject as deleteProjectTauri,
+  refreshProject,
+} from "~/services/tauri/projects";
 import { openProjectShell } from "~/services/tauri/terminal";
 import { startGitWatcher, stopGitWatcher } from "~/services/tauri/git";
 import { syncProjectTasksInCache } from "~/lib/sync-project-tasks-cache";
@@ -130,9 +137,13 @@ export function createProjectDetailModel(props: ProjectDetailViewProps) {
         if (ev.payload.projectId === props.projectId) {
           void refreshProject(props.projectId);
         }
-      }).then((fn) => { unlisten = fn; });
+      }).then((fn) => {
+        unlisten = fn;
+      });
 
-      onCleanup(() => { unlisten?.(); });
+      onCleanup(() => {
+        unlisten?.();
+      });
     });
   }
 
@@ -150,7 +161,7 @@ export function createProjectDetailModel(props: ProjectDetailViewProps) {
       const projectKey = queryKeys.project(variables.id);
       await qc.cancelQueries({ queryKey: projectKey });
       await qc.cancelQueries({ queryKey: queryKeys.projects });
-      
+
       const previousProject = qc.getQueryData<ProjectDto>(projectKey);
       const previousProjects = qc.getQueryData<ProjectDto[]>(queryKeys.projects);
 
@@ -160,7 +171,9 @@ export function createProjectDetailModel(props: ProjectDetailViewProps) {
       if (previousProjects) {
         qc.setQueryData(
           queryKeys.projects,
-          previousProjects.map((p) => (p.id === variables.id ? { ...p, favorite: variables.favorite } : p)),
+          previousProjects.map((p) =>
+            p.id === variables.id ? { ...p, favorite: variables.favorite } : p,
+          ),
         );
       }
 

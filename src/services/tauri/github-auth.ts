@@ -1,4 +1,8 @@
-import type { GitHubDeviceStartDto, GitHubDeviceTokenDto, GitHubDeviceWaitPayload } from "~/types/dto";
+import type {
+  GitHubDeviceStartDto,
+  GitHubDeviceTokenDto,
+  GitHubDeviceWaitPayload,
+} from "~/types/dto";
 import { tauriInvoke } from "./utils";
 
 export function isGithubDeviceConfigured(clientId?: string) {
@@ -6,7 +10,9 @@ export function isGithubDeviceConfigured(clientId?: string) {
 }
 
 export function startGithubDeviceFlow(clientId?: string) {
-  return tauriInvoke<GitHubDeviceStartDto>("start_github_device_flow", { clientId: clientId ?? null });
+  return tauriInvoke<GitHubDeviceStartDto>("start_github_device_flow", {
+    clientId: clientId ?? null,
+  });
 }
 
 export function waitGithubDeviceFlow(payload: GitHubDeviceWaitPayload, clientId?: string) {

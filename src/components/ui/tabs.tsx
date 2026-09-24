@@ -1,12 +1,33 @@
 import type { ValidComponent } from "solid-js";
-import { splitProps } from "solid-js";
+import { onMount, splitProps } from "solid-js";
 
 import type { PolymorphicProps } from "@kobalte/core/polymorphic";
 import * as TabsPrimitive from "@kobalte/core/tabs";
 
 import { cn } from "~/lib/utils";
 
-const Tabs = TabsPrimitive.Root;
+type TabsRootProps<T extends ValidComponent = "div"> = TabsPrimitive.TabsRootProps<T>;
+
+const Tabs = <T extends ValidComponent = "div">(props: PolymorphicProps<T, TabsRootProps<T>>) => {
+  let isMounted = false;
+  onMount(() => {
+    queueMicrotask(() => {
+      isMounted = true;
+    });
+  });
+
+  const [local, others] = splitProps(props as TabsRootProps, ["onChange"]);
+
+  return (
+    <TabsPrimitive.Root
+      onChange={(v) => {
+        if (!isMounted) return;
+        local.onChange?.(v);
+      }}
+      {...(others as any)}
+    />
+  );
+};
 
 type TabsListProps<T extends ValidComponent = "div"> = TabsPrimitive.TabsListProps<T> & {
   class?: string | undefined;

@@ -44,19 +44,13 @@ export function useProjectEventListeners(props: {
     let unTaskExited: (() => void) | undefined;
 
     void (async () => {
-      unIde = await listen<{ projectId: string; running: boolean }>(
-        "ide-state-changed",
-        (ev) => {
-          if (ev.payload.projectId === props.projectId()) {
-            void qc.setQueryData(
-              ["projects", props.projectId(), "ide-running"],
-              ev.payload.running,
-            );
-            void qc.invalidateQueries({ queryKey: queryKeys.project(props.projectId()) });
-            void qc.invalidateQueries({ queryKey: queryKeys.sessions(props.projectId()) });
-          }
-        },
-      );
+      unIde = await listen<{ projectId: string; running: boolean }>("ide-state-changed", (ev) => {
+        if (ev.payload.projectId === props.projectId()) {
+          void qc.setQueryData(["projects", props.projectId(), "ide-running"], ev.payload.running);
+          void qc.invalidateQueries({ queryKey: queryKeys.project(props.projectId()) });
+          void qc.invalidateQueries({ queryKey: queryKeys.sessions(props.projectId()) });
+        }
+      });
       unTaskStarted = await listen<{ projectId: string; sessionId: string }>(
         "session:started",
         (ev) => {
@@ -81,14 +75,11 @@ export function useProjectEventListeners(props: {
           }
         },
       );
-      unSession = await listen<{ projectId: string; sessionId: string }>(
-        "session:ended",
-        (ev) => {
-          if (ev.payload.projectId === props.projectId()) {
-            refreshTaskQueries();
-          }
-        },
-      );
+      unSession = await listen<{ projectId: string; sessionId: string }>("session:ended", (ev) => {
+        if (ev.payload.projectId === props.projectId()) {
+          refreshTaskQueries();
+        }
+      });
       unTaskPorts = await listen<{ sessionId: string; projectId: string; ports: number[] }>(
         "task-ports-changed",
         (ev) => {
@@ -107,42 +98,36 @@ export function useProjectEventListeners(props: {
         hostname?: string;
         url?: string;
         active: boolean;
-      }>(
-        "task-tunnel-changed",
-        (ev) => {
-          if (ev.payload.projectId === props.projectId()) {
-            setSessionTunnels((prev) => {
-              const next = { ...prev };
-              if (ev.payload.active && ev.payload.url) {
-                next[ev.payload.sessionId] = { url: ev.payload.url, active: true };
-              } else {
-                delete next[ev.payload.sessionId];
-              }
-              return next;
-            });
-          }
-        },
-      );
-      unTaskExited = await listen<{ sessionId: string; projectId: string }>(
-        "task-exited",
-        (ev) => {
-          if (ev.payload.projectId === props.projectId()) {
-            setSessionTunnels((prev) => {
-              const next = { ...prev };
-              if (next[ev.payload.sessionId]) {
-                void disableTunnel(ev.payload.sessionId, ev.payload.projectId);
-                delete next[ev.payload.sessionId];
-              }
-              return next;
-            });
-            setSessionPorts((prev) => {
-              const next = { ...prev };
+      }>("task-tunnel-changed", (ev) => {
+        if (ev.payload.projectId === props.projectId()) {
+          setSessionTunnels((prev) => {
+            const next = { ...prev };
+            if (ev.payload.active && ev.payload.url) {
+              next[ev.payload.sessionId] = { url: ev.payload.url, active: true };
+            } else {
               delete next[ev.payload.sessionId];
-              return next;
-            });
-          }
-        },
-      );
+            }
+            return next;
+          });
+        }
+      });
+      unTaskExited = await listen<{ sessionId: string; projectId: string }>("task-exited", (ev) => {
+        if (ev.payload.projectId === props.projectId()) {
+          setSessionTunnels((prev) => {
+            const next = { ...prev };
+            if (next[ev.payload.sessionId]) {
+              void disableTunnel(ev.payload.sessionId, ev.payload.projectId);
+              delete next[ev.payload.sessionId];
+            }
+            return next;
+          });
+          setSessionPorts((prev) => {
+            const next = { ...prev };
+            delete next[ev.payload.sessionId];
+            return next;
+          });
+        }
+      });
     })();
 
     onCleanup(() => {

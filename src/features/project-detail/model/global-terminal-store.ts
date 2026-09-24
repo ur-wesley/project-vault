@@ -18,9 +18,7 @@ export function getProjectTerminalStore(projectId: string): ProjectTerminalStore
       const [instances, setInstances] = createSignal<EmbeddedTerminalInstance[]>(
         persisted?.instances ?? [],
       );
-      const [activeId, setActiveId] = createSignal<string | null>(
-        persisted?.activeId ?? null,
-      );
+      const [activeId, setActiveId] = createSignal<string | null>(persisted?.activeId ?? null);
 
       createEffect(() => {
         const insts = instances();

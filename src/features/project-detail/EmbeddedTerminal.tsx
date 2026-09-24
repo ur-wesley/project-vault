@@ -1,11 +1,5 @@
 import { createQuery } from "@tanstack/solid-query";
-import {
-  For,
-  Show,
-  createEffect,
-  onCleanup,
-  type Accessor,
-} from "solid-js";
+import { For, Show, createEffect, onCleanup, type Accessor } from "solid-js";
 import { toast } from "solid-sonner";
 
 import { Button } from "~/components/ui/button";
@@ -22,8 +16,10 @@ import { queryKeys } from "~/services/query-keys";
 import { embeddedTerminalSpawn, listAvailableShells } from "~/services/tauri/terminal";
 import { getSetting } from "~/services/tauri/settings";
 import { TerminalHost, type TerminalHostInstance } from "~/components/terminal/TerminalHost";
+import { isEditableElement, shouldOpenTerminalOnKeyDown } from "./lib/terminal-shortcut";
 
 export type EmbeddedTerminalInstance = TerminalHostInstance;
+export { isEditableElement, shouldOpenTerminalOnKeyDown };
 
 const SHELL_ICON_MAP: Record<string, string> = {
   powershell: "mdi--powershell",
@@ -42,7 +38,9 @@ export function EmbeddedTerminalPane(props: {
   instances: Accessor<readonly EmbeddedTerminalInstance[]>;
   activeId: Accessor<string | null>;
   finishedCount: Accessor<number>;
-  onOpenTerminal: (instance: Pick<EmbeddedTerminalInstance, "name" | "defaultName" | "shell" | "icon">) => void;
+  onOpenTerminal: (
+    instance: Pick<EmbeddedTerminalInstance, "name" | "defaultName" | "shell" | "icon">,
+  ) => void;
   onCloseTerminal: (id: string) => void | Promise<void>;
   onCloseFinishedTerminals: () => void;
   onSelectTerminal: (id: string) => void;
@@ -75,9 +73,16 @@ export function EmbeddedTerminalPane(props: {
 
   const createInstance = async (name?: string, shell?: string) => {
     const targetShell = shell || defaultShellQ.data || undefined;
-    const shellInfo = shellsQ.data?.find(s => s.executable === targetShell);
-    const label = name || shellInfo?.label || (targetShell ? (t("projectDetail.tabTerminal") as string) : (t("projectDetail.terminalDefaultShell") as string));
-    const icon = shellInfo ? (SHELL_ICON_MAP[shellInfo.id.toLowerCase()] || "mdi--console") : "mdi--terminal";
+    const shellInfo = shellsQ.data?.find((s) => s.executable === targetShell);
+    const label =
+      name ||
+      shellInfo?.label ||
+      (targetShell
+        ? (t("projectDetail.tabTerminal") as string)
+        : (t("projectDetail.terminalDefaultShell") as string));
+    const icon = shellInfo
+      ? SHELL_ICON_MAP[shellInfo.id.toLowerCase()] || "mdi--console"
+      : "mdi--terminal";
 
     props.onOpenTerminal({
       name: label,
@@ -99,6 +104,13 @@ export function EmbeddedTerminalPane(props: {
     if (!props.active) return;
 
     const handler = (e: KeyboardEvent) => {
+      if (shouldOpenTerminalOnKeyDown(e, props.instances().length)) {
+        e.preventDefault();
+        e.stopPropagation();
+        void createInstance();
+        return;
+      }
+
       const mod = e.ctrlKey || e.metaKey;
       if (!mod || e.altKey) return;
 
@@ -162,7 +174,8 @@ export function EmbeddedTerminalPane(props: {
         <div class="flex shrink-0 items-center gap-1 pl-2">
           <div class="flex items-center">
             <Tooltip>
-              <TooltipTrigger as={Button}
+              <TooltipTrigger
+                as={Button}
                 variant="ghost"
                 size="icon"
                 class="size-7 rounded-r-none"
@@ -228,9 +241,16 @@ export function EmbeddedTerminalPane(props: {
                 class="size-7"
                 onClick={() => props.onToggleFullscreen?.()}
               >
-                <span class={cn("iconify size-4", props.fullscreen ? "mdi--fullscreen-exit" : "mdi--fullscreen")} />
+                <span
+                  class={cn(
+                    "iconify size-4",
+                    props.fullscreen ? "mdi--fullscreen-exit" : "mdi--fullscreen",
+                  )}
+                />
               </TooltipTrigger>
-              <TooltipContent>{props.fullscreen ? "Exit Fullscreen" : "Fullscreen Terminal"}</TooltipContent>
+              <TooltipContent>
+                {props.fullscreen ? "Exit Fullscreen" : "Fullscreen Terminal"}
+              </TooltipContent>
             </Tooltip>
           </Show>
 
@@ -253,7 +273,10 @@ export function EmbeddedTerminalPane(props: {
       </div>
 
       <div class="min-h-0 flex-1 p-3 flex flex-col">
-        <div class="relative flex-1 min-h-0 overflow-hidden rounded-sm flex flex-col" style={{ "background-color": "#111111" }}>
+        <div
+          class="relative flex-1 min-h-0 overflow-hidden rounded-sm flex flex-col"
+          style={{ "background-color": "#111111" }}
+        >
           <For each={props.instances()}>
             {(inst) => (
               <TerminalHost
@@ -263,19 +286,22 @@ export function EmbeddedTerminalPane(props: {
                 spawnFn={(shell) => embeddedTerminalSpawn(props.projectId, shell)}
                 onSessionId={(id, sid) => props.onUpdateSessionId(id, sid)}
                 onError={(err) => toast.error(err)}
-                  onProcessExit={(id, hasContent) => {
-                    if (!hasContent) {
-                      void props.onCloseTerminal(id);
-                    }
-                  }}
-                  onCommandEntered={updateInstanceName}
-                />
+                onProcessExit={(id, hasContent) => {
+                  if (!hasContent) {
+                    void props.onCloseTerminal(id);
+                  }
+                }}
+                onCommandEntered={updateInstanceName}
+              />
             )}
           </For>
           <Show when={props.instances().length === 0}>
             <div class="flex h-full items-center justify-center text-sm text-muted-foreground">
               <Button variant="outline" size="sm" onClick={() => void createInstance()}>
-                {(t("projectDetail.openTerminal") as string)}
+                <span>{t("projectDetail.openTerminal") as string}</span>
+                <kbd class="ml-2 rounded border border-border bg-muted/60 px-1.5 py-0.5 text-[10px] font-mono font-medium text-muted-foreground">
+                  N
+                </kbd>
               </Button>
             </div>
           </Show>
@@ -284,5 +310,3 @@ export function EmbeddedTerminalPane(props: {
     </div>
   );
 }
-
-

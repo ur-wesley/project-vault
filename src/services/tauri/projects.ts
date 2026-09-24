@@ -1,6 +1,4 @@
 import type {
-  CreateProjectPayload,
-  CreateProjectResultDto,
   ExportSnapshotDto,
   GitHubRepoRefDto,
   ImportProjectPayload,
@@ -23,6 +21,10 @@ export function refreshProject(projectId: string) {
   return tauriInvoke<ProjectDto>("refresh_project", { projectId });
 }
 
+/**
+ * GitHub Linguist-style breakdown: keys are canonical language names
+ * (e.g. "TypeScript", see `src-tauri/src/linguist.rs`), values are bytes.
+ */
 export function getProjectLanguages(projectId: string) {
   return tauriInvoke<Record<string, number>>("get_project_languages", { projectId });
 }
@@ -105,6 +107,19 @@ export type DirSizeBreakdown = {
 
 export function getDirSizeBreakdown(path: string) {
   return tauriInvoke<DirSizeBreakdown>("get_dir_size_breakdown", { path });
+}
+
+export type DirSizeNode = {
+  name: string;
+  path: string;
+  sizeBytes: number;
+  isDir: boolean;
+  isSkip: boolean;
+  children: DirSizeNode[];
+};
+
+export function getDirSizeTree(path: string) {
+  return tauriInvoke<DirSizeNode>("get_dir_size_tree", { path });
 }
 
 export function exportLibrarySnapshot() {

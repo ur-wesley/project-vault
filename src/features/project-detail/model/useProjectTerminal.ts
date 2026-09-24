@@ -13,7 +13,9 @@ export type UseProjectTerminalProps = Readonly<{
   projectId: Accessor<string>;
   t: (key: string, args?: any) => string;
   showBanner: (msg: string) => void;
-  onDetailTabChange: (tab: "readme" | "issues" | "files" | "tasks" | "terminal" | "history") => void;
+  onDetailTabChange: (
+    tab: "readme" | "canvas" | "issues" | "files" | "tasks" | "terminal" | "history",
+  ) => void;
 }>;
 
 export function useProjectTerminal(props: UseProjectTerminalProps) {
@@ -25,7 +27,9 @@ export function useProjectTerminal(props: UseProjectTerminalProps) {
   const terminalInstances = createMemo(() => store().instances());
   const activeTerminalId = createMemo(() => store().activeId());
 
-  const openTerminal = (instance: Pick<EmbeddedTerminalInstance, "name" | "defaultName" | "shell" | "icon">) => {
+  const openTerminal = (
+    instance: Pick<EmbeddedTerminalInstance, "name" | "defaultName" | "shell" | "icon">,
+  ) => {
     const id = crypto.randomUUID();
     const nextInstance: EmbeddedTerminalInstance = {
       id,

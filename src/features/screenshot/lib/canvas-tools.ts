@@ -172,10 +172,10 @@ export function distanceToSegment(p: Point, a: Point, b: Point): number {
   const dy = b.y - a.y;
   const lenSq = dx * dx + dy * dy;
   if (lenSq === 0) return Math.hypot(p.x - a.x, p.y - a.y);
-  
+
   let t = ((p.x - a.x) * dx + (p.y - a.y) * dy) / lenSq;
   t = Math.max(0, Math.min(1, t));
-  
+
   return Math.hypot(p.x - (a.x + t * dx), p.y - (a.y + t * dy));
 }
 
@@ -247,7 +247,9 @@ export function hitTest(ann: Annotation, pt: Point): boolean {
     }
     case "text": {
       const bounds = getAnnotationBounds(ann);
-      return pt.x >= bounds.minX && pt.x <= bounds.maxX && pt.y >= bounds.minY && pt.y <= bounds.maxY;
+      return (
+        pt.x >= bounds.minX && pt.x <= bounds.maxX && pt.y >= bounds.minY && pt.y <= bounds.maxY
+      );
     }
     default:
       return false;
@@ -334,7 +336,7 @@ export function resizeAnnotation(ann: Annotation, handleId: string, pt: Point): 
     const maxX = Math.max(ann.start.x, ann.end.x);
     const minY = Math.min(ann.start.y, ann.end.y);
     const maxY = Math.max(ann.start.y, ann.end.y);
-    
+
     if (handleId === "nw") {
       return { ...ann, start: pt, end: { x: maxX, y: maxY } } as Annotation;
     } else if (handleId === "se") {
@@ -350,8 +352,9 @@ export function resizeAnnotation(ann: Annotation, handleId: string, pt: Point): 
 
 export function drawSelectionIndicator(ctx: CanvasRenderingContext2D, ann: Annotation) {
   const bounds = getAnnotationBounds(ann);
-  const padding = ann.tool === "text" || ann.tool === "freehand" || ann.tool === "highlight" ? 6 : 0;
-  
+  const padding =
+    ann.tool === "text" || ann.tool === "freehand" || ann.tool === "highlight" ? 6 : 0;
+
   ctx.save();
   ctx.strokeStyle = "#3b82f6";
   ctx.lineWidth = 1.5;
@@ -359,10 +362,10 @@ export function drawSelectionIndicator(ctx: CanvasRenderingContext2D, ann: Annot
   ctx.strokeRect(
     bounds.minX - padding,
     bounds.minY - padding,
-    (bounds.maxX - bounds.minX) + padding * 2,
-    (bounds.maxY - bounds.minY) + padding * 2
+    bounds.maxX - bounds.minX + padding * 2,
+    bounds.maxY - bounds.minY + padding * 2,
   );
-  
+
   // Draw resize handles
   const handles = getResizeHandles(ann);
   if (handles.length > 0) {

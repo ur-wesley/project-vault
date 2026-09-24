@@ -11,7 +11,13 @@ import { useEventHub } from "~/lib/event-hub-context";
 import { useI18n } from "~/lib/i18n-context";
 import { formatBytes } from "~/lib/format-bytes";
 import { rescanAllLibraryFolders } from "~/lib/rescan-library";
-import { addLocation, diskSpaceForPaths, listLocations, removeLocation, updateLocation } from "~/services/tauri/locations";
+import {
+  addLocation,
+  diskSpaceForPaths,
+  listLocations,
+  removeLocation,
+  updateLocation,
+} from "~/services/tauri/locations";
 import { scanLibraryLocation } from "~/services/tauri/scanning";
 import { getLocationProjectSizes, listProjects, importProject } from "~/services/tauri/projects";
 import { pickLibraryFolder } from "~/services/tauri/pickers";
@@ -53,7 +59,9 @@ export const LocationManager: Component = () => {
 
   const [treemapOpen, setTreemapOpen] = createSignal(false);
   const [treemapLocation, setTreemapLocation] = createSignal<LocationDto | null>(null);
-  const [treemapProjects, setTreemapProjects] = createSignal<{ projectId: string; path: string; name: string; sizeBytes: number }[]>([]);
+  const [treemapProjects, setTreemapProjects] = createSignal<
+    { projectId: string; path: string; name: string; sizeBytes: number }[]
+  >([]);
 
   const [cleanerOpen, setCleanerOpen] = createSignal(false);
   const [cleanerLocation, setCleanerLocation] = createSignal<LocationDto | null>(null);
@@ -70,19 +78,27 @@ export const LocationManager: Component = () => {
   onMount(() => {
     const unlistens: (() => void)[] = [];
 
-    void listen<{ locationId: string; locationName: string }>(
-      "location:scan-started",
-      (e) => {
-        const current = work();
-        if (current == null || (current.kind === "rescan" && current.locationId === e.payload.locationId)) {
-          setWork({ kind: "rescan", locationId: e.payload.locationId, locationName: e.payload.locationName });
-        }
-      },
-    ).then((fn) => unlistens.push(fn));
+    void listen<{ locationId: string; locationName: string }>("location:scan-started", (e) => {
+      const current = work();
+      if (
+        current == null ||
+        (current.kind === "rescan" && current.locationId === e.payload.locationId)
+      ) {
+        setWork({
+          kind: "rescan",
+          locationId: e.payload.locationId,
+          locationName: e.payload.locationName,
+        });
+      }
+    }).then((fn) => unlistens.push(fn));
 
     void listen<{ locationId: string }>("location:scan-completed", (e) => {
       const current = work();
-      if (current != null && current.kind === "rescan" && current.locationId === e.payload.locationId) {
+      if (
+        current != null &&
+        current.kind === "rescan" &&
+        current.locationId === e.payload.locationId
+      ) {
         setWork(null);
       }
       invalidateAll();
@@ -160,7 +176,7 @@ export const LocationManager: Component = () => {
 
   const workLabel = (w: LocationWorkState): string => {
     if (w.kind === "rescan") {
-      return (t("locations.rescanInProgress", { name: w.locationName }) as string);
+      return t("locations.rescanInProgress", { name: w.locationName }) as string;
     }
     if (w.kind === "add") {
       return t("locations.addInProgress") as string;
@@ -169,7 +185,7 @@ export const LocationManager: Component = () => {
       return t("locations.removeInProgress") as string;
     }
     if (w.kind === "import") {
-        return (t('locations.importInProgress', { name: w.destName }) as string);
+      return t("locations.importInProgress", { name: w.destName }) as string;
     }
     return t("locations.renameInProgress") as string;
   };
@@ -197,47 +213,47 @@ export const LocationManager: Component = () => {
   };
 
   const openImport = async (locId: string) => {
-      const pick = await pickLibraryFolder();
-      if (pick.isErr()) return;
-      const path = pick.value;
-      if (path == null) return;
-      setImportOpenSource(path);
-      setImportDestLocationId(locId);
-      setImportDeleteSource(false);
-      setImportOpen(true);
+    const pick = await pickLibraryFolder();
+    if (pick.isErr()) return;
+    const path = pick.value;
+    if (path == null) return;
+    setImportOpenSource(path);
+    setImportDestLocationId(locId);
+    setImportDeleteSource(false);
+    setImportOpen(true);
   };
 
   const commitImport = async () => {
-      const src = importSource();
-      const locId = importDestLocationId();
-      const del = importDeleteSource();
-      if (!src || !locId) return;
+    const src = importSource();
+    const locId = importDestLocationId();
+    const del = importDeleteSource();
+    if (!src || !locId) return;
 
-      const folderName = src.split(/[\\/]/).pop() || "project";
-      setWork({ kind: "import", source: src, destName: folderName });
-      setWorkProgress(null);
-      setImportOpen(false);
+    const folderName = src.split(/[\\/]/).pop() || "project";
+    setWork({ kind: "import", source: src, destName: folderName });
+    setWorkProgress(null);
+    setImportOpen(false);
 
-      const unlisten = await listen<MoveProjectProgress>("import-project-progress", (e) => {
-          setWorkProgress(e.payload);
+    const unlisten = await listen<MoveProjectProgress>("import-project-progress", (e) => {
+      setWorkProgress(e.payload);
+    });
+
+    try {
+      const r = await importProject({
+        sourcePath: src,
+        destinationLocationId: locId,
+        deleteSource: del,
       });
-
-      try {
-          const r = await importProject({
-              sourcePath: src,
-              destinationLocationId: locId,
-              deleteSource: del
-          });
-          if (r.isOk()) {
-              invalidateAll();
-          } else {
-              window.alert(t('locations.importFailed', { message: r.error.message }) as string);
-          }
-      } finally {
-          unlisten();
-          setWork(null);
-          setWorkProgress(null);
+      if (r.isOk()) {
+        invalidateAll();
+      } else {
+        window.alert(t("locations.importFailed", { message: r.error.message }) as string);
       }
+    } finally {
+      unlisten();
+      setWork(null);
+      setWorkProgress(null);
+    }
   };
 
   const onRescan = async (location: LocationDto) => {
@@ -308,15 +324,15 @@ export const LocationManager: Component = () => {
     <div id={settingElementId("locations")} class="flex flex-col gap-4">
       <div class="space-y-1">
         <h3 class="text-sm font-bold uppercase tracking-wider text-primary/80">
-          {t('locations.title') as string}
+          {t("locations.title") as string}
         </h3>
-        <p class="text-xs text-muted-foreground">
-          {t("locations.description") as string}
-        </p>
+        <p class="text-xs text-muted-foreground">{t("locations.description") as string}</p>
       </div>
 
       <div class="flex flex-col gap-4">
-        <Show when={work()}>{(w) => <LocationWorkProgress label={workLabel(w())} progress={workProgress()} />}</Show>
+        <Show when={work()}>
+          {(w) => <LocationWorkProgress label={workLabel(w())} progress={workProgress()} />}
+        </Show>
         <div class="flex flex-wrap gap-2">
           <Button
             type="button"
@@ -334,7 +350,11 @@ export const LocationManager: Component = () => {
             class="w-full sm:w-auto bg-muted/20 border-border/60"
             disabled={busy()}
             onClick={async () => {
-              setWork({ kind: "rescan", locationId: "all", locationName: t("locations.rescanAll") as string });
+              setWork({
+                kind: "rescan",
+                locationId: "all",
+                locationName: t("locations.rescanAll") as string,
+              });
               try {
                 const count = await rescanAllLibraryFolders();
                 hub.emit("scan:complete", { projectCount: count });
@@ -348,7 +368,7 @@ export const LocationManager: Component = () => {
             {t("locations.rescanAll") as string}
           </Button>
         </div>
-        
+
         <Show when={locQ.isPending}>
           <p class="text-sm text-muted-foreground">{t("library.loading") as string}</p>
         </Show>
@@ -392,7 +412,10 @@ export const LocationManager: Component = () => {
                   <span class="line-clamp-2 min-w-0">{loc.path}</span>
                 </p>
                 <div class="mb-2 flex items-center gap-1.5 text-[11px] text-muted-foreground/80">
-                  <span class="iconify mdi--package-variant-closed h-3.5 w-3.5 shrink-0 opacity-60" aria-hidden="true" />
+                  <span
+                    class="iconify mdi--package-variant-closed h-3.5 w-3.5 shrink-0 opacity-60"
+                    aria-hidden="true"
+                  />
                   <span class="font-medium">{t("locations.projectsSize") as string}:</span>
                   <span class="tabular-nums text-foreground/90">
                     {formatBytes(locationProjectSize().get(loc.id) ?? 0)}
@@ -429,8 +452,11 @@ export const LocationManager: Component = () => {
                     disabled={busy()}
                     onClick={() => void onOpenInFileManager(loc.path)}
                   >
-                    <span class="iconify mdi--folder-open h-3.5 w-3.5 mr-1.5 shrink-0" aria-hidden="true" />
-                    {t('common.open') as string}
+                    <span
+                      class="iconify mdi--folder-open h-3.5 w-3.5 mr-1.5 shrink-0"
+                      aria-hidden="true"
+                    />
+                    {t("common.open") as string}
                   </Button>
                   <Button
                     type="button"
@@ -442,12 +468,18 @@ export const LocationManager: Component = () => {
                     <Show
                       when={isRescanningLocation(loc.id)}
                       fallback={
-                        <span class="iconify mdi--refresh h-3.5 w-3.5 mr-1.5 shrink-0" aria-hidden="true" />
+                        <span
+                          class="iconify mdi--refresh h-3.5 w-3.5 mr-1.5 shrink-0"
+                          aria-hidden="true"
+                        />
                       }
                     >
-                      <span class="iconify mdi--loading h-3.5 w-3.5 mr-1.5 shrink-0 animate-spin" aria-hidden="true" />
+                      <span
+                        class="iconify mdi--loading h-3.5 w-3.5 mr-1.5 shrink-0 animate-spin"
+                        aria-hidden="true"
+                      />
                     </Show>
-                    {t('locations.rescan') as string}
+                    {t("locations.rescan") as string}
                   </Button>
                   <Button
                     type="button"
@@ -456,8 +488,11 @@ export const LocationManager: Component = () => {
                     disabled={busy()}
                     onClick={() => void openImport(loc.id)}
                   >
-                    <span class="iconify mdi--import h-3.5 w-3.5 mr-1.5 shrink-0" aria-hidden="true" />
-                    {t('common.import') as string}
+                    <span
+                      class="iconify mdi--import h-3.5 w-3.5 mr-1.5 shrink-0"
+                      aria-hidden="true"
+                    />
+                    {t("common.import") as string}
                   </Button>
                   <Button
                     type="button"
@@ -466,7 +501,10 @@ export const LocationManager: Component = () => {
                     disabled={busy()}
                     onClick={() => openCleaner(loc)}
                   >
-                    <span class="iconify mdi--broom h-3.5 w-3.5 mr-1.5 shrink-0" aria-hidden="true" />
+                    <span
+                      class="iconify mdi--broom h-3.5 w-3.5 mr-1.5 shrink-0"
+                      aria-hidden="true"
+                    />
                     {t("locations.cleanProjects") as string}
                   </Button>
                   <Button
@@ -476,8 +514,11 @@ export const LocationManager: Component = () => {
                     disabled={busy()}
                     onClick={() => void onRemove(loc.id)}
                   >
-                    <span class="iconify mdi--delete-outline h-3.5 w-3.5 mr-1.5 shrink-0" aria-hidden="true" />
-                    {t('common.remove') as string}
+                    <span
+                      class="iconify mdi--delete-outline h-3.5 w-3.5 mr-1.5 shrink-0"
+                      aria-hidden="true"
+                    />
+                    {t("common.remove") as string}
                   </Button>
                 </ButtonGroup>
               </li>

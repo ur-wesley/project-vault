@@ -7,8 +7,5 @@ export function getAutostartEnabled() {
 }
 
 export function setAutostartEnabled(value: boolean) {
-  return ResultAsync.fromPromise(
-    value ? enable() : disable(),
-    mapInvokeError,
-  );
+  return ResultAsync.fromPromise(value ? enable() : disable(), mapInvokeError);
 }

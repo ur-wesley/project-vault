@@ -7,10 +7,7 @@ export function formatDate(ms: number | null | undefined, locale: string): strin
   }).format(new Date(ms));
 }
 
-export function formatRelativeTime(
-  ms: number | null | undefined,
-  locale: string,
-): string | null {
+export function formatRelativeTime(ms: number | null | undefined, locale: string): string | null {
   if (ms == null || ms <= 0) return null;
 
   const now = Date.now();

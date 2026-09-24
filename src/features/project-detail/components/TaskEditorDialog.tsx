@@ -8,11 +8,7 @@ import {
   DialogFooter,
 } from "~/components/ui/dialog";
 import { Button } from "~/components/ui/button";
-import {
-  TextField,
-  TextFieldInput,
-  TextFieldTextArea,
-} from "~/components/ui/text-field";
+import { TextField, TextFieldInput, TextFieldTextArea } from "~/components/ui/text-field";
 import {
   Select,
   SelectContent,
@@ -23,7 +19,7 @@ import {
 import { useI18n } from "~/lib/i18n-context";
 import type { TaskDto, ConcurrentTask } from "~/types/dto";
 import { toast } from "solid-sonner";
-import { notify } from "~/lib/notification-center";
+import { notify } from "~/lib/notification-store";
 import { writeProjectTask } from "~/services/tauri/tasks";
 
 type SubTaskRow = {
@@ -46,6 +42,12 @@ export const TaskEditorDialog: Component<TaskEditorDialogProps> = (props) => {
   const { t } = useI18n();
   const isEdit = () => props.existingTask != null;
 
+  const getKindIcon = (isConcurrent: boolean, kindValue: string) => {
+    if (isConcurrent) return "iconify mdi--call-merge h-5 w-5 shrink-0 text-primary";
+    if (kindValue === "mise") return "iconify mdi--wrench-outline h-5 w-5 shrink-0 text-primary";
+    return "iconify mdi--file-document-edit-outline h-5 w-5 shrink-0 text-primary";
+  };
+
   const isExistingConcurrent = () =>
     props.existingTask?.concurrent != null && props.existingTask.concurrent.length > 0;
 
@@ -64,19 +66,12 @@ export const TaskEditorDialog: Component<TaskEditorDialogProps> = (props) => {
   const [command, setCommand] = createSignal(
     props.existingTask?.concurrent
       ? ""
-      : (props.existingTask?.source
-          ?? props.existingTask?.argv.slice(2).join(" ")
-          ?? ""),
+      : (props.existingTask?.source ?? props.existingTask?.argv.slice(2).join(" ") ?? ""),
   );
-  const [description, setDescription] = createSignal(
-    props.existingTask?.description ?? "",
-  );
+  const [description, setDescription] = createSignal(props.existingTask?.description ?? "");
   const [kind, setKind] = createSignal(props.existingTask?.kind ?? "mise");
-  const [depends, setDepends] = createSignal(
-    props.existingTask?.depends.join(", ") ?? "",
-  );
-  const [concurrentMode, setConcurrentMode] = createSignal(isExistingConcurrent());
-  const [subTasks, setSubTasks] = createStore<SubTaskRow[]>(
+  const [depends, setDepends] = createSignal(props.existingTask?.depends.join(", ") ?? "");
+  const [concurrentMode, setConcurrentMode] = createSignal(isExistingConcurrent());  const [subTasks, setSubTasks] = createStore<SubTaskRow[]>(
     initSubTasks().length > 0 ? initSubTasks() : [{ label: "", command: "", dir: "" }],
   );
   const [busy, setBusy] = createSignal(false);
@@ -126,12 +121,13 @@ export const TaskEditorDialog: Component<TaskEditorDialogProps> = (props) => {
           cwd: s.dir.trim() || undefined,
         }));
 
-        const deps = kind() === "justfile"
-          ? concurrent.map((s) => s.label)
-          : depends()
-              .split(",")
-              .map((s) => s.trim())
-              .filter(Boolean);
+        const deps =
+          kind() === "justfile"
+            ? concurrent.map((s) => s.label)
+            : depends()
+                .split(",")
+                .map((s) => s.trim())
+                .filter(Boolean);
 
         const task: TaskDto = {
           id: isEdit() ? props.existingTask!.id : `${kind()}-${n}`,
@@ -177,10 +173,7 @@ export const TaskEditorDialog: Component<TaskEditorDialogProps> = (props) => {
         const task: TaskDto = {
           id: isEdit() ? props.existingTask!.id : `${kind()}-${n}`,
           label: n,
-          argv:
-            kind() === "mise"
-              ? ["mise", "run", ...cmd.split(/\s+/)]
-              : ["just", n],
+          argv: kind() === "mise" ? ["mise", "run", ...cmd.split(/\s+/)] : ["just", n],
           kind: kind(),
           cwd: null,
           description: description().trim() || undefined,
@@ -220,13 +213,7 @@ export const TaskEditorDialog: Component<TaskEditorDialogProps> = (props) => {
         <DialogHeader>
           <DialogTitle class="flex items-center gap-2">
             <span
-              class={
-                concurrentMode()
-                  ? "iconify mdi--call-merge h-5 w-5 shrink-0 text-primary"
-                  : kind() === "mise"
-                    ? "iconify mdi--wrench-outline h-5 w-5 shrink-0 text-primary"
-                    : "iconify mdi--file-document-edit-outline h-5 w-5 shrink-0 text-primary"
-              }
+              class={getKindIcon(concurrentMode(), kind())}
             />
             {isEdit()
               ? (t("projectDetail.taskEditor.editTitle") as string)
@@ -248,9 +235,7 @@ export const TaskEditorDialog: Component<TaskEditorDialogProps> = (props) => {
               )}
             >
               <SelectTrigger>
-                <SelectValue>
-                  {kind() === "mise" ? "Mise" : "Justfile"}
-                </SelectValue>
+                <SelectValue>{kind() === "mise" ? "Mise" : "Justfile"}</SelectValue>
               </SelectTrigger>
               <SelectContent>
                 <Select.Listbox />
@@ -291,7 +276,9 @@ export const TaskEditorDialog: Component<TaskEditorDialogProps> = (props) => {
 
           <Show when={!concurrentMode()}>
             <TextField class="space-y-2">
-              <span class="text-sm font-medium">{t("projectDetail.taskEditor.command") as string}</span>
+              <span class="text-sm font-medium">
+                {t("projectDetail.taskEditor.command") as string}
+              </span>
               <TextFieldTextArea
                 placeholder={t("projectDetail.taskEditor.commandPlaceholder") as string}
                 value={command()}
@@ -306,7 +293,9 @@ export const TaskEditorDialog: Component<TaskEditorDialogProps> = (props) => {
 
           <Show when={concurrentMode()}>
             <div class="space-y-2">
-              <span class="text-sm font-medium">{t("projectDetail.taskEditor.subTasks") as string}</span>
+              <span class="text-sm font-medium">
+                {t("projectDetail.taskEditor.subTasks") as string}
+              </span>
               <div class="space-y-2">
                 <For each={subTasks}>
                   {(sub, index) => (
@@ -362,7 +351,9 @@ export const TaskEditorDialog: Component<TaskEditorDialogProps> = (props) => {
           </Show>
 
           <TextField class="space-y-2">
-            <span class="text-sm font-medium">{t("projectDetail.taskEditor.description") as string}</span>
+            <span class="text-sm font-medium">
+              {t("projectDetail.taskEditor.description") as string}
+            </span>
             <TextFieldInput
               placeholder={t("projectDetail.taskEditor.descriptionPlaceholder") as string}
               value={description()}
@@ -372,7 +363,9 @@ export const TaskEditorDialog: Component<TaskEditorDialogProps> = (props) => {
 
           <Show when={kind() === "mise"}>
             <TextField class="space-y-2">
-              <span class="text-sm font-medium">{t("projectDetail.taskEditor.depends") as string}</span>
+              <span class="text-sm font-medium">
+                {t("projectDetail.taskEditor.depends") as string}
+              </span>
               <TextFieldInput
                 placeholder={t("projectDetail.taskEditor.dependsPlaceholder") as string}
                 value={depends()}
@@ -386,11 +379,7 @@ export const TaskEditorDialog: Component<TaskEditorDialogProps> = (props) => {
         </div>
 
         <DialogFooter>
-          <Button
-            type="button"
-            variant="outline"
-            onClick={() => props.onOpenChange(false)}
-          >
+          <Button type="button" variant="outline" onClick={() => props.onOpenChange(false)}>
             {t("common.cancel") as string}
           </Button>
           <Button type="button" onClick={handleSubmit} disabled={busy()}>

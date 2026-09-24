@@ -50,7 +50,11 @@ type DialogContentProps<T extends ValidComponent = "div"> =
 const DialogContent = <T extends ValidComponent = "div">(
   props: PolymorphicProps<T, DialogContentProps<T>>,
 ) => {
-  const [local, rest] = splitProps(props as DialogContentProps, ["class", "children", "hideCloseButton"]);
+  const [local, rest] = splitProps(props as DialogContentProps, [
+    "class",
+    "children",
+    "hideCloseButton",
+  ]);
   const { t } = useI18n();
   return (
     <DialogPortal>

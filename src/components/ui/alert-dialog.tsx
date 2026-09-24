@@ -109,10 +109,7 @@ const AlertDialogDescription = <T extends ValidComponent = "p">(
 const AlertDialogHeader = (props: JSX.HTMLAttributes<HTMLDivElement>) => {
   const [local, others] = splitProps(props, ["class"]);
   return (
-    <div
-      class={cn("flex flex-col space-y-2 text-center sm:text-left", local.class)}
-      {...others}
-    />
+    <div class={cn("flex flex-col space-y-2 text-center sm:text-left", local.class)} {...others} />
   );
 };
 
@@ -128,12 +125,7 @@ const AlertDialogFooter = (props: JSX.HTMLAttributes<HTMLDivElement>) => {
 
 const AlertDialogAction = (props: JSX.ButtonHTMLAttributes<HTMLButtonElement>) => {
   const [local, others] = splitProps(props, ["class"]);
-  return (
-    <AlertDialogPrimitive.CloseButton
-      class={cn(buttonVariants(), local.class)}
-      {...others}
-    />
-  );
+  return <AlertDialogPrimitive.CloseButton class={cn(buttonVariants(), local.class)} {...others} />;
 };
 
 const AlertDialogCancel = (props: JSX.ButtonHTMLAttributes<HTMLButtonElement>) => {

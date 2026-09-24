@@ -134,15 +134,37 @@ export async function getAllMonitorBounds(): Promise<MonitorBounds[]> {
 
 /** Compute the bounding box of all monitors in both physical and logical pixels */
 export function computeDesktopBounds(monitors: MonitorBounds[]): {
-  physicalX: number; physicalY: number; physicalWidth: number; physicalHeight: number;
-  logicalX: number; logicalY: number; logicalWidth: number; logicalHeight: number;
+  physicalX: number;
+  physicalY: number;
+  physicalWidth: number;
+  physicalHeight: number;
+  logicalX: number;
+  logicalY: number;
+  logicalWidth: number;
+  logicalHeight: number;
   scaleFactor: number;
 } {
   if (monitors.length === 0) {
-    return { physicalX: 0, physicalY: 0, physicalWidth: 1920, physicalHeight: 1080, logicalX: 0, logicalY: 0, logicalWidth: 1920, logicalHeight: 1080, scaleFactor: 1 };
+    return {
+      physicalX: 0,
+      physicalY: 0,
+      physicalWidth: 1920,
+      physicalHeight: 1080,
+      logicalX: 0,
+      logicalY: 0,
+      logicalWidth: 1920,
+      logicalHeight: 1080,
+      scaleFactor: 1,
+    };
   }
-  let minPX = Infinity, minPY = Infinity, maxPX = -Infinity, maxPY = -Infinity;
-  let minLX = Infinity, minLY = Infinity, maxLX = -Infinity, maxLY = -Infinity;
+  let minPX = Infinity,
+    minPY = Infinity,
+    maxPX = -Infinity,
+    maxPY = -Infinity;
+  let minLX = Infinity,
+    minLY = Infinity,
+    maxLX = -Infinity,
+    maxLY = -Infinity;
   const sf = monitors[0].scaleFactor;
   for (const m of monitors) {
     if (m.physicalX < minPX) minPX = m.physicalX;
@@ -155,10 +177,14 @@ export function computeDesktopBounds(monitors: MonitorBounds[]): {
     if (m.logicalY + m.logicalHeight > maxLY) maxLY = m.logicalY + m.logicalHeight;
   }
   return {
-    physicalX: minPX, physicalY: minPY,
-    physicalWidth: maxPX - minPX, physicalHeight: maxPY - minPY,
-    logicalX: minLX, logicalY: minLY,
-    logicalWidth: maxLX - minLX, logicalHeight: maxLY - minLY,
+    physicalX: minPX,
+    physicalY: minPY,
+    physicalWidth: maxPX - minPX,
+    physicalHeight: maxPY - minPY,
+    logicalX: minLX,
+    logicalY: minLY,
+    logicalWidth: maxLX - minLX,
+    logicalHeight: maxLY - minLY,
     scaleFactor: sf,
   };
 }
@@ -167,8 +193,8 @@ export function computeDesktopBounds(monitors: MonitorBounds[]): {
 export async function cropImage(
   base64: string,
   selection: SelectionDto,
-  imageWidth: number,
-  imageHeight: number,
+  _imageWidth: number,
+  _imageHeight: number,
 ): Promise<Uint8Array> {
   const isJpeg = base64.startsWith("/9j/");
   const mime = isJpeg ? "image/jpeg" : "image/png";
@@ -180,13 +206,17 @@ export async function cropImage(
   const ctx = canvas.getContext("2d")!;
   ctx.drawImage(
     img,
-    selection.x, selection.y, selection.width, selection.height,
-    0, 0, selection.width, selection.height,
+    selection.x,
+    selection.y,
+    selection.width,
+    selection.height,
+    0,
+    0,
+    selection.width,
+    selection.height,
   );
 
-  const blob = await new Promise<Blob>((resolve) =>
-    canvas.toBlob((b) => resolve(b!), "image/png"),
-  );
+  const blob = await new Promise<Blob>((resolve) => canvas.toBlob((b) => resolve(b!), "image/png"));
   return new Uint8Array(await blob.arrayBuffer());
 }
 

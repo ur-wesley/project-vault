@@ -1,0 +1,32 @@
+// Barrel for Tauri invoke services (namespace re-exports: no name collisions).
+// Prefer `~/services/tauri` over deep imports for new code.
+export * as autostart from "./autostart";
+export * as canvas from "./canvas";
+export * as clipboardHistory from "./clipboard-history";
+export * as dokploy from "./dokploy";
+export * as files from "./files";
+export * as git from "./git";
+export * as githubAuth from "./github-auth";
+export * as ide from "./ide";
+export * as issues from "./issues";
+export * as kanban from "./kanban";
+export * as locations from "./locations";
+export * as mcp from "./mcp";
+export * as mise from "./mise";
+export * as notifications from "./notifications";
+export * as pickers from "./pickers";
+export * as processes from "./processes";
+export * as projectCleaner from "./project-cleaner";
+export * as projects from "./projects";
+export * as scanning from "./scanning";
+export * as screenshot from "./screenshot";
+export * as search from "./search";
+export * as sessions from "./sessions";
+export * as settings from "./settings";
+export * as tasks from "./tasks";
+export * as templates from "./templates";
+export * as terminal from "./terminal";
+export * as tunnel from "./tunnel";
+export * as updates from "./updates";
+export * as tauriUtils from "./utils";
+export * as workspaces from "./workspaces";

@@ -69,15 +69,24 @@ function groupEntries(items: ClipboardEntryDto[], t: (k: string) => string): Gro
   }
 
   const groups: Group[] = [];
-  if (today.length) groups.push({ key: "today", label: t("clipboardHistory.groupToday"), items: today });
-  if (yesterday.length) groups.push({ key: "yesterday", label: t("clipboardHistory.groupYesterday"), items: yesterday });
-  if (thisWeek.length) groups.push({ key: "week", label: t("clipboardHistory.groupThisWeek"), items: thisWeek });
-  if (older.length) groups.push({ key: "older", label: t("clipboardHistory.groupOlder"), items: older });
+  if (today.length)
+    groups.push({ key: "today", label: t("clipboardHistory.groupToday"), items: today });
+  if (yesterday.length)
+    groups.push({
+      key: "yesterday",
+      label: t("clipboardHistory.groupYesterday"),
+      items: yesterday,
+    });
+  if (thisWeek.length)
+    groups.push({ key: "week", label: t("clipboardHistory.groupThisWeek"), items: thisWeek });
+  if (older.length)
+    groups.push({ key: "older", label: t("clipboardHistory.groupOlder"), items: older });
   return groups;
 }
 
 function matchesSearch(item: ClipboardEntryDto, query: string): boolean {
-  const hay = `${item.preview} ${item.contentText ?? ""} ${(item.meta?.filePaths ?? []).join(" ")}`.toLowerCase();
+  const hay =
+    `${item.preview} ${item.contentText ?? ""} ${(item.meta?.filePaths ?? []).join(" ")}`.toLowerCase();
   const q = query.toLowerCase();
   if (hay.includes(q)) return true;
   return fuzzyScore(query, hay) > 0;
@@ -341,98 +350,98 @@ export const ClipboardHistoryOverlay: Component = () => {
       </div>
 
       <div class="mt-2.5 flex shrink-0 items-center gap-2 rounded-lg border border-border/60 bg-muted/30 px-3 py-1 mx-4">
-          <span class="iconify mdi--magnify size-4 shrink-0 opacity-50" />
-          <input
-            ref={searchRef}
-            type="text"
-            autofocus
-            class="h-9 min-w-0 flex-1 bg-transparent text-sm outline-none placeholder:text-muted-foreground"
-            placeholder={tStr("clipboardHistory.searchPlaceholder")}
-            value={search()}
-            onInput={(e) => {
-              setSearch(e.currentTarget.value);
-              setSelectedIdx(0);
-            }}
-            onKeyDown={handleListKeyDown}
-          />
-        </div>
+        <span class="iconify mdi--magnify size-4 shrink-0 opacity-50" />
+        <input
+          ref={searchRef}
+          type="text"
+          autofocus
+          class="h-9 min-w-0 flex-1 bg-transparent text-sm outline-none placeholder:text-muted-foreground"
+          placeholder={tStr("clipboardHistory.searchPlaceholder")}
+          value={search()}
+          onInput={(e) => {
+            setSearch(e.currentTarget.value);
+            setSelectedIdx(0);
+          }}
+          onKeyDown={handleListKeyDown}
+        />
+      </div>
 
-        <div ref={listRef} class="mt-2.5 min-h-0 flex-1 overflow-y-auto px-4 py-0.5">
-          <Show when={historyQ.isError}>
-            <p class="px-3 py-8 text-center text-xs text-destructive">
-              {(historyQ.error as Error)?.message ?? tStr("clipboardHistory.empty")}
-            </p>
-          </Show>
-          <Show
-            when={!historyQ.isLoading && !historyQ.isError && flatEntries().length > 0}
-            fallback={
-              <Show when={!historyQ.isLoading && !historyQ.isError}>
-                <p class="px-3 py-8 text-center text-xs text-muted-foreground">
-                  {tStr("clipboardHistory.empty")}
-                </p>
-              </Show>
-            }
-          >
-            <For each={groups()}>
-              {(group) => (
-                <div class="mb-2 last:mb-0">
-                  <div class="px-2.5 py-1.5 text-[10px] font-bold uppercase tracking-widest text-muted-foreground/70">
-                    {group.label}
-                  </div>
-                  <div class="flex flex-col gap-1">
-                    <For each={group.items}>
-                      {(entry) => {
-                        const globalIdx = () => entryIndexMap().get(entry.id) ?? 0;
-                        return (
-                          <ClipboardEntryRow
-                            entry={entry}
-                            selected={selectedIdx() === globalIdx()}
-                            searchQuery={search()}
-                            onPointerMove={() => setSelectedIdx(globalIdx())}
-                            onApply={() => void applyEntry(entry)}
-                          />
-                        );
-                      }}
-                    </For>
-                  </div>
+      <div ref={listRef} class="mt-2.5 min-h-0 flex-1 overflow-y-auto px-4 py-0.5">
+        <Show when={historyQ.isError}>
+          <p class="px-3 py-8 text-center text-xs text-destructive">
+            {(historyQ.error as Error)?.message ?? tStr("clipboardHistory.empty")}
+          </p>
+        </Show>
+        <Show
+          when={!historyQ.isLoading && !historyQ.isError && flatEntries().length > 0}
+          fallback={
+            <Show when={!historyQ.isLoading && !historyQ.isError}>
+              <p class="px-3 py-8 text-center text-xs text-muted-foreground">
+                {tStr("clipboardHistory.empty")}
+              </p>
+            </Show>
+          }
+        >
+          <For each={groups()}>
+            {(group) => (
+              <div class="mb-2 last:mb-0">
+                <div class="px-2.5 py-1.5 text-[10px] font-bold uppercase tracking-widest text-muted-foreground/70">
+                  {group.label}
                 </div>
-              )}
-            </For>
-          </Show>
-        </div>
+                <div class="flex flex-col gap-1">
+                  <For each={group.items}>
+                    {(entry) => {
+                      const globalIdx = () => entryIndexMap().get(entry.id) ?? 0;
+                      return (
+                        <ClipboardEntryRow
+                          entry={entry}
+                          selected={selectedIdx() === globalIdx()}
+                          searchQuery={search()}
+                          onPointerMove={() => setSelectedIdx(globalIdx())}
+                          onApply={() => void applyEntry(entry)}
+                        />
+                      );
+                    }}
+                  </For>
+                </div>
+              </div>
+            )}
+          </For>
+        </Show>
+      </div>
 
-        <div class="mx-4 mt-2.5 shrink-0 rounded-lg bg-muted/30 px-3 py-2.5 text-[10px] leading-relaxed text-muted-foreground">
-          {tStr("clipboardHistory.footerHints")}
-        </div>
+      <div class="mx-4 mt-2.5 shrink-0 rounded-lg bg-muted/30 px-3 py-2.5 text-[10px] leading-relaxed text-muted-foreground">
+        {tStr("clipboardHistory.footerHints")}
+      </div>
 
-        <AlertDialog open={clearOpen()} onOpenChange={setClearOpen}>
-          <AlertDialogContent>
-            <AlertDialogHeader>
-              <AlertDialogTitle>{tStr("clipboardHistory.clearTitle")}</AlertDialogTitle>
-              <AlertDialogDescription>{tStr("clipboardHistory.clearDescription")}</AlertDialogDescription>
-            </AlertDialogHeader>
-            <AlertDialogFooter>
-              <Button variant="ghost" onClick={() => setClearOpen(false)}>
-                {tStr("common.cancel")}
-              </Button>
-              <Button
-                variant="destructive"
-                onClick={() => {
-                  void (async () => {
-                    const r = await clearClipboardHistory(true);
-                    if (r.isErr()) toast.error(stableErrorMessage(tStr, r.error));
-                    else void qc.invalidateQueries({ queryKey: ["clipboard", "history"] });
-                    setClearOpen(false);
-                  })();
-                }}
-              >
-                {tStr("clipboardHistory.clearConfirm")}
-              </Button>
-            </AlertDialogFooter>
-          </AlertDialogContent>
-        </AlertDialog>
+      <AlertDialog open={clearOpen()} onOpenChange={setClearOpen}>
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>{tStr("clipboardHistory.clearTitle")}</AlertDialogTitle>
+            <AlertDialogDescription>
+              {tStr("clipboardHistory.clearDescription")}
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <Button variant="ghost" onClick={() => setClearOpen(false)}>
+              {tStr("common.cancel")}
+            </Button>
+            <Button
+              variant="destructive"
+              onClick={() => {
+                void (async () => {
+                  const r = await clearClipboardHistory(true);
+                  if (r.isErr()) toast.error(stableErrorMessage(tStr, r.error));
+                  else void qc.invalidateQueries({ queryKey: ["clipboard", "history"] });
+                  setClearOpen(false);
+                })();
+              }}
+            >
+              {tStr("clipboardHistory.clearConfirm")}
+            </Button>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
     </div>
   );
 };
-
-

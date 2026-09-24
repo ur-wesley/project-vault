@@ -3,8 +3,8 @@ import { invoke } from "@tauri-apps/api/core";
 import { useI18n } from "~/lib/i18n-context";
 import type { AppView } from "~/lib/app-url";
 import { useEventHub } from "~/lib/event-hub-context";
-import { useNotificationCenter } from "~/lib/notification-center";
-import { pluginFooterSegments, type PluginFooterColor } from "~/lib/plugin-footer";
+import { useNotificationCenter } from "~/lib/notification-store";
+import { pluginFooterSegments, type PluginFooterColor } from "~/lib/plugin/plugin-footer";
 import { listAllProcesses } from "~/services/tauri/sessions";
 import { createQuery } from "@tanstack/solid-query";
 import { isTauri } from "@tauri-apps/api/core";
@@ -36,22 +36,25 @@ export const StatusBar: Component<{
     enabled: isTauri(),
   }));
 
-  const runningCount = createMemo(() =>
-    (processesQ.data ?? []).filter((p) => p.state === "running" || p.state === "starting").length,
+  const runningCount = createMemo(
+    () =>
+      (processesQ.data ?? []).filter((p) => p.state === "running" || p.state === "starting").length,
   );
 
   const unsub = hub.on("scan:complete", (payload) => {
     center.notify({
       severity: "info",
       title: t("library.scanCompleteTitle") as string,
-      body: payload.projectCount > 0 ? (t("library.scanCompleteBody", { count: payload.projectCount }) as string) : undefined,
+      body:
+        payload.projectCount > 0
+          ? (t("library.scanCompleteBody", { count: payload.projectCount }) as string)
+          : undefined,
       source: t("library.scanCompleteSource") as string,
       durationMs: 5000,
       system: "auto",
     });
   });
   onCleanup(unsub);
-
 
   const leftSegments = createMemo(() =>
     pluginFooterSegments().filter((s) => s.position !== "right"),
@@ -64,12 +67,18 @@ export const StatusBar: Component<{
   // Color mappings for plugin footer segment variants
   const footerColorClass = (color: PluginFooterColor) => {
     switch (color) {
-      case "success":  return "text-emerald-400 bg-emerald-500/10 hover:bg-emerald-500/20";
-      case "warning":  return "text-amber-400   bg-amber-500/10   hover:bg-amber-500/20";
-      case "error":    return "text-red-400     bg-red-500/10     hover:bg-red-500/20";
-      case "primary":  return "text-primary     bg-primary/10     hover:bg-primary/20";
-      case "muted":    return "text-muted-foreground/60 bg-transparent hover:bg-accent";
-      default:         return "text-foreground/70 bg-transparent hover:bg-accent";
+      case "success":
+        return "text-emerald-400 bg-emerald-500/10 hover:bg-emerald-500/20";
+      case "warning":
+        return "text-amber-400   bg-amber-500/10   hover:bg-amber-500/20";
+      case "error":
+        return "text-red-400     bg-red-500/10     hover:bg-red-500/20";
+      case "primary":
+        return "text-primary     bg-primary/10     hover:bg-primary/20";
+      case "muted":
+        return "text-muted-foreground/60 bg-transparent hover:bg-accent";
+      default:
+        return "text-foreground/70 bg-transparent hover:bg-accent";
     }
   };
 
@@ -90,7 +99,6 @@ export const StatusBar: Component<{
     <div class="flex h-6 shrink-0 items-center justify-between border-t border-border/40 bg-background/50 px-2 text-[11px] tabular-nums backdrop-blur-md">
       {/* Left: path or project name + left segments */}
       <div class="flex min-w-0 flex-1 items-center gap-3">
-
         <Show when={leftSegments().length > 0}>
           <div class="flex items-center gap-1 overflow-x-auto scrollbar-none">
             <For each={leftSegments()}>
@@ -99,7 +107,9 @@ export const StatusBar: Component<{
                   <TooltipTrigger
                     as={seg.command ? "button" : "span"}
                     type={seg.command ? "button" : undefined}
-                    onClick={() => seg.command && handleFooterSegmentClick(seg.pluginId, seg.command)}
+                    onClick={() =>
+                      seg.command && handleFooterSegmentClick(seg.pluginId, seg.command)
+                    }
                     class={`flex shrink-0 items-center gap-1 rounded px-1.5 py-0.5 text-[10px] transition-colors ${footerColorClass(seg.color)} ${seg.command ? "cursor-pointer" : "cursor-default"}`}
                   >
                     <PluginIcon icon={seg.icon} class="size-3" />
@@ -125,7 +135,9 @@ export const StatusBar: Component<{
                   <TooltipTrigger
                     as={seg.command ? "button" : "span"}
                     type={seg.command ? "button" : undefined}
-                    onClick={() => seg.command && handleFooterSegmentClick(seg.pluginId, seg.command)}
+                    onClick={() =>
+                      seg.command && handleFooterSegmentClick(seg.pluginId, seg.command)
+                    }
                     class={`flex shrink-0 items-center gap-1 rounded px-1.5 py-0.5 text-[10px] transition-colors ${footerColorClass(seg.color)} ${seg.command ? "cursor-pointer" : "cursor-default"}`}
                   >
                     <PluginIcon icon={seg.icon} class="size-3" />
@@ -151,7 +163,9 @@ export const StatusBar: Component<{
             >
               <span class="iconify mdi--download-circle-outline size-3" />
             </TooltipTrigger>
-            <TooltipContent>{t("updater.download") as string} v{props.updateVersion}</TooltipContent>
+            <TooltipContent>
+              {t("updater.download") as string} v{props.updateVersion}
+            </TooltipContent>
           </Tooltip>
         </Show>
 

@@ -1,4 +1,14 @@
-import type { GitCleanPreviewDto, GitIncomingDto, GitPreviewVersionsDto, GitStatusDto, GitTagResultDto, DiscoverVersionFilesResultDto, BumpVersionAndTagPayload } from "~/types/dto";
+import type {
+  GitChangedFileDto,
+  GitCleanPreviewDto,
+  GitFileDiffDto,
+  GitIncomingDto,
+  GitPreviewVersionsDto,
+  GitStatusDto,
+  GitTagResultDto,
+  DiscoverVersionFilesResultDto,
+  BumpVersionAndTagPayload,
+} from "~/types/dto";
 import { tauriInvoke } from "./utils";
 
 export function getGitStatus(projectId: string) {
@@ -21,6 +31,14 @@ export function gitIncoming(projectId: string) {
   return tauriInvoke<GitIncomingDto>("git_incoming", { projectId });
 }
 
+export function gitChangedFiles(projectId: string) {
+  return tauriInvoke<GitChangedFileDto[]>("git_changed_files", { projectId });
+}
+
+export function gitFileDiff(projectId: string, path: string) {
+  return tauriInvoke<GitFileDiffDto>("git_file_diff", { projectId, path });
+}
+
 export function gitInit(projectId: string) {
   return tauriInvoke<void>("git_init", { projectId });
 }
@@ -37,7 +55,10 @@ export function gitDiscoverVersionFiles(
   projectId: string,
   bump: "patch" | "minor" | "major" | "beta",
 ) {
-  return tauriInvoke<DiscoverVersionFilesResultDto>("git_discover_version_files", { projectId, bump });
+  return tauriInvoke<DiscoverVersionFilesResultDto>("git_discover_version_files", {
+    projectId,
+    bump,
+  });
 }
 
 export function gitBumpVersionAndTag(projectId: string, payload: BumpVersionAndTagPayload) {

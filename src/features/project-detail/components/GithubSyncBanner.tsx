@@ -31,7 +31,10 @@ export function GithubSyncBanner(props: {
           onClick={() => props.onSync()}
           disabled={props.syncPending}
         >
-          <Show when={props.syncPending} fallback={<span class="iconify mdi--cloud-upload h-4 w-4" />}>
+          <Show
+            when={props.syncPending}
+            fallback={<span class="iconify mdi--cloud-upload h-4 w-4" />}
+          >
             <span class="iconify mdi--cloud-upload h-4 w-4" />
           </Show>
           {t("projectDetail.syncToGithub") as string}

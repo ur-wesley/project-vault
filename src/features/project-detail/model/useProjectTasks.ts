@@ -1,6 +1,11 @@
 import { createQuery, createMutation, useQueryClient } from "@tanstack/solid-query";
 import { createMemo, createSignal, type Accessor } from "solid-js";
-import { listSessionsForProject, listActiveSessions, clearSessionsForProject, getSessionCountForProject } from "~/services/tauri/sessions";
+import {
+  listSessionsForProject,
+  listActiveSessions,
+  clearSessionsForProject,
+  getSessionCountForProject,
+} from "~/services/tauri/sessions";
 import { spawnProjectTask, stopProjectTask } from "~/services/tauri/tasks";
 import { queryKeys } from "~/services/query-keys";
 import { stableErrorMessage } from "~/lib/invoke-error";
@@ -108,9 +113,7 @@ export function useProjectTasks(props: UseProjectTasksProps) {
       return;
     }
     const sessionId = crypto.randomUUID();
-    const cmd = isConcurrent
-      ? concurrent.map((s) => s.label).join(" + ")
-      : argv.join(" ");
+    const cmd = isConcurrent ? concurrent.map((s) => s.label).join(" + ") : argv.join(" ");
 
     const r = await spawnProjectTask({
       projectId: project.id,

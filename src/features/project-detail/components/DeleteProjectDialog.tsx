@@ -1,4 +1,4 @@
-import { Show, createSignal } from "solid-js";
+import { createSignal } from "solid-js";
 import {
   AlertDialog,
   AlertDialogContent,
@@ -30,31 +30,19 @@ export function DeleteProjectDialog(props: {
     >
       <AlertDialogContent>
         <AlertDialogHeader>
-          <AlertDialogTitle>
-            {t("projectDetail.deleteProjectTitle") as string}
-          </AlertDialogTitle>
+          <AlertDialogTitle>{t("projectDetail.deleteProjectTitle") as string}</AlertDialogTitle>
           <AlertDialogDescription>
             {t("projectDetail.deleteProjectDescription") as string}
           </AlertDialogDescription>
         </AlertDialogHeader>
         <div class="flex items-center gap-2 py-2">
-          <Checkbox
-            id="delete-from-disk"
-            checked={deleteFromDisk()}
-            onChange={setDeleteFromDisk}
-          />
-          <label
-            for="delete-from-disk"
-            class="cursor-pointer text-xs text-muted-foreground"
-          >
+          <Checkbox id="delete-from-disk" checked={deleteFromDisk()} onChange={setDeleteFromDisk} />
+          <label for="delete-from-disk" class="cursor-pointer text-xs text-muted-foreground">
             {t("projectDetail.deleteFromDisk") as string}
           </label>
         </div>
         <AlertDialogFooter>
-          <Button
-            variant="outline"
-            onClick={() => props.onOpenChange(false)}
-          >
+          <Button variant="outline" onClick={() => props.onOpenChange(false)}>
             {t("wizard.cancel") as string}
           </Button>
           <Button

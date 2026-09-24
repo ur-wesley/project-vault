@@ -30,7 +30,11 @@ function loadPersistedState(): PersistedState | null {
   }
 }
 
-function savePersistedState(instances: readonly GlobalTerminalInstance[], activeId: string | null, height: number) {
+function savePersistedState(
+  instances: readonly GlobalTerminalInstance[],
+  activeId: string | null,
+  height: number,
+) {
   try {
     const state: PersistedState = {
       instances: instances.map((inst) => ({

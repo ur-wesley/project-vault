@@ -174,9 +174,7 @@ export function ProjectCard(props: {
                 >
                   <span class="mx-0.5 h-2.5 w-px bg-border/60" />
                 </Show>
-                <Show
-                  when={formatRelativeTime(props.project.lastEditedAtMs, localeCode())}
-                >
+                <Show when={formatRelativeTime(props.project.lastEditedAtMs, localeCode())}>
                   <span class="iconify mdi--pencil-outline text-muted-foreground/60 size-3" />
                   <span class="text-[10px] font-mono font-medium text-muted-foreground">
                     {formatRelativeTime(props.project.lastEditedAtMs, localeCode())}
@@ -210,10 +208,7 @@ export function ProjectCard(props: {
               )}
               onClick={(e) => props.onPlay(e)}
             >
-              <Show
-                when={props.isRunning}
-                fallback={<span class="iconify mdi--play size-4" />}
-              >
+              <Show when={props.isRunning} fallback={<span class="iconify mdi--play size-4" />}>
                 <span class="iconify mdi--stop size-4 animate-in zoom-in duration-300" />
               </Show>
             </TooltipTrigger>

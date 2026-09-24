@@ -13,7 +13,6 @@ import { stopProjectTask } from "~/services/tauri/tasks";
 import { stopProjectIde } from "~/services/tauri/ide";
 import { stopAllProjectProcesses } from "~/services/tauri/processes";
 
-
 type ProjectGroup = {
   projectId: string;
   projectName: string;
@@ -216,9 +215,7 @@ export const ProcessesView: Component<{
                         />
                         <div class="min-w-0 flex-1">
                           <div class="flex items-center gap-2">
-                            <span class="truncate text-sm font-medium">
-                              {proc.command ?? "—"}
-                            </span>
+                            <span class="truncate text-sm font-medium">{proc.command ?? "—"}</span>
                             <Badge
                               variant={proc.state === "running" ? "default" : "secondary"}
                               class="h-4 px-1.5 text-[9px] font-black uppercase tracking-wider"

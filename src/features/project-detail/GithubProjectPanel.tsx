@@ -1,16 +1,27 @@
-import { Show, createSignal, createMemo, createEffect, onMount, onCleanup, type Component } from "solid-js";
+import {
+  Show,
+  createSignal,
+  createMemo,
+  createEffect,
+  onMount,
+  onCleanup,
+  type Component,
+} from "solid-js";
 import { isTauri } from "@tauri-apps/api/core";
 import { resolve } from "@tauri-apps/api/path";
-import { openUrl } from "@tauri-apps/plugin-opener";
 import { ask } from "@tauri-apps/plugin-dialog";
 import { createQuery } from "@tanstack/solid-query";
 
 import { Button } from "~/components/ui/button";
 import { useI18n } from "~/lib/i18n-context";
 import { stableErrorMessage } from "~/lib/invoke-error";
+import { onMarkdownCopyClick } from "~/lib/markdown-copy";
+import { cn } from "~/lib/utils";
+import { openExternal } from "~/lib/open-external";
 import { readProjectReadmeHtml } from "~/services/github";
 import { deleteAllLocalIssues } from "~/services/tauri/issues";
 import { setProjectTag } from "~/services/tauri/projects";
+import { mapInvokeError } from "~/services/tauri/utils";
 import { queryKeys } from "~/services/query-keys";
 import type { StableError } from "~/types/error";
 
@@ -22,29 +33,8 @@ import { GithubIssueList } from "./components/GithubIssueList";
 import type { ProjectDetailModel } from "./model/createProjectDetailModel";
 import { FilePreview } from "./components/FilePreview";
 
-async function openExternal(href: string): Promise<void> {
-  if (isTauri()) {
-    await openUrl(href);
-    return;
-  }
-  window.open(href, "_blank", "noopener,noreferrer");
-}
-
 function toStableQueryError(e: unknown): StableError {
-  if (
-    e !== null &&
-    typeof e === "object" &&
-    "code" in e &&
-    "message" in e &&
-    typeof (e as StableError).code === "string" &&
-    typeof (e as StableError).message === "string"
-  ) {
-    return e as StableError;
-  }
-  if (e instanceof Error) {
-    return { code: "INVOKE_FAILED", message: e.message };
-  }
-  return { code: "INVOKE_FAILED", message: String(e) };
+  return mapInvokeError(e);
 }
 
 async function safeConfirm(message: string): Promise<boolean> {
@@ -60,6 +50,16 @@ async function safeConfirm(message: string): Promise<boolean> {
 type IssueFilterState = "all" | "open" | "closed";
 type FilterOption = { value: IssueFilterState; label: string };
 
+const README_WIDTH_KEY = "pv-readme-width";
+
+function readInitialReadmeWide(): boolean {
+  try {
+    return localStorage.getItem(README_WIDTH_KEY) === "full";
+  } catch {
+    return false;
+  }
+}
+
 export const GithubProjectPanel: Component<{
   projectId: () => string;
   projectPath: () => string;
@@ -74,7 +74,9 @@ export const GithubProjectPanel: Component<{
   // eslint-disable-next-line no-unassigned-vars — Solid ref pattern
   let containerRef: HTMLDivElement | undefined;
 
-  const syncDismissed = createMemo(() => props.model.projectQ.data?.tags.includes("dismissed_sync_banner") ?? false);
+  const syncDismissed = createMemo(
+    () => props.model.projectQ.data?.tags.includes("dismissed_sync_banner") ?? false,
+  );
 
   const setSyncDismissed = async () => {
     const r = await setProjectTag({ id: props.projectId(), tag: "dismissed_sync_banner" });
@@ -83,6 +85,16 @@ export const GithubProjectPanel: Component<{
   };
 
   // UI State
+  const [readmeWide, setReadmeWide] = createSignal(readInitialReadmeWide());
+  const setReadmeWidth = (wide: boolean) => {
+    setReadmeWide(wide);
+    try {
+      localStorage.setItem(README_WIDTH_KEY, wide ? "full" : "read");
+    } catch {
+      // ignore persistence failures (e.g. private mode)
+    }
+  };
+
   const [createOpen, setCreateOpen] = createSignal(false);
   const [editIssue, setEditIssue] = createSignal<ExtendedIssueRow | null>(null);
   const [search, setSearch] = createSignal("");
@@ -127,30 +139,8 @@ export const GithubProjectPanel: Component<{
     retry: false,
   }));
 
-  const handleCopy = async (e: MouseEvent) => {
-    const target = e.target as HTMLElement;
-    const btn = target.closest(".markdown-copy-btn") as HTMLButtonElement;
-    if (!btn) return;
-
-    const pre = btn.closest("pre");
-    if (!pre) return;
-
-    const code = pre.querySelector("code");
-    const text = code ? code.innerText : pre.innerText.replace("Copy", "").trim();
-
-    try {
-      await navigator.clipboard.writeText(text);
-      const icon = btn.querySelector(".iconify");
-      if (icon) {
-        const oldClass = icon.className;
-        icon.className = "iconify mdi--check text-green-500 h-3.5 w-3.5";
-        setTimeout(() => {
-          icon.className = oldClass;
-        }, 2000);
-      }
-    } catch (err) {
-      console.error("Failed to copy text: ", err);
-    }
+  const handleCopy = (e: MouseEvent) => {
+    void onMarkdownCopyClick(e);
   };
 
   const { labels, issuesQ, localIssuesQ, syncM, createM, updateM, closeM } = useGithubIssues({
@@ -175,21 +165,22 @@ export const GithubProjectPanel: Component<{
 
   createEffect(() => {
     console.log("[GithubProjectPanel] Sync Check:", {
-        hasGithub: props.github() != null,
-        github: props.github(),
-        localCount: localIssuesQ.data?.length ?? 0,
-        localIssues: localIssuesQ.data,
-        syncDismissed: syncDismissed()
+      hasGithub: props.github() != null,
+      github: props.github(),
+      localCount: localIssuesQ.data?.length ?? 0,
+      localIssues: localIssuesQ.data,
+      syncDismissed: syncDismissed(),
     });
   });
 
   const selectedIssue = createMemo(() => {
     if (!props.subDetail) return null;
     const [numStr, source] = props.subDetail.split(":");
-    return issuesQ.data?.find((i) => 
-      i.number.toString() === numStr && 
-      (source === "local" ? i.isLocal : !i.isLocal)
-    ) ?? null;
+    return (
+      issuesQ.data?.find(
+        (i) => i.number.toString() === numStr && (source === "local" ? i.isLocal : !i.isLocal),
+      ) ?? null
+    );
   });
 
   const filteredIssues = createMemo(() => {
@@ -291,7 +282,14 @@ export const GithubProjectPanel: Component<{
           </div>
         </Show>
 
-        <Show when={props.github() != null && localIssuesQ.data && localIssuesQ.data.length > 0 && !syncDismissed()}>
+        <Show
+          when={
+            props.github() != null &&
+            localIssuesQ.data &&
+            localIssuesQ.data.length > 0 &&
+            !syncDismissed()
+          }
+        >
           <GithubSyncBanner
             count={localIssuesQ.data!.length}
             syncPending={syncM.isPending}
@@ -309,6 +307,43 @@ export const GithubProjectPanel: Component<{
       </div>
 
       <Show when={props.view === "readme"}>
+        <div class="flex shrink-0 items-center justify-center px-1 py-2">
+          <div
+            role="group"
+            aria-label="readme width"
+            data-testid="readme-width-toggle"
+            class="inline-flex items-center gap-0.5 rounded-lg border border-border/60 bg-muted/70 p-0.5 shadow-sm"
+          >
+            <Button
+              variant="ghost"
+              size="sm"
+              aria-pressed={!readmeWide()}
+              title={t("projectDetail.readmeReadWidth") as string}
+              onClick={() => setReadmeWidth(false)}
+              class={cn(
+                "h-7 gap-1.5 px-2 text-xs font-semibold",
+                !readmeWide() && "bg-background text-foreground shadow-sm",
+              )}
+            >
+              <span class="iconify mdi--book-open-outline size-3.5" />
+              {t("projectDetail.readmeReadWidth") as string}
+            </Button>
+            <Button
+              variant="ghost"
+              size="sm"
+              aria-pressed={readmeWide()}
+              title={t("projectDetail.readmeFullWidth") as string}
+              onClick={() => setReadmeWidth(true)}
+              class={cn(
+                "h-7 gap-1.5 px-2 text-xs font-semibold",
+                readmeWide() && "bg-background text-foreground shadow-sm",
+              )}
+            >
+              <span class="iconify mdi--arrow-expand-horizontal size-3.5" />
+              {t("projectDetail.readmeFullWidth") as string}
+            </Button>
+          </div>
+        </div>
         <div class="min-h-0 min-w-0 flex-1 overflow-y-auto pr-1 pb-3 scrollbar-none flex flex-col">
           <Show
             when={currentPath()}
@@ -324,14 +359,23 @@ export const GithubProjectPanel: Component<{
                     <div class="size-20 rounded-full bg-muted/30 flex items-center justify-center mb-6">
                       <span class="iconify mdi--file-document-outline h-10 w-10 text-muted-foreground/20" />
                     </div>
-                    <h3 class="text-lg font-semibold mb-1">{t("projectDetail.readmeNotFound") as string}</h3>
+                    <h3 class="text-lg font-semibold mb-1">
+                      {t("projectDetail.readmeNotFound") as string}
+                    </h3>
                     <p class="max-w-[280px] text-sm text-muted-foreground leading-relaxed">
                       {t("projectDetail.readmeNotFoundDescription") as string}
                     </p>
                   </div>
                 </Show>
                 <Show when={readmeQ.isSuccess && readmeQ.data != null}>
-                  <div class="pv-github-readme w-full pt-4">
+                  <div
+                    class={cn(
+                      "pv-github-readme w-full",
+                      readmeWide()
+                        ? "max-w-none px-1 pt-4"
+                        : "mx-auto mt-1 max-w-[68ch] rounded-xl border border-border/60 bg-card px-5 py-5 shadow-sm sm:px-6",
+                    )}
+                  >
                     <article class="markdown-body !bg-transparent" innerHTML={readmeQ.data!} />
                   </div>
                 </Show>
@@ -341,7 +385,12 @@ export const GithubProjectPanel: Component<{
             {(path) => (
               <div class="flex-1 flex flex-col min-h-0 p-3">
                 <div class="mb-3 shrink-0">
-                  <Button variant="ghost" size="sm" onClick={handleBack} class="h-8 gap-1.5 text-xs">
+                  <Button
+                    variant="ghost"
+                    size="sm"
+                    onClick={handleBack}
+                    class="h-8 gap-1.5 text-xs"
+                  >
                     <span class="iconify mdi--arrow-left h-4 w-4" />
                     {t("common.back") || "Back"}
                   </Button>
@@ -365,8 +414,15 @@ export const GithubProjectPanel: Component<{
           fallback={
             <GithubIssueList
               filteredIssues={filteredIssues}
-              issuesQ={{ isPending: issuesQ.isPending, isError: issuesQ.isError, isSuccess: issuesQ.isSuccess, error: issuesQ.error }}
-              issuesErrorMessage={issuesQ.isError ? stableErrorMessage(t, toStableQueryError(issuesQ.error)) : null}
+              issuesQ={{
+                isPending: issuesQ.isPending,
+                isError: issuesQ.isError,
+                isSuccess: issuesQ.isSuccess,
+                error: issuesQ.error,
+              }}
+              issuesErrorMessage={
+                issuesQ.isError ? stableErrorMessage(t, toStableQueryError(issuesQ.error)) : null
+              }
               search={search()}
               onSearchChange={setSearch}
               filter={filter()}

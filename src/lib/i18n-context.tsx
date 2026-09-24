@@ -1,5 +1,12 @@
 import * as i18n from "@solid-primitives/i18n";
-import { createContext, useContext, createResource, createMemo, type ParentComponent, type Accessor } from "solid-js";
+import {
+  createContext,
+  useContext,
+  createResource,
+  createMemo,
+  type ParentComponent,
+  type Accessor,
+} from "solid-js";
 import { messages, type Locale, defaultLocale } from "~/messages";
 import { getSetting } from "~/services/tauri/settings";
 
@@ -8,7 +15,7 @@ const LOCALE_SETTING_KEY = "ui_locale";
 const flatEn = i18n.flatten(messages.en);
 type FlatMessages = typeof flatEn;
 
-const I18nCtx = createContext<{ 
+const I18nCtx = createContext<{
   t: i18n.Translator<FlatMessages>;
   locale: Accessor<Locale>;
   setLocale: (l: Locale) => void;
@@ -16,13 +23,16 @@ const I18nCtx = createContext<{
 }>();
 
 export const I18nProvider: ParentComponent = (props) => {
-  const [currentLocale, { mutate }] = createResource(async () => {
-    const r = await getSetting(LOCALE_SETTING_KEY);
-    if (r.isOk() && r.value && r.value in messages) {
-      return r.value as Locale;
-    }
-    return defaultLocale;
-  }, { initialValue: defaultLocale });
+  const [currentLocale, { mutate }] = createResource(
+    async () => {
+      const r = await getSetting(LOCALE_SETTING_KEY);
+      if (r.isOk() && r.value && r.value in messages) {
+        return r.value as Locale;
+      }
+      return defaultLocale;
+    },
+    { initialValue: defaultLocale },
+  );
 
   const dict = createMemo(() => {
     const loc = currentLocale();
@@ -37,7 +47,7 @@ export const I18nProvider: ParentComponent = (props) => {
       return val !== undefined ? String(val) : match;
     });
   }) as any);
-  
+
   const setLocale = (l: Locale) => mutate(l);
 
   const localeCode = createMemo(() => {

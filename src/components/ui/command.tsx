@@ -21,7 +21,9 @@ const Command: Component<ParentProps<CommandPrimitive.CommandRootProps>> = (prop
   );
 };
 
-const CommandDialog: Component<ParentProps<DialogRootProps & CommandPrimitive.CommandRootProps>> = (props) => {
+const CommandDialog: Component<ParentProps<DialogRootProps & CommandPrimitive.CommandRootProps>> = (
+  props,
+) => {
   const [local, others] = splitProps(props, ["children", "filter"]);
 
   return (

@@ -1,4 +1,4 @@
-import { For, Show, createSignal } from "solid-js";
+import { For, Show, createEffect, createSignal, on } from "solid-js";
 import { Button } from "~/components/ui/button";
 import { Checkbox } from "~/components/ui/checkbox";
 import {
@@ -21,27 +21,39 @@ export function TagVersionDialog(props: {
   const { t } = useI18n();
   const m = () => props.model;
   const [tagStep, setTagStep] = createSignal<"bump" | "files">("bump");
-  const [selectedBump, setSelectedBump] = createSignal<
-    "patch" | "minor" | "major" | "beta"
-  >("patch");
-  const [discoveredFiles, setDiscoveredFiles] =
-    createSignal<DiscoverVersionFilesResultDto | null>(null);
-  const [selectedVersionFiles, setSelectedVersionFiles] = createSignal<
-    Set<string>
-  >(new Set<string>());
+  const [selectedBump, setSelectedBump] = createSignal<"patch" | "minor" | "major" | "beta">(
+    "patch",
+  );
+  const [discoveredFiles, setDiscoveredFiles] = createSignal<DiscoverVersionFilesResultDto | null>(
+    null,
+  );
+  const [selectedVersionFiles, setSelectedVersionFiles] = createSignal<Set<string>>(
+    new Set<string>(),
+  );
   const [tagError, setTagError] = createSignal<string | null>(null);
+
+  const resetTagState = () => {
+    setTagStep("bump");
+    setSelectedBump("patch");
+    setDiscoveredFiles(null);
+    setSelectedVersionFiles(new Set<string>());
+    setTagError(null);
+  };
+
+  createEffect(
+    on(
+      () => props.open,
+      (open) => {
+        if (!open) resetTagState();
+      },
+    ),
+  );
 
   return (
     <Dialog
       open={props.open}
       onOpenChange={(open) => {
         props.onOpenChange(open);
-        setTagError(null);
-        if (!open) {
-          setTagStep("bump");
-          setDiscoveredFiles(null);
-          setSelectedVersionFiles(new Set<string>());
-        }
       }}
     >
       <DialogContent class="sm:max-w-lg">
@@ -50,18 +62,14 @@ export function TagVersionDialog(props: {
             when={tagStep() !== "bump"}
             fallback={
               <div>
-                <DialogTitle>
-                  {t("projectDetail.gitPushTagTitle") as string}
-                </DialogTitle>
+                <DialogTitle>{t("projectDetail.gitPushTagTitle") as string}</DialogTitle>
                 <DialogDescription>
                   {t("projectDetail.gitPushTagDescription") as string}
                 </DialogDescription>
               </div>
             }
           >
-            <DialogTitle>
-              {t("projectDetail.gitBumpTitle") as string}
-            </DialogTitle>
+            <DialogTitle>{t("projectDetail.gitBumpTitle") as string}</DialogTitle>
             <DialogDescription>
               {discoveredFiles()
                 ? (t("projectDetail.gitBumpDescription", {
@@ -92,9 +100,7 @@ export function TagVersionDialog(props: {
                 try {
                   const result = await m().discoverVersionFiles("patch");
                   setDiscoveredFiles(result);
-                  setSelectedVersionFiles(
-                    new Set<string>(result.files.map((f) => f.path)),
-                  );
+                  setSelectedVersionFiles(new Set<string>(result.files.map((f) => f.path)));
                   setTagStep("files");
                 } catch (e: any) {
                   setTagError(e?.message || String(e));
@@ -113,9 +119,7 @@ export function TagVersionDialog(props: {
                 try {
                   const result = await m().discoverVersionFiles("minor");
                   setDiscoveredFiles(result);
-                  setSelectedVersionFiles(
-                    new Set<string>(result.files.map((f) => f.path)),
-                  );
+                  setSelectedVersionFiles(new Set<string>(result.files.map((f) => f.path)));
                   setTagStep("files");
                 } catch (e: any) {
                   setTagError(e?.message || String(e));
@@ -134,9 +138,7 @@ export function TagVersionDialog(props: {
                 try {
                   const result = await m().discoverVersionFiles("major");
                   setDiscoveredFiles(result);
-                  setSelectedVersionFiles(
-                    new Set<string>(result.files.map((f) => f.path)),
-                  );
+                  setSelectedVersionFiles(new Set<string>(result.files.map((f) => f.path)));
                   setTagStep("files");
                 } catch (e: any) {
                   setTagError(e?.message || String(e));
@@ -155,9 +157,7 @@ export function TagVersionDialog(props: {
                 try {
                   const result = await m().discoverVersionFiles("beta");
                   setDiscoveredFiles(result);
-                  setSelectedVersionFiles(
-                    new Set<string>(result.files.map((f) => f.path)),
-                  );
+                  setSelectedVersionFiles(new Set<string>(result.files.map((f) => f.path)));
                   setTagStep("files");
                 } catch (e: any) {
                   setTagError(e?.message || String(e));
@@ -202,9 +202,7 @@ export function TagVersionDialog(props: {
                       >
                         <Show
                           when={m().isBumpingVersion()}
-                          fallback={
-                            <span class="iconify mdi--tag-plus size-3.5" />
-                          }
+                          fallback={<span class="iconify mdi--tag-plus size-3.5" />}
                         >
                           <span class="iconify mdi--loading animate-spin size-3.5" />
                         </Show>
@@ -214,10 +212,10 @@ export function TagVersionDialog(props: {
                   </div>
                 }
               >
-                <div class="max-h-64 overflow-y-auto space-y-2 border rounded-md p-2">
+                <div class="max-h-64 overflow-x-hidden overflow-y-auto space-y-2 border rounded-md p-2">
                   <For each={data().files}>
                     {(file) => (
-                      <div class="flex items-start gap-2">
+                      <div class="flex items-start gap-2 min-w-0">
                         <Checkbox
                           id={`version-file-${file.path}`}
                           checked={selectedVersionFiles().has(file.path)}
@@ -230,14 +228,14 @@ export function TagVersionDialog(props: {
                             });
                           }}
                         />
-                        <div class="flex-1 min-w-0">
+                        <div class="flex-1 min-w-0 overflow-hidden">
                           <label
                             for={`version-file-${file.path}`}
-                            class="text-xs font-mono font-medium cursor-pointer"
+                            class="text-xs font-mono font-medium cursor-pointer break-all"
                           >
                             {file.path}
                           </label>
-                          <p class="text-[10px] text-muted-foreground font-mono truncate">
+                          <p class="text-[10px] text-muted-foreground font-mono break-all whitespace-pre-wrap">
                             {file.preview}
                           </p>
                         </div>
@@ -262,10 +260,7 @@ export function TagVersionDialog(props: {
                     {t("common.cancel") as string}
                   </Button>
                   <Button
-                    disabled={
-                      m().isBumpingVersion() ||
-                      selectedVersionFiles().size === 0
-                    }
+                    disabled={m().isBumpingVersion() || selectedVersionFiles().size === 0}
                     onClick={() => {
                       m().bumpVersionAndTag({
                         bump: selectedBump(),
@@ -276,9 +271,7 @@ export function TagVersionDialog(props: {
                   >
                     <Show
                       when={m().isBumpingVersion()}
-                      fallback={
-                        <span class="iconify mdi--tag-plus size-3.5" />
-                      }
+                      fallback={<span class="iconify mdi--tag-plus size-3.5" />}
                     >
                       <span class="iconify mdi--loading animate-spin size-3.5" />
                     </Show>
@@ -299,18 +292,31 @@ function BumpButton(props: {
   label: string;
   selectedBump: string;
   isDiscovering: () => boolean;
-  previewVersionsQ: { data: { currentVersion: string; patchVersion: string; minorVersion: string; majorVersion: string; betaVersion: string } | undefined };
+  previewVersionsQ: {
+    data:
+      | {
+          currentVersion: string;
+          patchVersion: string;
+          minorVersion: string;
+          majorVersion: string;
+          betaVersion: string;
+        }
+      | undefined;
+  };
   onClick: () => void;
 }) {
-  const { t } = useI18n();
   const version = () => {
     const v = props.previewVersionsQ.data;
     if (!v) return props.label;
     switch (props.bump) {
-      case "patch": return `${v.currentVersion} → ${v.patchVersion}`;
-      case "minor": return `${v.currentVersion} → ${v.minorVersion}`;
-      case "major": return `${v.currentVersion} → ${v.majorVersion}`;
-      case "beta": return `${v.currentVersion} → ${v.betaVersion}`;
+      case "patch":
+        return `${v.currentVersion} → ${v.patchVersion}`;
+      case "minor":
+        return `${v.currentVersion} → ${v.minorVersion}`;
+      case "major":
+        return `${v.currentVersion} → ${v.majorVersion}`;
+      case "beta":
+        return `${v.currentVersion} → ${v.betaVersion}`;
     }
   };
 

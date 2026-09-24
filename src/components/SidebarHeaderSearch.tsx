@@ -24,8 +24,7 @@ export function SidebarHeaderSearch(props: {
 }) {
   const selectedFilterOption = createMemo(() => {
     return (
-      props.filterOptions().find((o) => o.value === props.filter()) ??
-      props.filterOptions()[0]
+      props.filterOptions().find((o) => o.value === props.filter()) ?? props.filterOptions()[0]
     );
   });
 
@@ -55,18 +54,12 @@ export function SidebarHeaderSearch(props: {
         defaultFilter="contains"
         itemComponent={(p) => {
           const opt = p.item.rawValue;
-          const st = opt.value.startsWith("stack:")
-            ? opt.value.slice(6)
-            : null;
+          const st = opt.value.startsWith("stack:") ? opt.value.slice(6) : null;
           return (
             <ComboboxItem item={p.item}>
               <span class="flex min-w-0 items-center gap-2">
                 <Show when={st != null}>
-                  <StackIcon
-                    stack={st!}
-                    class="h-3.5 w-3.5"
-                    title={opt.label}
-                  />
+                  <StackIcon stack={st!} class="h-3.5 w-3.5" title={opt.label} />
                 </Show>
                 <span class="truncate text-xs">{opt.label}</span>
               </span>

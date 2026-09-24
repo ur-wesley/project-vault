@@ -5,11 +5,26 @@ import { useQueryClient } from "@tanstack/solid-query";
 
 import { useI18n } from "~/lib/i18n-context";
 import { stableErrorMessage } from "~/lib/invoke-error";
-import { listDiscoveredIdes, openProjectInIde, stopProjectIde, isProjectIdeRunning } from "~/services/tauri/ide";
+import {
+  listDiscoveredIdes,
+  openProjectInIde,
+  stopProjectIde,
+  isProjectIdeRunning,
+} from "~/services/tauri/ide";
 import { getSetting } from "~/services/tauri/settings";
 import { queryKeys } from "~/services/query-keys";
 import { projectIdeStorageKey } from "../lib/ide-storage";
 import type { IdeSelectOption } from "../types";
+
+function findStoredIde<T extends { executable: string }>(
+  ides: readonly T[],
+  stored: string | null,
+  globalDefault: string | null | undefined,
+): T | null | undefined {
+  if (stored) return ides.find((i) => i.executable === stored);
+  if (globalDefault) return ides.find((i) => i.executable === globalDefault);
+  return null;
+}
 
 export function useProjectIde(props: { projectId: Accessor<string> }) {
   const { t } = useI18n();
@@ -78,11 +93,7 @@ export function useProjectIde(props: { projectId: Accessor<string> }) {
     if (lastIdeInitProjectId.current !== pid) {
       lastIdeInitProjectId.current = pid;
       const stored = localStorage.getItem(projectIdeStorageKey(pid));
-      const m = stored
-        ? ides.find((i) => i.executable === stored)
-        : globalDefault
-          ? ides.find((i) => i.executable === globalDefault)
-          : null;
+      const m = findStoredIde(ides, stored, globalDefault);
       setSelectedIdeExecutable((m ?? ides[0]!).executable);
       return;
     }

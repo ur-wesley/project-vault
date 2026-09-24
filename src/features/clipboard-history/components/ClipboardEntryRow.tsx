@@ -50,9 +50,7 @@ export const ClipboardEntryRow: Component<ClipboardEntryRowProps> = (props) => {
     >
       <Show
         when={isImage() && thumbQ.data}
-        fallback={
-          <span class={cn("iconify size-4 shrink-0 opacity-70", icon())} />
-        }
+        fallback={<span class={cn("iconify size-4 shrink-0 opacity-70", icon())} />}
       >
         <img
           src={thumbQ.data!}

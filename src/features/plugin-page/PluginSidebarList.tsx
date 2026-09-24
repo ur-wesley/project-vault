@@ -18,8 +18,8 @@ import {
 } from "~/components/ui/context-menu";
 import { useI18n } from "~/lib/i18n-context";
 import { PluginIcon } from "~/components/PluginIcon";
-import { isPluginPagePinned, setPluginPagePinned } from "~/lib/plugin-page-pins";
-import { pluginPages } from "~/lib/plugin-pages";
+import { isPluginPagePinned, setPluginPagePinned } from "~/lib/plugin/plugin-page-pins";
+import { pluginPages } from "~/lib/plugin/plugin-pages";
 
 export type PluginPageDeclaration = {
   id: string;
@@ -35,7 +35,20 @@ export type PluginWithPages = {
   name: string;
   enabled: boolean;
   pages?: PluginPageDeclaration[];
+  locales?: Record<string, unknown>;
 };
+
+function localizedPageTitle(
+  plugin: PluginWithPages | undefined,
+  page: PluginPageDeclaration,
+  activeLocale: string,
+): string {
+  const locales = plugin?.locales as Record<string, unknown> | undefined;
+  const active = locales?.[activeLocale] as Record<string, unknown> | undefined;
+  const en = locales?.en as Record<string, unknown> | undefined;
+  const v = active?.[`page.${page.id}`] ?? en?.[`page.${page.id}`];
+  return typeof v === "string" ? v : page.title;
+}
 
 function normalizeDefaultPinned(page: PluginPageDeclaration | undefined): boolean {
   if (!page) return false;
@@ -45,12 +58,13 @@ function normalizeDefaultPinned(page: PluginPageDeclaration | undefined): boolea
 export const PluginSidebarList: Component<{
   activePluginId: string | null;
   activePageId: string | null;
+  isViewActive: boolean;
   pinRevision: number;
-  onOpenPage: (pluginId: string, pageId: string) => void;
+  onOpenPage: (pluginId: string, pageId: string, command?: string) => void;
   onPinChange?: () => void;
   onManagePlugins: () => void;
 }> = (props) => {
-  const { t } = useI18n();
+  const { t, locale } = useI18n();
   const qc = useQueryClient();
 
   const pluginsQ = createQuery(() => ({
@@ -67,6 +81,7 @@ export const PluginSidebarList: Component<{
       }));
     },
     enabled: isTauri(),
+    staleTime: 30_000,
   }));
 
   onMount(() => {
@@ -98,7 +113,11 @@ export const PluginSidebarList: Component<{
         byKey.set(key, {
           pluginId: plugin.id,
           pluginName: plugin.name,
-          page: { ...page, defaultPinned },
+          page: {
+            ...page,
+            title: localizedPageTitle(plugin, page, locale()),
+            defaultPinned,
+          },
         });
       }
     }
@@ -113,12 +132,13 @@ export const PluginSidebarList: Component<{
       if (!isPluginPagePinned(live.pluginId, live.id, true)) continue;
 
       const declared = plugin?.pages?.find((p) => p.id === live.id);
+      const declaredTitle = declared ? localizedPageTitle(plugin, declared, locale()) : undefined;
       byKey.set(key, {
         pluginId: live.pluginId,
         pluginName: plugin?.name ?? live.pluginId,
         page: {
           id: live.id,
-          title: declared?.title ?? live.title ?? live.id,
+          title: declaredTitle ?? live.title ?? live.id,
           icon: declared?.icon,
           defaultPinned: declared ? normalizeDefaultPinned(declared) : true,
           command: declared?.command,
@@ -130,11 +150,11 @@ export const PluginSidebarList: Component<{
   });
 
   const handleOpen = (pluginId: string, page: PluginPageDeclaration) => {
-    props.onOpenPage(pluginId, page.id);
+    props.onOpenPage(pluginId, page.id, page.command);
   };
 
   return (
-    <SidebarGroup class="shrink-0 pl-2 pr-0 pt-0 pb-0">
+    <SidebarGroup class="shrink-0 pl-2 pr-2 pt-0 pb-0 group-data-[collapsible=icon]:pr-0">
       <SidebarGroupContent>
         <Show when={pinnedEntries().length > 0}>
           <SidebarMenu>
@@ -146,6 +166,7 @@ export const PluginSidebarList: Component<{
                       <SidebarMenuButton
                         size="sm"
                         isActive={
+                          props.isViewActive &&
                           props.activePluginId === entry.pluginId &&
                           props.activePageId === entry.page.id
                         }

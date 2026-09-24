@@ -1,9 +1,5 @@
 import { listen } from "@tauri-apps/api/event";
-import {
-  createQuery,
-  createMutation,
-  useQueryClient,
-} from "@tanstack/solid-query";
+import { createQuery, createMutation, useQueryClient } from "@tanstack/solid-query";
 import {
   For,
   Show,
@@ -19,11 +15,7 @@ import { ProjectCard } from "./ProjectCard";
 import { Button } from "~/components/ui/button";
 import { Badge } from "~/components/ui/badge";
 import { TextField, TextFieldInput } from "~/components/ui/text-field";
-import {
-  Popover,
-  PopoverTrigger,
-  PopoverContent,
-} from "~/components/ui/popover";
+import { Popover, PopoverTrigger, PopoverContent } from "~/components/ui/popover";
 import { toast } from "solid-sonner";
 import { useI18n } from "~/lib/i18n-context";
 import { stableErrorMessage } from "~/lib/invoke-error";
@@ -35,11 +27,7 @@ import { fetchGitHubViewer } from "~/services/github";
 import type { ProjectDto } from "~/types/dto";
 import { buildStacksList, filterProjectList } from "./filter-projects";
 import { cn } from "~/lib/utils";
-import {
-  Tooltip,
-  TooltipContent,
-  TooltipTrigger,
-} from "~/components/ui/tooltip";
+import { Tooltip, TooltipContent, TooltipTrigger } from "~/components/ui/tooltip";
 
 export function LibraryView(props: {
   search: Accessor<string>;
@@ -85,13 +73,10 @@ export function LibraryView(props: {
   createEffect(() => {
     let un: (() => void) | undefined;
     void (async () => {
-      un = await listen<{ projectId: string; running: boolean }>(
-        "ide-state-changed",
-        () => {
-          void qc.invalidateQueries({ queryKey: ["projects", "running-ides"] });
-          void qc.invalidateQueries({ queryKey: queryKeys.projects });
-        },
-      );
+      un = await listen<{ projectId: string; running: boolean }>("ide-state-changed", () => {
+        void qc.invalidateQueries({ queryKey: ["projects", "running-ides"] });
+        void qc.invalidateQueries({ queryKey: queryKeys.projects });
+      });
     })();
     onCleanup(() => un?.());
   });
@@ -107,12 +92,7 @@ export function LibraryView(props: {
   }));
 
   const filtered = createMemo(() =>
-    filterProjectList(
-      q.data ?? [],
-      props.filter(),
-      props.search(),
-      ghViewerQ.data?.login,
-    ),
+    filterProjectList(q.data ?? [], props.filter(), props.search(), ghViewerQ.data?.login),
   );
 
   const stacks = createMemo(() => buildStacksList(q.data ?? []));
@@ -200,18 +180,14 @@ export function LibraryView(props: {
     return t("library.filterAll");
   });
 
-  const hasActiveFilters = createMemo(
-    () => props.filter() !== "all" || props.search().length > 0,
-  );
+  const hasActiveFilters = createMemo(() => props.filter() !== "all" || props.search().length > 0);
 
   return (
     <div class="flex flex-col h-full overflow-hidden bg-background">
       {/* Compact Dashboard Header */}
       <div class="flex shrink-0 flex-col gap-2 border-b border-border/50 bg-background/50 px-4 py-3">
         <div class="flex items-center gap-3">
-          <h1 class="text-lg font-bold tracking-tight text-foreground">
-            {t("library.title")}
-          </h1>
+          <h1 class="text-lg font-bold tracking-tight text-foreground">{t("library.title")}</h1>
           <Badge
             variant="secondary"
             class="h-5 px-1.5 font-mono text-[11px] tabular-nums opacity-70"
@@ -252,9 +228,7 @@ export function LibraryView(props: {
               </PopoverTrigger>
               <PopoverContent class="w-64">
                 <div class="flex flex-col gap-3">
-                  <p class="text-xs font-semibold text-muted-foreground">
-                    {t("library.filters")}
-                  </p>
+                  <p class="text-xs font-semibold text-muted-foreground">{t("library.filters")}</p>
                   <div class="flex flex-wrap gap-1.5">
                     <For each={filterChips()}>
                       {(chip) => (
@@ -276,9 +250,7 @@ export function LibraryView(props: {
                   </div>
 
                   <Show when={stacks().length > 0}>
-                    <p class="text-xs font-semibold text-muted-foreground">
-                      {t("library.stacks")}
-                    </p>
+                    <p class="text-xs font-semibold text-muted-foreground">{t("library.stacks")}</p>
                     <div class="flex flex-wrap gap-1.5">
                       <For each={stacks()}>
                         {(st) => (
@@ -294,9 +266,7 @@ export function LibraryView(props: {
                               )}
                               onClick={() =>
                                 props.onFilterChange(
-                                  props.filter() === `stack:${st}`
-                                    ? "all"
-                                    : `stack:${st}`,
+                                  props.filter() === `stack:${st}` ? "all" : `stack:${st}`,
                                 )
                               }
                             >
@@ -363,11 +333,7 @@ export function LibraryView(props: {
                         : "bg-muted/30 border-transparent text-muted-foreground hover:bg-muted hover:border-border hover:text-foreground",
                     )}
                     onClick={() =>
-                      props.onFilterChange(
-                        props.filter() === `stack:${st}`
-                          ? "all"
-                          : `stack:${st}`,
-                      )
+                      props.onFilterChange(props.filter() === `stack:${st}` ? "all" : `stack:${st}`)
                     }
                   >
                     <StackIcon stack={st} class="size-3.5" />
@@ -412,27 +378,19 @@ export function LibraryView(props: {
             <div class="size-20 rounded-full bg-muted/30 flex items-center justify-center mb-6">
               <span class="iconify mdi--folder-plus-outline h-10 w-10 text-muted-foreground/20" />
             </div>
-            <h3 class="text-lg font-semibold mb-1">
-              {t("library.emptyTitle")}
-            </h3>
+            <h3 class="text-lg font-semibold mb-1">{t("library.emptyTitle")}</h3>
             <p class="max-w-[280px] text-sm text-muted-foreground leading-relaxed">
               {t("library.empty") as string}
             </p>
           </div>
         </Show>
 
-        <Show
-          when={
-            q.isSuccess && (q.data?.length ?? 0) > 0 && filtered().length === 0
-          }
-        >
+        <Show when={q.isSuccess && (q.data?.length ?? 0) > 0 && filtered().length === 0}>
           <div class="flex flex-col items-center justify-center py-20 text-center animate-in fade-in duration-500">
             <div class="size-20 rounded-full bg-muted/30 flex items-center justify-center mb-6">
               <span class="iconify mdi--filter-off-outline h-10 w-10 text-muted-foreground/20" />
             </div>
-            <h3 class="text-lg font-semibold mb-1">
-              {t("library.emptyFilteredTitle")}
-            </h3>
+            <h3 class="text-lg font-semibold mb-1">{t("library.emptyFilteredTitle")}</h3>
             <p class="max-w-[280px] text-sm text-muted-foreground leading-relaxed">
               {t("library.emptyFiltered") as string}
             </p>
@@ -463,9 +421,7 @@ export function LibraryView(props: {
                 isRunning={runningProjectsQ.data?.includes(project.id) ?? false}
                 hasDefaultIde={!!defaultIde()}
                 onOpenProject={() => props.onOpenProject?.(project.id)}
-                onOpenProjectTab={(tab) =>
-                  props.onOpenProjectTab?.(project.id, tab)
-                }
+                onOpenProjectTab={(tab) => props.onOpenProjectTab?.(project.id, tab)}
                 onToggleFavorite={(e) => toggleFavorite(project, e)}
                 onPlay={(e) => void onPlay(project, e)}
               />

@@ -1,5 +1,10 @@
-import type { LocationDto, LocationOrderEntry, PathDiskSpaceDto, AddLocationPayload, UpdateLocationPayload } from "~/types/dto";
-import type { StableError } from "~/types/error";
+import type {
+  LocationDto,
+  LocationOrderEntry,
+  PathDiskSpaceDto,
+  AddLocationPayload,
+  UpdateLocationPayload,
+} from "~/types/dto";
 import { tauriInvoke } from "./utils";
 
 export function listLocations() {

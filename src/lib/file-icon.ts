@@ -97,9 +97,7 @@ function pickAtomIconClass(classes: string[] | null): string | undefined {
 
 function isGenericAtomClass(iconClass: string | undefined): boolean {
   return (
-    iconClass === undefined ||
-    iconClass === "icon-file-text" ||
-    iconClass === "icon-file-directory"
+    iconClass === undefined || iconClass === "icon-file-text" || iconClass === "icon-file-directory"
   );
 }
 
@@ -159,7 +157,10 @@ async function loadIconByName(iconName: string): Promise<FileIconData | null> {
   return promise;
 }
 
-export async function loadFileIcon(name: string, isDirectory = false): Promise<FileIconData | null> {
+export async function loadFileIcon(
+  name: string,
+  isDirectory = false,
+): Promise<FileIconData | null> {
   const iconName = fileIconifyName(name, isDirectory);
   if (iconName === FOLDER_SENTINEL) return null;
 

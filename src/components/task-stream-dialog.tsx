@@ -18,7 +18,12 @@ import {
 } from "~/components/ui/dialog";
 import { useI18n } from "~/lib/i18n-context";
 import { attachTerminalWindowRepaint, terminalHasMinSize } from "~/lib/terminal-repaint";
-import { embeddedTerminalKill, embeddedTerminalResize, embeddedTerminalWrite, embeddedTerminalGetBuffer } from "~/services/tauri/terminal";
+import {
+  embeddedTerminalKill,
+  embeddedTerminalResize,
+  embeddedTerminalWrite,
+  embeddedTerminalGetBuffer,
+} from "~/services/tauri/terminal";
 
 const MIN_COLS = 20;
 const MIN_ROWS = 5;
@@ -142,9 +147,11 @@ function TaskStreamTerminal(props: { sessionId: string; active: boolean }) {
         const isPaste = (event.ctrlKey || event.metaKey) && event.key === "v";
         if (isPaste && isTauri() && term) {
           event.preventDefault();
-          readText().then((text) => {
-            if (term) term.paste(text);
-          }).catch(() => {});
+          readText()
+            .then((text) => {
+              if (term) term.paste(text);
+            })
+            .catch(() => {});
           return false;
         }
         return true;
@@ -188,7 +195,11 @@ function TaskStreamTerminal(props: { sessionId: string; active: boolean }) {
         term.writeln("\r\n\x1b[90m[process exited]\x1b[0m");
       });
 
-      detachWindowRepaint = attachTerminalWindowRepaint(() => term, () => fit, pushResize);
+      detachWindowRepaint = attachTerminalWindowRepaint(
+        () => term,
+        () => fit,
+        pushResize,
+      );
 
       ro = new ResizeObserver(() => {
         window.clearTimeout(resizeT);

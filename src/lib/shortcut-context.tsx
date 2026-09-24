@@ -29,11 +29,22 @@ interface ShortcutContextValue {
 
 const ShortcutCtx = createContext<ShortcutContextValue>();
 
-function ShortcutListener(props: {
-  keys: string[];
-  onPress: () => void;
-  enabled: () => boolean;
-}) {
+/**
+ * Scopes whose own key handling consumes the event. The check is deliberately
+ * target-aware (not just `defaultPrevented`): the webview Ctrl+F blocker
+ * preventDefaults in capture phase for every Ctrl+F, so a bare
+ * `defaultPrevented` check would swallow legitimate app shortcuts pressed
+ * outside the editor.
+ */
+const CONSUMING_SCOPE_SELECTOR = '[data-shortcut-scope="editor"], .xterm';
+
+export function isConsumedByFocusedScope(e: KeyboardEvent): boolean {
+  if (!e.defaultPrevented) return false;
+  const target = e.target as HTMLElement | null;
+  return !!target?.closest?.(CONSUMING_SCOPE_SELECTOR);
+}
+
+function ShortcutListener(props: { keys: string[]; onPress: () => void; enabled: () => boolean }) {
   createEffect(() => {
     if (props.keys.length === 0) return;
 
@@ -42,6 +53,10 @@ function ShortcutListener(props: {
 
     const handler = (e: KeyboardEvent) => {
       if (!props.enabled()) return;
+      // A focused component (editor, terminal) already handled this key and
+      // called preventDefault. Acting on it again here is what causes
+      // double-fires like "save also toggles the sidebar".
+      if (isConsumedByFocusedScope(e)) return;
 
       const heldSet = new Set<string>();
       if (e.ctrlKey) heldSet.add("control");
@@ -52,9 +67,7 @@ function ShortcutListener(props: {
       const key = e.key.toLowerCase();
       heldSet.add(key);
 
-      const exact =
-        heldSet.size === targetSet.size &&
-        target.every((k) => heldSet.has(k));
+      const exact = heldSet.size === targetSet.size && target.every((k) => heldSet.has(k));
       if (!exact) return;
 
       e.preventDefault();
@@ -132,11 +145,7 @@ export const ShortcutProvider: ParentComponent = (props) => {
             await unregister(shortcut);
           }
         } catch (e) {
-          console.error(
-            "[ShortcutContext] Failed to unregister global shortcut:",
-            shortcut,
-            e,
-          );
+          console.error("[ShortcutContext] Failed to unregister global shortcut:", shortcut, e);
         }
         registeredShortcuts.delete(shortcut);
       }
@@ -152,11 +161,7 @@ export const ShortcutProvider: ParentComponent = (props) => {
             await unregister(shortcut);
           }
         } catch (e) {
-          console.warn(
-            "[ShortcutContext] Failed to unregister stale shortcut:",
-            shortcut,
-            e,
-          );
+          console.warn("[ShortcutContext] Failed to unregister stale shortcut:", shortcut, e);
         }
 
         try {
@@ -177,21 +182,13 @@ export const ShortcutProvider: ParentComponent = (props) => {
           }).then(
             () => true,
             (e) => {
-              console.error(
-                "[ShortcutContext] Failed to register global shortcut:",
-                shortcut,
-                e,
-              );
+              console.error("[ShortcutContext] Failed to register global shortcut:", shortcut, e);
               return false;
             },
           );
           if (ok) registeredShortcuts.set(shortcut, action);
         } catch (e) {
-          console.error(
-            "[ShortcutContext] Failed to register global shortcut:",
-            shortcut,
-            e,
-          );
+          console.error("[ShortcutContext] Failed to register global shortcut:", shortcut, e);
         }
       }
     });
@@ -223,9 +220,7 @@ export const ShortcutProvider: ParentComponent = (props) => {
   };
 
   return (
-    <ShortcutCtx.Provider
-      value={{ bindings, reload, format, isRecording, setRecording }}
-    >
+    <ShortcutCtx.Provider value={{ bindings, reload, format, isRecording, setRecording }}>
       <For each={Object.entries(bindings())}>
         {([action, keys]) => {
           if (keys.length === 0) return null;
