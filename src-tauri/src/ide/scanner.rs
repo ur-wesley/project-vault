@@ -1,7 +1,7 @@
+use super::common::push_candidate;
+use crate::models::IdeCandidateDto;
 use std::collections::HashSet;
 use std::path::PathBuf;
-use crate::models::IdeCandidateDto;
-use super::common::push_candidate;
 
 pub fn scan_install_roots(
     roots: &[PathBuf],

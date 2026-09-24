@@ -78,10 +78,7 @@ pub fn filter_workspaces_and_outermost(
         .collect();
 
     // Tag roots that have explicit workspace manifests
-    let workspace_roots: HashSet<String> = manifests
-        .iter()
-        .map(|m| m.root_key.clone())
-        .collect();
+    let workspace_roots: HashSet<String> = manifests.iter().map(|m| m.root_key.clone()).collect();
 
     // Sort raw by path length so parents are processed before children
     let mut drafts = raw;
@@ -264,10 +261,26 @@ mod tests {
         let keys: HashSet<String> = merged.iter().map(|d| path_key(&d.root)).collect();
         assert_eq!(keys.len(), 1, "workspace members collapse into root");
         assert!(keys.contains(&path_key(&base)), "root stays");
-        let root = merged.iter().find(|d| path_key(&d.root) == path_key(&base)).unwrap();
-        assert!(root.tags.iter().any(|t| t == "monorepo"), "root tagged monorepo");
-        assert!(root.tasks.iter().any(|t| t.label.starts_with("packages/a:")), "a tasks prefixed");
-        assert!(root.tasks.iter().any(|t| t.label.starts_with("packages/b:")), "b tasks prefixed");
+        let root = merged
+            .iter()
+            .find(|d| path_key(&d.root) == path_key(&base))
+            .unwrap();
+        assert!(
+            root.tags.iter().any(|t| t == "monorepo"),
+            "root tagged monorepo"
+        );
+        assert!(
+            root.tasks
+                .iter()
+                .any(|t| t.label.starts_with("packages/a:")),
+            "a tasks prefixed"
+        );
+        assert!(
+            root.tasks
+                .iter()
+                .any(|t| t.label.starts_with("packages/b:")),
+            "b tasks prefixed"
+        );
     }
 
     #[test]
@@ -294,9 +307,20 @@ mod tests {
         let keys: HashSet<String> = merged.iter().map(|d| path_key(&d.root)).collect();
         assert_eq!(keys.len(), 1, "pnpm workspace collapses into root");
         assert!(keys.contains(&path_key(&base)), "root stays");
-        let root = merged.iter().find(|d| path_key(&d.root) == path_key(&base)).unwrap();
-        assert!(root.tags.iter().any(|t| t == "monorepo"), "root tagged monorepo");
-        assert!(root.tasks.iter().any(|t| t.label.starts_with("packages/x:")), "x tasks prefixed");
+        let root = merged
+            .iter()
+            .find(|d| path_key(&d.root) == path_key(&base))
+            .unwrap();
+        assert!(
+            root.tags.iter().any(|t| t == "monorepo"),
+            "root tagged monorepo"
+        );
+        assert!(
+            root.tasks
+                .iter()
+                .any(|t| t.label.starts_with("packages/x:")),
+            "x tasks prefixed"
+        );
     }
 
     #[test]
@@ -329,9 +353,20 @@ version = "0.1.0"
         let keys: HashSet<String> = merged.iter().map(|d| path_key(&d.root)).collect();
         assert_eq!(keys.len(), 1, "cargo workspace collapses into root");
         assert!(keys.contains(&path_key(&base)), "root stays");
-        let root = merged.iter().find(|d| path_key(&d.root) == path_key(&base)).unwrap();
-        assert!(root.tags.iter().any(|t| t == "monorepo"), "root tagged monorepo");
-        assert!(root.tasks.iter().any(|t| t.label.starts_with("crates/core:")), "core tasks prefixed");
+        let root = merged
+            .iter()
+            .find(|d| path_key(&d.root) == path_key(&base))
+            .unwrap();
+        assert!(
+            root.tags.iter().any(|t| t == "monorepo"),
+            "root tagged monorepo"
+        );
+        assert!(
+            root.tasks
+                .iter()
+                .any(|t| t.label.starts_with("crates/core:")),
+            "core tasks prefixed"
+        );
     }
 
     #[test]
@@ -340,7 +375,11 @@ version = "0.1.0"
         let _ = fs::remove_dir_all(&base);
         fs::create_dir_all(&base).unwrap();
         // JS frontend root
-        write_json(&base, "package.json", r#"{"name": "app","version": "0.0.0"}"#);
+        write_json(
+            &base,
+            "package.json",
+            r#"{"name": "app","version": "0.0.0"}"#,
+        );
         // Go backend nested
         write_toml(
             &base.join("backend"),
@@ -360,10 +399,19 @@ go 1.21
         let keys: HashSet<String> = merged.iter().map(|d| path_key(&d.root)).collect();
         assert_eq!(keys.len(), 1, "root absorbs nested backend");
         assert!(keys.contains(&path_key(&base)), "root stays");
-        let root = merged.iter().find(|d| path_key(&d.root) == path_key(&base)).unwrap();
+        let root = merged
+            .iter()
+            .find(|d| path_key(&d.root) == path_key(&base))
+            .unwrap();
         let has_prefixed = root.tasks.iter().any(|t| t.label.starts_with("backend:"));
-        assert!(has_prefixed, "Go backend tasks should be prefixed into root");
-        assert!(root.tags.iter().any(|t| t == "monorepo"), "root should be tagged monorepo");
+        assert!(
+            has_prefixed,
+            "Go backend tasks should be prefixed into root"
+        );
+        assert!(
+            root.tags.iter().any(|t| t == "monorepo"),
+            "root should be tagged monorepo"
+        );
     }
 
     #[test]
@@ -392,10 +440,16 @@ go 1.21
         let keys: HashSet<String> = merged.iter().map(|d| path_key(&d.root)).collect();
         assert_eq!(keys.len(), 1, "root absorbs docs");
         assert!(keys.contains(&path_key(&base)), "root stays");
-        let root = merged.iter().find(|d| path_key(&d.root) == path_key(&base)).unwrap();
+        let root = merged
+            .iter()
+            .find(|d| path_key(&d.root) == path_key(&base))
+            .unwrap();
         let has_prefixed = root.tasks.iter().any(|t| t.label.starts_with("docs:"));
         assert!(has_prefixed, "docs tasks should be prefixed into root");
-        assert!(root.tags.iter().any(|t| t == "monorepo"), "root should be tagged monorepo");
+        assert!(
+            root.tags.iter().any(|t| t == "monorepo"),
+            "root should be tagged monorepo"
+        );
     }
 
     #[test]
@@ -403,7 +457,11 @@ go 1.21
         let base = std::env::temp_dir().join("pv-walk-js-go");
         let _ = fs::remove_dir_all(&base);
         fs::create_dir_all(&base).unwrap();
-        write_json(&base, "package.json", r#"{"name": "app","version": "0.0.0"}"#);
+        write_json(
+            &base,
+            "package.json",
+            r#"{"name": "app","version": "0.0.0"}"#,
+        );
         write_toml(
             &base.join("backend"),
             "go.mod",
@@ -422,10 +480,16 @@ go 1.21
         let keys: HashSet<String> = merged.iter().map(|d| path_key(&d.root)).collect();
         assert_eq!(keys.len(), 1, "root absorbs backend");
         assert!(keys.contains(&path_key(&base)), "root stays");
-        let root = merged.iter().find(|d| path_key(&d.root) == path_key(&base)).unwrap();
+        let root = merged
+            .iter()
+            .find(|d| path_key(&d.root) == path_key(&base))
+            .unwrap();
         let has_prefixed = root.tasks.iter().any(|t| t.label.starts_with("backend:"));
         assert!(has_prefixed, "backend tasks should be prefixed into root");
-        assert!(root.tags.iter().any(|t| t == "monorepo"), "root should be tagged monorepo");
+        assert!(
+            root.tags.iter().any(|t| t == "monorepo"),
+            "root should be tagged monorepo"
+        );
     }
 
     #[test]
@@ -469,11 +533,26 @@ go 1.21
         let keys: HashSet<String> = merged.iter().map(|d| path_key(&d.root)).collect();
         assert_eq!(keys.len(), 1, "all members collapse into root");
         assert!(keys.contains(&path_key(&base)), "root stays");
-        let root = merged.iter().find(|d| path_key(&d.root) == path_key(&base)).unwrap();
-        assert!(root.tags.iter().any(|t| t == "monorepo"), "root tagged monorepo");
-        assert!(root.tasks.iter().any(|t| t.label.starts_with("api:")), "api tasks prefixed");
-        assert!(root.tasks.iter().any(|t| t.label.starts_with("auth:")), "auth tasks prefixed");
-        assert!(root.tasks.iter().any(|t| t.label.starts_with("web:")), "web tasks prefixed");
+        let root = merged
+            .iter()
+            .find(|d| path_key(&d.root) == path_key(&base))
+            .unwrap();
+        assert!(
+            root.tags.iter().any(|t| t == "monorepo"),
+            "root tagged monorepo"
+        );
+        assert!(
+            root.tasks.iter().any(|t| t.label.starts_with("api:")),
+            "api tasks prefixed"
+        );
+        assert!(
+            root.tasks.iter().any(|t| t.label.starts_with("auth:")),
+            "auth tasks prefixed"
+        );
+        assert!(
+            root.tasks.iter().any(|t| t.label.starts_with("web:")),
+            "web tasks prefixed"
+        );
     }
 
     #[test]
@@ -484,7 +563,8 @@ go 1.21
         // No root package.json — only pnpm-workspace.yaml
         let pnpm = base.join("pnpm-workspace.yaml");
         let mut f = fs::File::create(&pnpm).unwrap();
-        f.write_all(b"packages:\n  - 'apps/*'\n  - 'packages/*'\n").unwrap();
+        f.write_all(b"packages:\n  - 'apps/*'\n  - 'packages/*'\n")
+            .unwrap();
         write_json(
             &base.join("apps").join("api"),
             "package.json",
@@ -505,9 +585,18 @@ go 1.21
         let keys: HashSet<String> = merged.iter().map(|d| path_key(&d.root)).collect();
         assert_eq!(keys.len(), 1, "pnpm workspace collapses into root");
         assert!(keys.contains(&path_key(&base)), "root stays");
-        let root = merged.iter().find(|d| path_key(&d.root) == path_key(&base)).unwrap();
-        assert!(root.tags.iter().any(|t| t == "monorepo"), "root tagged monorepo");
-        assert!(root.tasks.iter().any(|t| t.label.starts_with("apps/api:")), "api tasks prefixed");
+        let root = merged
+            .iter()
+            .find(|d| path_key(&d.root) == path_key(&base))
+            .unwrap();
+        assert!(
+            root.tags.iter().any(|t| t == "monorepo"),
+            "root tagged monorepo"
+        );
+        assert!(
+            root.tasks.iter().any(|t| t.label.starts_with("apps/api:")),
+            "api tasks prefixed"
+        );
     }
 
     #[test]
@@ -542,10 +631,22 @@ go 1.21
         let keys: HashSet<String> = merged.iter().map(|d| path_key(&d.root)).collect();
         assert_eq!(keys.len(), 1, ".git monorepo collapses into root");
         assert!(keys.contains(&path_key(&base)), "root stays");
-        let root = merged.iter().find(|d| path_key(&d.root) == path_key(&base)).unwrap();
-        assert!(root.tags.iter().any(|t| t == "monorepo"), "root tagged monorepo");
-        assert!(root.tasks.iter().any(|t| t.label.starts_with("apps/api:")), "api tasks prefixed");
-        assert!(root.tasks.iter().any(|t| t.label.starts_with("apps/web:")), "web tasks prefixed");
+        let root = merged
+            .iter()
+            .find(|d| path_key(&d.root) == path_key(&base))
+            .unwrap();
+        assert!(
+            root.tags.iter().any(|t| t == "monorepo"),
+            "root tagged monorepo"
+        );
+        assert!(
+            root.tasks.iter().any(|t| t.label.starts_with("apps/api:")),
+            "api tasks prefixed"
+        );
+        assert!(
+            root.tasks.iter().any(|t| t.label.starts_with("apps/web:")),
+            "web tasks prefixed"
+        );
     }
 
     #[test]
@@ -553,7 +654,11 @@ go 1.21
         let base = std::env::temp_dir().join("pv-walk-nx");
         let _ = fs::remove_dir_all(&base);
         fs::create_dir_all(&base).unwrap();
-        write_json(&base, "package.json", r#"{"name": "root","version": "0.0.0"}"#);
+        write_json(
+            &base,
+            "package.json",
+            r#"{"name": "root","version": "0.0.0"}"#,
+        );
         let mut nx = fs::File::create(base.join("nx.json")).unwrap();
         nx.write_all(b"{}").unwrap();
         write_json(

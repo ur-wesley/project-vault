@@ -2,10 +2,10 @@ use std::path::Path;
 use tauri::{AppHandle, State};
 use tauri_plugin_sql::DbInstances;
 
+use super::utils::{dir_size, run_git_async};
 use crate::db;
 use crate::error::{codes, StableError};
 use crate::models::{CleanPreviewEntryDto, GitCleanPreviewDto};
-use super::utils::{dir_size, run_git_async};
 
 #[tauri::command]
 pub async fn git_clean_preview(
@@ -25,8 +25,21 @@ pub async fn git_clean_preview(
 
     // Use `git ls-files --ignored` instead of `git clean -fdX -n` — much faster on large repos
     eprintln!("[git_clean_preview] calling git ls-files...");
-    let ignored_output = run_git_async(cwd, &["ls-files", "-o", "--ignored", "--exclude-standard", "--directory"]).await?;
-    eprintln!("[git_clean_preview] ls-files done, output len={}", ignored_output.len());
+    let ignored_output = run_git_async(
+        cwd,
+        &[
+            "ls-files",
+            "-o",
+            "--ignored",
+            "--exclude-standard",
+            "--directory",
+        ],
+    )
+    .await?;
+    eprintln!(
+        "[git_clean_preview] ls-files done, output len={}",
+        ignored_output.len()
+    );
     let mut entries = Vec::new();
     let mut total_bytes = 0u64;
 
@@ -50,7 +63,11 @@ pub async fn git_clean_preview(
             is_dir,
         });
     }
-    eprintln!("[git_clean_preview] entries={}, total_bytes={}", entries.len(), total_bytes);
+    eprintln!(
+        "[git_clean_preview] entries={}, total_bytes={}",
+        entries.len(),
+        total_bytes
+    );
 
     eprintln!("[git_clean_preview] calling git status...");
     let status = run_git_async(cwd, &["status", "--porcelain"]).await?;
@@ -63,7 +80,10 @@ pub async fn git_clean_preview(
             && !(b[0] == b' ' && b[1] == b' ')
     });
 
-    eprintln!("[git_clean_preview] done, has_tracked_changes={}", has_tracked_changes);
+    eprintln!(
+        "[git_clean_preview] done, has_tracked_changes={}",
+        has_tracked_changes
+    );
     Ok(GitCleanPreviewDto {
         entries,
         total_bytes,

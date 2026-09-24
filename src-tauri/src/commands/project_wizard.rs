@@ -3,10 +3,10 @@ use std::fs;
 use std::io::{Read, Write};
 use std::path::{Path, PathBuf};
 
-use serde::{Deserialize, Serialize};
-use tauri::{AppHandle, State, Manager};
-use tauri_plugin_sql::DbInstances;
 use crate::lua::ui::UiBridge;
+use serde::{Deserialize, Serialize};
+use tauri::{AppHandle, Manager, State};
+use tauri_plugin_sql::DbInstances;
 
 use crate::db;
 use crate::error::{codes, StableError};
@@ -166,7 +166,9 @@ fn default_templates() -> Vec<TemplateSummaryDto> {
     ]
 }
 
-async fn load_templates(db: State<'_, DbInstances>) -> Result<Vec<TemplateSummaryDto>, StableError> {
+async fn load_templates(
+    db: State<'_, DbInstances>,
+) -> Result<Vec<TemplateSummaryDto>, StableError> {
     let pool = db::sqlite_pool(&*db).await?;
     let raw = db::get_setting(&pool, "project_templates").await?;
     let list: Vec<TemplateSummaryDto> = match raw {
@@ -183,7 +185,10 @@ async fn load_templates(db: State<'_, DbInstances>) -> Result<Vec<TemplateSummar
     Ok(list)
 }
 
-fn find_template<'a>(templates: &'a [TemplateSummaryDto], id: &str) -> Option<&'a TemplateSummaryDto> {
+fn find_template<'a>(
+    templates: &'a [TemplateSummaryDto],
+    id: &str,
+) -> Option<&'a TemplateSummaryDto> {
     templates.iter().find(|t| t.id == id)
 }
 
@@ -191,7 +196,11 @@ fn replace_vars(input: &str, name: &str) -> String {
     input.replace("{name}", name)
 }
 
-fn write_files(root: &Path, files: &HashMap<String, String>, name: &str) -> Result<u32, StableError> {
+fn write_files(
+    root: &Path,
+    files: &HashMap<String, String>,
+    name: &str,
+) -> Result<u32, StableError> {
     let mut n = 0u32;
     for (rel, content) in files {
         let rel = replace_vars(rel, name);
@@ -199,7 +208,10 @@ fn write_files(root: &Path, files: &HashMap<String, String>, name: &str) -> Resu
         let path = root.join(&rel);
         if let Some(parent) = path.parent() {
             fs::create_dir_all(parent).map_err(|e| {
-                StableError::new(codes::INTERNAL, format!("mkdir {}: {}", parent.display(), e))
+                StableError::new(
+                    codes::INTERNAL,
+                    format!("mkdir {}: {}", parent.display(), e),
+                )
             })?;
         }
         let mut f = fs::File::create(&path).map_err(|e| {
@@ -252,22 +264,19 @@ async fn download_github_template(
         .map_err(|e| StableError::new(codes::INTERNAL, format!("download read failed: {}", e)))?;
 
     let temp_zip = target.join(".tmp-template.zip");
-    fs::write(&temp_zip, &bytes).map_err(|e| {
-        StableError::new(codes::INTERNAL, format!("write zip: {}", e))
-    })?;
+    fs::write(&temp_zip, &bytes)
+        .map_err(|e| StableError::new(codes::INTERNAL, format!("write zip: {}", e)))?;
 
-    let file = fs::File::open(&temp_zip).map_err(|e| {
-        StableError::new(codes::INTERNAL, format!("open zip: {}", e))
-    })?;
-    let mut archive = zip::ZipArchive::new(file).map_err(|e| {
-        StableError::new(codes::INTERNAL, format!("parse zip: {}", e))
-    })?;
+    let file = fs::File::open(&temp_zip)
+        .map_err(|e| StableError::new(codes::INTERNAL, format!("open zip: {}", e)))?;
+    let mut archive = zip::ZipArchive::new(file)
+        .map_err(|e| StableError::new(codes::INTERNAL, format!("parse zip: {}", e)))?;
 
     let prefix = format!("{}-{}/", repo, branch);
     for i in 0..archive.len() {
-        let mut entry = archive.by_index(i).map_err(|e| {
-            StableError::new(codes::INTERNAL, format!("zip entry: {}", e))
-        })?;
+        let mut entry = archive
+            .by_index(i)
+            .map_err(|e| StableError::new(codes::INTERNAL, format!("zip entry: {}", e)))?;
         let name = entry.name();
         if !name.starts_with(&prefix) {
             continue;
@@ -278,24 +287,22 @@ async fn download_github_template(
         }
         let out_path = target.join(rel);
         if let Some(parent) = out_path.parent() {
-            fs::create_dir_all(parent).map_err(|e| {
-                StableError::new(codes::INTERNAL, format!("mkdir: {}", e))
-            })?;
+            fs::create_dir_all(parent)
+                .map_err(|e| StableError::new(codes::INTERNAL, format!("mkdir: {}", e)))?;
         }
-        let mut out_file = fs::File::create(&out_path).map_err(|e| {
-            StableError::new(codes::INTERNAL, format!("create file: {}", e))
-        })?;
+        let mut out_file = fs::File::create(&out_path)
+            .map_err(|e| StableError::new(codes::INTERNAL, format!("create file: {}", e)))?;
         let mut buf = [0u8; 4096];
         loop {
-            let n = entry.read(&mut buf).map_err(|e| {
-                StableError::new(codes::INTERNAL, format!("read zip: {}", e))
-            })?;
+            let n = entry
+                .read(&mut buf)
+                .map_err(|e| StableError::new(codes::INTERNAL, format!("read zip: {}", e)))?;
             if n == 0 {
                 break;
             }
-            out_file.write_all(&buf[..n]).map_err(|e| {
-                StableError::new(codes::INTERNAL, format!("write file: {}", e))
-            })?;
+            out_file
+                .write_all(&buf[..n])
+                .map_err(|e| StableError::new(codes::INTERNAL, format!("write file: {}", e)))?;
         }
     }
 
@@ -311,7 +318,7 @@ async fn load_all_templates(
 ) -> Result<Vec<TemplateSummaryDto>, StableError> {
     let mut templates = load_templates(db.clone()).await?;
 
-    let p_dir = crate::commands::plugins::plugins_dir(app);
+    let p_dir = crate::plugins::paths::plugins_dir(app);
     let specs = crate::lua::loader::load_specs(&p_dir);
 
     let disabled_pool = db::sqlite_pool(&*db).await?;
@@ -352,8 +359,12 @@ pub async fn save_project_templates(
 ) -> Result<(), StableError> {
     let pool = db::sqlite_pool(&*db).await?;
     // Validate JSON
-    let _: Vec<TemplateSummaryDto> = serde_json::from_str(&templates_json)
-        .map_err(|e| StableError::new(codes::INVALID_PATH, format!("invalid templates json: {}", e)))?;
+    let _: Vec<TemplateSummaryDto> = serde_json::from_str(&templates_json).map_err(|e| {
+        StableError::new(
+            codes::INVALID_PATH,
+            format!("invalid templates json: {}", e),
+        )
+    })?;
     db::set_setting(&pool, "project_templates", &templates_json).await?;
     Ok(())
 }
@@ -380,7 +391,10 @@ pub async fn create_project_from_template(
 
     let display = payload.project_name.trim();
     if display.is_empty() || display == "." || display == ".." {
-        return Err(StableError::new(codes::INVALID_PATH, "invalid project name"));
+        return Err(StableError::new(
+            codes::INVALID_PATH,
+            "invalid project name",
+        ));
     }
     if display.contains('/') || display.contains('\\') {
         return Err(StableError::new(
@@ -410,10 +424,7 @@ pub async fn create_project_from_template(
 
     let result = match template_type {
         "command" => {
-            let cmd_str = config
-                .get("command")
-                .and_then(|v| v.as_str())
-                .unwrap_or("");
+            let cmd_str = config.get("command").and_then(|v| v.as_str()).unwrap_or("");
             let cwd_mode = config
                 .get("cwd")
                 .and_then(|v| v.as_str())
@@ -475,10 +486,7 @@ pub async fn create_project_from_template(
             fs::create_dir_all(&root).map_err(|e| {
                 StableError::new(codes::INTERNAL, format!("create project directory: {}", e))
             })?;
-            let source = config
-                .get("source")
-                .and_then(|v| v.as_str())
-                .unwrap_or("");
+            let source = config.get("source").and_then(|v| v.as_str()).unwrap_or("");
             let branch = config
                 .get("branch")
                 .and_then(|v| v.as_str())
@@ -560,20 +568,20 @@ pub async fn create_project_from_template(
                 StableError::new(codes::INTERNAL, format!("create project directory: {}", e))
             })?;
 
-            lua.globals().set("project_name", display.to_string()).map_err(|e| {
-                StableError::new(codes::INTERNAL, format!("lua globals: {e}"))
-            })?;
-            lua.globals().set("project_root", root.to_string_lossy().to_string()).map_err(|e| {
-                StableError::new(codes::INTERNAL, format!("lua globals: {e}"))
-            })?;
+            lua.globals()
+                .set("project_name", display.to_string())
+                .map_err(|e| StableError::new(codes::INTERNAL, format!("lua globals: {e}")))?;
+            lua.globals()
+                .set("project_root", root.to_string_lossy().to_string())
+                .map_err(|e| StableError::new(codes::INTERNAL, format!("lua globals: {e}")))?;
 
             // Execute the script
-            lua.load(script_content).exec().map_err(|e| {
-                StableError::new(codes::INTERNAL, format!("lua execution: {e}"))
-            })?;
+            lua.load(script_content)
+                .exec()
+                .map_err(|e| StableError::new(codes::INTERNAL, format!("lua execution: {e}")))?;
 
             fs_scope_util::allow_library_root(&app, root.to_str().unwrap_or(""))?;
-            
+
             Ok(CreateProjectResultDto {
                 project_path: dunce::canonicalize(&root)
                     .unwrap_or(root)
@@ -586,8 +594,14 @@ pub async fn create_project_from_template(
             })
         }
         "plugin" => {
-            let plugin_id = config.get("pluginId").and_then(|v| v.as_str()).unwrap_or("");
-            let command_id = config.get("commandId").and_then(|v| v.as_str()).unwrap_or("");
+            let plugin_id = config
+                .get("pluginId")
+                .and_then(|v| v.as_str())
+                .unwrap_or("");
+            let command_id = config
+                .get("commandId")
+                .and_then(|v| v.as_str())
+                .unwrap_or("");
             if plugin_id.is_empty() || command_id.is_empty() {
                 return Err(StableError::new(
                     codes::INVALID_PATH,
@@ -639,21 +653,35 @@ pub async fn create_project_from_template(
             let runtime = app.state::<crate::lua::LuaRuntimeState>();
 
             // Execute the plugin command on the Lua worker thread and wait for completion
-            let p_dir = crate::commands::plugins::plugins_dir(&app);
+            let p_dir = crate::plugins::paths::plugins_dir(&app);
             let (tx, rx) = tokio::sync::oneshot::channel();
-            runtime.send(crate::lua::LuaTask::ExecuteCommand {
-                plugins_dir: p_dir,
-                app: app.clone(),
-                bridge: (*bridge).clone(),
-                plugin_id: plugin_id.to_string(),
-                command_id: command_id.to_string(),
-                context,
-                tx,
-            }).map_err(|e| StableError::new(codes::INTERNAL, format!("failed to send template lua command: {}", e)))?;
+            runtime
+                .send(crate::lua::LuaTask::ExecuteCommand {
+                    plugins_dir: p_dir,
+                    app: app.clone(),
+                    bridge: (*bridge).clone(),
+                    plugin_id: plugin_id.to_string(),
+                    command_id: command_id.to_string(),
+                    context,
+                    tx,
+                })
+                .map_err(|e| {
+                    StableError::new(
+                        codes::INTERNAL,
+                        format!("failed to send template lua command: {}", e),
+                    )
+                })?;
 
             rx.await
-                .map_err(|e| StableError::new(codes::INTERNAL, format!("oneshot channel recv: {}", e)))?
-                .map_err(|e| StableError::new(codes::INTERNAL, format!("Scaffolding execution failed: {}", e.message)))?;
+                .map_err(|e| {
+                    StableError::new(codes::INTERNAL, format!("oneshot channel recv: {}", e))
+                })?
+                .map_err(|e| {
+                    StableError::new(
+                        codes::INTERNAL,
+                        format!("Scaffolding execution failed: {}", e.message),
+                    )
+                })?;
 
             fs_scope_util::allow_library_root(&app, root.to_str().unwrap_or(""))?;
 
@@ -676,8 +704,7 @@ pub async fn run_template_command(
     app: AppHandle,
     _db: State<'_, DbInstances>,
     terms: State<'_, EmbeddedTerminals>,
-    #[cfg(not(any(target_os = "android", target_os = "ios")))]
-    buffers: State<'_, TerminalBuffers>,
+    #[cfg(not(any(target_os = "android", target_os = "ios")))] buffers: State<'_, TerminalBuffers>,
     payload: RunTemplateCommandPayload,
 ) -> Result<RunTemplateCommandResultDto, StableError> {
     #[cfg(any(target_os = "android", target_os = "ios"))]

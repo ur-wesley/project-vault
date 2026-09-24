@@ -23,8 +23,7 @@ pub async fn global_terminal_spawn(
     app: AppHandle,
     db: State<'_, DbInstances>,
     terms: State<'_, EmbeddedTerminals>,
-    #[cfg(not(any(target_os = "android", target_os = "ios")))]
-    buffers: State<'_, TerminalBuffers>,
+    #[cfg(not(any(target_os = "android", target_os = "ios")))] buffers: State<'_, TerminalBuffers>,
     cwd: Option<String>,
     shell: Option<String>,
 ) -> Result<String, StableError> {
@@ -50,26 +49,19 @@ pub async fn global_terminal_spawn(
                 PathBuf::from(s)
             } else {
                 #[cfg(windows)]
-                { PathBuf::from(std::env::var("USERPROFILE").unwrap_or_else(|_| "C:\\".to_string())) }
+                {
+                    PathBuf::from(
+                        std::env::var("USERPROFILE").unwrap_or_else(|_| "C:\\".to_string()),
+                    )
+                }
                 #[cfg(not(windows))]
-                { PathBuf::from(std::env::var("HOME").unwrap_or_else(|_| "/".to_string())) }
+                {
+                    PathBuf::from(std::env::var("HOME").unwrap_or_else(|_| "/".to_string()))
+                }
             }
         };
 
-        let shell_pref = if let Some(s) = shell {
-            Some(s)
-        } else {
-            let custom = db::get_setting(&pool, "shell_path")
-                .await?
-                .filter(|s| !s.trim().is_empty());
-            if custom.is_some() {
-                custom
-            } else {
-                db::get_setting(&pool, "default_shell_path")
-                    .await?
-                    .filter(|s| !s.trim().is_empty())
-            }
-        };
+        let shell_pref = crate::common::resolve_shell_pref(&pool, shell).await?;
 
         embedded::spawn_session(app, &terms, &buffers, resolved_cwd, shell_pref)
     }
@@ -92,8 +84,7 @@ pub async fn embedded_terminal_spawn(
     app: AppHandle,
     db: State<'_, DbInstances>,
     terms: State<'_, EmbeddedTerminals>,
-    #[cfg(not(any(target_os = "android", target_os = "ios")))]
-    buffers: State<'_, TerminalBuffers>,
+    #[cfg(not(any(target_os = "android", target_os = "ios")))] buffers: State<'_, TerminalBuffers>,
     project_id: String,
     shell: Option<String>,
 ) -> Result<String, StableError> {
@@ -111,20 +102,7 @@ pub async fn embedded_terminal_spawn(
         let project = db::get_project(&pool, &project_id).await?;
         let cwd = PathBuf::from(&project.path);
 
-        let shell_pref = if let Some(s) = shell {
-            Some(s)
-        } else {
-            let custom = db::get_setting(&pool, "shell_path")
-                .await?
-                .filter(|s| !s.trim().is_empty());
-            if custom.is_some() {
-                custom
-            } else {
-                db::get_setting(&pool, "default_shell_path")
-                    .await?
-                    .filter(|s| !s.trim().is_empty())
-            }
-        };
+        let shell_pref = crate::common::resolve_shell_pref(&pool, shell).await?;
 
         embedded::spawn_session(app, &terms, &buffers, cwd, shell_pref)
     }
@@ -191,10 +169,7 @@ pub async fn embedded_terminal_kill(
 }
 
 #[tauri::command]
-pub fn embedded_terminal_is_alive(
-    terms: State<'_, EmbeddedTerminals>,
-    session_id: String,
-) -> bool {
+pub fn embedded_terminal_is_alive(terms: State<'_, EmbeddedTerminals>, session_id: String) -> bool {
     #[cfg(any(target_os = "android", target_os = "ios"))]
     {
         let _ = (terms, session_id);
@@ -208,8 +183,7 @@ pub fn embedded_terminal_is_alive(
 
 #[tauri::command]
 pub fn embedded_terminal_get_buffer(
-    #[cfg(not(any(target_os = "android", target_os = "ios")))]
-    buffers: State<'_, TerminalBuffers>,
+    #[cfg(not(any(target_os = "android", target_os = "ios")))] buffers: State<'_, TerminalBuffers>,
     session_id: String,
 ) -> Vec<String> {
     #[cfg(any(target_os = "android", target_os = "ios"))]
@@ -225,8 +199,7 @@ pub fn embedded_terminal_get_buffer(
 
 #[tauri::command]
 pub fn embedded_terminal_clear_buffer(
-    #[cfg(not(any(target_os = "android", target_os = "ios")))]
-    buffers: State<'_, TerminalBuffers>,
+    #[cfg(not(any(target_os = "android", target_os = "ios")))] buffers: State<'_, TerminalBuffers>,
     session_id: String,
 ) {
     #[cfg(not(any(target_os = "android", target_os = "ios")))]
@@ -238,4 +211,3 @@ pub fn embedded_terminal_clear_buffer(
         let _ = session_id;
     }
 }
-

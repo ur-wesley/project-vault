@@ -1,12 +1,12 @@
-use std::path::Path;
 use serde::{Deserialize, Serialize};
+use std::path::Path;
 use tauri::{AppHandle, State};
 use tauri_plugin_sql::DbInstances;
 
-use crate::db;
-use crate::error::{codes, StableError};
 use super::utils::run_git;
 use super::version::{bump_semver, get_version_info};
+use crate::db;
+use crate::error::{codes, StableError};
 
 #[derive(Serialize, Clone)]
 #[serde(rename_all = "camelCase")]
@@ -42,12 +42,21 @@ pub async fn git_discover_version_files(
     let cwd = Path::new(&project.path);
 
     if !super::utils::is_git_repo(cwd) {
-        return Err(StableError::new(codes::INVALID_PATH, "not a git repository"));
+        return Err(StableError::new(
+            codes::INVALID_PATH,
+            "not a git repository",
+        ));
     }
 
     let (raw_version, current_tag, use_v_prefix) = get_version_info(cwd)?;
     let new_raw = bump_semver(&raw_version, &bump).ok_or_else(|| {
-        StableError::new(codes::INTERNAL, format!("could not parse current version '{}' as semver", raw_version))
+        StableError::new(
+            codes::INTERNAL,
+            format!(
+                "could not parse current version '{}' as semver",
+                raw_version
+            ),
+        )
     })?;
 
     let new_tag = if use_v_prefix {
@@ -78,7 +87,10 @@ pub async fn git_bump_version_and_tag(
     let cwd = Path::new(&project.path);
 
     if !super::utils::is_git_repo(cwd) {
-        return Err(StableError::new(codes::INVALID_PATH, "not a git repository"));
+        return Err(StableError::new(
+            codes::INVALID_PATH,
+            "not a git repository",
+        ));
     }
 
     // Require clean working tree
@@ -92,7 +104,13 @@ pub async fn git_bump_version_and_tag(
 
     let (raw_version, current_tag, use_v_prefix) = get_version_info(cwd)?;
     let new_raw = bump_semver(&raw_version, &payload.bump).ok_or_else(|| {
-        StableError::new(codes::INTERNAL, format!("could not parse current version '{}' as semver", raw_version))
+        StableError::new(
+            codes::INTERNAL,
+            format!(
+                "could not parse current version '{}' as semver",
+                raw_version
+            ),
+        )
     })?;
 
     let new_tag = if use_v_prefix {
@@ -128,7 +146,13 @@ fn is_binary_content(content: &str) -> bool {
     content.bytes().take(1024).any(|b| b == 0)
 }
 
-fn make_preview(content: &str, old_raw: &str, old_tag: &str, new_raw: &str, new_tag: &str) -> String {
+fn make_preview(
+    content: &str,
+    old_raw: &str,
+    old_tag: &str,
+    new_raw: &str,
+    new_tag: &str,
+) -> String {
     for line in content.lines().take(50) {
         if line.contains(old_raw) || line.contains(old_tag) {
             let preview = line.trim().to_string();
@@ -168,7 +192,9 @@ fn discover_version_files(
     for rel_path in &known_files {
         let full_path = cwd.join(rel_path);
         if let Ok(content) = std::fs::read_to_string(&full_path) {
-            if !is_binary_content(&content) && (content.contains(old_raw) || content.contains(old_tag)) {
+            if !is_binary_content(&content)
+                && (content.contains(old_raw) || content.contains(old_tag))
+            {
                 let preview = make_preview(&content, old_raw, old_tag, new_raw, new_tag);
                 if !preview.is_empty() {
                     files.push(VersionFileDto {
@@ -197,7 +223,11 @@ fn discover_version_files(
             if !path.is_file() {
                 continue;
             }
-            let rel = path.strip_prefix(cwd).unwrap_or(&path).to_string_lossy().to_string();
+            let rel = path
+                .strip_prefix(cwd)
+                .unwrap_or(&path)
+                .to_string_lossy()
+                .to_string();
             if known_files.contains(&rel.as_str()) {
                 continue;
             }
@@ -209,22 +239,26 @@ fn discover_version_files(
             }
             if let Some(ext) = path.extension() {
                 let ext_str = ext.to_string_lossy().to_lowercase();
-                if skip_exts.iter().any(|s| ext_str == s.strip_prefix('.').unwrap_or(s)) {
+                if skip_exts
+                    .iter()
+                    .any(|s| ext_str == s.strip_prefix('.').unwrap_or(s))
+                {
                     continue;
                 }
             }
-            let size = std::fs::metadata(&path).map(|m| m.len()).unwrap_or(u64::MAX);
+            let size = std::fs::metadata(&path)
+                .map(|m| m.len())
+                .unwrap_or(u64::MAX);
             if size > 1_000_000 {
                 continue;
             }
             if let Ok(content) = std::fs::read_to_string(&path) {
-                if !is_binary_content(&content) && (content.contains(old_raw) || content.contains(old_tag)) {
+                if !is_binary_content(&content)
+                    && (content.contains(old_raw) || content.contains(old_tag))
+                {
                     let preview = make_preview(&content, old_raw, old_tag, new_raw, new_tag);
                     if !preview.is_empty() {
-                        files.push(VersionFileDto {
-                            path: rel,
-                            preview,
-                        });
+                        files.push(VersionFileDto { path: rel, preview });
                     }
                 }
             }
@@ -242,7 +276,10 @@ fn replace_version_in_file(
     _new_tag: &str,
 ) -> Result<(), StableError> {
     let content = std::fs::read_to_string(path).map_err(|e| {
-        StableError::new(codes::INTERNAL, format!("failed to read {}: {}", path.display(), e))
+        StableError::new(
+            codes::INTERNAL,
+            format!("failed to read {}: {}", path.display(), e),
+        )
     })?;
 
     let mut updated = content.replace(old_raw, new_raw);
@@ -254,7 +291,10 @@ fn replace_version_in_file(
     }
 
     std::fs::write(path, updated).map_err(|e| {
-        StableError::new(codes::INTERNAL, format!("failed to write {}: {}", path.display(), e))
+        StableError::new(
+            codes::INTERNAL,
+            format!("failed to write {}: {}", path.display(), e),
+        )
     })?;
     Ok(())
 }

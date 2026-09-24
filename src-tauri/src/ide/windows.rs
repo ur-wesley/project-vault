@@ -1,10 +1,10 @@
-use std::collections::HashSet;
-use std::path::PathBuf;
-use crate::models::IdeCandidateDto;
-use super::common::{push_candidate, path_dirs_lookup};
+use super::common::{path_dirs_lookup, push_candidate};
 use super::constants::KNOWN_WINDOWS_EXE_PATTERNS;
 use super::jetbrains::walk_jetbrains_install_roots;
 use super::scanner::scan_install_roots;
+use crate::models::IdeCandidateDto;
+use std::collections::HashSet;
+use std::path::PathBuf;
 
 pub fn discover_platform(
     out: &mut Vec<IdeCandidateDto>,
@@ -353,8 +353,18 @@ pub fn discover_platform(
             &["vscodium*"],
             &["VSCodium.exe", "vscodium.exe"],
         ),
-        ("cursor", "Cursor", &["cursor"], &["Cursor.exe", "cursor.exe"]),
-        ("windsurf", "Windsurf", &["windsurf"], &["Windsurf.exe", "windsurf.exe"]),
+        (
+            "cursor",
+            "Cursor",
+            &["cursor"],
+            &["Cursor.exe", "cursor.exe"],
+        ),
+        (
+            "windsurf",
+            "Windsurf",
+            &["windsurf"],
+            &["Windsurf.exe", "windsurf.exe"],
+        ),
         ("zed", "Zed", &["zed"], &["zed.exe", "Zed.exe"]),
         (
             "sublime",
@@ -363,12 +373,7 @@ pub fn discover_platform(
             &["sublime_text.exe", "Sublime Text.exe"],
         ),
         ("atom", "Atom", &["atom"], &["atom.exe"]),
-        (
-            "brackets",
-            "Brackets",
-            &["brackets"],
-            &["Brackets.exe"],
-        ),
+        ("brackets", "Brackets", &["brackets"], &["Brackets.exe"]),
         ("geany", "Geany", &["geany"], &["geany.exe"]),
         ("lapce", "Lapce", &["lapce"], &["lapce.exe"]),
         (
@@ -377,30 +382,10 @@ pub fn discover_platform(
             &["codeblocks*"],
             &["codeblocks.exe"],
         ),
-        (
-            "arduino",
-            "Arduino IDE",
-            &["arduino*"],
-            &["arduino.exe"],
-        ),
-        (
-            "rstudio",
-            "RStudio",
-            &["rstudio*"],
-            &["rstudio.exe"],
-        ),
-        (
-            "spyder",
-            "Spyder",
-            &["spyder*"],
-            &["spyder.exe"],
-        ),
-        (
-            "bluej",
-            "BlueJ",
-            &["bluej*"],
-            &["bluej.exe"],
-        ),
+        ("arduino", "Arduino IDE", &["arduino*"], &["arduino.exe"]),
+        ("rstudio", "RStudio", &["rstudio*"], &["rstudio.exe"]),
+        ("spyder", "Spyder", &["spyder*"], &["spyder.exe"]),
+        ("bluej", "BlueJ", &["bluej*"], &["bluej.exe"]),
         (
             "notepad-plus-plus",
             "Notepad++",
@@ -427,7 +412,10 @@ pub fn discover_platform_fallback(
     use winreg::RegKey;
 
     let hives: &[(winreg::HKEY, &str)] = &[
-        (HKEY_LOCAL_MACHINE, r"SOFTWARE\Microsoft\Windows\CurrentVersion\Uninstall"),
+        (
+            HKEY_LOCAL_MACHINE,
+            r"SOFTWARE\Microsoft\Windows\CurrentVersion\Uninstall",
+        ),
         (
             HKEY_CURRENT_USER,
             r"SOFTWARE\Microsoft\Windows\CurrentVersion\Uninstall",
@@ -634,7 +622,10 @@ mod tests {
             .as_deref()
             .unwrap_or("")
             .ends_with("\\System32\\notepad.exe"));
-        assert_eq!(expand_registry_path("%DEFINITELY_NOT_SET_VAR_XYZ%\\x.exe"), None);
+        assert_eq!(
+            expand_registry_path("%DEFINITELY_NOT_SET_VAR_XYZ%\\x.exe"),
+            None
+        );
         assert_eq!(expand_registry_path("C:\\%unterminated"), None);
     }
 

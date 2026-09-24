@@ -3,7 +3,6 @@ use std::sync::OnceLock;
 
 static MISE_AVAILABLE: OnceLock<bool> = OnceLock::new();
 
-#[allow(dead_code)]
 pub fn project_has_mise_config(root: &Path) -> bool {
     let mut cur: Option<&Path> = Some(root);
     while let Some(p) = cur {
@@ -24,9 +23,7 @@ pub fn mise_available() -> bool {
         cmd.arg("--version")
             .stdout(std::process::Stdio::null())
             .stderr(std::process::Stdio::null());
-        cmd.status()
-            .map(|s| s.success())
-            .unwrap_or(false)
+        cmd.status().map(|s| s.success()).unwrap_or(false)
     })
 }
 

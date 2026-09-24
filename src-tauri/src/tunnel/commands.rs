@@ -1,12 +1,12 @@
 use serde::Deserialize;
 use tauri::{AppHandle, Emitter, State};
 
-use crate::error::{codes, StableError};
 use super::{
     check_portless_available, portless_alias, portless_remove_alias, portless_trust,
     start_portless_proxy, stop_portless_proxy, TunnelChangedEmit, TunnelRoute, TunnelState,
     TunnelStatusDto,
 };
+use crate::error::{codes, StableError};
 
 const PROXY_PORT_KEY: &str = "tunnel_proxy_port";
 const TLS_KEY: &str = "tunnel_tls_enabled";
@@ -49,14 +49,23 @@ pub async fn start_tunnel_proxy(
         .ok()
         .flatten();
     let port: u16 = match port_str.as_deref() {
-        Some("4200") | Some("") | None => if tls { 443 } else { 80 },
+        Some("4200") | Some("") | None => {
+            if tls {
+                443
+            } else {
+                80
+            }
+        }
         Some(p) => p.parse().unwrap_or(if tls { 443 } else { 80 }),
     };
 
     start_portless_proxy(port, tls).map_err(|e| StableError::new(codes::INTERNAL, e))?;
 
     {
-        let mut inner = state.0.lock().map_err(|e| StableError::new(codes::INTERNAL, e.to_string()))?;
+        let mut inner = state
+            .0
+            .lock()
+            .map_err(|e| StableError::new(codes::INTERNAL, e.to_string()))?;
         inner.proxy_running = true;
     }
 
@@ -82,14 +91,23 @@ pub async fn stop_tunnel_proxy(
         .ok()
         .flatten();
     let port: u16 = match port_str.as_deref() {
-        Some("4200") | Some("") | None => if tls { 443 } else { 80 },
+        Some("4200") | Some("") | None => {
+            if tls {
+                443
+            } else {
+                80
+            }
+        }
         Some(p) => p.parse().unwrap_or(if tls { 443 } else { 80 }),
     };
 
     stop_portless_proxy(port).map_err(|e| StableError::new(codes::INTERNAL, e))?;
 
     {
-        let mut inner = state.0.lock().map_err(|e| StableError::new(codes::INTERNAL, e.to_string()))?;
+        let mut inner = state
+            .0
+            .lock()
+            .map_err(|e| StableError::new(codes::INTERNAL, e.to_string()))?;
         inner.proxy_running = false;
         inner.routes.clear();
     }
@@ -117,12 +135,21 @@ pub async fn enable_tunnel(
         .ok()
         .flatten();
     let proxy_port: u16 = match port_str.as_deref() {
-        Some("4200") | Some("") | None => if tls { 443 } else { 80 },
+        Some("4200") | Some("") | None => {
+            if tls {
+                443
+            } else {
+                80
+            }
+        }
         Some(p) => p.parse().unwrap_or(if tls { 443 } else { 80 }),
     };
 
     {
-        let mut inner = state.0.lock().map_err(|e| StableError::new(codes::INTERNAL, e.to_string()))?;
+        let mut inner = state
+            .0
+            .lock()
+            .map_err(|e| StableError::new(codes::INTERNAL, e.to_string()))?;
         if !inner.proxy_running {
             start_portless_proxy(proxy_port, tls)
                 .map_err(|e| StableError::new(codes::INTERNAL, e))?;
@@ -149,7 +176,10 @@ pub async fn enable_tunnel(
     };
 
     {
-        let mut inner = state.0.lock().map_err(|e| StableError::new(codes::INTERNAL, e.to_string()))?;
+        let mut inner = state
+            .0
+            .lock()
+            .map_err(|e| StableError::new(codes::INTERNAL, e.to_string()))?;
         inner.routes.insert(input.session_id.clone(), route);
     }
 
@@ -176,12 +206,18 @@ pub async fn disable_tunnel(
     project_id: String,
 ) -> Result<(), StableError> {
     let route = {
-        let mut inner = state.0.lock().map_err(|e| StableError::new(codes::INTERNAL, e.to_string()))?;
+        let mut inner = state
+            .0
+            .lock()
+            .map_err(|e| StableError::new(codes::INTERNAL, e.to_string()))?;
         inner.routes.remove(&session_id)
     };
 
     if let Some(route) = route {
-        let subdomain = route.hostname.strip_suffix(".localhost").unwrap_or(&route.hostname);
+        let subdomain = route
+            .hostname
+            .strip_suffix(".localhost")
+            .unwrap_or(&route.hostname);
         let _ = portless_remove_alias(subdomain);
 
         let _ = app.emit(
@@ -204,7 +240,10 @@ pub async fn disable_tunnel(
 pub async fn get_tunnel_status(
     state: State<'_, TunnelState>,
 ) -> Result<TunnelStatusDto, StableError> {
-    let inner = state.0.lock().map_err(|e| StableError::new(codes::INTERNAL, e.to_string()))?;
+    let inner = state
+        .0
+        .lock()
+        .map_err(|e| StableError::new(codes::INTERNAL, e.to_string()))?;
     Ok(TunnelStatusDto {
         available: check_portless_available(),
         proxy_running: inner.proxy_running,

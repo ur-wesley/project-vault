@@ -1,6 +1,6 @@
+use serde::Serialize;
 use std::collections::{BTreeSet, HashMap};
 use std::sync::{Arc, Mutex};
-use serde::Serialize;
 
 pub const TASK_STATE_STARTING: &str = "starting";
 pub const TASK_STATE_RUNNING: &str = "running";

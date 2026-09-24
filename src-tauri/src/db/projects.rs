@@ -379,7 +379,10 @@ pub async fn update_project_tasks(
     Ok(())
 }
 
-pub async fn find_project_by_path(pool: &Pool<Sqlite>, path: &str) -> Result<ProjectDto, StableError> {
+pub async fn find_project_by_path(
+    pool: &Pool<Sqlite>,
+    path: &str,
+) -> Result<ProjectDto, StableError> {
     let row: Option<ProjectRow> = sqlx::query_as(
         "SELECT id, location_id, name, path, stack, runtime_hint, favorite, last_opened_at_ms, last_viewed_at_ms, total_playtime_ms, tasks_json, tags_json, github_owner, github_repo, file_count, size_bytes, last_edited_at_ms, icon_path FROM projects WHERE path = ?1",
     )
@@ -389,7 +392,10 @@ pub async fn find_project_by_path(pool: &Pool<Sqlite>, path: &str) -> Result<Pro
     .map_err(|e| StableError::new(codes::DB_ERROR, e.to_string()))?;
     match row {
         Some(r) => row_to_dto(r),
-        None => Err(StableError::new(codes::NOT_FOUND, "project not found at this path")),
+        None => Err(StableError::new(
+            codes::NOT_FOUND,
+            "project not found at this path",
+        )),
     }
 }
 

@@ -18,7 +18,7 @@ pub use store::{
     save_settings, toggle_pin, update_text_entry,
 };
 pub use types::{
-    ClipboardEntryDto, ClipboardHistorySettingsDto, ListClipboardHistoryArgs,
-    UpdateClipboardEntryArgs, ClearClipboardHistoryArgs,
+    ClearClipboardHistoryArgs, ClipboardEntryDto, ClipboardHistorySettingsDto,
+    ListClipboardHistoryArgs, UpdateClipboardEntryArgs,
 };
 pub use watcher::{start_watcher, ClipboardWatcherState};

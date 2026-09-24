@@ -54,10 +54,7 @@ pub fn detect_all_workspaces(
     manifests
 }
 
-fn detect_workspace_at(
-    path: &Path,
-    workspace_warnings: &mut u64,
-) -> Option<WorkspaceManifest> {
+fn detect_workspace_at(path: &Path, workspace_warnings: &mut u64) -> Option<WorkspaceManifest> {
     let root_key = path_key(path);
     let mut overlay_tags: Vec<String> = Vec::new();
 

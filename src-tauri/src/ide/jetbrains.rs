@@ -1,7 +1,7 @@
+use super::common::push_candidate;
+use crate::models::IdeCandidateDto;
 use std::collections::HashSet;
 use std::path::{Path, PathBuf};
-use crate::models::IdeCandidateDto;
-use super::common::push_candidate;
 
 pub fn jetbrains_exe_label(name: &str) -> Option<(&'static str, &'static str)> {
     match name {

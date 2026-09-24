@@ -1,9 +1,9 @@
 use std::fs;
 use std::path::Path;
 
+use super::util::{read_utf8, script_task};
 use crate::discovery::draft::ProjectDraft;
 use crate::discovery::ProjectDetector;
-use super::util::{read_utf8, script_task};
 
 pub struct SolutionDetector;
 

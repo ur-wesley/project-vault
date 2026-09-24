@@ -5,12 +5,12 @@ use std::io::{Read, Write};
 use std::path::Path;
 use std::sync::{Arc, Mutex};
 
-use base64::{engine::general_purpose::STANDARD, Engine as _};
 use portable_pty::{native_pty_system, ChildKiller, CommandBuilder, MasterPty, PtySize};
 use tauri::{AppHandle, Emitter};
 use uuid::Uuid;
 
 use crate::error::{codes, StableError};
+use crate::spawn::emit::{emit_chunk, TermExitPayload};
 use crate::spawn::resolve::get_mise_tool_args;
 use crate::spawn::task_monitor::{self, TaskMonitors, TaskRegisterInput};
 
@@ -23,8 +23,13 @@ fn is_terminal_launcher(path: &str) -> bool {
         .to_ascii_lowercase();
     matches!(
         name.as_str(),
-        "wt" | "wt.exe" | "openconsole" | "openconsole.exe" | "conhost" | "conhost.exe"
-            | "windowsterminal" | "windowsterminal.exe"
+        "wt" | "wt.exe"
+            | "openconsole"
+            | "openconsole.exe"
+            | "conhost"
+            | "conhost.exe"
+            | "windowsterminal"
+            | "windowsterminal.exe"
     )
 }
 
@@ -85,26 +90,6 @@ pub struct EmbeddedSession {
     pub master: Arc<Mutex<Box<dyn MasterPty + Send>>>,
     pub writer: Arc<Mutex<Box<dyn Write + Send>>>,
     pub killer: Arc<Mutex<Box<dyn ChildKiller + Send + Sync>>>,
-}
-
-#[derive(Clone, serde::Serialize)]
-#[serde(rename_all = "camelCase")]
-struct TermPayload {
-    session_id: String,
-    chunk: String,
-}
-
-#[derive(Clone, serde::Serialize)]
-#[serde(rename_all = "camelCase")]
-struct TermExitPayload {
-    session_id: String,
-}
-
-#[derive(Clone, serde::Serialize)]
-#[serde(rename_all = "camelCase")]
-struct TaskLogChunkPayload {
-    session_id: String,
-    chunk: String,
 }
 
 #[cfg(windows)]
@@ -217,11 +202,6 @@ fn task_command_windows(
 }
 
 #[cfg(not(windows))]
-fn sh_single_quote(s: &str) -> String {
-    format!("'{}'", s.replace('\'', "'\"'\"'"))
-}
-
-#[cfg(not(windows))]
 fn task_command_unix(
     cwd: &Path,
     argv: &[String],
@@ -243,15 +223,16 @@ fn task_command_unix(
     let mut c = CommandBuilder::new(shell_pref.as_deref().unwrap_or("sh"));
     c.cwd(cwd);
     c.arg("-c");
-    
+
     // For sh -c, we need to join the arguments into a single string.
     // To handle spaces in arguments, we wrap each argument in single quotes.
-    let cmd_line = args.iter()
-        .map(|a| sh_single_quote(a))
+    let cmd_line = args
+        .iter()
+        .map(|a| crate::common::sh_single_quote(a))
         .collect::<Vec<_>>()
         .join(" ");
     c.arg(cmd_line);
-    
+
     Ok(c)
 }
 
@@ -305,8 +286,15 @@ pub fn spawn_task_in_pty(
         })
         .map_err(|e| StableError::new(codes::SPAWN_FAILED, e.to_string()))?;
 
-    let cmd = task_command(cwd, argv, use_mise, runtime_hint.as_deref(), &stack, shell_pref.as_deref())?;
-    
+    let cmd = task_command(
+        cwd,
+        argv,
+        use_mise,
+        runtime_hint.as_deref(),
+        &stack,
+        shell_pref.as_deref(),
+    )?;
+
     let mut child = match pair.slave.spawn_command(cmd) {
         Ok(c) => c,
         Err(e) => {
@@ -327,7 +315,7 @@ pub fn spawn_task_in_pty(
             started_at_ms,
         },
     )?;
-    
+
     let killer = Arc::new(Mutex::new(child.clone_killer()));
     let reader = pair
         .master
@@ -356,36 +344,20 @@ pub fn spawn_task_in_pty(
     let reader_thread = std::thread::spawn(move || {
         // Give frontend time to mount and start listening
         std::thread::sleep(std::time::Duration::from_millis(100));
-        
+
         let mut reader = reader;
         let mut buf = [0u8; 4096];
         loop {
             match reader.read(&mut buf) {
                 Ok(0) => {
                     break;
-                },
+                }
                 Ok(n) => {
-                    let chunk = STANDARD.encode(&buf[..n]);
-                    buffers_read.append(&sid_read, &chunk);
-                    let task_chunk = chunk.clone();
-                    let _ = app_read.emit(
-                        "embedded-terminal-data",
-                        TermPayload {
-                            session_id: sid_read.clone(),
-                            chunk,
-                        },
-                    );
-                    let _ = app_read.emit(
-                        "task-log-chunk",
-                        TaskLogChunkPayload {
-                            session_id: sid_read.clone(),
-                            chunk: task_chunk,
-                        },
-                    );
+                    emit_chunk(&app_read, &buffers_read, &sid_read, &buf[..n], true);
                 }
                 Err(_e) => {
                     break;
-                },
+                }
             }
         }
     });
@@ -535,15 +507,7 @@ pub fn spawn_session(
             match reader.read(&mut buf) {
                 Ok(0) => break,
                 Ok(n) => {
-                    let chunk = STANDARD.encode(&buf[..n]);
-                    buffers_read.append(&sid_read, &chunk);
-                    let _ = app_read.emit(
-                        "embedded-terminal-data",
-                        TermPayload {
-                            session_id: sid_read.clone(),
-                            chunk,
-                        },
-                    );
+                    emit_chunk(&app_read, &buffers_read, &sid_read, &buf[..n], false);
                 }
                 Err(_) => break,
             }

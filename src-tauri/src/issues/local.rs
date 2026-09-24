@@ -1,9 +1,9 @@
-use async_trait::async_trait;
-use sqlx::{Pool, Sqlite};
-use crate::error::{StableError, codes, Result};
-use super::models::{Issue, CreateIssueInput, UpdateIssueInput};
+use super::models::{CreateIssueInput, Issue, UpdateIssueInput};
 use super::provider::IssueProvider;
 use crate::db::now_ms;
+use crate::error::{codes, Result, StableError};
+use async_trait::async_trait;
+use sqlx::{Pool, Sqlite};
 
 #[derive(sqlx::FromRow)]
 struct IssueRow {
@@ -45,7 +45,10 @@ impl LocalSqliteProvider {
 #[async_trait]
 impl IssueProvider for LocalSqliteProvider {
     async fn list_issues(&self, project_id: &str) -> Result<Vec<Issue>> {
-        println!("[LocalSqliteProvider] Listing issues for project: {}", project_id);
+        println!(
+            "[LocalSqliteProvider] Listing issues for project: {}",
+            project_id
+        );
         let rows: Vec<IssueRow> = sqlx::query_as(
             "SELECT id, number, title, body, state, tags, created_at_ms, updated_at_ms, closed_at_ms FROM issues WHERE project_id = ?1 ORDER BY number DESC",
         )
@@ -70,12 +73,19 @@ impl IssueProvider for LocalSqliteProvider {
 
         match row {
             Some(r) => Ok(row_to_issue(r)),
-            None => Err(StableError::new(codes::NOT_FOUND, format!("Issue #{} not found", number))),
+            None => Err(StableError::new(
+                codes::NOT_FOUND,
+                format!("Issue #{} not found", number),
+            )),
         }
     }
 
     async fn create_issue(&self, project_id: &str, input: CreateIssueInput) -> Result<Issue> {
-        let mut tx = self.pool.begin().await.map_err(|e| StableError::new(codes::DB_ERROR, e.to_string()))?;
+        let mut tx = self
+            .pool
+            .begin()
+            .await
+            .map_err(|e| StableError::new(codes::DB_ERROR, e.to_string()))?;
 
         // Get next number
         let next_number: i64 = sqlx::query_scalar(
@@ -106,7 +116,9 @@ impl IssueProvider for LocalSqliteProvider {
         .await
         .map_err(|e| StableError::new(codes::DB_ERROR, e.to_string()))?;
 
-        tx.commit().await.map_err(|e| StableError::new(codes::DB_ERROR, e.to_string()))?;
+        tx.commit()
+            .await
+            .map_err(|e| StableError::new(codes::DB_ERROR, e.to_string()))?;
 
         Ok(Issue {
             id: Some(id),
@@ -121,9 +133,14 @@ impl IssueProvider for LocalSqliteProvider {
         })
     }
 
-    async fn update_issue(&self, project_id: &str, number: i64, input: UpdateIssueInput) -> Result<Issue> {
+    async fn update_issue(
+        &self,
+        project_id: &str,
+        number: i64,
+        input: UpdateIssueInput,
+    ) -> Result<Issue> {
         let now = now_ms();
-        
+
         let mut query = String::from("UPDATE issues SET updated_at_ms = ?1");
         let mut arg_count = 1;
 
@@ -150,60 +167,73 @@ impl IssueProvider for LocalSqliteProvider {
         }
 
         arg_count += 1;
-        query.push_str(&format!(" WHERE project_id = ?{} AND number = ?{}", arg_count, arg_count + 1));
+        query.push_str(&format!(
+            " WHERE project_id = ?{} AND number = ?{}",
+            arg_count,
+            arg_count + 1
+        ));
 
         let mut q = sqlx::query(&query).bind(now);
-        if let Some(title) = input.title { q = q.bind(title); }
-        if let Some(body) = input.body { q = q.bind(body); }
-        if let Some(state) = input.state { q = q.bind(state); }
-        if let Some(tags) = input.tags { 
+        if let Some(title) = input.title {
+            q = q.bind(title);
+        }
+        if let Some(body) = input.body {
+            q = q.bind(body);
+        }
+        if let Some(state) = input.state {
+            q = q.bind(state);
+        }
+        if let Some(tags) = input.tags {
             let tags_json = serde_json::to_string(&tags).unwrap_or_else(|_| "[]".to_string());
-            q = q.bind(tags_json); 
+            q = q.bind(tags_json);
         }
         q = q.bind(project_id);
         q = q.bind(number);
 
-        let res = q.execute(&self.pool).await.map_err(|e| StableError::new(codes::DB_ERROR, e.to_string()))?;
+        let res = q
+            .execute(&self.pool)
+            .await
+            .map_err(|e| StableError::new(codes::DB_ERROR, e.to_string()))?;
         if res.rows_affected() == 0 {
-            return Err(StableError::new(codes::NOT_FOUND, format!("Issue #{} not found", number)));
+            return Err(StableError::new(
+                codes::NOT_FOUND,
+                format!("Issue #{} not found", number),
+            ));
         }
 
         self.get_issue(project_id, number).await
     }
 
     async fn delete_issue(&self, project_id: &str, number: i64) -> Result<()> {
-        let res = sqlx::query(
-            "DELETE FROM issues WHERE project_id = ?1 AND number = ?2",
-        )
-        .bind(project_id)
-        .bind(number)
-        .execute(&self.pool)
-        .await
-        .map_err(|e| StableError::new(codes::DB_ERROR, e.to_string()))?;
+        let res = sqlx::query("DELETE FROM issues WHERE project_id = ?1 AND number = ?2")
+            .bind(project_id)
+            .bind(number)
+            .execute(&self.pool)
+            .await
+            .map_err(|e| StableError::new(codes::DB_ERROR, e.to_string()))?;
 
         if res.rows_affected() == 0 {
-            return Err(StableError::new(codes::NOT_FOUND, format!("Issue #{} not found", number)));
+            return Err(StableError::new(
+                codes::NOT_FOUND,
+                format!("Issue #{} not found", number),
+            ));
         }
 
         Ok(())
     }
 
     async fn delete_all_issues(&self, project_id: &str) -> Result<()> {
-        sqlx::query(
-            "DELETE FROM issues WHERE project_id = ?1",
-        )
-        .bind(project_id)
-        .execute(&self.pool)
-        .await
-        .map_err(|e| StableError::new(codes::DB_ERROR, e.to_string()))?;
+        sqlx::query("DELETE FROM issues WHERE project_id = ?1")
+            .bind(project_id)
+            .execute(&self.pool)
+            .await
+            .map_err(|e| StableError::new(codes::DB_ERROR, e.to_string()))?;
 
-        sqlx::query(
-            "DELETE FROM project_issue_counters WHERE project_id = ?1",
-        )
-        .bind(project_id)
-        .execute(&self.pool)
-        .await
-        .map_err(|e| StableError::new(codes::DB_ERROR, e.to_string()))?;
+        sqlx::query("DELETE FROM project_issue_counters WHERE project_id = ?1")
+            .bind(project_id)
+            .execute(&self.pool)
+            .await
+            .map_err(|e| StableError::new(codes::DB_ERROR, e.to_string()))?;
 
         Ok(())
     }

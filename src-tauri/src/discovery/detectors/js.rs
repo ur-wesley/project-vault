@@ -2,11 +2,11 @@ use std::path::Path;
 
 use serde_json::Value as JsonValue;
 
-use crate::discovery::draft::ProjectDraft;
-use crate::discovery::ProjectDetector;
 use super::util::{
     dirname_name, package_json_looks_real, package_json_stack, read_utf8, script_task,
 };
+use crate::discovery::draft::ProjectDraft;
+use crate::discovery::ProjectDetector;
 
 pub struct PackageJsonDetector;
 
@@ -50,7 +50,10 @@ impl ProjectDetector for PackageJsonDetector {
             } else {
                 ("npm", &["run"])
             }
-        } else if path.join("bun.lockb").is_file() || path.join("bun.lock").is_file() || path.join("bunfig.toml").is_file() {
+        } else if path.join("bun.lockb").is_file()
+            || path.join("bun.lock").is_file()
+            || path.join("bunfig.toml").is_file()
+        {
             ("bun", &["run"])
         } else if path.join("pnpm-lock.yaml").is_file() {
             ("pnpm", &["run"])

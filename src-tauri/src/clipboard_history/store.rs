@@ -29,8 +29,7 @@ struct Row {
 }
 
 fn row_to_dto(row: Row) -> ClipboardEntryDto {
-    let meta: ClipboardEntryMeta =
-        serde_json::from_str(&row.meta_json).unwrap_or_default();
+    let meta: ClipboardEntryMeta = serde_json::from_str(&row.meta_json).unwrap_or_default();
     ClipboardEntryDto {
         id: row.id,
         kind: row.kind,
@@ -45,11 +44,10 @@ fn row_to_dto(row: Row) -> ClipboardEntryDto {
     }
 }
 
-pub async fn load_settings(pool: &Pool<Sqlite>) -> Result<ClipboardHistorySettingsDto, StableError> {
-    let enabled = parse_bool_setting(
-        db::get_setting(pool, SETTING_ENABLED).await?,
-        true,
-    );
+pub async fn load_settings(
+    pool: &Pool<Sqlite>,
+) -> Result<ClipboardHistorySettingsDto, StableError> {
+    let enabled = parse_bool_setting(db::get_setting(pool, SETTING_ENABLED).await?, true);
     let max_entries = parse_u32_setting(
         db::get_setting(pool, SETTING_MAX_ENTRIES).await?,
         DEFAULT_MAX_ENTRIES,
@@ -62,10 +60,7 @@ pub async fn load_settings(pool: &Pool<Sqlite>) -> Result<ClipboardHistorySettin
         db::get_setting(pool, SETTING_DEDUP_SECONDS).await?,
         DEFAULT_DEDUP_SECONDS,
     );
-    let show_source = parse_bool_setting(
-        db::get_setting(pool, SETTING_SHOW_SOURCE).await?,
-        true,
-    );
+    let show_source = parse_bool_setting(db::get_setting(pool, SETTING_SHOW_SOURCE).await?, true);
     Ok(ClipboardHistorySettingsDto {
         enabled,
         max_entries,
@@ -79,7 +74,12 @@ pub async fn save_settings(
     pool: &Pool<Sqlite>,
     settings: &ClipboardHistorySettingsDto,
 ) -> Result<(), StableError> {
-    db::set_setting(pool, SETTING_ENABLED, if settings.enabled { "true" } else { "false" }).await?;
+    db::set_setting(
+        pool,
+        SETTING_ENABLED,
+        if settings.enabled { "true" } else { "false" },
+    )
+    .await?;
     let max_entries = settings.max_entries.to_string();
     db::set_setting(pool, SETTING_MAX_ENTRIES, &max_entries).await?;
     let max_image = settings.max_image_bytes.to_string();
@@ -89,23 +89,22 @@ pub async fn save_settings(
     db::set_setting(
         pool,
         SETTING_SHOW_SOURCE,
-        if settings.show_source { "true" } else { "false" },
+        if settings.show_source {
+            "true"
+        } else {
+            "false"
+        },
     )
     .await?;
     Ok(())
 }
 
 fn parse_bool_setting(value: Option<String>, default: bool) -> bool {
-    value
-        .map(|v| v == "true" || v == "1")
-        .unwrap_or(default)
+    value.map(|v| v == "true" || v == "1").unwrap_or(default)
 }
 
 fn parse_u32_setting(value: Option<String>, default: u32) -> u32 {
-    value
-        .and_then(|v| v.parse().ok())
-        .unwrap_or(default)
-        .max(1)
+    value.and_then(|v| v.parse().ok()).unwrap_or(default).max(1)
 }
 
 fn parse_u64_setting(value: Option<String>, default: u64) -> u64 {
@@ -191,7 +190,10 @@ pub async fn list_entries(
     Ok(out)
 }
 
-pub async fn get_entry(pool: &Pool<Sqlite>, id: &str) -> Result<Option<ClipboardEntryDto>, StableError> {
+pub async fn get_entry(
+    pool: &Pool<Sqlite>,
+    id: &str,
+) -> Result<Option<ClipboardEntryDto>, StableError> {
     let row: Option<Row> = sqlx::query_as(
         "SELECT id, kind, preview, content_text, content_hash, payload_path, meta_json, source_app, pinned, created_at_ms
          FROM clipboard_history WHERE id = ?1",
@@ -203,7 +205,11 @@ pub async fn get_entry(pool: &Pool<Sqlite>, id: &str) -> Result<Option<Clipboard
     Ok(row.map(row_to_dto))
 }
 
-pub async fn delete_entry(pool: &Pool<Sqlite>, id: &str, app_data: &Path) -> Result<(), StableError> {
+pub async fn delete_entry(
+    pool: &Pool<Sqlite>,
+    id: &str,
+    app_data: &Path,
+) -> Result<(), StableError> {
     if let Some(entry) = get_entry(pool, id).await? {
         if let Some(rel) = entry.payload_path {
             let path = app_data.join(rel);
@@ -224,11 +230,9 @@ pub async fn clear_entries(
     keep_pinned: bool,
 ) -> Result<(), StableError> {
     let rows: Vec<(String, Option<String>)> = if keep_pinned {
-        sqlx::query_as(
-            "SELECT id, payload_path FROM clipboard_history WHERE pinned = 0",
-        )
-        .fetch_all(pool)
-        .await
+        sqlx::query_as("SELECT id, payload_path FROM clipboard_history WHERE pinned = 0")
+            .fetch_all(pool)
+            .await
     } else {
         sqlx::query_as("SELECT id, payload_path FROM clipboard_history")
             .fetch_all(pool)
@@ -425,8 +429,9 @@ fn fnv1a64(data: &[u8]) -> u128 {
 
 pub fn ensure_blobs_dir(app_data: &Path) -> Result<PathBuf, StableError> {
     let dir = blobs_dir(app_data);
-    std::fs::create_dir_all(&dir)
-        .map_err(|e| StableError::new(codes::INTERNAL, format!("failed to create blobs dir: {e}")))?;
+    std::fs::create_dir_all(&dir).map_err(|e| {
+        StableError::new(codes::INTERNAL, format!("failed to create blobs dir: {e}"))
+    })?;
     Ok(dir)
 }
 
@@ -460,10 +465,7 @@ pub fn entry_thumbnail_data_url(
     let thumb = image::imageops::thumbnail(&img, max_size, max_size);
     let mut png = Vec::new();
     thumb
-        .write_to(
-            &mut std::io::Cursor::new(&mut png),
-            image::ImageFormat::Png,
-        )
+        .write_to(&mut std::io::Cursor::new(&mut png), image::ImageFormat::Png)
         .map_err(|e| StableError::new(codes::INTERNAL, format!("encode thumbnail: {e}")))?;
 
     Ok(Some(format!(

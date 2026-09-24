@@ -31,15 +31,18 @@ impl GitWatcher {
 
         let git_dir = crate::commands::git::utils::resolve_git_dir(Path::new(project_path))
             .ok_or_else(|| format!("no git directory found for {project_path}"))?;
-        
-        let git_dir_canonical = std::fs::canonicalize(&git_dir)
-            .unwrap_or_else(|_| git_dir.clone());
+
+        let git_dir_canonical = std::fs::canonicalize(&git_dir).unwrap_or_else(|_| git_dir.clone());
 
         let mut map = self.watchers.lock().await;
 
         if let Some(entry) = map.get(&git_dir_canonical) {
             // Already watching this git directory! Just subscribe the new project ID.
-            entry.projects.lock().unwrap().insert(project_id.to_string());
+            entry
+                .projects
+                .lock()
+                .unwrap()
+                .insert(project_id.to_string());
             entry.alive.store(true, Ordering::Relaxed);
             return Ok(());
         }
@@ -47,7 +50,7 @@ impl GitWatcher {
         let pid = project_id.to_string();
         let alive = Arc::new(AtomicBool::new(true));
         let alive_clone = alive.clone();
-        
+
         let projects = Arc::new(std::sync::Mutex::new(HashSet::new()));
         projects.lock().unwrap().insert(pid);
         let projects_clone = projects.clone();
@@ -58,19 +61,20 @@ impl GitWatcher {
         // Spawn a safe, lightweight polling task instead of using notify OS file hooks
         tokio::spawn(async move {
             let mut last_mtime = get_git_mtime(&target_git_dir).await;
-            
+
             while alive_clone.load(Ordering::Relaxed) {
                 tokio::time::sleep(Duration::from_millis(1500)).await;
-                
+
                 if !alive_clone.load(Ordering::Relaxed) {
                     break;
                 }
-                
+
                 let current_mtime = get_git_mtime(&target_git_dir).await;
                 if current_mtime != last_mtime {
                     last_mtime = current_mtime;
-                    
-                    let pids: Vec<String> = projects_clone.lock().unwrap().iter().cloned().collect();
+
+                    let pids: Vec<String> =
+                        projects_clone.lock().unwrap().iter().cloned().collect();
                     for pid in pids {
                         crate::models::notify_git_status_changed(&app, &pid, "git");
                     }
@@ -78,10 +82,7 @@ impl GitWatcher {
             }
         });
 
-        let entry = Arc::new(WatcherEntry {
-            alive,
-            projects,
-        });
+        let entry = Arc::new(WatcherEntry { alive, projects });
 
         map.insert(git_dir_canonical, entry);
 
@@ -130,6 +131,6 @@ async fn get_git_mtime(git_dir: &Path) -> Option<SystemTime> {
             }
         }
     }
-    
+
     max_time
 }

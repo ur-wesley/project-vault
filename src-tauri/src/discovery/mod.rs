@@ -15,10 +15,10 @@ pub mod workspace_manifest;
 pub use paths::path_key;
 pub use project_icon::find_project_icon;
 pub use registry::DetectorRegistry;
-pub use walk::{
-    collect_projects_under_root, filter_workspaces_and_outermost, filter_outermost_projects,
-};
 use tauri::Manager;
+pub use walk::{
+    collect_projects_under_root, filter_outermost_projects, filter_workspaces_and_outermost,
+};
 
 pub fn detectors_dir(app: &tauri::AppHandle) -> std::path::PathBuf {
     app.path()

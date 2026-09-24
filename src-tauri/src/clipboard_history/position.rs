@@ -227,7 +227,9 @@ pub fn save_foreground_hwnd(app: &AppHandle) {
 }
 
 #[cfg(windows)]
-unsafe fn monitor_scale(monitor: windows::Win32::Graphics::Gdi::HMONITOR) -> Result<f64, StableError> {
+unsafe fn monitor_scale(
+    monitor: windows::Win32::Graphics::Gdi::HMONITOR,
+) -> Result<f64, StableError> {
     use windows::Win32::UI::HiDpi::{GetDpiForMonitor, MDT_EFFECTIVE_DPI};
 
     let mut dpi_x = 0u32;

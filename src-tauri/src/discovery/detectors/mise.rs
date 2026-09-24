@@ -1,8 +1,8 @@
 use std::path::Path;
 
+use super::util::dirname_name;
 use crate::discovery::draft::ProjectDraft;
 use crate::discovery::ProjectDetector;
-use super::util::dirname_name;
 
 pub struct MiseDetector;
 
@@ -16,7 +16,12 @@ impl ProjectDetector for MiseDetector {
     }
 
     fn markers(&self) -> &'static [&'static str] {
-        &["mise.toml", ".mise.toml", "mise.local.toml", ".mise.local.toml"]
+        &[
+            "mise.toml",
+            ".mise.toml",
+            "mise.local.toml",
+            ".mise.local.toml",
+        ]
     }
 
     fn detect(&self, path: &Path) -> Option<ProjectDraft> {

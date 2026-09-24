@@ -1,11 +1,11 @@
-use std::path::Path;
 use serde::Serialize;
+use std::path::Path;
 use tauri::{AppHandle, State};
 use tauri_plugin_sql::DbInstances;
 
+use super::utils::run_git;
 use crate::db;
 use crate::error::{codes, StableError};
-use super::utils::run_git;
 
 #[derive(Serialize, Clone)]
 #[serde(rename_all = "camelCase")]
@@ -36,12 +36,18 @@ pub async fn git_preview_versions(
     println!("[git_preview_versions] cwd: {:?}", cwd);
 
     if !super::utils::is_git_repo(cwd) {
-        return Err(StableError::new(codes::INVALID_PATH, "not a git repository"));
+        return Err(StableError::new(
+            codes::INVALID_PATH,
+            "not a git repository",
+        ));
     }
 
     let version_info = get_version_info(cwd);
     println!("[git_preview_versions] version_info: {:?}", version_info);
-    let raw_version = version_info.as_ref().map(|(r, _, _)| r.clone()).unwrap_or_else(|_| "0.0.0".to_string());
+    let raw_version = version_info
+        .as_ref()
+        .map(|(r, _, _)| r.clone())
+        .unwrap_or_else(|_| "0.0.0".to_string());
     println!("[git_preview_versions] raw_version: {}", raw_version);
 
     let latest_tag = run_git(cwd, &["describe", "--tags", "--abbrev=0"]).ok();
@@ -51,7 +57,10 @@ pub async fn git_preview_versions(
     let minor = bump_semver(&raw_version, "minor").unwrap_or_else(|| "0.1.0".to_string());
     let major = bump_semver(&raw_version, "major").unwrap_or_else(|| "1.0.0".to_string());
     let beta = bump_semver(&raw_version, "beta").unwrap_or_else(|| "0.0.1-beta.0".to_string());
-    println!("[git_preview_versions] patch: {}, minor: {}, major: {}, beta: {}", patch, minor, major, beta);
+    println!(
+        "[git_preview_versions] patch: {}, minor: {}, major: {}, beta: {}",
+        patch, minor, major, beta
+    );
 
     Ok(GitPreviewVersionsDto {
         current_version: raw_version,
@@ -75,14 +84,20 @@ pub async fn git_tag_and_push(
     let cwd = Path::new(&project.path);
 
     if !super::utils::is_git_repo(cwd) {
-        return Err(StableError::new(codes::INVALID_PATH, "not a git repository"));
+        return Err(StableError::new(
+            codes::INVALID_PATH,
+            "not a git repository",
+        ));
     }
 
     // Get latest tag
     let latest_tag = run_git(cwd, &["describe", "--tags", "--abbrev=0"]);
     let new_tag = if let Ok(tag) = latest_tag {
         bump_semver(&tag, &bump).ok_or_else(|| {
-            StableError::new(codes::INTERNAL, format!("could not parse latest tag '{}' as semver", tag))
+            StableError::new(
+                codes::INTERNAL,
+                format!("could not parse latest tag '{}' as semver", tag),
+            )
         })?
     } else {
         // No existing tags — start at 0.0.1 or 0.1.0 or 1.0.0
@@ -171,7 +186,10 @@ pub fn get_version_info(cwd: &Path) -> Result<(String, String, bool), StableErro
     let package_json_path = cwd.join("package.json");
     println!("[get_version_info] checking {:?}", package_json_path);
     if let Ok(content) = std::fs::read_to_string(&package_json_path) {
-        println!("[get_version_info] package.json content length: {}", content.len());
+        println!(
+            "[get_version_info] package.json content length: {}",
+            content.len()
+        );
         if let Some(v) = extract_json_version(&content) {
             println!("[get_version_info] found version in package.json: {}", v);
             return Ok((v.clone(), v, true));
@@ -196,7 +214,10 @@ pub fn get_version_info(cwd: &Path) -> Result<(String, String, bool), StableErro
     println!("[get_version_info] checking {:?}", tauri_cargo);
     if let Ok(content) = std::fs::read_to_string(&tauri_cargo) {
         if let Some(v) = extract_cargo_version(&content) {
-            println!("[get_version_info] found version in src-tauri/Cargo.toml: {}", v);
+            println!(
+                "[get_version_info] found version in src-tauri/Cargo.toml: {}",
+                v
+            );
             return Ok((v.clone(), v, true));
         }
     }
@@ -206,7 +227,10 @@ pub fn get_version_info(cwd: &Path) -> Result<(String, String, bool), StableErro
     println!("[get_version_info] checking {:?}", tauri_conf);
     if let Ok(content) = std::fs::read_to_string(&tauri_conf) {
         if let Some(v) = extract_json_version(&content) {
-            println!("[get_version_info] found version in src-tauri/tauri.conf.json: {}", v);
+            println!(
+                "[get_version_info] found version in src-tauri/tauri.conf.json: {}",
+                v
+            );
             return Ok((v.clone(), v, true));
         }
     }

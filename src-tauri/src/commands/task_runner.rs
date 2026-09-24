@@ -5,15 +5,15 @@ use tauri_plugin_sql::DbInstances;
 use crate::db;
 use crate::error::{codes, StableError};
 use crate::models::ConcurrentTask;
-#[cfg(not(any(target_os = "android", target_os = "ios")))]
-use crate::spawn::{concurrent, embedded};
-use crate::spawn::{
-    argv_needs_confirmation, open_interactive_shell, use_mise_for_project,
-    EmbeddedTerminals, TaskMonitors,
-};
+use crate::spawn::task_monitor;
 #[cfg(not(any(target_os = "android", target_os = "ios")))]
 use crate::spawn::TerminalBuffers;
-use crate::spawn::task_monitor;
+use crate::spawn::{
+    argv_needs_confirmation, open_interactive_shell, use_mise_for_project, EmbeddedTerminals,
+    TaskMonitors,
+};
+#[cfg(not(any(target_os = "android", target_os = "ios")))]
+use crate::spawn::{concurrent, embedded};
 
 #[derive(Deserialize)]
 #[serde(rename_all = "camelCase")]
@@ -46,8 +46,7 @@ pub async fn spawn_project_task(
     db: State<'_, DbInstances>,
     terms: State<'_, EmbeddedTerminals>,
     monitor: State<'_, TaskMonitors>,
-    #[cfg(not(any(target_os = "android", target_os = "ios")))]
-    buffers: State<'_, TerminalBuffers>,
+    #[cfg(not(any(target_os = "android", target_os = "ios")))] buffers: State<'_, TerminalBuffers>,
     payload: SpawnProjectTaskPayload,
 ) -> Result<SpawnProjectTaskResponse, StableError> {
     let is_concurrent = payload.concurrent.as_ref().map_or(false, |c| !c.is_empty());
@@ -72,14 +71,22 @@ pub async fn spawn_project_task(
     }
     let cwd = if let Some(ref rel) = payload.cwd {
         let resolved = project_path.join(rel);
-        if resolved.is_dir() { resolved } else { project_path.clone() }
+        if resolved.is_dir() {
+            resolved
+        } else {
+            project_path.clone()
+        }
     } else {
         project_path.clone()
     };
 
     let use_mise = use_mise_for_project(&cwd);
     let cmd_line = if is_concurrent {
-        payload.concurrent.as_ref().unwrap().iter()
+        payload
+            .concurrent
+            .as_ref()
+            .unwrap()
+            .iter()
             .map(|s| s.label.as_str())
             .collect::<Vec<_>>()
             .join(" + ")
@@ -87,20 +94,15 @@ pub async fn spawn_project_task(
         payload.argv.join(" ")
     };
 
-    let shell_pref = {
-        let custom = db::get_setting(&pool, "shell_path")
-            .await?
-            .filter(|s| !s.trim().is_empty());
-        if custom.is_some() {
-            custom
-        } else {
-            db::get_setting(&pool, "default_shell_path")
-                .await?
-                .filter(|s| !s.trim().is_empty())
-        }
-    };
+    let shell_pref = crate::common::resolve_shell_pref(&pool, None).await?;
 
-    let session = db::start_session(&pool, &payload.project_id, Some(cmd_line.clone()), payload.session_id).await?;
+    let session = db::start_session(
+        &pool,
+        &payload.project_id,
+        Some(cmd_line.clone()),
+        payload.session_id,
+    )
+    .await?;
     let session_id = session.id.clone();
     let response_session_id = session_id.clone();
     #[cfg(any(target_os = "android", target_os = "ios"))]
@@ -238,9 +240,7 @@ pub struct OpenShellAtPathPayload {
 }
 
 #[tauri::command]
-pub async fn open_shell_at_path(
-    payload: OpenShellAtPathPayload,
-) -> Result<(), StableError> {
+pub async fn open_shell_at_path(payload: OpenShellAtPathPayload) -> Result<(), StableError> {
     let cwd = std::path::PathBuf::from(&payload.path);
     if !cwd.is_dir() {
         return Err(StableError::new(

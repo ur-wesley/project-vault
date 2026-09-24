@@ -38,9 +38,7 @@ const DEP_DIR_NAMES: &[&str] = &[
 ];
 
 pub fn is_root_dep_dir(name: &str) -> bool {
-    DEP_DIR_NAMES
-        .iter()
-        .any(|d| name.eq_ignore_ascii_case(d))
+    DEP_DIR_NAMES.iter().any(|d| name.eq_ignore_ascii_case(d))
 }
 
 pub fn estimate_dep_dir_bytes(project_path: &Path) -> u64 {
@@ -104,7 +102,11 @@ pub fn clean_project_deps(project_path: &Path) -> Result<u64, StableError> {
     Ok(reclaimed)
 }
 
-pub fn is_recently_opened(last_opened_at_ms: Option<i64>, protect_recent_days: u32, now_ms: i64) -> bool {
+pub fn is_recently_opened(
+    last_opened_at_ms: Option<i64>,
+    protect_recent_days: u32,
+    now_ms: i64,
+) -> bool {
     match last_opened_at_ms {
         Some(ts) => now_ms.saturating_sub(ts) < (protect_recent_days as i64) * MS_PER_DAY,
         None => false,
@@ -144,7 +146,10 @@ pub fn classify_project(
         );
     }
     if has_active_session {
-        return (ProjectCleanerCategory::Active, ProjectCleanerActionKind::Skip);
+        return (
+            ProjectCleanerCategory::Active,
+            ProjectCleanerActionKind::Skip,
+        );
     }
     if !path_exists {
         return (
@@ -161,7 +166,10 @@ pub fn classify_project(
             ProjectCleanerCategory::GitClean,
             ProjectCleanerActionKind::Clean,
         ),
-        None => (ProjectCleanerCategory::NoGit, ProjectCleanerActionKind::Clean),
+        None => (
+            ProjectCleanerCategory::NoGit,
+            ProjectCleanerActionKind::Clean,
+        ),
     }
 }
 
@@ -182,7 +190,8 @@ async fn git_status_for_path(path: &Path) -> Option<GitStatusDto> {
     }
     let status = crate::commands::git::utils::run_git(path, &["status", "--porcelain"]).ok()?;
     let is_dirty = !status.is_empty();
-    let version = crate::commands::git::utils::run_git(path, &["describe", "--tags", "--abbrev=0"]).ok();
+    let version =
+        crate::commands::git::utils::run_git(path, &["describe", "--tags", "--abbrev=0"]).ok();
     Some(GitStatusDto {
         branch,
         ahead: 0,
@@ -218,11 +227,7 @@ async fn git_clean_reclaimable(path: &Path) -> u64 {
             continue;
         }
         let is_dir = rel.ends_with('/');
-        let clean_path = if is_dir {
-            &rel[..rel.len() - 1]
-        } else {
-            rel
-        };
+        let clean_path = if is_dir { &rel[..rel.len() - 1] } else { rel };
         let full = path.join(clean_path);
         total += if is_dir {
             crate::commands::git::utils::dir_size(&full)
@@ -295,10 +300,7 @@ pub async fn project_cleaner_scan(
         .collect();
 
     let active_sessions = db::list_active_sessions_for_project_all(&pool).await?;
-    let active_ids: HashSet<String> = active_sessions
-        .into_iter()
-        .map(|s| s.project_id)
-        .collect();
+    let active_ids: HashSet<String> = active_sessions.into_iter().map(|s| s.project_id).collect();
 
     let now_ms = std::time::SystemTime::now()
         .duration_since(std::time::UNIX_EPOCH)
@@ -308,9 +310,11 @@ pub async fn project_cleaner_scan(
     let semaphore = Arc::new(Semaphore::new(4));
     let mut handles = Vec::with_capacity(projects.len());
     for project in projects {
-        let permit = semaphore.clone().acquire_owned().await.map_err(|e| {
-            StableError::new(codes::INTERNAL, e.to_string())
-        })?;
+        let permit = semaphore
+            .clone()
+            .acquire_owned()
+            .await
+            .map_err(|e| StableError::new(codes::INTERNAL, e.to_string()))?;
         let opts = options.clone();
         let active_ids = active_ids.clone();
         handles.push(tokio::spawn(async move {
@@ -338,9 +342,7 @@ pub async fn project_cleaner_scan(
     let mut by_category: HashMap<String, u32> = HashMap::new();
     let mut total_reclaimable_bytes = 0u64;
     for row in &rows {
-        *by_category
-            .entry(category_key(&row.category))
-            .or_insert(0) += 1;
+        *by_category.entry(category_key(&row.category)).or_insert(0) += 1;
         if row.suggested_action == ProjectCleanerActionKind::Clean {
             total_reclaimable_bytes += row.reclaimable_bytes;
         }
@@ -445,13 +447,7 @@ pub async fn project_cleaner_execute(
         let result = match action.action {
             ProjectCleanerActionKind::Skip => Ok(0u64),
             ProjectCleanerActionKind::Clean => {
-                execute_clean(
-                    &app,
-                    &db,
-                    &action.project_id,
-                    Path::new(&project.path),
-                )
-                .await
+                execute_clean(&app, &db, &action.project_id, Path::new(&project.path)).await
             }
             ProjectCleanerActionKind::Delete => {
                 execute_delete(&app, &db, &monitors, &action.project_id, true)

@@ -7,11 +7,13 @@ use tauri_plugin_sql::DbInstances;
 use crate::db;
 use crate::discovery::DetectorRegistry;
 use crate::error::{codes, StableError};
+use crate::mise_tools;
+use crate::models::{
+    MiseToolDto, MiseToolSuggestionDto, MoveProjectProgress, MoveProjectResultDto, ProjectDto,
+};
+use crate::project_move;
 use crate::spawn::task_monitor;
 use crate::spawn::TaskMonitors;
-use crate::models::{MoveProjectProgress, MoveProjectResultDto, ProjectDto, MiseToolDto, MiseToolSuggestionDto};
-use crate::project_move;
-use crate::mise_tools;
 
 #[tauri::command]
 pub async fn get_project_mise_tools(
@@ -38,17 +40,28 @@ pub async fn get_project_mise_tools(
         return Ok(Vec::new());
     }
 
-    let v: serde_json::Value = serde_json::from_slice(&out.stdout).unwrap_or(serde_json::Value::Null);
+    let v: serde_json::Value =
+        serde_json::from_slice(&out.stdout).unwrap_or(serde_json::Value::Null);
     let mut tools = Vec::new();
 
     if let Some(obj) = v.as_object() {
         for (name, versions) in obj {
             if let Some(arr) = versions.as_array() {
                 for item in arr {
-                    let version = item.get("version").and_then(|v| v.as_str()).unwrap_or("unknown");
-                    let source = item.get("source").and_then(|v| v.get("path")).and_then(|p| p.as_str()).unwrap_or("unknown");
-                    let active = item.get("active").and_then(|v| v.as_bool()).unwrap_or(false);
-                    
+                    let version = item
+                        .get("version")
+                        .and_then(|v| v.as_str())
+                        .unwrap_or("unknown");
+                    let source = item
+                        .get("source")
+                        .and_then(|v| v.get("path"))
+                        .and_then(|p| p.as_str())
+                        .unwrap_or("unknown");
+                    let active = item
+                        .get("active")
+                        .and_then(|v| v.as_bool())
+                        .unwrap_or(false);
+
                     if active {
                         tools.push(MiseToolDto {
                             name: name.clone(),
@@ -237,17 +250,20 @@ pub async fn refresh_project(
     let reg = DetectorRegistry::standard(crate::discovery::detectors_dir(&app));
     let draft = reg.detect(std::path::Path::new(&existing.path));
 
-    let needs_update = draft.as_ref().map(|d| {
-        let icon_path = crate::discovery::find_project_icon(&d.root);
-        d.stack != existing.stack
-            || d.name != existing.name
-            || d.github_owner != existing.github_owner
-            || d.github_repo != existing.github_repo
-            || d.runtime_hint != existing.runtime_hint
-            || d.tasks.len() != existing.tasks.len()
-            || d.tags.len() != existing.tags.len()
-            || icon_path != existing.icon_path
-    }).unwrap_or(false);
+    let needs_update = draft
+        .as_ref()
+        .map(|d| {
+            let icon_path = crate::discovery::find_project_icon(&d.root);
+            d.stack != existing.stack
+                || d.name != existing.name
+                || d.github_owner != existing.github_owner
+                || d.github_repo != existing.github_repo
+                || d.runtime_hint != existing.runtime_hint
+                || d.tasks.len() != existing.tasks.len()
+                || d.tags.len() != existing.tags.len()
+                || icon_path != existing.icon_path
+        })
+        .unwrap_or(false);
 
     if needs_update {
         if let Some(d) = draft {
@@ -287,14 +303,18 @@ pub async fn update_project_size(
     path: &str,
 ) {
     if let Ok(stats) = project_move::count_filtered_dir(std::path::Path::new(path)) {
+        // Full on-disk size including ignored content (matches scan.rs).
+        let full_size = project_move::count_all_dir(std::path::Path::new(path))
+            .map(|(_, total)| total)
+            .unwrap_or(stats.total_bytes);
         if let Ok(existing) = db::get_project(pool, project_id).await {
             if stats.file_count != existing.file_count
-                || stats.total_bytes != existing.size_bytes
+                || full_size != existing.size_bytes
                 || stats.last_edited_at_ms != existing.last_edited_at_ms.unwrap_or(0)
             {
                 let mut dto = existing.clone();
                 dto.file_count = stats.file_count;
-                dto.size_bytes = stats.total_bytes;
+                dto.size_bytes = full_size;
                 dto.last_edited_at_ms = Some(stats.last_edited_at_ms);
                 if db::upsert_project(pool, &dto).await.is_ok() {
                     crate::models::emit_project_changed(app, project_id, "scan");
@@ -313,27 +333,75 @@ pub struct MoveProjectPayload {
 
 use std::collections::HashMap;
 
-const IGNORED_EXTENSIONS: &[&str] = &[
-    // Images
-    "png", "jpg", "jpeg", "gif", "bmp", "tiff", "webp", "svg", "ico", "raw", "psd", "ai",
-    // Videos
-    "mp4", "mov", "avi", "mkv", "wmv", "flv", "webm", "m4v", "mpg", "mpeg", "3gp",
-    // Audio
-    "mp3", "wav", "flac", "aac", "ogg", "wma", "m4a", "opus",
-    // Fonts
-    "woff", "woff2", "ttf", "otf", "eot",
-    // Archives / binaries
-    "zip", "tar", "gz", "rar", "7z", "exe", "dll", "so", "dylib", "bin",
-    // Documents
-    "pdf", "doc", "docx", "xls", "xlsx", "ppt", "pptx", "odt", "ods", "odp",
-    // Config / data
-    "json", "toml", "yaml", "yml", "xml", "ini", "cfg", "conf", "lock", "env", "properties",
-    "arb", "plist", "pbxproj", "xcconfig", "storyboard", "xib", "entitlements",
-    "gradle", "iml", "sln", "csproj", "vcxproj", "filters",
-    // Text / markup / data
-    "md", "mdx", "markdown", "txt", "rtf", "log", "csv", "tsv",
+/// Dependency/build output dirs skipped for language stats.
+/// Pragmatic subset of Linguist's `vendor.yml`/`documentation.yml` (see
+/// `crate::linguist` docs); generated bundles (`*.min.js`, `*.bundle.js`,
+/// …) are also excluded. `ignore::WalkBuilder` already respects
+/// `.gitignore`/`.ignore` on top of this.
+const SKIPPED_DIR_NAMES: &[&str] = &[
+    ".git",
+    ".svn",
+    ".hg",
+    "node_modules",
+    "bower_components",
+    "target",
+    "dist",
+    "build",
+    ".turbo",
+    ".next",
+    ".nuxt",
+    "__pycache__",
+    ".venv",
+    "venv",
+    "vendor",
+    "Pods",
+    "Carthage",
+    ".idea",
+    ".vs",
+    ".gradle",
+    ".mypy_cache",
+    ".pytest_cache",
+    ".tox",
+    "coverage",
+    ".cache",
+    "out",
+    "bin",
+    "obj",
 ];
 
+/// Generated-file suffixes (pragmatic subset of Linguist's `generated.rb`).
+/// Matched against the lowercased basename, e.g. `app.min.js`, `main.bundle.css`.
+const GENERATED_SUFFIXES: &[&str] = &[
+    ".min.js",
+    ".min.css",
+    ".bundle.js",
+    ".bundle.css",
+    ".min.js.map",
+    ".min.css.map",
+];
+
+fn path_contains_skipped_dir(path: &std::path::Path) -> bool {
+    path.components()
+        .filter_map(|c| c.as_os_str().to_str())
+        .any(|s| SKIPPED_DIR_NAMES.contains(&s))
+}
+
+fn is_generated_file_name(file_name: &str) -> bool {
+    GENERATED_SUFFIXES.iter().any(|s| file_name.ends_with(s))
+}
+
+fn is_skipped_dir_name(name: &std::ffi::OsStr) -> bool {
+    name.to_str()
+        .is_some_and(|s| SKIPPED_DIR_NAMES.contains(&s))
+}
+
+/// GitHub Linguist-style language breakdown.
+///
+/// Keys are canonical Linguist language names (see `crate::linguist`), values
+/// are **bytes of code** (file sizes summed per language), matching how
+/// GitHub computes percentages for the language graph. Only
+/// `programming`/`markup` languages are included; `data`/`prose`/unknown
+/// files are skipped. Callers must treat an empty map as "no data".
 #[tauri::command]
 pub async fn get_project_languages(
     db: State<'_, DbInstances>,
@@ -347,16 +415,24 @@ pub async fn get_project_languages(
         return Ok(HashMap::new());
     }
 
-    let ignored_set: std::collections::HashSet<&str> = IGNORED_EXTENSIONS.iter().copied().collect();
-    let mut stats = HashMap::new();
+    let mut stats: HashMap<String, u64> = HashMap::new();
     let mut files_processed = 0;
     const MAX_FILES: usize = 10_000;
 
+    // Prune vendored/build dirs up front so we never descend into
+    // node_modules/target/dist at all (the per-file check below stays as
+    // belt-and-braces for paths yielded by other filters).
     let walker = ignore::WalkBuilder::new(root)
         .git_ignore(true)
         .git_global(true)
         .git_exclude(true)
         .ignore(true)
+        .filter_entry(|e| {
+            if e.file_type().map_or(false, |ft| ft.is_dir()) {
+                return !is_skipped_dir_name(e.file_name());
+            }
+            true
+        })
         .build();
 
     for result in walker {
@@ -368,18 +444,39 @@ pub async fn get_project_languages(
         if !entry.file_type().map_or(false, |ft| ft.is_file()) {
             continue;
         }
+        if path_contains_skipped_dir(entry.path()) {
+            continue;
+        }
 
-        let Some(ext) = entry.path().extension().and_then(|e| e.to_str()) else {
+        let file_name = entry
+            .path()
+            .file_name()
+            .and_then(|n| n.to_str())
+            .unwrap_or("")
+            .to_lowercase();
+        let ext = entry
+            .path()
+            .extension()
+            .and_then(|e| e.to_str())
+            .unwrap_or("")
+            .to_lowercase();
+        if is_generated_file_name(&file_name) {
+            continue;
+        }
+        let Some(lang) = crate::linguist::classify(&file_name, &ext) else {
             continue;
         };
-        let ext_lower = ext.to_lowercase();
-        if ignored_set.contains(ext_lower.as_str()) {
+
+        // Byte weighting like GitHub: metadata size only, no file reads.
+        // (Deliberately no content sniff: countable extensions are text by
+        // construction, so per-file opens cost far more than they filter.)
+        let size = entry.metadata().map(|m| m.len()).unwrap_or(0);
+        if size == 0 {
             continue;
         }
 
         files_processed += 1;
-        let count = stats.entry(ext_lower).or_insert(0);
-        *count += 1;
+        *stats.entry(lang.name.to_string()).or_insert(0) += size;
 
         if files_processed >= MAX_FILES {
             break;
@@ -455,25 +552,44 @@ pub async fn import_project(
     payload: ImportProjectPayload,
 ) -> Result<(), StableError> {
     let pool = db::sqlite_pool(&*db).await?;
-    
+
     // 1. Resolve source and destination
     let src = std::path::PathBuf::from(&payload.source_path);
     if !src.is_dir() {
-        return Err(StableError::new(crate::error::codes::INVALID_PATH, "source is not a directory"));
+        return Err(StableError::new(
+            crate::error::codes::INVALID_PATH,
+            "source is not a directory",
+        ));
     }
-    let src = dunce::canonicalize(&src).map_err(|e| StableError::new(crate::error::codes::INVALID_PATH, format!("invalid source path: {e}")))?;
+    let src = dunce::canonicalize(&src).map_err(|e| {
+        StableError::new(
+            crate::error::codes::INVALID_PATH,
+            format!("invalid source path: {e}"),
+        )
+    })?;
 
     let location = db::get_location(&pool, &payload.destination_location_id).await?;
     let dest_parent = std::path::Path::new(&location.path);
     if !dest_parent.is_dir() {
-        return Err(StableError::new(crate::error::codes::INVALID_PATH, "destination library folder is missing or not a directory"));
+        return Err(StableError::new(
+            crate::error::codes::INVALID_PATH,
+            "destination library folder is missing or not a directory",
+        ));
     }
 
-    let folder_name = src.file_name().ok_or_else(|| StableError::new(crate::error::codes::INVALID_PATH, "invalid source folder name"))?;
+    let folder_name = src.file_name().ok_or_else(|| {
+        StableError::new(
+            crate::error::codes::INVALID_PATH,
+            "invalid source folder name",
+        )
+    })?;
     let dest = dest_parent.join(folder_name);
-    
+
     if dest.exists() {
-        return Err(StableError::new(crate::error::codes::ALREADY_EXISTS, "a folder with that name already exists in the destination location"));
+        return Err(StableError::new(
+            crate::error::codes::ALREADY_EXISTS,
+            "a folder with that name already exists in the destination location",
+        ));
     }
 
     // 2. Perform copy with progress
@@ -482,7 +598,7 @@ pub async fn import_project(
     let src_b = src.clone();
     let dest_b = dest.clone();
     let tid = temp_id.clone();
-    
+
     tauri::async_runtime::spawn_blocking(move || {
         let mut f = |prog: MoveProjectProgress| {
             let _ = app_b.emit("import-project-progress", prog);

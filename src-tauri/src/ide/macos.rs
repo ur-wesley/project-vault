@@ -1,9 +1,9 @@
+use super::common::{path_dirs_lookup, push_candidate};
+use super::jetbrains::walk_jetbrains_install_roots;
+use crate::models::IdeCandidateDto;
 use std::collections::HashSet;
 use std::path::{Path, PathBuf};
 use std::process::Command;
-use crate::models::IdeCandidateDto;
-use super::common::{push_candidate, path_dirs_lookup};
-use super::jetbrains::walk_jetbrains_install_roots;
 
 pub fn discover_platform(
     out: &mut Vec<IdeCandidateDto>,
@@ -134,8 +134,16 @@ pub fn discover_platform(
     }
 
     for (id, label, rel) in [
-        ("intellij", "IntelliJ IDEA", "IntelliJ IDEA.app/Contents/MacOS/idea"),
-        ("webstorm", "WebStorm", "WebStorm.app/Contents/MacOS/webstorm"),
+        (
+            "intellij",
+            "IntelliJ IDEA",
+            "IntelliJ IDEA.app/Contents/MacOS/idea",
+        ),
+        (
+            "webstorm",
+            "WebStorm",
+            "WebStorm.app/Contents/MacOS/webstorm",
+        ),
         ("pycharm", "PyCharm", "PyCharm.app/Contents/MacOS/pycharm"),
         (
             "rustrover",
@@ -144,12 +152,28 @@ pub fn discover_platform(
         ),
         ("goland", "GoLand", "GoLand.app/Contents/MacOS/goland"),
         ("clion", "CLion", "CLion.app/Contents/MacOS/clion"),
-        ("phpstorm", "PhpStorm", "PhpStorm.app/Contents/MacOS/phpstorm"),
+        (
+            "phpstorm",
+            "PhpStorm",
+            "PhpStorm.app/Contents/MacOS/phpstorm",
+        ),
         ("rider", "Rider", "Rider.app/Contents/MacOS/rider"),
-        ("datagrip", "DataGrip", "DataGrip.app/Contents/MacOS/datagrip"),
-        ("rubymine", "RubyMine", "RubyMine.app/Contents/MacOS/rubymine"),
+        (
+            "datagrip",
+            "DataGrip",
+            "DataGrip.app/Contents/MacOS/datagrip",
+        ),
+        (
+            "rubymine",
+            "RubyMine",
+            "RubyMine.app/Contents/MacOS/rubymine",
+        ),
         ("appcode", "AppCode", "AppCode.app/Contents/MacOS/appcode"),
-        ("dataspell", "DataSpell", "DataSpell.app/Contents/MacOS/dataspell"),
+        (
+            "dataspell",
+            "DataSpell",
+            "DataSpell.app/Contents/MacOS/dataspell",
+        ),
         ("aqua", "Aqua", "Aqua.app/Contents/MacOS/aqua"),
         (
             "android-studio",
@@ -359,20 +383,32 @@ pub fn discover_platform_fallback(
 
     // Known bundle name → (id, label, candidate exe paths inside .app)
     let bundle_checks: &[(&str, &str, &[&str])] = &[
-        ("vscode", "Visual Studio Code", &["Contents/Resources/app/bin/code"]),
+        (
+            "vscode",
+            "Visual Studio Code",
+            &["Contents/Resources/app/bin/code"],
+        ),
         (
             "vscode-insiders",
             "Visual Studio Code Insiders",
             &["Contents/Resources/app/bin/code"],
         ),
-        ("vscodium", "VSCodium", &["Contents/Resources/app/bin/codium"]),
+        (
+            "vscodium",
+            "VSCodium",
+            &["Contents/Resources/app/bin/codium"],
+        ),
         (
             "vscode-oss",
             "VSCode OSS",
             &["Contents/Resources/app/bin/code"],
         ),
         ("cursor", "Cursor", &["Contents/Resources/app/bin/cursor"]),
-        ("windsurf", "Windsurf", &["Contents/Resources/app/bin/windsurf"]),
+        (
+            "windsurf",
+            "Windsurf",
+            &["Contents/Resources/app/bin/windsurf"],
+        ),
         ("trae", "Trae", &["Contents/Resources/app/bin/trae"]),
         ("zed", "Zed", &["Contents/MacOS/zed"]),
         ("lapce", "Lapce", &["Contents/MacOS/lapce"]),
@@ -394,7 +430,11 @@ pub fn discover_platform_fallback(
         ("appcode", "AppCode", &["Contents/MacOS/appcode"]),
         ("dataspell", "DataSpell", &["Contents/MacOS/dataspell"]),
         ("aqua", "Aqua", &["Contents/MacOS/aqua"]),
-        ("android-studio", "Android Studio", &["Contents/MacOS/studio"]),
+        (
+            "android-studio",
+            "Android Studio",
+            &["Contents/MacOS/studio"],
+        ),
         ("fleet", "Fleet", &["Contents/MacOS/fleet"]),
         ("emacs", "Emacs", &["Contents/MacOS/Emacs"]),
         ("vim", "MacVim", &["Contents/MacOS/MacVim"]),
@@ -426,7 +466,8 @@ pub fn discover_platform_fallback(
             let matches = bundle_name.contains(id)
                 || bundle_name.contains(&keyword)
                 || (*id == "vscode" && bundle_name.contains("visual studio code"))
-                || (*id == "vscode-insiders" && bundle_name.contains("visual studio code insiders"))
+                || (*id == "vscode-insiders"
+                    && bundle_name.contains("visual studio code insiders"))
                 || (*id == "vscodium" && bundle_name.contains("vscodium"))
                 || (*id == "vscode-oss"
                     && (bundle_name.contains("code - oss")

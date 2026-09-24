@@ -22,6 +22,11 @@ pub fn debug_detect_project(
     app: AppHandle,
     path: String,
 ) -> Result<Option<ProjectDraft>, StableError> {
+    #[cfg(not(debug_assertions))]
+    return Err(StableError::new(
+        codes::INTERNAL,
+        "debug command disabled in release builds",
+    ));
     let reg = registry(&app);
     let root = Path::new(&path);
     if !root.is_dir() {
@@ -41,6 +46,11 @@ pub struct DebugScanResult {
 
 #[tauri::command]
 pub fn debug_scan_location(app: AppHandle, path: String) -> Result<DebugScanResult, StableError> {
+    #[cfg(not(debug_assertions))]
+    return Err(StableError::new(
+        codes::INTERNAL,
+        "debug command disabled in release builds",
+    ));
     let reg = registry(&app);
     let root = Path::new(&path);
     if !root.is_dir() {
@@ -50,7 +60,12 @@ pub fn debug_scan_location(app: AppHandle, path: String) -> Result<DebugScanResu
     let raw = collect_projects_under_root(&reg, root, &mut dirs_skipped);
     let mut monorepos_expanded = 0u64;
     let mut workspace_warnings = 0u64;
-    let filtered = filter_workspaces_and_outermost(&reg, raw.clone(), &mut monorepos_expanded, &mut workspace_warnings);
+    let filtered = filter_workspaces_and_outermost(
+        &reg,
+        raw.clone(),
+        &mut monorepos_expanded,
+        &mut workspace_warnings,
+    );
     Ok(DebugScanResult {
         raw,
         filtered,
@@ -85,17 +100,23 @@ pub async fn run_location_scan_impl(
     let raw = collect_projects_under_root(&reg, root, &mut dirs_skipped);
     let mut monorepos_expanded = 0u64;
     let mut workspace_warnings = 0u64;
-    let drafts = filter_workspaces_and_outermost(&reg, raw, &mut monorepos_expanded, &mut workspace_warnings);
+    let drafts = filter_workspaces_and_outermost(
+        &reg,
+        raw,
+        &mut monorepos_expanded,
+        &mut workspace_warnings,
+    );
     let discovered = drafts.len() as u64;
 
     // Preload existing project paths for this location so lightweight scans
     // can avoid emitting events for unchanged projects.
     let existing_paths: HashSet<String> = if lightweight {
-        let rows: Vec<String> = sqlx::query_scalar("SELECT path FROM projects WHERE location_id = ?1")
-            .bind(&location_id)
-            .fetch_all(&pool)
-            .await
-            .map_err(|e| StableError::new(codes::DB_ERROR, e.to_string()))?;
+        let rows: Vec<String> =
+            sqlx::query_scalar("SELECT path FROM projects WHERE location_id = ?1")
+                .bind(&location_id)
+                .fetch_all(&pool)
+                .await
+                .map_err(|e| StableError::new(codes::DB_ERROR, e.to_string()))?;
         rows.into_iter().collect()
     } else {
         HashSet::new()
@@ -113,8 +134,16 @@ pub async fn run_location_scan_impl(
         } else {
             let filtered_stats = crate::project_move::count_filtered_dir(&d.root).ok();
             let file_count = filtered_stats.map(|s| s.file_count).unwrap_or(0);
-            let last_edited_at_ms = filtered_stats.and_then(|s| if s.last_edited_at_ms > 0 { Some(s.last_edited_at_ms) } else { None });
-            let size_bytes = crate::project_move::count_all_dir(&d.root).map(|(_, total)| total).unwrap_or(0);
+            let last_edited_at_ms = filtered_stats.and_then(|s| {
+                if s.last_edited_at_ms > 0 {
+                    Some(s.last_edited_at_ms)
+                } else {
+                    None
+                }
+            });
+            let size_bytes = crate::project_move::count_all_dir(&d.root)
+                .map(|(_, total)| total)
+                .unwrap_or(0);
             (file_count, size_bytes, last_edited_at_ms)
         };
 
@@ -152,11 +181,14 @@ pub async fn run_location_scan_impl(
     }
 
     // Auto-index discovered projects if setting is enabled
-    let auto_index = db::get_setting(&pool, "auto_index_projects").await.ok().flatten().unwrap_or_default() != "false";
+    let auto_index = db::get_setting(&pool, "auto_index_projects")
+        .await
+        .ok()
+        .flatten()
+        .unwrap_or_default()
+        != "false";
     if auto_index {
-        let app_data_dir = app.path().app_data_dir().map_err(|e| {
-            StableError::new(codes::INTERNAL, format!("app data dir: {e}"))
-        })?;
+        let app_data_dir = crate::common::app_data_dir(&app)?;
         for (project_id, project_path) in indexed_project_ids {
             let data_dir = app_data_dir.clone();
             tokio::task::spawn_blocking(move || {
@@ -166,11 +198,12 @@ pub async fn run_location_scan_impl(
     }
 
     // Ensure we keep existing registered projects that still exist on disk
-    let all_existing: Vec<String> = sqlx::query_scalar("SELECT path FROM projects WHERE location_id = ?1")
-        .bind(&location_id)
-        .fetch_all(&pool)
-        .await
-        .map_err(|e| StableError::new(codes::DB_ERROR, e.to_string()))?;
+    let all_existing: Vec<String> =
+        sqlx::query_scalar("SELECT path FROM projects WHERE location_id = ?1")
+            .bind(&location_id)
+            .fetch_all(&pool)
+            .await
+            .map_err(|e| StableError::new(codes::DB_ERROR, e.to_string()))?;
 
     for path_str in all_existing {
         if Path::new(&path_str).is_dir() {

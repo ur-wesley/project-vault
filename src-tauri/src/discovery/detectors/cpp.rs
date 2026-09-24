@@ -1,8 +1,8 @@
 use std::path::Path;
 
+use super::util::{dirname_name, read_utf8, script_task};
 use crate::discovery::draft::ProjectDraft;
 use crate::discovery::ProjectDetector;
-use super::util::{dirname_name, read_utf8, script_task};
 
 pub struct CMakeDetector;
 

@@ -51,9 +51,7 @@ fn event_depth(event_path: &Path, root_path: &Path) -> Option<usize> {
 }
 
 fn is_dir_or_unknown(path: &Path) -> bool {
-    std::fs::metadata(path)
-        .map(|m| m.is_dir())
-        .unwrap_or(true)
+    std::fs::metadata(path).map(|m| m.is_dir()).unwrap_or(true)
 }
 
 #[derive(Clone)]
@@ -143,48 +141,44 @@ impl LocationWatcher {
         let app = self.app.clone();
         let loc_id_for_closure = location_id.clone();
 
-        let mut watcher = notify::recommended_watcher(
-            move |res: Result<Event, notify::Error>| {
-                if let Ok(event) = res {
-                    match event.kind {
-                        notify::EventKind::Create(_) | notify::EventKind::Remove(_) => {
-                            let mut should_debounce = false;
-                            for p in &event.paths {
-                                if is_ignored_path(p) {
-                                    continue;
-                                }
-                                let depth = event_depth(p, &root_path);
-                                let depth_ok = depth.map(|d| d <= 2).unwrap_or(false);
-                                if !depth_ok {
-                                    continue;
-                                }
-                                // Only react to directories (or unknown, to be safe)
-                                if is_dir_or_unknown(p) {
-                                    should_debounce = true;
-                                    break;
-                                }
+        let mut watcher = notify::recommended_watcher(move |res: Result<Event, notify::Error>| {
+            if let Ok(event) = res {
+                match event.kind {
+                    notify::EventKind::Create(_) | notify::EventKind::Remove(_) => {
+                        let mut should_debounce = false;
+                        for p in &event.paths {
+                            if is_ignored_path(p) {
+                                continue;
                             }
-                            if should_debounce {
-                                let map = debounce_map.clone();
-                                let loc_id = loc_id_for_closure.clone();
-                                let app_handle = app.clone();
-                                tauri::async_runtime::spawn(async move {
-                                    let deadline = tokio::time::Instant::now() + Duration::from_secs(5);
-                                    let mut map = map.lock().await;
-                                    map.insert(loc_id.clone(), deadline);
-                                    drop(map);
-                                    let _ = app_handle.emit(
-                                        "location:fs-event",
-                                        json!({ "locationId": loc_id }),
-                                    );
-                                });
+                            let depth = event_depth(p, &root_path);
+                            let depth_ok = depth.map(|d| d <= 2).unwrap_or(false);
+                            if !depth_ok {
+                                continue;
+                            }
+                            // Only react to directories (or unknown, to be safe)
+                            if is_dir_or_unknown(p) {
+                                should_debounce = true;
+                                break;
                             }
                         }
-                        _ => {}
+                        if should_debounce {
+                            let map = debounce_map.clone();
+                            let loc_id = loc_id_for_closure.clone();
+                            let app_handle = app.clone();
+                            tauri::async_runtime::spawn(async move {
+                                let deadline = tokio::time::Instant::now() + Duration::from_secs(5);
+                                let mut map = map.lock().await;
+                                map.insert(loc_id.clone(), deadline);
+                                drop(map);
+                                let _ = app_handle
+                                    .emit("location:fs-event", json!({ "locationId": loc_id }));
+                            });
+                        }
                     }
+                    _ => {}
                 }
-            },
-        )
+            }
+        })
         .map_err(|e| format!("failed to create watcher: {e}"))?;
 
         watcher
@@ -238,7 +232,10 @@ async fn trigger_scan_for_location(app: AppHandle, location_id: String, lightwei
     let pool = match crate::db::sqlite_pool(&*db).await {
         Ok(p) => p,
         Err(e) => {
-            eprintln!("[watcher] Failed to get DB pool for {}: {:?}", location_id, e);
+            eprintln!(
+                "[watcher] Failed to get DB pool for {}: {:?}",
+                location_id, e
+            );
             return;
         }
     };
@@ -268,7 +265,12 @@ async fn trigger_scan_for_location(app: AppHandle, location_id: String, lightwei
         json!({ "locationId": location_id, "locationName": loc.name }),
     );
 
-    let result = crate::commands::scan::run_location_scan_impl(app.clone(), location_id.clone(), lightweight).await;
+    let result = crate::commands::scan::run_location_scan_impl(
+        app.clone(),
+        location_id.clone(),
+        lightweight,
+    )
+    .await;
 
     let payload = match &result {
         Ok(r) => json!({

@@ -1,6 +1,6 @@
 use std::path::PathBuf;
 
-use tauri::{AppHandle, Emitter, Manager, State};
+use tauri::{AppHandle, Emitter, State};
 use tauri_plugin_sql::DbInstances;
 
 use crate::db;
@@ -26,7 +26,10 @@ async fn rebuild_on_schema_mismatch(
 
     let _ = delete_project_index(app_data_dir, project_id);
     build_project_index(app_data_dir, project_id, project_path.as_path())?;
-    let _ = app.emit("index:built", serde_json::json!({ "projectId": project_id }));
+    let _ = app.emit(
+        "index:built",
+        serde_json::json!({ "projectId": project_id }),
+    );
     Ok(project_path)
 }
 
@@ -37,10 +40,7 @@ pub async fn search_project(
     project_id: String,
     query: String,
 ) -> Result<Vec<SearchHitDto>, StableError> {
-    let app_data_dir = app
-        .path()
-        .app_data_dir()
-        .map_err(|e| StableError::new(crate::error::codes::INTERNAL, format!("app data dir: {e}")))?;
+    let app_data_dir = crate::common::app_data_dir(&app)?;
 
     match search_project_index(&app_data_dir, &project_id, &query, 50) {
         Ok(hits) => Ok(hits),
@@ -62,10 +62,7 @@ pub async fn index_project(
 ) -> Result<IndexMetaDto, StableError> {
     let pool = db::sqlite_pool(&*db).await?;
     let project = db::get_project(&pool, &project_id).await?;
-    let app_data_dir = app
-        .path()
-        .app_data_dir()
-        .map_err(|e| StableError::new(crate::error::codes::INTERNAL, format!("app data dir: {e}")))?;
+    let app_data_dir = crate::common::app_data_dir(&app)?;
     let project_path = PathBuf::from(&project.path);
 
     let meta = match build_project_index(&app_data_dir, &project_id, project_path.as_path()) {
@@ -78,7 +75,10 @@ pub async fn index_project(
         Err(e) => return Err(e),
     };
 
-    let _ = app.emit("index:built", serde_json::json!({ "projectId": project_id }));
+    let _ = app.emit(
+        "index:built",
+        serde_json::json!({ "projectId": project_id }),
+    );
     Ok(IndexMetaDto {
         indexed_files: meta.indexed_files,
         index_size_bytes: meta.index_size_bytes,
@@ -101,10 +101,7 @@ pub async fn get_index_meta(
     app: AppHandle,
     project_id: String,
 ) -> Result<Option<IndexMetaDto>, StableError> {
-    let app_data_dir = app
-        .path()
-        .app_data_dir()
-        .map_err(|e| StableError::new(crate::error::codes::INTERNAL, format!("app data dir: {e}")))?;
+    let app_data_dir = crate::common::app_data_dir(&app)?;
 
     if !index_exists(&app_data_dir, &project_id) {
         return Ok(None);
@@ -119,29 +116,23 @@ pub async fn get_index_meta(
 }
 
 #[tauri::command]
-pub async fn delete_index(
-    app: AppHandle,
-    project_id: String,
-) -> Result<(), StableError> {
-    let app_data_dir = app
-        .path()
-        .app_data_dir()
-        .map_err(|e| StableError::new(crate::error::codes::INTERNAL, format!("app data dir: {e}")))?;
+pub async fn delete_index(app: AppHandle, project_id: String) -> Result<(), StableError> {
+    let app_data_dir = crate::common::app_data_dir(&app)?;
 
     delete_project_index(&app_data_dir, &project_id)
 }
 
 #[tauri::command]
 pub async fn delete_all_indices(app: AppHandle) -> Result<(), StableError> {
-    let app_data_dir = app
-        .path()
-        .app_data_dir()
-        .map_err(|e| StableError::new(crate::error::codes::INTERNAL, format!("app data dir: {e}")))?;
+    let app_data_dir = crate::common::app_data_dir(&app)?;
 
     let indices_dir = app_data_dir.join("indices");
     if indices_dir.exists() {
         std::fs::remove_dir_all(&indices_dir).map_err(|e| {
-            StableError::new(crate::error::codes::INTERNAL, format!("failed to remove indices: {e}"))
+            StableError::new(
+                crate::error::codes::INTERNAL,
+                format!("failed to remove indices: {e}"),
+            )
         })?;
     }
     Ok(())
@@ -156,10 +147,7 @@ pub async fn update_index_for_file(
 ) -> Result<(), StableError> {
     let pool = db::sqlite_pool(&*db).await?;
     let project = db::get_project(&pool, &project_id).await?;
-    let app_data_dir = app
-        .path()
-        .app_data_dir()
-        .map_err(|e| StableError::new(crate::error::codes::INTERNAL, format!("app data dir: {e}")))?;
+    let app_data_dir = crate::common::app_data_dir(&app)?;
 
     update_file_in_index(
         &app_data_dir,

@@ -20,7 +20,14 @@ pub struct SelectionResult {
 
 #[derive(Clone, Copy, PartialEq)]
 enum Handle {
-    Nw, N, Ne, E, Se, S, Sw, W,
+    Nw,
+    N,
+    Ne,
+    E,
+    Se,
+    S,
+    Sw,
+    W,
 }
 
 #[derive(Clone, Copy, PartialEq)]
@@ -37,11 +44,7 @@ struct DragStart {
 
 enum OverlayImage {
     Loading,
-    Ready {
-        rgba: Vec<u8>,
-        w: u32,
-        h: u32,
-    },
+    Ready { rgba: Vec<u8>, w: u32, h: u32 },
 }
 
 struct SelectionOverlay {
@@ -123,14 +126,34 @@ impl SelectionOverlay {
     fn apply_resize(rect: egui::Rect, handle: Handle, delta: egui::Vec2) -> egui::Rect {
         let mut r = rect;
         match handle {
-            Handle::Nw => { r.min.x += delta.x; r.min.y += delta.y; }
-            Handle::N => { r.min.y += delta.y; }
-            Handle::Ne => { r.max.x += delta.x; r.min.y += delta.y; }
-            Handle::E => { r.max.x += delta.x; }
-            Handle::Se => { r.max.x += delta.x; r.max.y += delta.y; }
-            Handle::S => { r.max.y += delta.y; }
-            Handle::Sw => { r.min.x += delta.x; r.max.y += delta.y; }
-            Handle::W => { r.min.x += delta.x; }
+            Handle::Nw => {
+                r.min.x += delta.x;
+                r.min.y += delta.y;
+            }
+            Handle::N => {
+                r.min.y += delta.y;
+            }
+            Handle::Ne => {
+                r.max.x += delta.x;
+                r.min.y += delta.y;
+            }
+            Handle::E => {
+                r.max.x += delta.x;
+            }
+            Handle::Se => {
+                r.max.x += delta.x;
+                r.max.y += delta.y;
+            }
+            Handle::S => {
+                r.max.y += delta.y;
+            }
+            Handle::Sw => {
+                r.min.x += delta.x;
+                r.max.y += delta.y;
+            }
+            Handle::W => {
+                r.min.x += delta.x;
+            }
         }
         if r.width() < MIN_SELECTION {
             if matches!(handle, Handle::Nw | Handle::Sw | Handle::W) {
@@ -155,7 +178,12 @@ impl SelectionOverlay {
         let y = ((rect.min.y - r.min.y) * self.img_scale_y).round().max(0.0) as u32;
         let w = (rect.width() * self.img_scale_x).round().max(1.0) as u32;
         let h = (rect.height() * self.img_scale_y).round().max(1.0) as u32;
-        SelectionResult { x, y, width: w, height: h }
+        SelectionResult {
+            x,
+            y,
+            width: w,
+            height: h,
+        }
     }
 
     fn confirm(&self, ctx: &egui::Context) {
@@ -234,7 +262,12 @@ impl SelectionOverlay {
             }
             None => eprintln!("[screenshot] crop_rgba returned None — image not loaded?"),
         }
-        let _ = self.tx.send(Some(SelectionResult { x: 0, y: 0, width: 0, height: 0 }));
+        let _ = self.tx.send(Some(SelectionResult {
+            x: 0,
+            y: 0,
+            width: 0,
+            height: 0,
+        }));
         ctx.send_viewport_cmd(egui::ViewportCommand::Close);
     }
 
@@ -259,7 +292,12 @@ impl SelectionOverlay {
             match std::fs::write(&path, &png_buf) {
                 Ok(()) => {
                     eprintln!("[screenshot] saved to {}", path.display());
-                    let _ = self.tx.send(Some(SelectionResult { x: 0, y: 0, width: 0, height: 0 }));
+                    let _ = self.tx.send(Some(SelectionResult {
+                        x: 0,
+                        y: 0,
+                        width: 0,
+                        height: 0,
+                    }));
                 }
                 Err(e) => {
                     eprintln!("[screenshot] save failed: {e}");
@@ -277,10 +315,8 @@ impl eframe::App for SelectionOverlay {
         // Check if image arrived from background capture
         if matches!(self.image, OverlayImage::Loading) {
             if let Ok((rgba, w, h)) = self.image_rx.try_recv() {
-                let color_image = egui::ColorImage::from_rgba_unmultiplied(
-                    [w as usize, h as usize],
-                    &rgba,
-                );
+                let color_image =
+                    egui::ColorImage::from_rgba_unmultiplied([w as usize, h as usize], &rgba);
                 let tex = ctx.load_texture(
                     "screenshot",
                     color_image,
@@ -313,7 +349,8 @@ impl eframe::App for SelectionOverlay {
                 egui::Color32::WHITE,
             );
         } else {
-            ui.painter().rect_filled(img_rect, 0.0, egui::Color32::from_rgb(20, 20, 20));
+            ui.painter()
+                .rect_filled(img_rect, 0.0, egui::Color32::from_rgb(20, 20, 20));
         }
 
         // Dark overlay
@@ -342,7 +379,8 @@ impl eframe::App for SelectionOverlay {
                 );
 
                 ui.painter().rect_stroke(
-                    sel, 0.0,
+                    sel,
+                    0.0,
                     egui::Stroke::new(2.0, SELECTION_COLOR),
                     egui::StrokeKind::Inside,
                 );
@@ -358,9 +396,11 @@ impl eframe::App for SelectionOverlay {
                     egui::pos2(sel.min.x, sel.center().y),
                 ];
                 for pos in handles {
-                    ui.painter().rect_filled(Self::handle_rect(pos), 2.0, SELECTION_COLOR);
+                    ui.painter()
+                        .rect_filled(Self::handle_rect(pos), 2.0, SELECTION_COLOR);
                     ui.painter().rect_stroke(
-                        Self::handle_rect(pos), 2.0,
+                        Self::handle_rect(pos),
+                        2.0,
                         egui::Stroke::new(1.5, egui::Color32::WHITE),
                         egui::StrokeKind::Inside,
                     );
@@ -394,10 +434,12 @@ impl eframe::App for SelectionOverlay {
             text_rect.size() + egui::vec2(24.0, 12.0),
         );
         ui.painter().rect_filled(
-            bg_rect, 8.0,
+            bg_rect,
+            8.0,
             egui::Color32::from_rgba_unmultiplied(30, 30, 30, 200),
         );
-        ui.painter().galley(text_pos, galley, egui::Color32::TRANSPARENT);
+        ui.painter()
+            .galley(text_pos, galley, egui::Color32::TRANSPARENT);
 
         // Block input while loading
         if loading {
@@ -433,7 +475,9 @@ impl eframe::App for SelectionOverlay {
             }
         }
 
-        let Some(mouse_pos) = self.mouse_pos(ui) else { return };
+        let Some(mouse_pos) = self.mouse_pos(ui) else {
+            return;
+        };
         let pointer = &input.pointer;
 
         // Cursor icon
@@ -460,12 +504,18 @@ impl eframe::App for SelectionOverlay {
             if let Some(sel) = self.selection {
                 if let Some(handle) = self.hit_handle(mouse_pos) {
                     self.drag_mode = DragMode::Resize(handle);
-                    self.drag_start = Some(DragStart { pos: mouse_pos, orig_rect: sel });
+                    self.drag_start = Some(DragStart {
+                        pos: mouse_pos,
+                        orig_rect: sel,
+                    });
                     return;
                 }
                 if sel.contains(mouse_pos) {
                     self.drag_mode = DragMode::Move;
-                    self.drag_start = Some(DragStart { pos: mouse_pos, orig_rect: sel });
+                    self.drag_start = Some(DragStart {
+                        pos: mouse_pos,
+                        orig_rect: sel,
+                    });
                     return;
                 }
             }
@@ -550,7 +600,10 @@ pub fn run_selection_overlay(
     );
 
     if let Err(e) = result {
-        return Err(StableError::new("EGUI_FAILED", format!("egui window failed: {e}")));
+        return Err(StableError::new(
+            "EGUI_FAILED",
+            format!("egui window failed: {e}"),
+        ));
     }
 
     match rx.try_recv() {

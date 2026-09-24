@@ -1,11 +1,12 @@
-use std::path::Path;
 use serde::Serialize;
+use std::collections::HashMap;
+use std::path::Path;
 use tauri::{AppHandle, State};
 use tauri_plugin_sql::DbInstances;
 
+use super::utils::run_git;
 use crate::db;
 use crate::error::StableError;
-use super::utils::run_git;
 
 #[derive(Serialize, Clone)]
 #[serde(rename_all = "camelCase")]
@@ -32,6 +33,102 @@ pub struct GitIncomingCommit {
 #[serde(rename_all = "camelCase")]
 pub struct GitIncomingDto {
     pub commits: Vec<GitIncomingCommit>,
+}
+
+#[derive(Serialize, Clone)]
+#[serde(rename_all = "camelCase")]
+pub struct GitStatusEntry {
+    pub project_id: String,
+    pub status: Option<GitStatusDto>,
+}
+
+/// Single-project scan without the `describe --tags` spawn: the hygiene scan
+/// view never shows versions, so that fourth process per project is pure
+/// overhead on the 40-project first load.
+async fn git_status_for_path(cwd: &Path) -> Option<GitStatusDto> {
+    if !super::utils::is_git_repo(cwd) {
+        return None;
+    }
+
+    let branch = super::utils::run_git_async_quiet(cwd, &["branch", "--show-current"])
+        .await
+        .unwrap_or_else(|_| "HEAD".to_string());
+    if branch.is_empty() {
+        return None;
+    }
+
+    let mut ahead = 0;
+    let mut behind = 0;
+    let mut has_upstream = false;
+    if let Ok(revs) =
+        super::utils::run_git_async_quiet(cwd, &["rev-list", "--left-right", "--count", "HEAD...@{u}"])
+            .await
+    {
+        has_upstream = true;
+        let parts: Vec<&str> = revs.split_whitespace().collect();
+        if parts.len() == 2 {
+            ahead = parts[0].parse().unwrap_or(0);
+            behind = parts[1].parse().unwrap_or(0);
+        }
+    }
+
+    let status =
+        super::utils::run_git_async_quiet(cwd, &["status", "--porcelain"]).await.ok()?;
+    let is_dirty = !status.is_empty();
+
+    Some(GitStatusDto {
+        branch,
+        ahead,
+        behind,
+        is_dirty,
+        has_upstream,
+        version: None,
+    })
+}
+
+/// Batch scan for the git-hygiene first load: one DB round-trip, then all git
+/// work runs concurrently (8 lanes) instead of N sequential `get_status`
+/// invocations each spawning 4 processes on the single lua-worker.
+pub async fn batch_git_statuses(
+    db: &DbInstances,
+    project_ids: Vec<String>,
+) -> Result<Vec<GitStatusEntry>, StableError> {
+    let pool = db::sqlite_pool(db).await?;
+    let all = db::list_projects(&pool).await?;
+    let by_id: HashMap<String, String> = all.into_iter().map(|p| (p.id, p.path)).collect();
+
+    let semaphore = std::sync::Arc::new(tokio::sync::Semaphore::new(8));
+    let mut set = tokio::task::JoinSet::new();
+    for pid in project_ids {
+        let path = by_id.get(&pid).cloned();
+        let semaphore = semaphore.clone();
+        set.spawn(async move {
+            let _permit = semaphore.acquire_owned().await.ok();
+            let status = match path {
+                Some(p) => git_status_for_path(Path::new(&p)).await,
+                None => None,
+            };
+            GitStatusEntry {
+                project_id: pid,
+                status,
+            }
+        });
+    }
+    let mut out = Vec::new();
+    while let Some(res) = set.join_next().await {
+        if let Ok(entry) = res {
+            out.push(entry);
+        }
+    }
+    Ok(out)
+}
+
+#[tauri::command]
+pub async fn get_git_statuses(
+    db: State<'_, DbInstances>,
+    project_ids: Vec<String>,
+) -> Result<Vec<GitStatusEntry>, StableError> {
+    batch_git_statuses(&db, project_ids).await
 }
 
 #[tauri::command]
@@ -138,11 +235,8 @@ pub async fn git_incoming(
     let project = db::get_project(&pool, &project_id).await?;
     let cwd = Path::new(&project.path);
 
-    let log = run_git(
-        cwd,
-        &["log", "HEAD..@{u}", "--format=%H|%an|%ae|%s|%ar"],
-    )
-    .unwrap_or_default();
+    let log =
+        run_git(cwd, &["log", "HEAD..@{u}", "--format=%H|%an|%ae|%s|%ar"]).unwrap_or_default();
 
     let commits = log
         .lines()
@@ -191,7 +285,9 @@ pub async fn start_git_watcher(
 ) -> Result<(), StableError> {
     let pool = db::sqlite_pool(&*db).await?;
     let project = db::get_project(&pool, &project_id).await?;
-    git_watcher.start(&project_id, &project.path).await
+    git_watcher
+        .start(&project_id, &project.path)
+        .await
         .map_err(|e| StableError::new(crate::error::codes::INTERNAL, e))
 }
 

@@ -133,11 +133,7 @@ fn icon_from_resource_dir(app: &AppHandle) -> Option<PathBuf> {
 
 fn icon_from_manifest_dir() -> Option<PathBuf> {
     let base = PathBuf::from(env!("CARGO_MANIFEST_DIR"));
-    for candidate in [
-        "icons/icon.ico",
-        "icons/128x128.png",
-        "icons/32x32.png",
-    ] {
+    for candidate in ["icons/icon.ico", "icons/128x128.png", "icons/32x32.png"] {
         if let Some(path) = canonicalize_if_exists(&base.join(candidate)) {
             return Some(path);
         }
@@ -158,7 +154,10 @@ fn icon_from_embedded(app: &AppHandle) -> Option<PathBuf> {
 }
 
 fn shortcut_icon_path(path: &Path) -> Option<PathBuf> {
-    if path.extension().is_some_and(|ext| ext.eq_ignore_ascii_case("ico")) {
+    if path
+        .extension()
+        .is_some_and(|ext| ext.eq_ignore_ascii_case("ico"))
+    {
         return canonicalize_if_exists(path);
     }
     None
@@ -220,8 +219,8 @@ fn create_shell_link(
     use windows::Win32::Foundation::TRUE;
     use windows::Win32::Storage::EnhancedStorage::PKEY_AppUserModel_ID;
     use windows::Win32::System::Com::{
-        CoCreateInstance, CoInitializeEx, CoUninitialize, CLSCTX_INPROC_SERVER,
-        COINIT_APARTMENTTHREADED, IPersistFile,
+        CoCreateInstance, CoInitializeEx, CoUninitialize, IPersistFile, CLSCTX_INPROC_SERVER,
+        COINIT_APARTMENTTHREADED,
     };
     use windows::Win32::UI::Shell::PropertiesSystem::IPropertyStore;
     use windows::Win32::UI::Shell::{IShellLinkW, ShellLink};
@@ -234,8 +233,8 @@ fn create_shell_link(
         let _ = CoInitializeEx(None, COINIT_APARTMENTTHREADED);
 
         let result = (|| -> Result<(), String> {
-            let link: IShellLinkW =
-                CoCreateInstance(&ShellLink, None, CLSCTX_INPROC_SERVER).map_err(|e| e.to_string())?;
+            let link: IShellLinkW = CoCreateInstance(&ShellLink, None, CLSCTX_INPROC_SERVER)
+                .map_err(|e| e.to_string())?;
 
             let exe_wide = wide(&exe_path.to_string_lossy());
             link.SetPath(PCWSTR(exe_wide.as_ptr()))

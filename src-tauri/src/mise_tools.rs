@@ -63,9 +63,12 @@ pub fn suggest_tools_for_project(
 
 /// Write suggested tools to the project's mise.toml.
 /// Creates the file if it doesn't exist.
-pub fn pin_tools_to_mise(project_path: &Path, tools: &[MiseToolSuggestionDto]) -> Result<(), String> {
-    let mise_path = find_mise_config(project_path)
-        .unwrap_or_else(|| project_path.join("mise.toml"));
+pub fn pin_tools_to_mise(
+    project_path: &Path,
+    tools: &[MiseToolSuggestionDto],
+) -> Result<(), String> {
+    let mise_path =
+        find_mise_config(project_path).unwrap_or_else(|| project_path.join("mise.toml"));
 
     let content = match std::fs::read_to_string(&mise_path) {
         Ok(c) => c,
@@ -84,9 +87,7 @@ pub fn pin_tools_to_mise(project_path: &Path, tools: &[MiseToolSuggestionDto]) -
         doc["tools"] = toml_edit::Item::Table(toml_edit::Table::new());
     }
 
-    let tools_table = doc["tools"]
-        .as_table_mut()
-        .ok_or("tools is not a table")?;
+    let tools_table = doc["tools"].as_table_mut().ok_or("tools is not a table")?;
 
     for tool in tools {
         let version = if tool.version == "latest" {
@@ -94,7 +95,10 @@ pub fn pin_tools_to_mise(project_path: &Path, tools: &[MiseToolSuggestionDto]) -
         } else {
             tool.version.clone()
         };
-        tools_table.insert(&tool.name, toml_edit::Item::Value(toml_edit::Value::from(version)));
+        tools_table.insert(
+            &tool.name,
+            toml_edit::Item::Value(toml_edit::Value::from(version)),
+        );
     }
 
     std::fs::write(&mise_path, doc.to_string())
@@ -252,7 +256,12 @@ fn normalize_dotnet_version(v: &str) -> String {
     let t = v.trim();
     if t.starts_with("net") {
         let rest = &t[3..];
-        if rest.chars().next().map(|c| c.is_ascii_digit()).unwrap_or(false) {
+        if rest
+            .chars()
+            .next()
+            .map(|c| c.is_ascii_digit())
+            .unwrap_or(false)
+        {
             return rest.split('.').next().unwrap_or(rest).to_string();
         }
     }
@@ -302,7 +311,11 @@ fn detect_node_version(project_path: &Path) -> MiseToolSuggestionDto {
     }
     // Check package.json engines.node
     if let Some(v) = read_package_json_node_version(project_path) {
-        return suggest_tool("node", &normalize_node_version(&v), "from package.json engines");
+        return suggest_tool(
+            "node",
+            &normalize_node_version(&v),
+            "from package.json engines",
+        );
     }
     suggest_tool("node", "latest", "JavaScript/TypeScript project detected")
 }
@@ -389,18 +402,13 @@ fn scan_for_runtimes_recursive(root: &Path, max_depth: usize) -> Vec<MiseToolSug
         if dir.join("Cargo.toml").is_file() {
             push(suggest_tool("rust", "latest", "Rust project detected"));
         }
-        if has_csproj(dir)
-            || dir.join("global.json").is_file()
-            || has_sln(dir)
-        {
+        if has_csproj(dir) || dir.join("global.json").is_file() || has_sln(dir) {
             push(detect_dotnet_version(dir));
         }
         if dir.join("composer.json").is_file() {
             push(detect_php_version(dir));
         }
-        if dir.join("Gemfile").is_file()
-            || dir.join(".ruby-version").is_file()
-        {
+        if dir.join("Gemfile").is_file() || dir.join(".ruby-version").is_file() {
             push(detect_ruby_version(dir));
         }
         if dir.join("mix.exs").is_file() {
@@ -423,7 +431,9 @@ fn scan_for_runtimes_recursive(root: &Path, max_depth: usize) -> Vec<MiseToolSug
             return;
         }
 
-        let Ok(rd) = std::fs::read_dir(dir) else { return };
+        let Ok(rd) = std::fs::read_dir(dir) else {
+            return;
+        };
         for e in rd.flatten() {
             let p = e.path();
             if !p.is_dir() {
@@ -517,18 +527,18 @@ fn detect_ruby_version(project_path: &Path) -> MiseToolSuggestionDto {
 
 fn detect_elixir_version(project_path: &Path) -> MiseToolSuggestionDto {
     if let Some(raw) = read_utf8(&project_path.join("mix.exs")) {
-    for line in raw.lines() {
-        let t = line.trim();
-        if let Some(rest) = t.strip_prefix("elixir: \"") {
-            if let Some(ver) = rest.split('"').next() {
-                return suggest_tool("elixir", ver, "from mix.exs");
-            }
-        } else if let Some(rest) = t.strip_prefix("elixir: '") {
-            if let Some(ver) = rest.split('\'').next() {
-                return suggest_tool("elixir", ver, "from mix.exs");
+        for line in raw.lines() {
+            let t = line.trim();
+            if let Some(rest) = t.strip_prefix("elixir: \"") {
+                if let Some(ver) = rest.split('"').next() {
+                    return suggest_tool("elixir", ver, "from mix.exs");
+                }
+            } else if let Some(rest) = t.strip_prefix("elixir: '") {
+                if let Some(ver) = rest.split('\'').next() {
+                    return suggest_tool("elixir", ver, "from mix.exs");
+                }
             }
         }
-    }
     }
     suggest_tool("elixir", "latest", "Elixir project detected")
 }
@@ -611,7 +621,8 @@ fn read_package_json_node_version(project_path: &Path) -> Option<String> {
 fn normalize_node_version(v: &str) -> String {
     let t = v.trim();
     // Handle "^18.0.0" or ">=18.0.0" → "18"
-    let t = t.trim_start_matches('^')
+    let t = t
+        .trim_start_matches('^')
         .trim_start_matches('~')
         .trim_start_matches('>')
         .trim_start_matches('=')
@@ -623,7 +634,8 @@ fn normalize_node_version(v: &str) -> String {
 }
 
 fn normalize_python_version(v: &str) -> String {
-    let t = v.trim()
+    let t = v
+        .trim()
         .trim_start_matches('^')
         .trim_start_matches('~')
         .trim_start_matches('=')
@@ -634,7 +646,8 @@ fn normalize_python_version(v: &str) -> String {
 }
 
 fn normalize_php_version(v: &str) -> String {
-    let t = v.trim()
+    let t = v
+        .trim()
         .trim_start_matches('^')
         .trim_start_matches('~')
         .trim_start_matches('=')

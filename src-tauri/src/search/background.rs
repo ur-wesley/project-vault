@@ -54,7 +54,8 @@ pub fn start_background_scanner(app: AppHandle, period_minutes: u64) {
                 tauri::async_runtime::spawn(async move {
                     let _ = tokio::task::spawn_blocking(move || {
                         let _ = build_project_index(&app_data, &pid, &path);
-                    }).await;
+                    })
+                    .await;
                 });
             }
         }

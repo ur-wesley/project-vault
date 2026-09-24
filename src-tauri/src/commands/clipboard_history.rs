@@ -1,6 +1,7 @@
 use tauri::{AppHandle, Manager, State};
 use tauri_plugin_sql::DbInstances;
 
+use crate::clipboard_history::save_foreground_hwnd;
 use crate::clipboard_history::{
     apply_entry, apply_overlay_effects, capture_overlay_anchor, clear_entries,
     compute_overlay_position, delete_entry, entry_thumbnail_data_url, get_entry, list_entries,
@@ -8,7 +9,6 @@ use crate::clipboard_history::{
     ClipboardEntryDto, ClipboardHistorySettingsDto, ClipboardOverlayPositionDto,
     ListClipboardHistoryArgs, UpdateClipboardEntryArgs,
 };
-use crate::clipboard_history::save_foreground_hwnd;
 use crate::db;
 use crate::error::StableError;
 
@@ -37,10 +37,7 @@ pub async fn delete_clipboard_entry(
     id: String,
 ) -> Result<(), StableError> {
     let pool = db::sqlite_pool(&*db).await?;
-    let app_data = app
-        .path()
-        .app_data_dir()
-        .map_err(|e| StableError::new(crate::error::codes::INTERNAL, e.to_string()))?;
+    let app_data = crate::common::app_data_dir(&app)?;
     delete_entry(&pool, &id, &app_data).await
 }
 
@@ -51,10 +48,7 @@ pub async fn clear_clipboard_history(
     args: ClearClipboardHistoryArgs,
 ) -> Result<(), StableError> {
     let pool = db::sqlite_pool(&*db).await?;
-    let app_data = app
-        .path()
-        .app_data_dir()
-        .map_err(|e| StableError::new(crate::error::codes::INTERNAL, e.to_string()))?;
+    let app_data = crate::common::app_data_dir(&app)?;
     clear_entries(&pool, &app_data, args.keep_pinned.unwrap_or(false)).await
 }
 
@@ -139,10 +133,7 @@ pub async fn get_clipboard_entry_thumbnail(
     let Some(entry) = entry else {
         return Ok(None);
     };
-    let app_data = app
-        .path()
-        .app_data_dir()
-        .map_err(|e| StableError::new(crate::error::codes::INTERNAL, e.to_string()))?;
+    let app_data = crate::common::app_data_dir(&app)?;
     let size = max_size.unwrap_or(56).clamp(24, 128);
     entry_thumbnail_data_url(&app_data, &entry, size)
 }

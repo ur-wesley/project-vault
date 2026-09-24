@@ -1,8 +1,8 @@
 use std::collections::{BTreeSet, HashMap, VecDeque};
 use sysinfo::{Pid, ProcessesToUpdate, System};
 
-use super::types::TaskMonitors;
 use super::actions::snapshot_task;
+use super::types::TaskMonitors;
 
 pub fn discover_task_tree(
     sys: &System,

@@ -6,7 +6,7 @@ use crate::db;
 use crate::error::StableError;
 use crate::models::SessionDto;
 use crate::spawn::task_monitor::{TASK_STATE_RUNNING, TASK_STATE_STARTING};
-use crate::spawn::{TaskMonitorEntry, TaskMonitors, ProjectIdeSessions};
+use crate::spawn::{ProjectIdeSessions, TaskMonitorEntry, TaskMonitors};
 
 #[derive(Deserialize)]
 #[serde(rename_all = "camelCase")]
@@ -37,7 +37,13 @@ pub async fn start_session(
     payload: StartSessionPayload,
 ) -> Result<SessionDto, StableError> {
     let pool = db::sqlite_pool(&*db).await?;
-    db::start_session(&pool, &payload.project_id, payload.command, payload.session_id).await
+    db::start_session(
+        &pool,
+        &payload.project_id,
+        payload.command,
+        payload.session_id,
+    )
+    .await
 }
 
 #[tauri::command]
@@ -153,8 +159,7 @@ pub async fn list_all_processes(
         guard
             .values()
             .filter(|e| {
-                !e.finished
-                    && (e.state == TASK_STATE_STARTING || e.state == TASK_STATE_RUNNING)
+                !e.finished && (e.state == TASK_STATE_STARTING || e.state == TASK_STATE_RUNNING)
             })
             .cloned()
             .collect()

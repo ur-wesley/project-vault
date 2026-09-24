@@ -178,8 +178,7 @@ async fn persist_text(
     let db = app.state::<DbInstances>();
     let pool = db::sqlite_pool(&*db).await?;
 
-    if let Some(existing_id) = store::touch_duplicate(&pool, &hash, settings.dedup_seconds).await?
-    {
+    if let Some(existing_id) = store::touch_duplicate(&pool, &hash, settings.dedup_seconds).await? {
         if let Some(entry) = store::get_entry(&pool, &existing_id).await? {
             let _ = app.emit("clipboard:entry-added", &entry);
         }
@@ -196,7 +195,11 @@ async fn persist_text(
         None,
         ClipboardEntryMeta::default(),
         preview,
-        if settings.show_source { source_app } else { None },
+        if settings.show_source {
+            source_app
+        } else {
+            None
+        },
         settings.max_entries,
     )
     .await?;
@@ -225,8 +228,7 @@ async fn persist_files(
     let db = app.state::<DbInstances>();
     let pool = db::sqlite_pool(&*db).await?;
 
-    if let Some(existing_id) = store::touch_duplicate(&pool, &hash, settings.dedup_seconds).await?
-    {
+    if let Some(existing_id) = store::touch_duplicate(&pool, &hash, settings.dedup_seconds).await? {
         if let Some(entry) = store::get_entry(&pool, &existing_id).await? {
             let _ = app.emit("clipboard:entry-added", &entry);
         }
@@ -243,7 +245,11 @@ async fn persist_files(
         None,
         meta,
         preview,
-        if settings.show_source { source_app } else { None },
+        if settings.show_source {
+            source_app
+        } else {
+            None
+        },
         settings.max_entries,
     )
     .await?;
@@ -285,8 +291,7 @@ async fn persist_image(
     let db = app.state::<DbInstances>();
     let pool = db::sqlite_pool(&*db).await?;
 
-    if let Some(existing_id) = store::touch_duplicate(&pool, &hash, settings.dedup_seconds).await?
-    {
+    if let Some(existing_id) = store::touch_duplicate(&pool, &hash, settings.dedup_seconds).await? {
         let _ = std::fs::remove_file(&full_path);
         if let Some(entry) = store::get_entry(&pool, &existing_id).await? {
             let _ = app.emit("clipboard:entry-added", &entry);
@@ -303,7 +308,11 @@ async fn persist_image(
         Some(rel),
         meta,
         preview,
-        if settings.show_source { source_app } else { None },
+        if settings.show_source {
+            source_app
+        } else {
+            None
+        },
         settings.max_entries,
     )
     .await?;
@@ -321,10 +330,11 @@ fn app_data_path(app: &AppHandle) -> Result<PathBuf, StableError> {
 #[cfg(windows)]
 fn current_source_app() -> Option<String> {
     use windows::Win32::Foundation::HWND;
-    use windows::Win32::System::Threading::{
-        OpenProcess, QueryFullProcessImageNameW, PROCESS_NAME_WIN32, PROCESS_QUERY_LIMITED_INFORMATION,
-    };
     use windows::Win32::System::DataExchange::GetClipboardOwner;
+    use windows::Win32::System::Threading::{
+        OpenProcess, QueryFullProcessImageNameW, PROCESS_NAME_WIN32,
+        PROCESS_QUERY_LIMITED_INFORMATION,
+    };
 
     unsafe {
         let owner: HWND = GetClipboardOwner().ok()?;
@@ -342,7 +352,13 @@ fn current_source_app() -> Option<String> {
         let process = OpenProcess(PROCESS_QUERY_LIMITED_INFORMATION, false, pid).ok()?;
         let mut buf = [0u16; 1024];
         let mut size = buf.len() as u32;
-        QueryFullProcessImageNameW(process, PROCESS_NAME_WIN32, windows::core::PWSTR(buf.as_mut_ptr()), &mut size).ok()?;
+        QueryFullProcessImageNameW(
+            process,
+            PROCESS_NAME_WIN32,
+            windows::core::PWSTR(buf.as_mut_ptr()),
+            &mut size,
+        )
+        .ok()?;
         let path = String::from_utf16_lossy(&buf[..size as usize]);
         path.rsplit(['\\', '/']).next().map(|s| s.to_string())
     }

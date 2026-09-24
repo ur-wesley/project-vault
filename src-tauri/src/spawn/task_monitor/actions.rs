@@ -2,18 +2,46 @@ use std::collections::BTreeSet;
 use tauri::{AppHandle, Emitter, Manager};
 use tauri_plugin_sql::DbInstances;
 
-use crate::db;
-use crate::error::{codes, StableError};
-use super::types::{
-    TaskMonitorEntry, TaskMonitors, TaskRegisterInput, TaskStartedEmit,
-    TASK_STATE_CANCELLED, TASK_STATE_STARTING,
-};
 use super::db_events::{
-    emit_final_events, emit_live_events, persist_final_state, persist_snapshot,
-    task_state_emit, task_tree_emit,
+    emit_final_events, emit_live_events, emit_task_snapshot, persist_final_state, persist_snapshot,
 };
 use super::process::kill_task_tree;
+use super::types::{
+    TaskMonitorEntry, TaskMonitors, TaskRegisterInput, TaskStartedEmit, TASK_STATE_CANCELLED,
+    TASK_STATE_STARTING,
+};
 use super::watch::watch_task;
+use crate::db;
+use crate::error::{codes, StableError};
+
+/// Shared insert + snapshot + watcher core. Callers own their announce
+/// events: fresh registrations emit `session:started`, while orphan
+/// recovery (`reregister_task`) deliberately stays silent — the frontend
+/// never saw a start for those sessions.
+fn insert_and_watch(
+    app: &AppHandle,
+    monitors: &TaskMonitors,
+    entry: TaskMonitorEntry,
+) -> Result<(), StableError> {
+    {
+        let mut guard = monitors
+            .0
+            .lock()
+            .map_err(|e| StableError::new(codes::INTERNAL, e.to_string()))?;
+        guard.insert(entry.session_id.clone(), entry.clone());
+    }
+
+    emit_task_snapshot(app, &entry);
+
+    let app_h = app.clone();
+    let monitors_h = monitors.clone();
+    let session_id_h = entry.session_id.clone();
+    tauri::async_runtime::spawn(async move {
+        watch_task(app_h, monitors_h, session_id_h).await;
+    });
+
+    Ok(())
+}
 
 pub fn register_task(
     app: &AppHandle,
@@ -42,14 +70,6 @@ pub fn register_task(
         ports: Vec::new(),
     };
 
-    {
-        let mut guard = monitors
-            .0
-            .lock()
-            .map_err(|e| StableError::new(codes::INTERNAL, e.to_string()))?;
-        guard.insert(input.session_id.clone(), entry.clone());
-    }
-
     let started_emit = TaskStartedEmit {
         session_id: entry.session_id.clone(),
         project_id: entry.project_id.clone(),
@@ -60,21 +80,9 @@ pub fn register_task(
         started_at_ms: entry.started_at_ms,
         last_event_at_ms: entry.last_event_at_ms,
     };
-    let state_emit = task_state_emit(&entry);
-    let tree_emit = task_tree_emit(&entry);
-
     let _ = app.emit("session:started", started_emit);
-    let _ = app.emit("task-state-changed", state_emit);
-    let _ = app.emit("task-tree-changed", tree_emit);
 
-    let app_h = app.clone();
-    let monitors_h = monitors.clone();
-    let session_id_h = input.session_id.clone();
-    tauri::async_runtime::spawn(async move {
-        watch_task(app_h, monitors_h, session_id_h).await;
-    });
-
-    Ok(())
+    insert_and_watch(app, monitors, entry)
 }
 
 pub fn reregister_task(
@@ -108,27 +116,8 @@ pub fn reregister_task(
         ports: Vec::new(),
     };
 
-    {
-        let mut guard = monitors
-            .0
-            .lock()
-            .map_err(|e| StableError::new(codes::INTERNAL, e.to_string()))?;
-        guard.insert(session_id.clone(), entry.clone());
-    }
-
-    let state_emit = task_state_emit(&entry);
-    let tree_emit = task_tree_emit(&entry);
-    let _ = app.emit("task-state-changed", state_emit);
-    let _ = app.emit("task-tree-changed", tree_emit);
-
-    let app_h = app.clone();
-    let monitors_h = monitors.clone();
-    let session_id_h = session_id.clone();
-    tauri::async_runtime::spawn(async move {
-        watch_task(app_h, monitors_h, session_id_h).await;
-    });
-
-    Ok(())
+    // No `session:started` announce: recovered orphans resume silently.
+    insert_and_watch(app, monitors, entry)
 }
 
 pub fn snapshot_task(monitors: &TaskMonitors, session_id: &str) -> Option<TaskMonitorEntry> {

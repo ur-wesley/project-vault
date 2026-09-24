@@ -15,9 +15,25 @@ pub mod query;
 
 /// Hard-coded directory names that are always skipped during indexing.
 pub const ALWAYS_SKIP: &[&str] = &[
-    ".git", "node_modules", "target", "dist", "build", ".turbo", ".next", ".nuxt",
-    "__pycache__", ".venv", "venv", "vendor", ".idea", ".vs", "coverage", ".cache",
-    "out", "bin", "obj",
+    ".git",
+    "node_modules",
+    "target",
+    "dist",
+    "build",
+    ".turbo",
+    ".next",
+    ".nuxt",
+    "__pycache__",
+    ".venv",
+    "venv",
+    "vendor",
+    ".idea",
+    ".vs",
+    "coverage",
+    ".cache",
+    "out",
+    "bin",
+    "obj",
 ];
 
 /// Default max file size to index (1 MB).
@@ -60,8 +76,12 @@ pub fn content_tokenizer() -> TextAnalyzer {
 /// only the tokenizer *name*, not the analyzer itself, so the manager needs
 /// the concrete implementation to resolve it at query time.
 pub fn register_tokenizers(index: &Index) {
-    index.tokenizers().register(PATH_TOKENIZER, path_tokenizer());
-    index.tokenizers().register(CONTENT_TOKENIZER, content_tokenizer());
+    index
+        .tokenizers()
+        .register(PATH_TOKENIZER, path_tokenizer());
+    index
+        .tokenizers()
+        .register(CONTENT_TOKENIZER, content_tokenizer());
 }
 
 /// Tantivy schema fields wrapper.
@@ -93,8 +113,9 @@ impl SearchSchema {
         let path_indexing = TextFieldIndexing::default()
             .set_tokenizer(PATH_TOKENIZER)
             .set_index_option(IndexRecordOption::WithFreqsAndPositions);
-        let path_full_options =
-            TextOptions::default().set_indexing_options(path_indexing.clone()).set_stored();
+        let path_full_options = TextOptions::default()
+            .set_indexing_options(path_indexing.clone())
+            .set_stored();
         let path_full = schema_builder.add_text_field("path_full", path_full_options);
 
         let path = schema_builder.add_text_field("path", STRING | STORED);
@@ -246,30 +267,20 @@ pub fn open_index(base: &Path, project_id: &str) -> Result<Index, StableError> {
                 ));
             }
         }
-        let index = Index::open_in_dir(&dir).map_err(|e| {
-            StableError::new(
-                codes::INTERNAL,
-                format!("failed to open index: {e}"),
-            )
-        })?;
+        let index = Index::open_in_dir(&dir)
+            .map_err(|e| StableError::new(codes::INTERNAL, format!("failed to open index: {e}")))?;
         register_tokenizers(&index);
         Ok(index)
     } else {
         std::fs::create_dir_all(&dir).map_err(|e| {
-            StableError::new(
-                codes::INTERNAL,
-                format!("failed to create index dir: {e}"),
-            )
+            StableError::new(codes::INTERNAL, format!("failed to create index dir: {e}"))
         })?;
         let index = Index::create_in_dir(&dir, schema).map_err(|e| match e {
             TantivyError::IndexAlreadyExists => StableError::new(
                 codes::SCHEMA_INCOMPATIBLE,
                 "index directory already contains a Tantivy index",
             ),
-            other => StableError::new(
-                codes::INTERNAL,
-                format!("failed to create index: {other}"),
-            ),
+            other => StableError::new(codes::INTERNAL, format!("failed to create index: {other}")),
         })?;
         register_tokenizers(&index);
         Ok(index)
@@ -278,9 +289,12 @@ pub fn open_index(base: &Path, project_id: &str) -> Result<Index, StableError> {
 
 /// Create a new index writer with a reasonable buffer size (50 MB).
 pub fn index_writer(index: &Index) -> Result<IndexWriter<TantivyDocument>, StableError> {
-    index
-        .writer::<TantivyDocument>(50_000_000)
-        .map_err(|e| StableError::new(codes::INTERNAL, format!("failed to create index writer: {e}")))
+    index.writer::<TantivyDocument>(50_000_000).map_err(|e| {
+        StableError::new(
+            codes::INTERNAL,
+            format!("failed to create index writer: {e}"),
+        )
+    })
 }
 
 /// Detect whether a byte slice represents a binary file.
@@ -301,6 +315,11 @@ pub fn is_binary(data: &[u8]) -> bool {
 }
 
 /// Guess a language identifier from a file path (extension or filename).
+///
+/// NOTE: these lowercase identifiers feed the Tantivy `language` field and are
+/// intentionally index-stable — do NOT change them to canonical Linguist names
+/// without a reindex. The language *graph* uses `crate::linguist::classify`
+/// (canonical names + byte weighting) as its source of truth instead.
 pub fn guess_language(path: &Path) -> String {
     let name = path
         .file_name()

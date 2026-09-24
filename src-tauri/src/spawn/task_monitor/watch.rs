@@ -3,14 +3,14 @@ use std::time::Duration;
 use sysinfo::{Pid, ProcessesToUpdate, System};
 use tauri::{AppHandle, Emitter};
 
-use crate::db;
+use super::actions::{finalize_task, snapshot_task};
+use super::db_events::{persist_snapshot, task_state_emit, task_tree_emit};
+use super::process::discover_task_tree;
 use super::types::{
     TaskMonitors, TaskPortsEmit, TASK_STATE_CANCELLED, TASK_STATE_ERROR, TASK_STATE_RUNNING,
     TASK_STATE_STARTING, TASK_STATE_SUCCESS,
 };
-use super::actions::{finalize_task, snapshot_task};
-use super::db_events::{persist_snapshot, task_state_emit, task_tree_emit};
-use super::process::discover_task_tree;
+use crate::db;
 
 pub async fn watch_task(app: AppHandle, monitors: TaskMonitors, session_id: String) {
     let mut sys = System::new_all();
@@ -40,7 +40,9 @@ pub async fn watch_task(app: AppHandle, monitors: TaskMonitors, session_id: Stri
 
         sys.refresh_processes(ProcessesToUpdate::All, true);
         let tree = discover_task_tree(&sys, &snapshot.tree_pids, root_pid);
-        let alive = tree.iter().any(|pid| sys.process(Pid::from(*pid as usize)).is_some());
+        let alive = tree
+            .iter()
+            .any(|pid| sys.process(Pid::from(*pid as usize)).is_some());
 
         if !alive {
             let final_snapshot = match snapshot_task(&monitors, &session_id) {
@@ -85,7 +87,8 @@ pub async fn watch_task(app: AppHandle, monitors: TaskMonitors, session_id: Stri
 
         // Port detection: scan every ~2 seconds (6 ticks) or when state becomes running
         tick_count += 1;
-        let should_scan_ports = (tick_count % 6 == 0) || (state_changed && next_state == TASK_STATE_RUNNING);
+        let should_scan_ports =
+            (tick_count % 6 == 0) || (state_changed && next_state == TASK_STATE_RUNNING);
 
         if should_scan_ports && alive {
             let pids: Vec<u32> = tree.iter().copied().collect();
@@ -184,8 +187,12 @@ pub fn discover_ports_for_pids(pids: &[u32]) -> Vec<u16> {
                     if proto != "TCP" && proto != "UDP" {
                         continue;
                     }
-                    let Some(pid_str) = parts.last() else { continue };
-                    let Ok(pid) = pid_str.parse::<u32>() else { continue };
+                    let Some(pid_str) = parts.last() else {
+                        continue;
+                    };
+                    let Ok(pid) = pid_str.parse::<u32>() else {
+                        continue;
+                    };
                     if !pids_set.contains(&pid) {
                         continue;
                     }
@@ -216,14 +223,17 @@ pub fn discover_ports_for_pids(pids: &[u32]) -> Vec<u16> {
                     }
                 }
             }
-            Err(_e) => {
-            }
+            Err(_e) => {}
         }
     }
 
     #[cfg(not(windows))]
     {
-        let pid_list = pids.iter().map(|p| p.to_string()).collect::<Vec<_>>().join(",");
+        let pid_list = pids
+            .iter()
+            .map(|p| p.to_string())
+            .collect::<Vec<_>>()
+            .join(",");
         let output = std::process::Command::new("lsof")
             .args(["-P", "-n", "-iTCP", "-sTCP:LISTEN", "-p", &pid_list])
             .stdout(std::process::Stdio::piped())

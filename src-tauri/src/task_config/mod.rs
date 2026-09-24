@@ -43,10 +43,7 @@ pub fn read_project_tasks(project_path: &Path) -> ProjectTaskConfig {
     }
 }
 
-pub fn write_project_task(
-    project_path: &Path,
-    task: &TaskDto,
-) -> Result<(), String> {
+pub fn write_project_task(project_path: &Path, task: &TaskDto) -> Result<(), String> {
     match task.kind.as_str() {
         "mise" => {
             let path = mise::find_mise_config(project_path)
@@ -62,10 +59,7 @@ pub fn write_project_task(
     }
 }
 
-pub fn delete_project_task(
-    project_path: &Path,
-    task: &TaskDto,
-) -> Result<(), String> {
+pub fn delete_project_task(project_path: &Path, task: &TaskDto) -> Result<(), String> {
     match task.kind.as_str() {
         "mise" => {
             if let Some(path) = mise::find_mise_config(project_path) {

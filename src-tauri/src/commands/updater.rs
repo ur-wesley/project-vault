@@ -42,7 +42,10 @@ pub async fn install_update(app: AppHandle) -> Result<(), StableError> {
     #[cfg(any(target_os = "android", target_os = "ios"))]
     {
         let _ = app;
-        return Err(StableError::new(codes::INTERNAL, "updater not available on this platform"));
+        return Err(StableError::new(
+            codes::INTERNAL,
+            "updater not available on this platform",
+        ));
     }
     #[cfg(not(any(target_os = "android", target_os = "ios")))]
     {
@@ -56,12 +59,9 @@ pub async fn install_update(app: AppHandle) -> Result<(), StableError> {
             .map_err(|e| StableError::new(codes::INTERNAL, format!("updater check: {e}")))?;
 
         if let Some(u) = update {
-            u.download_and_install(
-                |_chunk_length, _content_length| {},
-                || {},
-            )
-            .await
-            .map_err(|e| StableError::new(codes::INTERNAL, format!("update install: {e}")))?;
+            u.download_and_install(|_chunk_length, _content_length| {}, || {})
+                .await
+                .map_err(|e| StableError::new(codes::INTERNAL, format!("update install: {e}")))?;
         }
 
         Ok(())

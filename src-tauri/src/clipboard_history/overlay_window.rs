@@ -121,13 +121,8 @@ pub fn apply_overlay_effects(window: &WebviewWindow) -> Result<(), StableError> 
     #[cfg(target_os = "macos")]
     {
         use window_vibrancy::{apply_vibrancy, NSVisualEffectMaterial};
-        apply_vibrancy(
-            window,
-            NSVisualEffectMaterial::HudWindow,
-            None,
-            None,
-        )
-        .map_err(|e| StableError::new(crate::error::codes::INTERNAL, e.to_string()))?;
+        apply_vibrancy(window, NSVisualEffectMaterial::HudWindow, None, None)
+            .map_err(|e| StableError::new(crate::error::codes::INTERNAL, e.to_string()))?;
     }
 
     let _ = window;

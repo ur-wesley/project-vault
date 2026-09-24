@@ -56,6 +56,22 @@ fn resolve_git_dir(project_path: &Path) -> Option<PathBuf> {
     crate::commands::git::utils::resolve_git_dir(project_path)
 }
 
+/// owner/repo of the `origin` remote for any git dir (main repo or
+/// worktree — git resolves the real config). Used by workspace PR flows.
+pub(crate) fn origin_owner_repo(cwd: &Path) -> Option<(String, String)> {
+    let out = crate::process_util::hidden_command("git")
+        .arg("config")
+        .arg("--get")
+        .arg("remote.origin.url")
+        .current_dir(cwd)
+        .output()
+        .ok()?;
+    if !out.status.success() {
+        return None;
+    }
+    parse_github_url(String::from_utf8_lossy(&out.stdout).trim())
+}
+
 #[tauri::command]
 pub async fn get_github_repo_for_project(
     db: State<'_, DbInstances>,
@@ -88,7 +104,10 @@ pub fn convert_git_remote_to_web_url(url: &str) -> Option<String> {
     }
 
     if url.starts_with("http://") || url.starts_with("https://") {
-        let mut clean = url.trim_end_matches('/').trim_end_matches(".git").to_string();
+        let mut clean = url
+            .trim_end_matches('/')
+            .trim_end_matches(".git")
+            .to_string();
         if let Some(pos) = clean.find("://") {
             let after_scheme = &clean[pos + 3..];
             if let Some(at_idx) = after_scheme.find('@') {
@@ -163,11 +182,6 @@ mod tests {
             convert_git_remote_to_web_url("https://oauth2:token@gitlab.com/owner/repo.git"),
             Some("https://gitlab.com/owner/repo".to_string())
         );
-        assert_eq!(
-            convert_git_remote_to_web_url("   "),
-            None
-        );
+        assert_eq!(convert_git_remote_to_web_url("   "), None);
     }
 }
-
-

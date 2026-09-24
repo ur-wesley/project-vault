@@ -1,8 +1,8 @@
-use std::path::{Path, PathBuf};
 use crate::discovery::draft::ProjectDraft;
 use crate::discovery::ProjectDetector;
 use crate::lua::engine::LuaEngine;
 use mlua::LuaSerdeExt;
+use std::path::{Path, PathBuf};
 
 pub struct LuaProjectDetector {
     pub scripts_dir: PathBuf,
@@ -43,12 +43,14 @@ impl ProjectDetector for LuaProjectDetector {
             let content = std::fs::read_to_string(&script_path).ok()?;
 
             // Set global 'path' for the script
-            lua.globals().set("path", path.to_string_lossy().to_string()).ok()?;
+            lua.globals()
+                .set("path", path.to_string_lossy().to_string())
+                .ok()?;
 
             // Load and execute the script
             // The script is expected to return a ProjectDraft-compatible table or nil
             let result: mlua::Value = lua.load(&content).eval().ok()?;
-            
+
             if let mlua::Value::Table(table) = result {
                 // Try to deserialize into ProjectDraft
                 if let Ok(mut draft) = lua.from_value::<ProjectDraft>(mlua::Value::Table(table)) {

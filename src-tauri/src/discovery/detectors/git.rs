@@ -1,8 +1,8 @@
 use std::path::Path;
 
+use super::util::{dirname_name, read_utf8};
 use crate::discovery::draft::ProjectDraft;
 use crate::discovery::ProjectDetector;
-use super::util::{dirname_name, read_utf8};
 
 pub struct GitDetector;
 

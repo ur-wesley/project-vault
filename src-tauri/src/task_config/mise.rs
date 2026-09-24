@@ -37,8 +37,12 @@ pub fn read_mise_tasks(path: &Path) -> Vec<TaskDto> {
         let (run, description, depends, dir, concurrent) = match value {
             toml::Value::String(cmd) => (cmd.clone(), None, Vec::new(), None, None),
             toml::Value::Table(t) => {
-                let description = t.get("description").and_then(|v| v.as_str()).map(String::from);
-                let depends = t.get("depends")
+                let description = t
+                    .get("description")
+                    .and_then(|v| v.as_str())
+                    .map(String::from);
+                let depends = t
+                    .get("depends")
                     .and_then(|v| match v {
                         toml::Value::Array(arr) => Some(
                             arr.iter()
@@ -54,22 +58,38 @@ pub fn read_mise_tasks(path: &Path) -> Vec<TaskDto> {
                 // Check for concurrent array
                 let concurrent = t.get("concurrent").and_then(|v| {
                     if let toml::Value::Array(arr) = v {
-                        let subs: Vec<ConcurrentTask> = arr.iter().filter_map(|entry| {
-                            if let toml::Value::Table(et) = entry {
-                                let label = et.get("label").and_then(|v| v.as_str())?.to_string();
-                                let run = et.get("run").and_then(|v| v.as_str()).unwrap_or("").to_string();
-                                if run.is_empty() { return None; }
-                                let entry_dir = et.get("dir").and_then(|v| v.as_str()).map(String::from);
-                                Some(ConcurrentTask {
-                                    label,
-                                    argv: shell_words::split(&run).unwrap_or_else(|_| vec![run]),
-                                    cwd: entry_dir,
-                                })
-                            } else {
-                                None
-                            }
-                        }).collect();
-                        if subs.is_empty() { None } else { Some(subs) }
+                        let subs: Vec<ConcurrentTask> = arr
+                            .iter()
+                            .filter_map(|entry| {
+                                if let toml::Value::Table(et) = entry {
+                                    let label =
+                                        et.get("label").and_then(|v| v.as_str())?.to_string();
+                                    let run = et
+                                        .get("run")
+                                        .and_then(|v| v.as_str())
+                                        .unwrap_or("")
+                                        .to_string();
+                                    if run.is_empty() {
+                                        return None;
+                                    }
+                                    let entry_dir =
+                                        et.get("dir").and_then(|v| v.as_str()).map(String::from);
+                                    Some(ConcurrentTask {
+                                        label,
+                                        argv: shell_words::split(&run)
+                                            .unwrap_or_else(|_| vec![run]),
+                                        cwd: entry_dir,
+                                    })
+                                } else {
+                                    None
+                                }
+                            })
+                            .collect();
+                        if subs.is_empty() {
+                            None
+                        } else {
+                            Some(subs)
+                        }
                     } else {
                         None
                     }
@@ -79,7 +99,8 @@ pub fn read_mise_tasks(path: &Path) -> Vec<TaskDto> {
                     // Concurrent task — no run field needed
                     (String::new(), description, depends, dir, concurrent)
                 } else {
-                    let run = t.get("run")
+                    let run = t
+                        .get("run")
                         .and_then(|v| v.as_str())
                         .unwrap_or("")
                         .to_string();
@@ -102,7 +123,11 @@ pub fn read_mise_tasks(path: &Path) -> Vec<TaskDto> {
         tasks.push(TaskDto {
             id: format!("mise-{}", name),
             label: name.clone(),
-            argv: if concurrent.is_some() { Vec::new() } else { vec!["mise".to_string(), "run".to_string(), name.clone()] },
+            argv: if concurrent.is_some() {
+                Vec::new()
+            } else {
+                vec!["mise".to_string(), "run".to_string(), name.clone()]
+            },
             kind: "mise".to_string(),
             cwd: dir.clone(),
             description,
@@ -137,19 +162,21 @@ pub fn write_mise_task(path: &Path, task: &TaskDto) -> Result<(), String> {
         doc["tasks"] = toml_edit::Item::Table(toml_edit::Table::new());
     }
 
-    let tasks_table = doc["tasks"]
-        .as_table_mut()
-        .ok_or("tasks is not a table")?;
+    let tasks_table = doc["tasks"].as_table_mut().ok_or("tasks is not a table")?;
 
     let name = task.label.clone();
 
     // Mise does not support custom task fields; concurrent tasks must use justfile
     if task.concurrent.is_some() {
-        return Err("concurrent tasks are not supported in mise.toml; use justfile instead".to_string());
+        return Err(
+            "concurrent tasks are not supported in mise.toml; use justfile instead".to_string(),
+        );
     }
 
     // Write regular task as [tasks.<name>] table
-    let run = task.source.clone()
+    let run = task
+        .source
+        .clone()
         .filter(|s| !s.is_empty())
         .or_else(|| task.argv.get(2..).map(|a| a.join(" ")))
         .filter(|s| !s.is_empty())
@@ -160,16 +187,29 @@ pub fn write_mise_task(path: &Path, task: &TaskDto) -> Result<(), String> {
     table.insert("run", toml_edit::Item::Value(toml_edit::Value::from(run)));
 
     if let Some(ref desc) = task.description {
-        table.insert("description", toml_edit::Item::Value(toml_edit::Value::from(desc.as_str())));
+        table.insert(
+            "description",
+            toml_edit::Item::Value(toml_edit::Value::from(desc.as_str())),
+        );
     }
 
     if !task.depends.is_empty() {
-        let arr: toml_edit::Array = task.depends.iter().map(|s| toml_edit::Value::from(s.as_str())).collect();
-        table.insert("depends", toml_edit::Item::Value(toml_edit::Value::Array(arr)));
+        let arr: toml_edit::Array = task
+            .depends
+            .iter()
+            .map(|s| toml_edit::Value::from(s.as_str()))
+            .collect();
+        table.insert(
+            "depends",
+            toml_edit::Item::Value(toml_edit::Value::Array(arr)),
+        );
     }
 
     if let Some(ref dir) = task.cwd {
-        table.insert("dir", toml_edit::Item::Value(toml_edit::Value::from(dir.as_str())));
+        table.insert(
+            "dir",
+            toml_edit::Item::Value(toml_edit::Value::from(dir.as_str())),
+        );
     }
 
     tasks_table.insert(&name, toml_edit::Item::Table(table));
@@ -210,7 +250,12 @@ pub fn delete_mise_task(path: &Path, label: &str) -> Result<(), String> {
 }
 
 pub fn find_mise_config(project_path: &Path) -> Option<std::path::PathBuf> {
-    for name in &["mise.toml", ".mise.toml", "mise.local.toml", ".mise.local.toml"] {
+    for name in &[
+        "mise.toml",
+        ".mise.toml",
+        "mise.local.toml",
+        ".mise.local.toml",
+    ] {
         let p = project_path.join(name);
         if p.is_file() {
             return Some(p);

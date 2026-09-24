@@ -3,9 +3,10 @@ use std::sync::Arc;
 
 use crate::discovery::detectors::{
     CMakeDetector, CargoTomlDetector, ComposerDetector, CsProjDetector, DenoDetector,
-    GemfileDetector, GitDetector, GoModDetector, GoWorkDetector, GradleDetector, JustfileDetector,
-    MavenDetector, MixExsDetector, PackageJsonDetector, PnpmWorkspaceDetector, PythonDetector,
-    SolutionDetector, SwiftPackageDetector, MiseDetector, LuaProjectDetector,
+    DeployDetector, GemfileDetector, GitDetector, GithubActionsDetector, GoModDetector,
+    GoWorkDetector, GradleDetector, JustfileDetector, LuaProjectDetector, MavenDetector,
+    MiseDetector, MixExsDetector, PackageJsonDetector, PnpmWorkspaceDetector, PythonDetector,
+    SolutionDetector, SwiftPackageDetector,
 };
 use crate::discovery::draft::ProjectDraft;
 use crate::discovery::ProjectDetector;
@@ -37,6 +38,8 @@ impl DetectorRegistry {
             Arc::new(PythonDetector),
             Arc::new(CMakeDetector),
             Arc::new(LuaProjectDetector::new(detectors_dir)),
+            Arc::new(GithubActionsDetector),
+            Arc::new(DeployDetector),
         ];
         detectors.sort_by(|a, b| b.priority().cmp(&a.priority()));
         Self { detectors }

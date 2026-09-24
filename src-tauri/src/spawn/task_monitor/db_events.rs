@@ -1,13 +1,12 @@
 use tauri::{AppHandle, Emitter, Manager};
 use tauri_plugin_sql::DbInstances;
 
+use super::actions::snapshot_task;
+use super::types::{
+    TaskExitEmit, TaskMonitorEntry, TaskMonitors, TaskStateEmit, TaskTreeEmit, TASK_STATE_SUCCESS,
+};
 use crate::db;
 use crate::error::{codes, StableError};
-use super::types::{
-    TaskExitEmit, TaskMonitorEntry, TaskMonitors, TaskStateEmit, TaskTreeEmit,
-    TASK_STATE_SUCCESS,
-};
-use super::actions::snapshot_task;
 
 pub async fn persist_snapshot(
     app: &AppHandle,
@@ -55,10 +54,13 @@ pub async fn persist_from_snapshot(
     Ok(())
 }
 
-pub fn emit_live_events(app: &AppHandle, monitors: &TaskMonitors, session_id: &str) -> Result<(), StableError> {
+pub fn emit_live_events(
+    app: &AppHandle,
+    monitors: &TaskMonitors,
+    session_id: &str,
+) -> Result<(), StableError> {
     if let Some(snapshot) = snapshot_task(monitors, session_id) {
-        let _ = app.emit("task-state-changed", task_state_emit(&snapshot));
-        let _ = app.emit("task-tree-changed", task_tree_emit(&snapshot));
+        emit_task_snapshot(app, &snapshot);
     }
     Ok(())
 }
@@ -120,4 +122,12 @@ pub fn task_tree_emit(snapshot: &TaskMonitorEntry) -> TaskTreeEmit {
         tree_pids: snapshot.tree_pids.iter().copied().collect(),
         last_event_at_ms: snapshot.last_event_at_ms,
     }
+}
+
+/// Emit the paired state+tree events for a monitor snapshot.
+/// (Single home for the two-line emit pattern repeated across
+/// actions / db_events / watch.)
+pub fn emit_task_snapshot(app: &AppHandle, snapshot: &TaskMonitorEntry) {
+    let _ = app.emit("task-state-changed", task_state_emit(snapshot));
+    let _ = app.emit("task-tree-changed", task_tree_emit(snapshot));
 }

@@ -1,7 +1,7 @@
-use crate::error::Result;
-use super::models::{Issue, CreateIssueInput, UpdateIssueInput};
-use super::provider::IssueProvider;
 use super::local::LocalSqliteProvider;
+use super::models::{CreateIssueInput, Issue, UpdateIssueInput};
+use super::provider::IssueProvider;
+use crate::error::Result;
 use sqlx::{Pool, Sqlite};
 
 pub struct IssueManager {
@@ -12,11 +12,11 @@ impl IssueManager {
     pub async fn new(pool: Pool<Sqlite>, project_id: &str) -> Result<Self> {
         // Try to detect if this is a GitHub project
         let _project = crate::db::get_project(&pool, project_id).await?;
-        
-        // For now, we default to LocalSqliteProvider. 
+
+        // For now, we default to LocalSqliteProvider.
         // In the future, this is where we'd check project.github_owner / github_repo
         // and return a GitHubProvider if configured.
-        
+
         Ok(Self {
             provider: Box::new(LocalSqliteProvider::new(pool)),
         })
@@ -34,7 +34,12 @@ impl IssueManager {
         self.provider.create_issue(project_id, input).await
     }
 
-    pub async fn update_issue(&self, project_id: &str, number: i64, input: UpdateIssueInput) -> Result<Issue> {
+    pub async fn update_issue(
+        &self,
+        project_id: &str,
+        number: i64,
+        input: UpdateIssueInput,
+    ) -> Result<Issue> {
         self.provider.update_issue(project_id, number, input).await
     }
 

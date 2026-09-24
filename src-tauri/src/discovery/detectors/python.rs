@@ -1,8 +1,8 @@
 use std::path::Path;
 
+use super::util::{dirname_name, read_utf8, requirements_txt_has_package_line, script_task};
 use crate::discovery::draft::ProjectDraft;
 use crate::discovery::ProjectDetector;
-use super::util::{dirname_name, read_utf8, requirements_txt_has_package_line, script_task};
 
 pub struct PythonDetector;
 

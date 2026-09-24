@@ -1,8 +1,9 @@
-use regex::Regex;
 use once_cell::sync::Lazy;
+use regex::Regex;
 
 static RE: Lazy<Regex> = Lazy::new(|| {
-    Regex::new(r"(?i)(?:close|closes|closed|fix|fixes|fixed|resolve|resolves|resolved)\s+#(\d+)").unwrap()
+    Regex::new(r"(?i)(?:close|closes|closed|fix|fixes|fixed|resolve|resolves|resolved)\s+#(\d+)")
+        .unwrap()
 });
 
 pub fn parse_issue_numbers(message: &str) -> Vec<i64> {

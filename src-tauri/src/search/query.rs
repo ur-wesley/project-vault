@@ -26,9 +26,9 @@ pub fn search_project_index(
     let index = open_index(app_data_dir, project_id)?;
 
     let schema = SearchSchema::new();
-    let reader = index.reader().map_err(|e| {
-        StableError::new(codes::INTERNAL, format!("failed to create reader: {e}"))
-    })?;
+    let reader = index
+        .reader()
+        .map_err(|e| StableError::new(codes::INTERNAL, format!("failed to create reader: {e}")))?;
     let searcher = reader.searcher();
 
     let (query, _processed_raw) = build_query(&index, &schema, query_str)?;
@@ -136,9 +136,9 @@ fn build_query(
     );
     parser.set_conjunction_by_default();
 
-    let query = parser.parse_query(&processed).map_err(|e| {
-        StableError::new(codes::INTERNAL, format!("query parse error: {e}"))
-    })?;
+    let query = parser
+        .parse_query(&processed)
+        .map_err(|e| StableError::new(codes::INTERNAL, format!("query parse error: {e}")))?;
 
     Ok((query, processed))
 }

@@ -15,7 +15,10 @@ pub fn run_git(cwd: &Path, args: &[&str]) -> Result<String, StableError> {
 
     if !output.status.success() {
         let msg = String::from_utf8_lossy(&output.stderr).trim().to_string();
-        return Err(StableError::new(codes::INTERNAL, format!("git error: {msg}")));
+        return Err(StableError::new(
+            codes::INTERNAL,
+            format!("git error: {msg}"),
+        ));
     }
 
     Ok(String::from_utf8_lossy(&output.stdout).trim().to_string())
@@ -29,7 +32,10 @@ pub async fn run_git_async(cwd: &Path, args: &[&str]) -> Result<String, StableEr
     let output = tokio::time::timeout(GIT_TIMEOUT, cmd.output())
         .await
         .map_err(|_| {
-            eprintln!("[run_git_async] TIMEOUT after {:?}: git {:?}", GIT_TIMEOUT, args);
+            eprintln!(
+                "[run_git_async] TIMEOUT after {:?}: git {:?}",
+                GIT_TIMEOUT, args
+            );
             StableError::new(codes::INTERNAL, "git command timed out")
         })?
         .map_err(|e| {
@@ -40,12 +46,46 @@ pub async fn run_git_async(cwd: &Path, args: &[&str]) -> Result<String, StableEr
     if !output.status.success() {
         let msg = String::from_utf8_lossy(&output.stderr).trim().to_string();
         eprintln!("[run_git_async] git error: {}", msg);
-        return Err(StableError::new(codes::INTERNAL, format!("git error: {msg}")));
+        return Err(StableError::new(
+            codes::INTERNAL,
+            format!("git error: {msg}"),
+        ));
     }
 
-    let stdout = String::from_utf8_lossy(&output.stdout).trim().to_string();
-    eprintln!("[run_git_async] done: git {:?}, stdout len={}", args, stdout.len());
+    // trim_end ONLY: porcelain/status output has significant leading
+    // whitespace (` M file` = unstaged modification). Full trim() silently
+    // drops those lines downstream in parse_porcelain_line.
+    let stdout = String::from_utf8_lossy(&output.stdout);
+    let stdout = stdout.trim_end().to_string();
+    eprintln!(
+        "[run_git_async] done: git {:?}, stdout len={}",
+        args,
+        stdout.len()
+    );
     Ok(stdout)
+}
+
+/// Quiet variant for batch scans: same behavior as `run_git_async` without
+/// per-call stderr spam (a 40-project scan would log 100+ lines otherwise).
+pub async fn run_git_async_quiet(cwd: &Path, args: &[&str]) -> Result<String, StableError> {
+    let mut cmd = crate::process_util::hidden_tokio_command("git");
+    cmd.args(args).current_dir(cwd);
+
+    let output = tokio::time::timeout(GIT_TIMEOUT, cmd.output())
+        .await
+        .map_err(|_| StableError::new(codes::INTERNAL, "git command timed out"))?
+        .map_err(|e| StableError::new(codes::INTERNAL, format!("failed to execute git: {e}")))?;
+
+    if !output.status.success() {
+        let msg = String::from_utf8_lossy(&output.stderr).trim().to_string();
+        return Err(StableError::new(
+            codes::INTERNAL,
+            format!("git error: {msg}"),
+        ));
+    }
+
+    // trim_end ONLY — see run_git_async above.
+    Ok(String::from_utf8_lossy(&output.stdout).trim_end().to_string())
 }
 
 pub fn dir_size(path: &Path) -> u64 {
@@ -102,4 +142,3 @@ pub fn resolve_git_dir(cwd: &Path) -> Option<std::path::PathBuf> {
 pub fn is_git_repo(cwd: &Path) -> bool {
     resolve_git_dir(cwd).is_some()
 }
-

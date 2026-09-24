@@ -16,18 +16,21 @@ const CREATE_NO_WINDOW: u32 = 0x08000000;
 mod common;
 mod constants;
 mod icon;
-mod scanner;
 mod jetbrains;
-#[cfg(windows)] mod windows;
-#[cfg(target_os = "macos")] mod macos;
-#[cfg(all(unix, not(target_os = "macos")))] mod linux;
-
-#[cfg(windows)]
-use windows::{discover_platform, discover_platform_fallback};
+#[cfg(all(unix, not(target_os = "macos")))]
+mod linux;
 #[cfg(target_os = "macos")]
-use macos::{discover_platform, discover_platform_fallback};
+mod macos;
+mod scanner;
+#[cfg(windows)]
+mod windows;
+
 #[cfg(all(unix, not(target_os = "macos")))]
 use linux::{discover_platform, discover_platform_fallback};
+#[cfg(target_os = "macos")]
+use macos::{discover_platform, discover_platform_fallback};
+#[cfg(windows)]
+use windows::{discover_platform, discover_platform_fallback};
 
 pub fn discover_ides() -> Vec<IdeCandidateDto> {
     let mut out = Vec::new();

@@ -71,7 +71,8 @@ unsafe fn caret_from_uia() -> Option<CaretAnchor> {
         CoCreateInstance(&CUIAutomation, None, CLSCTX_INPROC_SERVER).ok()?;
     let focused = automation.GetFocusedElement().ok()?;
 
-    if let Ok(pattern) = focused.GetCurrentPatternAs::<IUIAutomationTextPattern2>(UIA_TextPattern2Id)
+    if let Ok(pattern) =
+        focused.GetCurrentPatternAs::<IUIAutomationTextPattern2>(UIA_TextPattern2Id)
     {
         let mut is_active = BOOL::default();
         if let Ok(range) = pattern.GetCaretRange(&mut is_active) {
@@ -146,8 +147,14 @@ unsafe fn caret_from_gui_thread_info(hwnd: HWND) -> Option<CaretAnchor> {
 
     if !info.hwndCaret.0.is_null() {
         let mut r = info.rcCaret;
-        let mut top_left = POINT { x: r.left, y: r.top };
-        let mut bottom_right = POINT { x: r.right, y: r.bottom };
+        let mut top_left = POINT {
+            x: r.left,
+            y: r.top,
+        };
+        let mut bottom_right = POINT {
+            x: r.right,
+            y: r.bottom,
+        };
         if ClientToScreen(info.hwndCaret, &mut top_left).as_bool()
             && ClientToScreen(info.hwndCaret, &mut bottom_right).as_bool()
         {
@@ -193,7 +200,8 @@ unsafe fn caret_from_attach_thread_getcaretpos() -> Option<CaretAnchor> {
 
     let fore_thread = GetWindowThreadProcessId(foreground, None);
     let cur_thread = GetCurrentThreadId();
-    let attached = fore_thread != cur_thread && AttachThreadInput(cur_thread, fore_thread, true).as_bool();
+    let attached =
+        fore_thread != cur_thread && AttachThreadInput(cur_thread, fore_thread, true).as_bool();
 
     let result = (|| {
         let mut pt = POINT::default();
@@ -220,7 +228,7 @@ unsafe fn caret_from_attach_thread_getcaretpos() -> Option<CaretAnchor> {
 
 unsafe fn caret_from_edit_children(hwnd: HWND) -> Option<CaretAnchor> {
     use windows::Win32::UI::WindowsAndMessaging::{
-        GetWindow, GW_CHILD, GW_HWNDNEXT, IsWindowVisible,
+        GetWindow, IsWindowVisible, GW_CHILD, GW_HWNDNEXT,
     };
 
     let Ok(mut child) = GetWindow(hwnd, GW_CHILD) else {

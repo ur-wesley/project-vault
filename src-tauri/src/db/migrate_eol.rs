@@ -1,7 +1,7 @@
 use std::path::Path;
 
-use sqlx::Row;
 use sqlx::sqlite::{SqliteConnectOptions, SqlitePool};
+use sqlx::Row;
 
 pub fn normalize_sql(sql: &'static str) -> &'static str {
     if !sql.contains('\r') {
@@ -61,11 +61,7 @@ fn sqlite_dir_candidates() -> Vec<std::path::PathBuf> {
         if let Some(data) = std::env::var_os("XDG_DATA_HOME") {
             dirs.push(std::path::PathBuf::from(data).join(ID));
         } else if let Some(home) = std::env::var_os("HOME") {
-            dirs.push(
-                std::path::PathBuf::from(home)
-                    .join(".local/share")
-                    .join(ID),
-            );
+            dirs.push(std::path::PathBuf::from(home).join(".local/share").join(ID));
         }
     }
     dirs
@@ -146,10 +142,16 @@ mod tests {
         let crlf_sum = sql_checksum(CRLF);
         let lf_sum = sql_checksum(LF);
         assert_ne!(crlf_sum, lf_sum);
-        assert_eq!(eol_checksum_fix(&crlf_sum, LF).as_deref(), Some(lf_sum.as_slice()));
+        assert_eq!(
+            eol_checksum_fix(&crlf_sum, LF).as_deref(),
+            Some(lf_sum.as_slice())
+        );
         assert_eq!(eol_checksum_fix(&lf_sum, LF), None);
         assert_eq!(eol_checksum_fix(&crlf_sum, CRLF), None);
-        assert_eq!(eol_checksum_fix(&lf_sum, CRLF).as_deref(), Some(crlf_sum.as_slice()));
+        assert_eq!(
+            eol_checksum_fix(&lf_sum, CRLF).as_deref(),
+            Some(crlf_sum.as_slice())
+        );
     }
 
     #[test]

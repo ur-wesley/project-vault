@@ -1,7 +1,7 @@
+use super::icon::icon_data_for_with_id;
+use crate::models::IdeCandidateDto;
 use std::collections::HashSet;
 use std::path::{Path, PathBuf};
-use crate::models::IdeCandidateDto;
-use super::icon::icon_data_for_with_id;
 
 pub fn dedup_key(path: &Path) -> String {
     dunce::canonicalize(path)
@@ -161,7 +161,11 @@ mod tests {
             ("rstudio", "devicon-plain--rstudio"),
         ];
         for (id, expected) in branded {
-            assert_eq!(icon_for_id(id).unwrap(), expected, "unexpected icon for {id}");
+            assert_eq!(
+                icon_for_id(id).unwrap(),
+                expected,
+                "unexpected icon for {id}"
+            );
         }
     }
 
@@ -222,7 +226,11 @@ mod tests {
             ("antigravity", "mdi--satellite"),
         ];
         for (id, expected) in fallbacks {
-            assert_eq!(icon_for_id(id).unwrap(), expected, "unexpected fallback for {id}");
+            assert_eq!(
+                icon_for_id(id).unwrap(),
+                expected,
+                "unexpected fallback for {id}"
+            );
         }
     }
 
@@ -232,9 +240,6 @@ mod tests {
             icon_for_id("some-future-ide").unwrap(),
             "mdi--application-edit-outline"
         );
-        assert_eq!(
-            icon_for_id("").unwrap(),
-            "mdi--application-edit-outline"
-        );
+        assert_eq!(icon_for_id("").unwrap(), "mdi--application-edit-outline");
     }
 }

@@ -1,34 +1,43 @@
+pub mod clipboard_history;
 mod commands;
-mod notifications;
-mod process_util;
+pub mod common;
 pub mod db;
 pub mod discovery;
 mod disk_volume;
+pub mod dokploy;
 pub mod error;
+mod file_watcher;
+pub mod files;
 mod fs_scope_util;
-pub mod issues;
-pub mod lua;
+pub mod git_watcher;
 #[cfg(not(any(target_os = "android", target_os = "ios")))]
 mod ide;
+pub mod issues;
+pub mod kanban;
+pub mod linguist;
 pub mod location_watcher;
-pub mod git_watcher;
-pub mod clipboard_history;
+pub mod lua;
+pub mod mcp;
+pub mod mise_tools;
 pub mod models;
+mod notifications;
+pub mod plugins;
+pub mod postgres;
+mod process_util;
 pub mod project_move;
+mod screenshot_overlay;
+pub mod setup;
 pub mod search;
 #[cfg(not(any(target_os = "android", target_os = "ios")))]
 mod shells;
 mod spawn;
 pub mod task_config;
-pub mod tunnel;
-pub mod mise_tools;
-mod screenshot_overlay;
 #[cfg(not(any(target_os = "android", target_os = "ios")))]
 mod tools;
+pub mod tunnel;
+pub mod workspaces;
 
-
-
-use tauri::{Manager, Emitter};
+use tauri::{Emitter, Manager};
 use tauri_plugin_sql::{Builder as SqlPluginBuilder, Migration, MigrationKind};
 
 fn sql_migrations() -> Vec<Migration> {
@@ -101,6 +110,24 @@ fn sql_migrations() -> Vec<Migration> {
             sql: db::normalize_sql(include_str!("../migrations/011_last_viewed.sql")),
             kind: MigrationKind::Up,
         },
+        Migration {
+            version: 12,
+            description: "canvas",
+            sql: db::normalize_sql(include_str!("../migrations/012_canvas.sql")),
+            kind: MigrationKind::Up,
+        },
+        Migration {
+            version: 13,
+            description: "canvas_v2",
+            sql: db::normalize_sql(include_str!("../migrations/013_canvas_v2.sql")),
+            kind: MigrationKind::Up,
+        },
+        Migration {
+            version: 14,
+            description: "workspaces",
+            sql: db::normalize_sql(include_str!("../migrations/014_workspaces.sql")),
+            kind: MigrationKind::Up,
+        },
     ]
 }
 
@@ -148,90 +175,16 @@ pub fn run() {
         .manage(crate::spawn::TaskMonitors::default())
         .manage(crate::tunnel::TunnelState::default())
         .manage(std::sync::Arc::new(crate::clipboard_history::ClipboardWatcherState::new()))
+        .manage(crate::mcp::McpServerState::default())
         .setup(|app| {
             #[cfg(windows)]
             if let Err(e) = crate::notifications::register_windows_notifications(app.handle()) {
                 eprintln!("[notifications] Windows registration failed: {e}");
             }
 
-            let p_dir = crate::commands::plugins::plugins_dir(app.handle());
-            if !p_dir.is_dir() {
-                let _ = std::fs::create_dir_all(&p_dir);
-            }
-
-            let lazy_config_path = p_dir.join("lazy-config.luau");
-            if !lazy_config_path.is_file() {
-                let _ = std::fs::write(
-                    &lazy_config_path,
-                    "--!strict\n-- User plugin configuration (merged on install from plugins.registry.luau)\nreturn {}\n",
-                );
-            }
-
-            let old_d_lua_path = p_dir.join("vault.d.lua");
-            if old_d_lua_path.is_file() {
-                let _ = std::fs::remove_file(old_d_lua_path);
-            }
-            let old_d_luau_path = p_dir.join("vault.d.luau");
-            if old_d_luau_path.is_file() {
-                let _ = std::fs::remove_file(old_d_luau_path);
-            }
-            let vault_luau_path = p_dir.join("vault.luau");
-            let _ = std::fs::write(vault_luau_path, include_str!("../lua-sdk/vault.luau"));
-
-            // Spawn plugins file watcher for hot-reloading
-            let handle_for_watcher = app.handle().clone();
-            let p_dir_for_watcher = p_dir.clone();
-            tauri::async_runtime::spawn(async move {
-                use notify::{Watcher, RecursiveMode, EventKind};
-                let (tx, mut rx) = tokio::sync::mpsc::channel(100);
-
-                let mut watcher = match notify::recommended_watcher(move |res| {
-                    if let Ok(event) = res {
-                        let _ = tx.blocking_send(event);
-                    }
-                }) {
-                    Ok(w) => w,
-                    Err(e) => {
-                        eprintln!("[watcher] Failed to create plugin watcher: {:?}", e);
-                        return;
-                    }
-                };
-
-                if let Err(e) = watcher.watch(&p_dir_for_watcher, RecursiveMode::Recursive) {
-                    eprintln!("[watcher] Failed to watch plugin dir: {:?}", e);
-                    return;
-                }
-
-                #[cfg(debug_assertions)]
-                if let Some(ws_root) = crate::lua::loader::pv_plugins_workspace_root() {
-                    if let Err(e) = watcher.watch(&ws_root, RecursiveMode::Recursive) {
-                        eprintln!("[watcher] Failed to watch pv-plugins workspace: {:?}", e);
-                    }
-                }
-
-                // Keep the watcher alive in this thread/task
-                let _watcher_holder = watcher;
-
-                // Debounce map/state to avoid double reloading
-                let mut last_reload = std::time::Instant::now();
-                while let Some(event) = rx.recv().await {
-                    let is_luau = event.paths.iter().any(|p| {
-                        p.extension().and_then(|ext| ext.to_str()) == Some("luau")
-                    });
-                    if is_luau {
-                        match event.kind {
-                            EventKind::Create(_) | EventKind::Modify(_) | EventKind::Remove(_) => {
-                                if last_reload.elapsed() > std::time::Duration::from_millis(500) {
-                                    println!("[watcher] Plugin changes detected. Requesting frontend reload.");
-                                    let _ = handle_for_watcher.emit("plugin:reload", ());
-                                    last_reload = std::time::Instant::now();
-                                }
-                            }
-                            _ => {}
-                        }
-                    }
-                }
-            });
+            let p_dir = crate::plugins::paths::plugins_dir(app.handle());
+            crate::setup::plugins::bootstrap_plugin_dir(app.handle());
+            crate::setup::plugins::spawn_plugin_watcher(app.handle().clone(), p_dir);
 
             use tauri_plugin_cli::CliExt;
             if let Ok(matches) = app.cli().matches() {
@@ -244,65 +197,11 @@ pub fn run() {
             }
 
             let handle = app.handle().clone();
-            let db = app.state::<tauri_plugin_sql::DbInstances>();
-            let monitors = app.state::<crate::spawn::TaskMonitors>().clone();
             tauri::async_runtime::block_on(async {
-                if let Ok(pool) = db::sqlite_pool(&*db).await {
-                    let orphans = db::list_active_sessions_for_project_all(&pool).await.ok().unwrap_or_default();
-                    let mut sys = sysinfo::System::new_all();
-                    sys.refresh_processes(sysinfo::ProcessesToUpdate::All, true);
-                    for s in orphans {
-                        let alive = s.root_pid.map(|pid| sys.process(sysinfo::Pid::from(pid as usize)).is_some()).unwrap_or(false);
-                        if alive {
-                            let _ = crate::spawn::task_monitor::reregister_task(
-                                &handle,
-                                &monitors,
-                                s.id.clone(),
-                                s.project_id.clone(),
-                                s.command.clone(),
-                                s.root_pid,
-                                s.started_at_ms,
-                            );
-                        } else {
-                            let now = db::now_ms();
-                            let _ = sqlx::query("UPDATE sessions SET ended_at_ms = ?1, state = 'error', stop_reason = COALESCE(stop_reason, 'Process not found on startup'), last_event_at_ms = ?1 WHERE id = ?2")
-                                .bind(now)
-                                .bind(&s.id)
-                                .execute(&pool)
-                                .await;
-                        }
-                    }
-
-                    // Start background playtime tracker
-                    let pool_for_tracker = pool.clone();
-                    tauri::async_runtime::spawn(async move {
-                        let mut ticker = tokio::time::interval(std::time::Duration::from_secs(10));
-                        loop {
-                            ticker.tick().await;
-                            let _ = db::increment_active_projects_playtime(&pool_for_tracker, 10000).await;
-                        }
-                    });
-
-                    if let Ok(locs) = db::list_locations(&pool).await {
-                        for loc in locs {
-                            let _ = fs_scope_util::allow_library_root(&handle, &loc.path);
-                        }
-                    }
-                }
+                crate::setup::orphans::recover_orphans(&handle).await;
             });
 
-            let watcher = crate::location_watcher::LocationWatcher::new(handle.clone());
-            let watcher_spawn = watcher.clone();
-            tauri::async_runtime::spawn(async move {
-                watcher_spawn.watch_all_enabled().await;
-            });
-            app.manage(watcher);
-
-            let git_watcher = crate::git_watcher::GitWatcher::new(handle.clone());
-            app.manage(git_watcher);
-
-            crate::search::background::start_background_scanner(handle.clone(), 15);
-            crate::clipboard_history::start_watcher(handle);
+            crate::setup::watchers::start_watchers(app, &handle)?;
             Ok(())
         })
         .invoke_handler(tauri::generate_handler![
@@ -313,6 +212,7 @@ pub fn run() {
             commands::locations::reorder_locations,
             commands::volumes::disk_space_for_paths,
             commands::git::get_git_status,
+            commands::git::get_git_statuses,
             commands::git::git_pull,
             commands::git::git_push,
             commands::git::git_fetch,
@@ -324,6 +224,8 @@ pub fn run() {
             commands::git::git_bump_version_and_tag,
             commands::git::git_clean_preview,
             commands::git::git_clean_execute,
+            commands::git::git_changed_files,
+            commands::git::git_file_diff,
             commands::git::start_git_watcher,
             commands::git::stop_git_watcher,
             commands::projects::import_project,
@@ -340,7 +242,6 @@ pub fn run() {
             commands::projects::touch_project_viewed,
 
             commands::projects::refresh_project,
-            commands::projects::move_project,
             commands::projects::get_project_languages,
             commands::projects::get_project_mise_tools,
             commands::projects::suggest_mise_tools,
@@ -369,6 +270,15 @@ pub fn run() {
             commands::github_device::wait_github_device_flow,
             commands::github_remote::get_github_repo_for_project,
             commands::github_remote::get_git_remote_url,
+            dokploy::commands::dokploy_api_version,
+            dokploy::commands::dokploy_test_connection,
+            dokploy::commands::dokploy_list_matches,
+            dokploy::commands::dokploy_debug_scan,
+            dokploy::commands::dokploy_git_providers,
+            dokploy::commands::dokploy_list_services,
+            dokploy::commands::dokploy_link_github,
+            dokploy::commands::dokploy_service_status,
+            dokploy::commands::dokploy_redeploy,
             commands::notifications::show_system_notification,
             commands::settings::get_setting,
             commands::settings::set_setting,
@@ -404,6 +314,14 @@ pub fn run() {
             commands::search::delete_index,
             commands::search::delete_all_indices,
             commands::search::update_index_for_file,
+            commands::files::read_text_file,
+            commands::files::write_text_file,
+            commands::files::file_stat,
+            commands::files::create_project_file,
+            commands::files::create_project_folder,
+            commands::files::rename_project_path,
+            commands::files::delete_project_path,
+            file_watcher::watch_project_files,
             commands::screenshot::list_screens,
             commands::screenshot::list_windows,
             commands::screenshot::get_desktop_bounds,
@@ -436,9 +354,40 @@ pub fn run() {
             commands::issues::update_issue,
             commands::issues::delete_issue,
             commands::issues::delete_all_local_issues,
+            commands::kanban::kanban_list_boards,
+            commands::kanban::kanban_get_board,
+            commands::kanban::kanban_create_board,
+            commands::kanban::kanban_create_card,
+            commands::kanban::kanban_update_card,
+            commands::kanban::kanban_move_card,
+            commands::kanban::kanban_list_cards,
+            commands::kanban::kanban_delete_card,
+            commands::kanban::kanban_delete_board,
+            commands::kanban::kanban_list_tags,
+            commands::kanban::kanban_set_tag_color,
+            commands::workspaces::workspace_list,
+            commands::workspaces::workspace_get,
+            commands::workspaces::workspace_create,
+            commands::workspaces::workspace_delete,
+            commands::workspaces::workspace_archive,
+            commands::workspaces::workspace_link_card,
+            commands::workspaces::workspace_changes,
+            commands::workspaces::workspace_file_diff,
+            commands::workspaces::session_create,
+            commands::workspaces::session_list,
+            commands::workspaces::session_prompt,
+            commands::workspaces::session_stop,
+            commands::workspaces::session_get,
+            commands::workspaces::executors_list,
+            commands::workspaces::workspace_push,
+            commands::workspaces::workspace_git_info,
+            commands::workspaces::pr_create,
+            commands::workspaces::pr_status,
+            commands::workspaces::pr_merge,
             commands::sizes::get_location_project_sizes,
             commands::sizes::get_largest_entries,
             commands::sizes::get_dir_size_breakdown,
+            commands::sizes::get_dir_size_tree,
             tunnel::commands::check_tunnel_available,
             tunnel::commands::trust_portless_ca,
             tunnel::commands::start_tunnel_proxy,
@@ -448,29 +397,48 @@ pub fn run() {
             tunnel::commands::get_tunnel_status,
             lua::ui::resolve_plugin_ui,
             lua::ui::set_active_project,
-            commands::plugins::list_plugin_commands,
-            commands::plugins::execute_plugin_command,
-            commands::plugins::list_plugins,
-            commands::plugins::toggle_plugin,
-            commands::plugins::get_tab_decorations,
-            commands::plugins::get_official_plugins_repo,
-            commands::plugins::open_plugins_dir,
-            commands::plugins::refresh_plugins_from_repos,
-            commands::plugins::install_plugin_git,
-            commands::plugins::discover_monorepo,
-            commands::plugins::get_pending_discoveries,
-            commands::plugins::uninstall_plugin,
-            commands::plugins::sync_lockfile,
-            commands::plugins::restore_from_lockfile,
-            commands::plugins::check_plugin_updates,
-            commands::plugins::update_plugin_git,
-            commands::plugins::update_all_plugins,
-            commands::plugins::get_plugin_load_stats,
-            commands::plugins::resolve_plugin_dependencies,
-            commands::plugins::sync_vendor_lockfile_cmd,
-            commands::plugins::restore_vendor_lockfile_cmd,
+            plugins::repo::list_plugin_commands,
+            plugins::repo::execute_plugin_command,
+            plugins::repo::get_plugin_logs,
+            plugins::repo::emit_test_plugin_logs,
+            plugins::repo::list_plugins,
+            plugins::repo::toggle_plugin,
+            plugins::repo::get_tab_decorations,
+            plugins::repo::get_official_plugins_repo,
+            plugins::repo::open_plugins_dir,
+            plugins::repo::refresh_plugins_from_repos,
+            plugins::monorepo::install_plugin_git,
+            plugins::link::install_plugin_local,
+            plugins::link::reimport_plugin_local,
+            plugins::link::discover_local_folder,
+            plugins::monorepo::discover_monorepo,
+            plugins::monorepo::get_pending_discoveries,
+            plugins::monorepo::uninstall_plugin,
+            plugins::lockfile::sync_lockfile,
+            plugins::lockfile::restore_from_lockfile,
+            plugins::updates::check_plugin_updates,
+            plugins::updates::update_plugin_git,
+            plugins::updates::update_all_plugins,
+            plugins::repo::get_plugin_load_stats,
+            plugins::repo::resolve_plugin_dependencies,
+            plugins::lockfile::sync_vendor_lockfile_cmd,
+            plugins::lockfile::restore_vendor_lockfile_cmd,
+            commands::canvas::get_canvas_layout,
+            commands::canvas::save_canvas_layout,
+            commands::canvas::web_preview_ping,
+            commands::canvas::list_canvas_blueprints,
+            commands::canvas::save_canvas_blueprint,
+            commands::canvas::delete_canvas_blueprint,
+            crate::mcp::commands::get_mcp_server_status,
+            crate::mcp::commands::start_mcp_server,
+            crate::mcp::commands::stop_mcp_server,
+            crate::mcp::commands::generate_mcp_token,
+            crate::mcp::commands::save_mcp_settings,
+            crate::mcp::commands::list_mcp_tools,
+            crate::mcp::commands::list_mcp_resources,
         ])
         .manage(lua::ui::UiBridge::default())
+        .manage(lua::ui::PluginStoreState::new())
         .manage(crate::lua::LuaRuntimeState::new())
         .run(tauri::generate_context!())
         .expect("error while running tauri application");

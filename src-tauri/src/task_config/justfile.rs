@@ -60,12 +60,19 @@ pub fn read_justfile_tasks(path: &Path) -> Vec<TaskDto> {
 
         let colon_pos = match header.find(':') {
             Some(p) => p,
-            None => { i += 1; continue; }
+            None => {
+                i += 1;
+                continue;
+            }
         };
         let name_part = header[..colon_pos].trim();
         let deps_part = header[colon_pos + 1..].trim();
 
-        let name = name_part.split_whitespace().next().unwrap_or("").to_string();
+        let name = name_part
+            .split_whitespace()
+            .next()
+            .unwrap_or("")
+            .to_string();
         if name.is_empty() {
             i += 1;
             continue;
@@ -102,10 +109,8 @@ pub fn read_justfile_tasks(path: &Path) -> Vec<TaskDto> {
     }
 
     // Build lookup map for dependency body resolution
-    let recipe_map: HashMap<&str, &ParsedRecipe> = recipes
-        .iter()
-        .map(|r| (r.name.as_str(), r))
-        .collect();
+    let recipe_map: HashMap<&str, &ParsedRecipe> =
+        recipes.iter().map(|r| (r.name.as_str(), r)).collect();
 
     // Build task list
     let mut tasks = Vec::new();
@@ -207,8 +212,7 @@ pub fn write_justfile_task(path: &Path, task: &TaskDto) -> Result<(), String> {
         }
     }
 
-    std::fs::write(path, content)
-        .map_err(|e| format!("failed to write justfile: {}", e))?;
+    std::fs::write(path, content).map_err(|e| format!("failed to write justfile: {}", e))?;
 
     Ok(())
 }
@@ -265,8 +269,7 @@ pub fn delete_justfile_task(path: &Path, label: &str) -> Result<(), String> {
         return Ok(());
     }
 
-    std::fs::write(path, new_content)
-        .map_err(|e| format!("failed to write justfile: {}", e))?;
+    std::fs::write(path, new_content).map_err(|e| format!("failed to write justfile: {}", e))?;
 
     Ok(())
 }

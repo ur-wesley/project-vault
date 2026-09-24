@@ -63,9 +63,10 @@ pub async fn apply_entry(app: &AppHandle, id: &str) -> Result<(), StableError> {
                         "file paths no longer exist",
                     ));
                 }
-                clipboard.set().file_list(&paths).map_err(|e| {
-                    StableError::new("CLIPBOARD", format!("set file list: {e}"))
-                })?;
+                clipboard
+                    .set()
+                    .file_list(&paths)
+                    .map_err(|e| StableError::new("CLIPBOARD", format!("set file list: {e}")))?;
             }
             ClipboardEntryKind::Image => {
                 let rel = entry.payload_path.ok_or_else(|| {

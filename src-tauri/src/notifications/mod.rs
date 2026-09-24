@@ -27,8 +27,5 @@ pub fn show(title: &str, body: Option<&str>, app_id: &str) -> Result<(), String>
         });
     }
 
-    notification
-        .show()
-        .map(|_| ())
-        .map_err(|e| e.to_string())
+    notification.show().map(|_| ()).map_err(|e| e.to_string())
 }

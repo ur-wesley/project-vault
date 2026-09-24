@@ -9,11 +9,11 @@ use tantivy::query::TermQuery;
 use tantivy::schema::{IndexRecordOption, Value};
 use tantivy::{doc, Index, IndexWriter, TantivyDocument, Term};
 
+use crate::error::{codes, StableError};
 use crate::search::{
     guess_language, index_writer, is_binary, open_index, write_schema_version, SearchSchema,
     ALWAYS_SKIP, DEFAULT_MAX_FILE_SIZE,
 };
-use crate::error::{codes, StableError};
 
 /// Metadata about a project's search index.
 #[derive(Debug, Clone, serde::Serialize)]
@@ -36,9 +36,9 @@ pub fn build_project_index(
     let mut writer = index_writer(&index)?;
 
     // Clear existing documents
-    writer.delete_all_documents().map_err(|e| {
-        StableError::new(codes::INTERNAL, format!("failed to clear index: {e}"))
-    })?;
+    writer
+        .delete_all_documents()
+        .map_err(|e| StableError::new(codes::INTERNAL, format!("failed to clear index: {e}")))?;
 
     let mut indexed_files: u64 = 0;
     let skip_set: HashSet<&str> = ALWAYS_SKIP.iter().copied().collect();
@@ -84,9 +84,9 @@ pub fn build_project_index(
         indexed_files += 1;
     }
 
-    writer.commit().map_err(|e| {
-        StableError::new(codes::INTERNAL, format!("failed to commit index: {e}"))
-    })?;
+    writer
+        .commit()
+        .map_err(|e| StableError::new(codes::INTERNAL, format!("failed to commit index: {e}")))?;
 
     // Persist the schema version so the next `open_index` can verify compatibility.
     write_schema_version(app_data_dir, project_id);
@@ -105,21 +105,18 @@ fn index_single_file(
     project_path: &Path,
     file_path: &Path,
 ) -> Result<(), StableError> {
-    let meta = fs::metadata(file_path).map_err(|e| {
-        StableError::new(codes::INTERNAL, format!("metadata read failed: {e}"))
-    })?;
+    let meta = fs::metadata(file_path)
+        .map_err(|e| StableError::new(codes::INTERNAL, format!("metadata read failed: {e}")))?;
 
-    let data = fs::read(file_path).map_err(|e| {
-        StableError::new(codes::INTERNAL, format!("read failed: {e}"))
-    })?;
+    let data = fs::read(file_path)
+        .map_err(|e| StableError::new(codes::INTERNAL, format!("read failed: {e}")))?;
 
     if is_binary(&data) {
         return Ok(());
     }
 
-    let text = String::from_utf8(data).map_err(|e| {
-        StableError::new(codes::INTERNAL, format!("utf-8 decode failed: {e}"))
-    })?;
+    let text = String::from_utf8(data)
+        .map_err(|e| StableError::new(codes::INTERNAL, format!("utf-8 decode failed: {e}")))?;
 
     let rel_path = file_path
         .strip_prefix(project_path)
@@ -162,9 +159,9 @@ fn index_single_file(
         schema.size => size_bytes,
     );
 
-    writer.add_document(doc).map_err(|e| {
-        StableError::new(codes::INTERNAL, format!("add document failed: {e}"))
-    })?;
+    writer
+        .add_document(doc)
+        .map_err(|e| StableError::new(codes::INTERNAL, format!("add document failed: {e}")))?;
 
     Ok(())
 }
@@ -257,9 +254,9 @@ pub fn update_file_in_index(
 
     index_single_file(&schema, &mut writer, project_path, file_path)?;
 
-    writer.commit().map_err(|e| {
-        StableError::new(codes::INTERNAL, format!("failed to commit update: {e}"))
-    })?;
+    writer
+        .commit()
+        .map_err(|e| StableError::new(codes::INTERNAL, format!("failed to commit update: {e}")))?;
 
     Ok(())
 }
@@ -269,7 +266,10 @@ pub fn delete_project_index(app_data_dir: &Path, project_id: &str) -> Result<(),
     let dir = crate::search::index_dir(app_data_dir, project_id);
     if dir.exists() {
         fs::remove_dir_all(&dir).map_err(|e| {
-            StableError::new(codes::INTERNAL, format!("failed to remove index directory: {e}"))
+            StableError::new(
+                codes::INTERNAL,
+                format!("failed to remove index directory: {e}"),
+            )
         })?;
     }
     Ok(())

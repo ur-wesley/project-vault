@@ -106,13 +106,13 @@ fn capitalize_first(s: &str) -> Option<String> {
 #[cfg(windows)]
 fn icon_data_for_shell(path: &Path) -> Option<image::RgbaImage> {
     use windows::core::PCWSTR;
-    use windows::Win32::Foundation::S_OK;
     use windows::Win32::Foundation::SIZE;
+    use windows::Win32::Foundation::S_OK;
     use windows::Win32::Graphics::Gdi::DeleteObject;
     use windows::Win32::System::Com::{CoInitializeEx, CoUninitialize, COINIT_APARTMENTTHREADED};
     use windows::Win32::UI::Shell::{
-        IShellItemImageFactory, SHCreateItemFromParsingName, SIIGBF_BIGGERSIZEOK,
-        SIIGBF_ICONONLY, SIIGBF_SCALEUP,
+        IShellItemImageFactory, SHCreateItemFromParsingName, SIIGBF_BIGGERSIZEOK, SIIGBF_ICONONLY,
+        SIIGBF_SCALEUP,
     };
 
     let wide = wide_path(path)?;
@@ -140,9 +140,7 @@ fn icon_data_for_shell(path: &Path) -> Option<image::RgbaImage> {
 
 #[cfg(windows)]
 fn icon_data_for_private_extract(path: &Path) -> Option<image::RgbaImage> {
-    use windows::Win32::UI::WindowsAndMessaging::{
-        DestroyIcon, HICON, PrivateExtractIconsW,
-    };
+    use windows::Win32::UI::WindowsAndMessaging::{DestroyIcon, PrivateExtractIconsW, HICON};
 
     let wide = wide_path(path)?;
     let mut filename = [0u16; 260];
@@ -150,17 +148,8 @@ fn icon_data_for_private_extract(path: &Path) -> Option<image::RgbaImage> {
     filename[..len].copy_from_slice(&wide[..len]);
 
     let mut icons = [HICON::default()];
-    let extracted = unsafe {
-        PrivateExtractIconsW(
-            &filename,
-            0,
-            256,
-            256,
-            Some(&mut icons),
-            None,
-            0,
-        )
-    };
+    let extracted =
+        unsafe { PrivateExtractIconsW(&filename, 0, 256, 256, Some(&mut icons), None, 0) };
     if extracted == 0 || icons[0].is_invalid() {
         return None;
     }
@@ -203,7 +192,9 @@ fn wide_path(path: &Path) -> Option<Vec<u16>> {
 }
 
 #[cfg(windows)]
-unsafe fn icon_to_rgba(hicon: windows::Win32::UI::WindowsAndMessaging::HICON) -> Option<image::RgbaImage> {
+unsafe fn icon_to_rgba(
+    hicon: windows::Win32::UI::WindowsAndMessaging::HICON,
+) -> Option<image::RgbaImage> {
     use windows::Win32::Graphics::Gdi::DeleteObject;
     use windows::Win32::UI::WindowsAndMessaging::{GetIconInfo, ICONINFO};
 
@@ -228,8 +219,8 @@ unsafe fn icon_to_rgba(hicon: windows::Win32::UI::WindowsAndMessaging::HICON) ->
 unsafe fn dib_to_rgba(hbm: windows::Win32::Graphics::Gdi::HBITMAP) -> Option<image::RgbaImage> {
     use windows::Win32::Foundation::HWND;
     use windows::Win32::Graphics::Gdi::{
-        BITMAP, BITMAPINFO, BITMAPINFOHEADER, BI_RGB, CreateCompatibleDC, DeleteDC, DIB_RGB_COLORS,
-        GetDC, GetDIBits, GetObjectW, ReleaseDC,
+        CreateCompatibleDC, DeleteDC, GetDC, GetDIBits, GetObjectW, ReleaseDC, BITMAP, BITMAPINFO,
+        BITMAPINFOHEADER, BI_RGB, DIB_RGB_COLORS,
     };
 
     let mut bm = BITMAP::default();
@@ -699,8 +690,8 @@ mod tests_windows {
 
     #[test]
     fn wide_path_terminates_with_nul() {
-        let wide = wide_path(Path::new(r"C:\Program Files\Microsoft VS Code\Code.exe"))
-            .expect("encodes");
+        let wide =
+            wide_path(Path::new(r"C:\Program Files\Microsoft VS Code\Code.exe")).expect("encodes");
         assert_eq!(*wide.last().unwrap(), 0);
         assert!(wide.len() > 2);
         // "C" -> 0x43, ":" -> 0x3A
@@ -811,8 +802,8 @@ mod tests_macos {
     fn pick_best_falls_back_to_largest_argb() {
         let argb16 = vec![0u8; 16 * 16 * 4];
         let argb48 = vec![0u8; 48 * 48 * 4];
-        let chunks = parse_icns(&synth_icns(&[(b"ic04", &argb16), (b"ic06", &argb48)]))
-            .expect("parses");
+        let chunks =
+            parse_icns(&synth_icns(&[(b"ic04", &argb16), (b"ic06", &argb48)])).expect("parses");
         match pick_best_chunk(&chunks).expect("a chunk") {
             IcnsChunk::Argb { size, .. } => assert_eq!(*size, 48),
             other => panic!("expected the 48px ARGB, got {other:?}"),
@@ -843,12 +834,18 @@ mod tests_linux {
 
     #[test]
     fn first_exec_token_handles_plain_and_quoted() {
-        assert_eq!(first_exec_token(Some("code --new-window %F")), Some("code".into()));
+        assert_eq!(
+            first_exec_token(Some("code --new-window %F")),
+            Some("code".into())
+        );
         assert_eq!(
             first_exec_token(Some("\"/opt/sublime_text/sublime_text\" %F")),
             Some("/opt/sublime_text/sublime_text".into())
         );
-        assert_eq!(first_exec_token(Some("env FOO=bar /usr/bin/code")), Some("env".into()));
+        assert_eq!(
+            first_exec_token(Some("env FOO=bar /usr/bin/code")),
+            Some("env".into())
+        );
         assert_eq!(first_exec_token(None), None);
         assert_eq!(first_exec_token(Some("   ")), None);
         assert_eq!(first_exec_token(Some("")), None);

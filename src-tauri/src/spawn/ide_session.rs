@@ -3,7 +3,7 @@ use std::path::Path;
 use std::sync::{Arc, Mutex};
 use std::time::Duration;
 
-use sysinfo::{Process, System, ProcessesToUpdate, Pid};
+use sysinfo::{Pid, Process, ProcessesToUpdate, System};
 use tauri::{AppHandle, Emitter, Manager};
 use tauri_plugin_sql::DbInstances;
 
@@ -45,18 +45,25 @@ pub async fn start_ide_session(
     let pool = db::sqlite_pool(&*db).await?;
     let project = db::get_project(&pool, &project_id).await?;
     let project_path = project.path.clone();
-    
+
     // 3. Identify Names
     let exe_path = Path::new(&executable);
-    let exe_name = exe_path.file_name().map(|s| s.to_string_lossy().to_string()).unwrap_or_else(|| "IDE".to_string());
-    let exe_stem = exe_path.file_stem().map(|s| s.to_string_lossy().to_string()).unwrap_or_else(|| "IDE".to_string());
+    let exe_name = exe_path
+        .file_name()
+        .map(|s| s.to_string_lossy().to_string())
+        .unwrap_or_else(|| "IDE".to_string());
+    let exe_stem = exe_path
+        .file_stem()
+        .map(|s| s.to_string_lossy().to_string())
+        .unwrap_or_else(|| "IDE".to_string());
 
     // 4. Launch IDE
     let child = ide::launch_ide(&executable, Path::new(&project_path))?;
     let initial_pid = child.id();
 
     // 5. Create DB Session
-    let db_session = db::start_session(&pool, &project_id, Some(format!("IDE: {exe_stem}")), None).await?;
+    let db_session =
+        db::start_session(&pool, &project_id, Some(format!("IDE: {exe_stem}")), None).await?;
     let session_id = db_session.id;
 
     // 5.5 Update project's last_opened_at_ms
@@ -75,7 +82,13 @@ pub async fn start_ide_session(
     }
 
     // 7. Emit State (Running)
-    let _ = app.emit("ide-state-changed", IdeStateEmit { project_id: project_id.clone(), running: true });
+    let _ = app.emit(
+        "ide-state-changed",
+        IdeStateEmit {
+            project_id: project_id.clone(),
+            running: true,
+        },
+    );
 
     // 8. Spawn Watcher (Async Task)
     let app_h = app.clone();
@@ -89,9 +102,13 @@ pub async fn start_ide_session(
     tauri::async_runtime::spawn(async move {
         let mut sys = System::new_all();
         let target_path = Path::new(&target_path_h);
-        let target_path_canonical = dunce::canonicalize(target_path).unwrap_or_else(|_| target_path.to_path_buf());
-        let target_path_norm = target_path_canonical.to_string_lossy().to_lowercase().replace('\\', "/");
-        
+        let target_path_canonical =
+            dunce::canonicalize(target_path).unwrap_or_else(|_| target_path.to_path_buf());
+        let target_path_norm = target_path_canonical
+            .to_string_lossy()
+            .to_lowercase()
+            .replace('\\', "/");
+
         let mut current_pid: Option<u32> = Some(initial_pid);
         let mut confirmed_alive = false;
         let mut startup_grace_count: u32 = 0;
@@ -105,10 +122,10 @@ pub async fn start_ide_session(
                 match g.get(&pid_h) {
                     Some(s) if s.session_id == sid_h => {
                         // Current session is still ours
-                    },
+                    }
                     Some(_s) => {
                         break;
-                    },
+                    }
                     None => {
                         break;
                     }
@@ -161,7 +178,7 @@ pub async fn start_ide_session(
                         confirmed_alive = true;
                     }
                     known_pids.insert(new_pid);
-                    
+
                     // Update PID in map for stop_project_ide visibility
                     if let Ok(mut g) = sessions_h.0.lock() {
                         if let Some(s) = g.get_mut(&pid_h) {
@@ -174,7 +191,8 @@ pub async fn start_ide_session(
             }
 
             if !still_running {
-                if startup_grace_count < 15 { // 45 seconds initial grace
+                if startup_grace_count < 15 {
+                    // 45 seconds initial grace
                     startup_grace_count += 1;
                     tokio::time::sleep(Duration::from_secs(3)).await;
                     continue;
@@ -197,7 +215,13 @@ pub async fn start_ide_session(
         }
 
         // Emit State (Stopped)
-        let _ = app_h.emit("ide-state-changed", IdeStateEmit { project_id: pid_h.clone(), running: false });
+        let _ = app_h.emit(
+            "ide-state-changed",
+            IdeStateEmit {
+                project_id: pid_h.clone(),
+                running: false,
+            },
+        );
 
         // End DB Session
         let db = app_h.state::<DbInstances>();
@@ -285,41 +309,50 @@ fn find_ide_process(
 fn is_name_match(name: &str, expected_name: &str, expected_stem: &str) -> bool {
     let name_lower = name.to_lowercase();
     let stem_lower = expected_stem.to_lowercase();
-    name.eq_ignore_ascii_case(expected_name) || 
-    name.eq_ignore_ascii_case(expected_stem) ||
-    name_lower.contains(&stem_lower) ||
-    stem_lower.contains(&name_lower) ||
-    (cfg!(windows) && name.eq_ignore_ascii_case(&format!("{}.exe", expected_stem)))
+    name.eq_ignore_ascii_case(expected_name)
+        || name.eq_ignore_ascii_case(expected_stem)
+        || name_lower.contains(&stem_lower)
+        || stem_lower.contains(&name_lower)
+        || (cfg!(windows) && name.eq_ignore_ascii_case(&format!("{}.exe", expected_stem)))
 }
 
 fn is_project_match(proc: &Process, target_path_norm: &str) -> bool {
     // Check CWD (strict match)
     if let Some(cwd) = proc.cwd() {
         let cwd_canonical = dunce::canonicalize(cwd).unwrap_or_else(|_| cwd.to_path_buf());
-        let cwd_norm = cwd_canonical.to_string_lossy().to_lowercase().replace('\\', "/");
+        let cwd_norm = cwd_canonical
+            .to_string_lossy()
+            .to_lowercase()
+            .replace('\\', "/");
         if cwd_norm == target_path_norm {
             return true;
         }
     }
-    
+
     // Check Cmdline
     for arg in proc.cmd() {
         let arg_norm = arg.to_string_lossy().to_lowercase().replace('\\', "/");
-        if arg_norm == target_path_norm || 
-           arg_norm.contains(target_path_norm) ||
-           arg_norm.contains(&format!("\"{}\"", target_path_norm)) ||
-           arg_norm.contains(&format!("'{}'", target_path_norm)) ||
-           arg_norm.contains(&format!("={}", target_path_norm))
+        if arg_norm == target_path_norm
+            || arg_norm.contains(target_path_norm)
+            || arg_norm.contains(&format!("\"{}\"", target_path_norm))
+            || arg_norm.contains(&format!("'{}'", target_path_norm))
+            || arg_norm.contains(&format!("={}", target_path_norm))
         {
             return true;
         }
     }
-    
+
     false
 }
 
-pub fn stop_ide_session(sessions: &ProjectIdeSessions, project_id: &str) -> Result<(), StableError> {
-    let mut g = sessions.0.lock().map_err(|e| StableError::new(codes::INTERNAL, e.to_string()))?;
+pub fn stop_ide_session(
+    sessions: &ProjectIdeSessions,
+    project_id: &str,
+) -> Result<(), StableError> {
+    let mut g = sessions
+        .0
+        .lock()
+        .map_err(|e| StableError::new(codes::INTERNAL, e.to_string()))?;
     if let Some(session) = g.remove(project_id) {
         if let Some(pid) = session.pid {
             let mut sys = System::new();

@@ -1,10 +1,10 @@
-use std::collections::HashSet;
-use std::path::PathBuf;
-use crate::models::IdeCandidateDto;
 use super::common::{is_executable_file, path_dirs_lookup, push_candidate};
 use super::constants::KNOWN_UNIX_EXE_NAMES;
 use super::jetbrains::walk_jetbrains_install_roots;
 use super::scanner::scan_install_roots;
+use crate::models::IdeCandidateDto;
+use std::collections::HashSet;
+use std::path::PathBuf;
 
 pub fn discover_platform(
     out: &mut Vec<IdeCandidateDto>,
@@ -105,14 +105,7 @@ pub fn discover_platform(
         "/usr/share/zed/bin/zed",
     ];
     for p in zed_paths {
-        push_candidate(
-            out,
-            seen_paths,
-            seen_ids,
-            "zed",
-            "Zed",
-            PathBuf::from(p),
-        );
+        push_candidate(out, seen_paths, seen_ids, "zed", "Zed", PathBuf::from(p));
     }
 
     push_candidate(
@@ -185,14 +178,7 @@ pub fn discover_platform(
         ("dataspell", "DataSpell", "/opt/dataspell/bin/dataspell.sh"),
         ("aqua", "Aqua", "/opt/aqua/bin/aqua.sh"),
     ] {
-        push_candidate(
-            out,
-            seen_paths,
-            seen_ids,
-            id,
-            label,
-            PathBuf::from(path),
-        );
+        push_candidate(out, seen_paths, seen_ids, id, label, PathBuf::from(path));
     }
 
     push_candidate(
@@ -327,31 +313,117 @@ pub fn discover_platform(
     }
 
     let opt_checks = [
-        ("vscode", "Visual Studio Code", &["vscode*", "vscodium*", "code*"], &["bin/code", "code"]),
-        ("vscode-oss", "VSCode OSS", &["code-oss*", "vscode-oss*", "vscode-linux-x64*"], &["bin/code-oss", "code-oss"]),
+        (
+            "vscode",
+            "Visual Studio Code",
+            &["vscode*", "vscodium*", "code*"],
+            &["bin/code", "code"],
+        ),
+        (
+            "vscode-oss",
+            "VSCode OSS",
+            &["code-oss*", "vscode-oss*", "vscode-linux-x64*"],
+            &["bin/code-oss", "code-oss"],
+        ),
         ("cursor", "Cursor", &["cursor*"], &["bin/cursor", "cursor"]),
         ("zed", "Zed", &["zed*"], &["bin/zed", "zed"]),
         ("lapce", "Lapce", &["lapce*"], &["bin/lapce", "lapce"]),
         ("sublime", "Sublime Text", &["sublime*"], &["sublime_text"]),
-        ("intellij", "IntelliJ IDEA", &["idea*", "intellij*"], &["bin/idea.sh", "bin/idea"]),
-        ("webstorm", "WebStorm", &["webstorm*"], &["bin/webstorm.sh", "bin/webstorm"]),
-        ("pycharm", "PyCharm", &["pycharm*"], &["bin/pycharm.sh", "bin/pycharm"]),
-        ("rustrover", "RustRover", &["rustrover*"], &["bin/rustrover.sh", "bin/rustrover"]),
-        ("goland", "GoLand", &["goland*"], &["bin/goland.sh", "bin/goland"]),
-        ("clion", "CLion", &["clion*"], &["bin/clion.sh", "bin/clion"]),
-        ("phpstorm", "PhpStorm", &["phpstorm*"], &["bin/phpstorm.sh", "bin/phpstorm"]),
-        ("rider", "Rider", &["rider*"], &["bin/rider.sh", "bin/rider"]),
-        ("android-studio", "Android Studio", &["android-studio*"], &["bin/studio.sh", "bin/studio"]),
+        (
+            "intellij",
+            "IntelliJ IDEA",
+            &["idea*", "intellij*"],
+            &["bin/idea.sh", "bin/idea"],
+        ),
+        (
+            "webstorm",
+            "WebStorm",
+            &["webstorm*"],
+            &["bin/webstorm.sh", "bin/webstorm"],
+        ),
+        (
+            "pycharm",
+            "PyCharm",
+            &["pycharm*"],
+            &["bin/pycharm.sh", "bin/pycharm"],
+        ),
+        (
+            "rustrover",
+            "RustRover",
+            &["rustrover*"],
+            &["bin/rustrover.sh", "bin/rustrover"],
+        ),
+        (
+            "goland",
+            "GoLand",
+            &["goland*"],
+            &["bin/goland.sh", "bin/goland"],
+        ),
+        (
+            "clion",
+            "CLion",
+            &["clion*"],
+            &["bin/clion.sh", "bin/clion"],
+        ),
+        (
+            "phpstorm",
+            "PhpStorm",
+            &["phpstorm*"],
+            &["bin/phpstorm.sh", "bin/phpstorm"],
+        ),
+        (
+            "rider",
+            "Rider",
+            &["rider*"],
+            &["bin/rider.sh", "bin/rider"],
+        ),
+        (
+            "android-studio",
+            "Android Studio",
+            &["android-studio*"],
+            &["bin/studio.sh", "bin/studio"],
+        ),
         ("fleet", "Fleet", &["fleet*"], &["bin/fleet", "fleet"]),
-        ("datagrip", "DataGrip", &["datagrip*"], &["bin/datagrip.sh", "bin/datagrip"]),
-        ("rubymine", "RubyMine", &["rubymine*"], &["bin/rubymine.sh", "bin/rubymine"]),
-        ("appcode", "AppCode", &["appcode*"], &["bin/appcode.sh", "bin/appcode"]),
-        ("dataspell", "DataSpell", &["dataspell*"], &["bin/dataspell.sh", "bin/dataspell"]),
+        (
+            "datagrip",
+            "DataGrip",
+            &["datagrip*"],
+            &["bin/datagrip.sh", "bin/datagrip"],
+        ),
+        (
+            "rubymine",
+            "RubyMine",
+            &["rubymine*"],
+            &["bin/rubymine.sh", "bin/rubymine"],
+        ),
+        (
+            "appcode",
+            "AppCode",
+            &["appcode*"],
+            &["bin/appcode.sh", "bin/appcode"],
+        ),
+        (
+            "dataspell",
+            "DataSpell",
+            &["dataspell*"],
+            &["bin/dataspell.sh", "bin/dataspell"],
+        ),
         ("aqua", "Aqua", &["aqua*"], &["bin/aqua.sh", "bin/aqua"]),
-        ("antigravity", "Google Antigravity", &["antigravity*", "google*antigravity*"], &["antigravity", "bin/antigravity"]),
+        (
+            "antigravity",
+            "Google Antigravity",
+            &["antigravity*", "google*antigravity*"],
+            &["antigravity", "bin/antigravity"],
+        ),
     ];
 
-    scan_install_roots(&[PathBuf::from("/opt")], out, seen_paths, seen_ids, &opt_checks);
+    scan_install_roots(
+        &[PathBuf::from("/opt")],
+        out,
+        seen_paths,
+        seen_ids,
+        &opt_checks,
+    );
 }
 
 pub fn discover_platform_fallback(
@@ -464,18 +536,11 @@ pub fn snap_app_command(tokens: &[String]) -> Option<String> {
     // Prefer the token after the "run" subcommand.
     for (i, t) in tokens.iter().enumerate() {
         if t == "run" {
-            return tokens
-                .get(i + 1)
-                .filter(|t| !t.starts_with('-'))
-                .cloned();
+            return tokens.get(i + 1).filter(|t| !t.starts_with('-')).cloned();
         }
     }
     // Fallback: first positional token after "snap" that is not a flag.
-    tokens
-        .iter()
-        .skip(1)
-        .find(|t| !t.starts_with('-'))
-        .cloned()
+    tokens.iter().skip(1).find(|t| !t.starts_with('-')).cloned()
 }
 
 /// Resolve the concrete shim executable Flatpak installs per app. Flatpak
@@ -575,10 +640,7 @@ pub fn parse_desktop_exec(exec: &str) -> Vec<String> {
     }
 
     // Remove placeholder tokens (%F, %U, %f, %u, %i, %c, %k, etc.)
-    tokens
-        .into_iter()
-        .filter(|t| !t.starts_with('%'))
-        .collect()
+    tokens.into_iter().filter(|t| !t.starts_with('%')).collect()
 }
 
 #[cfg(test)]
@@ -606,7 +668,12 @@ mod tests {
             Some("com.jetbrains.Rider")
         );
         assert_eq!(
-            flatpak_app_id(&toks(&["flatpak", "run", "--command=code", "com.visualstudio.code"])),
+            flatpak_app_id(&toks(&[
+                "flatpak",
+                "run",
+                "--command=code",
+                "com.visualstudio.code"
+            ])),
             Some("com.visualstudio.code")
         );
     }
@@ -662,7 +729,10 @@ mod tests {
             Some("code".to_string())
         );
         assert_eq!(snap_app_command(&toks(&["snap"])), None);
-        assert_eq!(snap_app_command(&toks(&["snap", "run", "--shell", "code"])), None);
+        assert_eq!(
+            snap_app_command(&toks(&["snap", "run", "--shell", "code"])),
+            None
+        );
     }
 
     #[test]

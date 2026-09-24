@@ -13,8 +13,15 @@ fn encode_jpeg_base64(img: &RgbaImage, quality: u8) -> Result<String, StableErro
     let mut buf: Vec<u8> = Vec::new();
     let encoder = JpegEncoder::new_with_quality(&mut buf, quality);
     encoder
-        .write_image(rgb.as_raw(), rgb.width(), rgb.height(), image::ExtendedColorType::Rgb8)
-        .map_err(|e| StableError::new("SCREENSHOT_ENCODE", format!("failed to encode JPEG: {e}")))?;
+        .write_image(
+            rgb.as_raw(),
+            rgb.width(),
+            rgb.height(),
+            image::ExtendedColorType::Rgb8,
+        )
+        .map_err(|e| {
+            StableError::new("SCREENSHOT_ENCODE", format!("failed to encode JPEG: {e}"))
+        })?;
     Ok(base64::engine::general_purpose::STANDARD.encode(&buf))
 }
 
@@ -29,8 +36,12 @@ pub struct DesktopBoundsDto {
 
 #[tauri::command]
 pub fn list_screens() -> Result<Vec<ScreenInfoDto>, StableError> {
-    let monitors = Monitor::all()
-        .map_err(|e| StableError::new("SCREENSHOT_CAPTURE", format!("failed to list monitors: {e}")))?;
+    let monitors = Monitor::all().map_err(|e| {
+        StableError::new(
+            "SCREENSHOT_CAPTURE",
+            format!("failed to list monitors: {e}"),
+        )
+    })?;
 
     Ok(monitors
         .into_iter()
@@ -42,15 +53,24 @@ pub fn list_screens() -> Result<Vec<ScreenInfoDto>, StableError> {
             let x = m.x().ok()?;
             let y = m.y().ok()?;
             let is_primary = m.is_primary().ok().unwrap_or(false);
-            Some(ScreenInfoDto { id, name, width, height, x, y, is_primary })
+            Some(ScreenInfoDto {
+                id,
+                name,
+                width,
+                height,
+                x,
+                y,
+                is_primary,
+            })
         })
         .collect())
 }
 
 #[tauri::command]
 pub fn list_windows() -> Result<Vec<WindowInfoDto>, StableError> {
-    let windows = Window::all()
-        .map_err(|e| StableError::new("SCREENSHOT_CAPTURE", format!("failed to list windows: {e}")))?;
+    let windows = Window::all().map_err(|e| {
+        StableError::new("SCREENSHOT_CAPTURE", format!("failed to list windows: {e}"))
+    })?;
 
     Ok(windows
         .into_iter()
@@ -65,15 +85,27 @@ pub fn list_windows() -> Result<Vec<WindowInfoDto>, StableError> {
             if title.is_empty() || w.is_minimized().ok().unwrap_or(true) {
                 return None;
             }
-            Some(WindowInfoDto { id, title, app_name, width, height, x, y })
+            Some(WindowInfoDto {
+                id,
+                title,
+                app_name,
+                width,
+                height,
+                x,
+                y,
+            })
         })
         .collect())
 }
 
 #[tauri::command]
 pub fn get_desktop_bounds() -> Result<DesktopBoundsDto, StableError> {
-    let monitors = Monitor::all()
-        .map_err(|e| StableError::new("SCREENSHOT_CAPTURE", format!("failed to list monitors: {e}")))?;
+    let monitors = Monitor::all().map_err(|e| {
+        StableError::new(
+            "SCREENSHOT_CAPTURE",
+            format!("failed to list monitors: {e}"),
+        )
+    })?;
 
     let mut min_x = i32::MAX;
     let mut min_y = i32::MAX;
@@ -85,10 +117,18 @@ pub fn get_desktop_bounds() -> Result<DesktopBoundsDto, StableError> {
         let y = m.y().unwrap_or(0);
         let w = m.width().unwrap_or(0) as i32;
         let h = m.height().unwrap_or(0) as i32;
-        if x < min_x { min_x = x; }
-        if y < min_y { min_y = y; }
-        if x + w > max_x { max_x = x + w; }
-        if y + h > max_y { max_y = y + h; }
+        if x < min_x {
+            min_x = x;
+        }
+        if y < min_y {
+            min_y = y;
+        }
+        if x + w > max_x {
+            max_x = x + w;
+        }
+        if y + h > max_y {
+            max_y = y + h;
+        }
     }
 
     Ok(DesktopBoundsDto {
@@ -101,25 +141,41 @@ pub fn get_desktop_bounds() -> Result<DesktopBoundsDto, StableError> {
 
 #[tauri::command]
 pub fn capture_screen(monitor_id: u32) -> Result<String, StableError> {
-    let monitors = Monitor::all()
-        .map_err(|e| StableError::new("SCREENSHOT_CAPTURE", format!("failed to list monitors: {e}")))?;
+    let monitors = Monitor::all().map_err(|e| {
+        StableError::new(
+            "SCREENSHOT_CAPTURE",
+            format!("failed to list monitors: {e}"),
+        )
+    })?;
 
     let monitor = monitors
         .into_iter()
         .find(|m| m.id().ok() == Some(monitor_id))
-        .ok_or_else(|| StableError::new("SCREENSHOT_NOT_FOUND", format!("monitor {monitor_id} not found")))?;
+        .ok_or_else(|| {
+            StableError::new(
+                "SCREENSHOT_NOT_FOUND",
+                format!("monitor {monitor_id} not found"),
+            )
+        })?;
 
-    let img = monitor
-        .capture_image()
-        .map_err(|e| StableError::new("SCREENSHOT_CAPTURE", format!("failed to capture screen: {e}")))?;
+    let img = monitor.capture_image().map_err(|e| {
+        StableError::new(
+            "SCREENSHOT_CAPTURE",
+            format!("failed to capture screen: {e}"),
+        )
+    })?;
 
     encode_jpeg_base64(&img, 85)
 }
 
 #[tauri::command]
 pub fn capture_all_screens() -> Result<String, StableError> {
-    let monitors = Monitor::all()
-        .map_err(|e| StableError::new("SCREENSHOT_CAPTURE", format!("failed to list monitors: {e}")))?;
+    let monitors = Monitor::all().map_err(|e| {
+        StableError::new(
+            "SCREENSHOT_CAPTURE",
+            format!("failed to list monitors: {e}"),
+        )
+    })?;
 
     if monitors.is_empty() {
         return Err(StableError::new("SCREENSHOT_CAPTURE", "no monitors found"));
@@ -136,10 +192,18 @@ pub fn capture_all_screens() -> Result<String, StableError> {
         let y = m.y().unwrap_or(0);
         let w = m.width().unwrap_or(0) as i32;
         let h = m.height().unwrap_or(0) as i32;
-        if x < min_x { min_x = x; }
-        if y < min_y { min_y = y; }
-        if x + w > max_x { max_x = x + w; }
-        if y + h > max_y { max_y = y + h; }
+        if x < min_x {
+            min_x = x;
+        }
+        if y < min_y {
+            min_y = y;
+        }
+        if x + w > max_x {
+            max_x = x + w;
+        }
+        if y + h > max_y {
+            max_y = y + h;
+        }
     }
 
     let canvas_w = (max_x - min_x) as u32;
@@ -150,7 +214,8 @@ pub fn capture_all_screens() -> Result<String, StableError> {
     for m in monitors {
         let mx = m.x().unwrap_or(0);
         let my = m.y().unwrap_or(0);
-        let img = m.capture_image()
+        let img = m
+            .capture_image()
             .map_err(|e| StableError::new("SCREENSHOT_CAPTURE", format!("capture failed: {e}")))?;
         captures.push((mx, my, img));
     }
@@ -173,34 +238,61 @@ pub fn capture_all_screens() -> Result<String, StableError> {
 
 #[tauri::command]
 pub fn capture_window(window_id: u32) -> Result<String, StableError> {
-    let windows = Window::all()
-        .map_err(|e| StableError::new("SCREENSHOT_CAPTURE", format!("failed to list windows: {e}")))?;
+    let windows = Window::all().map_err(|e| {
+        StableError::new("SCREENSHOT_CAPTURE", format!("failed to list windows: {e}"))
+    })?;
 
     let window = windows
         .into_iter()
         .find(|w| w.id().ok() == Some(window_id))
-        .ok_or_else(|| StableError::new("SCREENSHOT_NOT_FOUND", format!("window {window_id} not found")))?;
+        .ok_or_else(|| {
+            StableError::new(
+                "SCREENSHOT_NOT_FOUND",
+                format!("window {window_id} not found"),
+            )
+        })?;
 
-    let img = window
-        .capture_image()
-        .map_err(|e| StableError::new("SCREENSHOT_CAPTURE", format!("failed to capture window: {e}")))?;
+    let img = window.capture_image().map_err(|e| {
+        StableError::new(
+            "SCREENSHOT_CAPTURE",
+            format!("failed to capture window: {e}"),
+        )
+    })?;
 
     encode_jpeg_base64(&img, 85)
 }
 
 #[tauri::command]
-pub fn capture_region(monitor_id: u32, x: u32, y: u32, width: u32, height: u32) -> Result<String, StableError> {
-    let monitors = Monitor::all()
-        .map_err(|e| StableError::new("SCREENSHOT_CAPTURE", format!("failed to list monitors: {e}")))?;
+pub fn capture_region(
+    monitor_id: u32,
+    x: u32,
+    y: u32,
+    width: u32,
+    height: u32,
+) -> Result<String, StableError> {
+    let monitors = Monitor::all().map_err(|e| {
+        StableError::new(
+            "SCREENSHOT_CAPTURE",
+            format!("failed to list monitors: {e}"),
+        )
+    })?;
 
     let monitor = monitors
         .into_iter()
         .find(|m| m.id().ok() == Some(monitor_id))
-        .ok_or_else(|| StableError::new("SCREENSHOT_NOT_FOUND", format!("monitor {monitor_id} not found")))?;
+        .ok_or_else(|| {
+            StableError::new(
+                "SCREENSHOT_NOT_FOUND",
+                format!("monitor {monitor_id} not found"),
+            )
+        })?;
 
-    let img = monitor
-        .capture_region(x, y, width, height)
-        .map_err(|e| StableError::new("SCREENSHOT_CAPTURE", format!("failed to capture region: {e}")))?;
+    let img = monitor.capture_region(x, y, width, height).map_err(|e| {
+        StableError::new(
+            "SCREENSHOT_CAPTURE",
+            format!("failed to capture region: {e}"),
+        )
+    })?;
 
     encode_jpeg_base64(&img, 85)
 }
@@ -210,7 +302,10 @@ pub fn save_screenshot(path: String, data: Vec<u8>) -> Result<String, StableErro
     let path_buf = std::path::PathBuf::from(&path);
     if let Some(parent) = path_buf.parent() {
         std::fs::create_dir_all(parent).map_err(|e| {
-            StableError::new("SCREENSHOT_SAVE", format!("failed to create directory: {e}"))
+            StableError::new(
+                "SCREENSHOT_SAVE",
+                format!("failed to create directory: {e}"),
+            )
         })?;
     }
     std::fs::write(&path_buf, &data)
@@ -227,8 +322,12 @@ pub fn pick_screenshot_directory(app: AppHandle) -> Result<Option<String>, Stabl
 
 #[tauri::command]
 pub fn select_region() -> Result<Option<crate::models::RegionSelectionResultDto>, StableError> {
-    let monitors = Monitor::all()
-        .map_err(|e| StableError::new("SCREENSHOT_CAPTURE", format!("failed to list monitors: {e}")))?;
+    let monitors = Monitor::all().map_err(|e| {
+        StableError::new(
+            "SCREENSHOT_CAPTURE",
+            format!("failed to list monitors: {e}"),
+        )
+    })?;
 
     if monitors.is_empty() {
         return Err(StableError::new("SCREENSHOT_CAPTURE", "no monitors found"));
@@ -244,10 +343,18 @@ pub fn select_region() -> Result<Option<crate::models::RegionSelectionResultDto>
         let y = m.y().unwrap_or(0);
         let w = m.width().unwrap_or(0) as i32;
         let h = m.height().unwrap_or(0) as i32;
-        if x < min_x { min_x = x; }
-        if y < min_y { min_y = y; }
-        if x + w > max_x { max_x = x + w; }
-        if y + h > max_y { max_y = y + h; }
+        if x < min_x {
+            min_x = x;
+        }
+        if y < min_y {
+            min_y = y;
+        }
+        if x + w > max_x {
+            max_x = x + w;
+        }
+        if y + h > max_y {
+            max_y = y + h;
+        }
     }
 
     let canvas_w = (max_x - min_x) as u32;
@@ -291,7 +398,8 @@ pub fn select_region() -> Result<Option<crate::models::RegionSelectionResultDto>
 
             for row in 0..copy_h {
                 let src_start = row * src_stride;
-                let dst_start = ((offset_y as usize + row) * canvas_stride) + (offset_x as usize * 4);
+                let dst_start =
+                    ((offset_y as usize + row) * canvas_stride) + (offset_x as usize * 4);
                 let src_end = src_start + copy_w * 4;
                 let dst_end = dst_start + copy_w * 4;
                 let buf: &mut [u8] = canvas.as_mut();
@@ -307,12 +415,17 @@ pub fn select_region() -> Result<Option<crate::models::RegionSelectionResultDto>
     let selection = crate::screenshot_overlay::run_selection_overlay(img_rx)
         .map_err(|e| StableError::new("SCREENSHOT_CAPTURE", e.message))?;
 
-    let Some(sel) = selection else { return Ok(None) };
+    let Some(sel) = selection else {
+        return Ok(None);
+    };
 
     // Zero-dimension = clipboard copy or file save (already handled in overlay)
     if sel.width == 0 || sel.height == 0 {
         return Ok(Some(crate::models::RegionSelectionResultDto {
-            x: 0, y: 0, width: 0, height: 0,
+            x: 0,
+            y: 0,
+            width: 0,
+            height: 0,
             image_base64: String::new(),
             image_width: 0,
             image_height: 0,
@@ -321,13 +434,18 @@ pub fn select_region() -> Result<Option<crate::models::RegionSelectionResultDto>
 
     // Re-capture for annotation (fast single-monitor capture, or we could cache)
     // For now, capture all screens again — this is fast since it's a single xcap call
-    let monitors2 = Monitor::all()
-        .map_err(|e| StableError::new("SCREENSHOT_CAPTURE", format!("failed to list monitors: {e}")))?;
+    let monitors2 = Monitor::all().map_err(|e| {
+        StableError::new(
+            "SCREENSHOT_CAPTURE",
+            format!("failed to list monitors: {e}"),
+        )
+    })?;
     let mut captures2: Vec<(i32, i32, RgbaImage)> = Vec::new();
     for m in monitors2 {
         let mx = m.x().unwrap_or(0);
         let my = m.y().unwrap_or(0);
-        let img = m.capture_image()
+        let img = m
+            .capture_image()
             .map_err(|e| StableError::new("SCREENSHOT_CAPTURE", format!("capture failed: {e}")))?;
         captures2.push((mx, my, img));
     }

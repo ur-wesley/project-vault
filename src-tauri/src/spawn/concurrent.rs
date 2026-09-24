@@ -13,6 +13,7 @@ use tauri::{AppHandle, Emitter};
 use crate::error::{codes, StableError};
 use crate::models::ConcurrentTask;
 use crate::spawn::embedded::{self, EmbeddedTerminals, TerminalBuffers};
+use crate::spawn::emit::{emit_encoded_chunk, TermExitPayload};
 use crate::spawn::task_monitor::{self, TaskMonitors, TaskRegisterInput};
 
 const COLORS: &[&str] = &[
@@ -24,26 +25,6 @@ const COLORS: &[&str] = &[
     "\x1b[31m", // red
 ];
 const RESET: &str = "\x1b[0m";
-
-#[derive(Clone, serde::Serialize)]
-#[serde(rename_all = "camelCase")]
-struct TaskLogChunkPayload {
-    session_id: String,
-    chunk: String,
-}
-
-#[derive(Clone, serde::Serialize)]
-#[serde(rename_all = "camelCase")]
-struct TermPayload {
-    session_id: String,
-    chunk: String,
-}
-
-#[derive(Clone, serde::Serialize)]
-#[serde(rename_all = "camelCase")]
-struct TermExitPayload {
-    session_id: String,
-}
 
 struct ChildHandle {
     killer: Arc<Mutex<Box<dyn ChildKiller + Send + Sync>>>,
@@ -66,7 +47,10 @@ pub fn spawn_concurrent_tasks(
     shell_pref: Option<String>,
 ) -> Result<(), StableError> {
     if sub_tasks.is_empty() {
-        return Err(StableError::new(codes::INVALID_PATH, "no concurrent sub-tasks"));
+        return Err(StableError::new(
+            codes::INVALID_PATH,
+            "no concurrent sub-tasks",
+        ));
     }
     if !cwd.is_dir() {
         return Err(StableError::new(codes::INVALID_PATH, "cwd not a directory"));
@@ -133,7 +117,9 @@ pub fn spawn_concurrent_tasks(
         let killer: Arc<Mutex<Box<dyn ChildKiller + Send + Sync>>> =
             Arc::new(Mutex::new(child.clone_killer()));
 
-        children.push(ChildHandle { killer: killer.clone() });
+        children.push(ChildHandle {
+            killer: killer.clone(),
+        });
 
         // Register sub-task PID under parent session's tree
         {
@@ -185,21 +171,7 @@ pub fn spawn_concurrent_tasks(
                             if !line.is_empty() {
                                 let prefixed = format!("{} {}{}", prefix, line.trim_end(), RESET);
                                 let chunk = STANDARD.encode(prefixed.as_bytes());
-                                buffers_read.append(&sid, &chunk);
-                                let _ = app_read.emit(
-                                    "embedded-terminal-data",
-                                    TermPayload {
-                                        session_id: sid.clone(),
-                                        chunk: chunk.clone(),
-                                    },
-                                );
-                                let _ = app_read.emit(
-                                    "task-log-chunk",
-                                    TaskLogChunkPayload {
-                                        session_id: sid.clone(),
-                                        chunk,
-                                    },
-                                );
+                                emit_encoded_chunk(&app_read, &buffers_read, &sid, &chunk, true);
                             }
                         }
                     }
@@ -211,20 +183,7 @@ pub fn spawn_concurrent_tasks(
             if !line_buf.is_empty() {
                 let prefixed = format!("{} {}{}", prefix, line_buf.trim_end(), RESET);
                 let chunk = STANDARD.encode(prefixed.as_bytes());
-                let _ = app_read.emit(
-                    "embedded-terminal-data",
-                    TermPayload {
-                        session_id: sid.clone(),
-                        chunk: chunk.clone(),
-                    },
-                );
-                let _ = app_read.emit(
-                    "task-log-chunk",
-                    TaskLogChunkPayload {
-                        session_id: sid.clone(),
-                        chunk,
-                    },
-                );
+                emit_encoded_chunk(&app_read, &buffers_read, &sid, &chunk, true);
             }
         });
 
@@ -291,15 +250,9 @@ pub fn spawn_concurrent_tasks(
 
         let monitors_done = monitors_wait.clone();
         tauri::async_runtime::block_on(async move {
-            let _ = task_monitor::finalize_task(
-                app_wait,
-                monitors_done,
-                sid_wait,
-                state,
-                None,
-                None,
-            )
-            .await;
+            let _ =
+                task_monitor::finalize_task(app_wait, monitors_done, sid_wait, state, None, None)
+                    .await;
         });
     });
 

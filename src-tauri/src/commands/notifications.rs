@@ -10,6 +10,6 @@ pub async fn show_system_notification(
     tauri::async_runtime::spawn_blocking(move || {
         crate::notifications::show(&title, body.as_deref(), &app_id)
     })
-        .await
-        .map_err(|e| e.to_string())?
+    .await
+    .map_err(|e| e.to_string())?
 }

@@ -42,7 +42,13 @@ pub async fn open_project_in_ide(
     }
     #[cfg(not(any(target_os = "android", target_os = "ios")))]
     {
-        crate::spawn::ide_session::start_ide_session(app, &sessions, payload.project_id, payload.executable).await
+        crate::spawn::ide_session::start_ide_session(
+            app,
+            &sessions,
+            payload.project_id,
+            payload.executable,
+        )
+        .await
     }
 }
 
@@ -63,10 +69,7 @@ pub async fn stop_project_ide(
 }
 
 #[tauri::command]
-pub fn is_project_ide_running(
-    sessions: State<'_, ProjectIdeSessions>,
-    project_id: String,
-) -> bool {
+pub fn is_project_ide_running(sessions: State<'_, ProjectIdeSessions>, project_id: String) -> bool {
     #[cfg(not(any(target_os = "android", target_os = "ios")))]
     {
         crate::spawn::ide_session::is_ide_running(&sessions, &project_id)
@@ -79,9 +82,7 @@ pub fn is_project_ide_running(
 }
 
 #[tauri::command]
-pub fn list_running_projects(
-    sessions: State<'_, ProjectIdeSessions>,
-) -> Vec<String> {
+pub fn list_running_projects(sessions: State<'_, ProjectIdeSessions>) -> Vec<String> {
     #[cfg(not(any(target_os = "android", target_os = "ios")))]
     {
         crate::spawn::ide_session::list_running_project_ids(&sessions)

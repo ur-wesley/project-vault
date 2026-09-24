@@ -54,10 +54,12 @@ pub async fn list_settings(
 
 #[tauri::command]
 pub async fn get_app_data_dir(app: AppHandle) -> Result<String, StableError> {
-    let dir = app
-        .path()
-        .app_data_dir()
-        .map_err(|e| StableError::new(crate::error::codes::INTERNAL, format!("failed to resolve app data dir: {e}")))?;
+    let dir = app.path().app_data_dir().map_err(|e| {
+        StableError::new(
+            crate::error::codes::INTERNAL,
+            format!("failed to resolve app data dir: {e}"),
+        )
+    })?;
     Ok(dir.to_string_lossy().into_owned())
 }
 
