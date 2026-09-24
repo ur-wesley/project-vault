@@ -1,5 +1,5 @@
-use mlua::{Lua, Table, Value};
 use mlua::LuaSerdeExt;
+use mlua::{Lua, Table, Value};
 use serde::{Deserialize, Serialize};
 
 pub const VENDOR_LOCK_FILE: &str = "vendor-lock.luau";
@@ -234,7 +234,10 @@ pub fn load_vendor_lock(lua: &Lua, path: &std::path::Path) -> Vec<ExternalLockEn
     lua.from_value(val).unwrap_or_default()
 }
 
-pub fn write_vendor_lock(path: &std::path::Path, entries: &[ExternalLockEntry]) -> std::io::Result<()> {
+pub fn write_vendor_lock(
+    path: &std::path::Path,
+    entries: &[ExternalLockEntry],
+) -> std::io::Result<()> {
     let mut content = String::from("--!strict\n-- Auto-generated vendor lock\nreturn {\n");
     for entry in entries {
         content.push_str("  {\n");

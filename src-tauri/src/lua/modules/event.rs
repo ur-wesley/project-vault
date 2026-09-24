@@ -1,5 +1,5 @@
-use mlua::{Lua, Result, Table};
 use super::ModuleContext;
+use mlua::{Lua, Result, Table};
 use tauri::Emitter;
 
 pub fn register(lua: &Lua, vault: &Table, ctx: &ModuleContext) -> Result<()> {
@@ -9,7 +9,8 @@ pub fn register(lua: &Lua, vault: &Table, ctx: &ModuleContext) -> Result<()> {
         event.set(
             "publish",
             lua.create_function(move |_, (event_name, payload_json): (String, String)| {
-                let val = serde_json::from_str::<serde_json::Value>(&payload_json).unwrap_or(serde_json::Value::Null);
+                let val = serde_json::from_str::<serde_json::Value>(&payload_json)
+                    .unwrap_or(serde_json::Value::Null);
                 let _ = app_ev.emit(&event_name, val);
                 Ok(())
             })?,

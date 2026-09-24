@@ -2,6 +2,7 @@ const READABLE_APP_SETTING_KEYS: &[&str] = &[
     "ui_locale",
     "ui_theme",
     "ui_density",
+    "ui_project_tabs_enabled",
     "shell_path",
     "default_shell_path",
     "default_ide_path",

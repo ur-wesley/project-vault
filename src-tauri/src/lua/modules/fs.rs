@@ -1,5 +1,5 @@
-use mlua::{Lua, Result, Table};
 use super::ModuleContext;
+use mlua::{Lua, Result, Table};
 
 pub fn register(lua: &Lua, vault: &Table, _ctx: &ModuleContext) -> Result<()> {
     let fs = lua.create_table()?;

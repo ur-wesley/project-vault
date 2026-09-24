@@ -1,12 +1,11 @@
 use std::path::Path;
 
 use crate::error::StableError;
-use crate::lua::deps::{PluginDependency, dependency_ids, external_ids};
+use crate::lua::deps::{dependency_ids, external_ids, PluginDependency};
 use crate::lua::loader::{
-    PluginRegistryEntry, PluginSpec,     enrich_spec_from_repo_init, load_registry_entries, load_specs,
-    merge_registry_into_lazy_config, read_plugin_init_metadata_for_spec,
-    registry_entry_to_spec, repo_slug, topological_sort_specs, write_specs_to_file,
-    PLUGIN_REGISTRY_FILE,
+    enrich_spec_from_repo_init, load_registry_entries, load_specs, merge_registry_into_lazy_config,
+    read_plugin_init_metadata_for_spec, registry_entry_to_spec, repo_slug, topological_sort_specs,
+    write_specs_to_file, PluginRegistryEntry, PluginSpec, PLUGIN_REGISTRY_FILE,
 };
 use crate::lua::plugin_git::{checkout_ref, clone_repo};
 use crate::lua::vendor::ensure_external_installed;
@@ -20,9 +19,7 @@ fn repo_checkout_path(plugins_dir: &Path, repo: &str) -> std::path::PathBuf {
 }
 
 pub fn spec_exists(plugins_dir: &Path, plugin_id: &str) -> bool {
-    load_specs(plugins_dir)
-        .iter()
-        .any(|s| s.id == plugin_id)
+    load_specs(plugins_dir).iter().any(|s| s.id == plugin_id)
 }
 
 pub fn install_plugin_from_dependency(
@@ -122,10 +119,7 @@ pub fn resolve_plugin_deps(plugins_dir: &Path, plugin_id: &str) -> Result<(), St
         .clone();
 
     let meta = read_plugin_init_metadata_for_spec(plugins_dir, &spec);
-    let deps = meta
-        .dependencies
-        .or(spec.dependencies)
-        .unwrap_or_default();
+    let deps = meta.dependencies.or(spec.dependencies).unwrap_or_default();
     for dep in &deps {
         install_plugin_from_dependency(plugins_dir, dep)?;
     }
@@ -139,7 +133,10 @@ pub fn resolve_plugin_deps(plugins_dir: &Path, plugin_id: &str) -> Result<(), St
 
 pub fn declared_dep_ids_for_spec(plugins_dir: &Path, spec: &PluginSpec) -> Vec<String> {
     let meta = read_plugin_init_metadata_for_spec(plugins_dir, spec);
-    let deps = meta.dependencies.or(spec.dependencies.clone()).unwrap_or_default();
+    let deps = meta
+        .dependencies
+        .or(spec.dependencies.clone())
+        .unwrap_or_default();
     dependency_ids(&deps)
 }
 

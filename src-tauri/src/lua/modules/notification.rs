@@ -1,5 +1,5 @@
-use mlua::{Lua, Result, Table, LuaSerdeExt};
 use super::ModuleContext;
+use mlua::{Lua, LuaSerdeExt, Result, Table};
 use tauri::Emitter;
 
 pub fn register(lua: &Lua, vault: &Table, ctx: &ModuleContext) -> Result<()> {
@@ -9,10 +9,13 @@ pub fn register(lua: &Lua, vault: &Table, ctx: &ModuleContext) -> Result<()> {
         notification.set(
             "success",
             lua.create_function(move |_, msg: String| {
-                let _ = app_success.emit("plugin:notification", serde_json::json!({
-                    "level": "success",
-                    "message": msg
-                }));
+                let _ = app_success.emit(
+                    "plugin:notification",
+                    serde_json::json!({
+                        "level": "success",
+                        "message": msg
+                    }),
+                );
                 Ok(())
             })?,
         )?;
@@ -21,10 +24,13 @@ pub fn register(lua: &Lua, vault: &Table, ctx: &ModuleContext) -> Result<()> {
         notification.set(
             "info",
             lua.create_function(move |_, msg: String| {
-                let _ = app_info.emit("plugin:notification", serde_json::json!({
-                    "level": "info",
-                    "message": msg
-                }));
+                let _ = app_info.emit(
+                    "plugin:notification",
+                    serde_json::json!({
+                        "level": "info",
+                        "message": msg
+                    }),
+                );
                 Ok(())
             })?,
         )?;
@@ -33,10 +39,13 @@ pub fn register(lua: &Lua, vault: &Table, ctx: &ModuleContext) -> Result<()> {
         notification.set(
             "error",
             lua.create_function(move |_, msg: String| {
-                let _ = app_error.emit("plugin:notification", serde_json::json!({
-                    "level": "error",
-                    "message": msg
-                }));
+                let _ = app_error.emit(
+                    "plugin:notification",
+                    serde_json::json!({
+                        "level": "error",
+                        "message": msg
+                    }),
+                );
                 Ok(())
             })?,
         )?;
@@ -45,10 +54,13 @@ pub fn register(lua: &Lua, vault: &Table, ctx: &ModuleContext) -> Result<()> {
         notification.set(
             "warn",
             lua.create_function(move |_, msg: String| {
-                let _ = app_warn.emit("plugin:notification", serde_json::json!({
-                    "level": "warn",
-                    "message": msg
-                }));
+                let _ = app_warn.emit(
+                    "plugin:notification",
+                    serde_json::json!({
+                        "level": "warn",
+                        "message": msg
+                    }),
+                );
                 Ok(())
             })?,
         )?;
@@ -74,7 +86,9 @@ pub fn register(lua: &Lua, vault: &Table, ctx: &ModuleContext) -> Result<()> {
                     persist: Option<bool>,
                 }
                 let opts: ShowOpts = lua.from_value(opts_val)?;
-                let pid = lua.globals().get::<Option<String>>("__current_plugin_id")
+                let pid = lua
+                    .globals()
+                    .get::<Option<String>>("__current_plugin_id")
                     .ok()
                     .flatten()
                     .unwrap_or_else(|| "unknown".to_string());
@@ -83,9 +97,7 @@ pub fn register(lua: &Lua, vault: &Table, ctx: &ModuleContext) -> Result<()> {
                     .unwrap_or_default()
                     .into_iter()
                     .map(|a| {
-                        let full_command = a
-                            .command
-                            .map(|c| format!("plugin:{}:{}", pid, c));
+                        let full_command = a.command.map(|c| format!("plugin:{}:{}", pid, c));
                         serde_json::json!({
                             "id": a.id,
                             "label": a.label,
@@ -94,15 +106,18 @@ pub fn register(lua: &Lua, vault: &Table, ctx: &ModuleContext) -> Result<()> {
                         })
                     })
                     .collect();
-                let _ = app_show.emit("plugin:notification-rich", serde_json::json!({
-                    "pluginId": pid,
-                    "severity": opts.severity.unwrap_or_else(|| "info".to_string()),
-                    "title": opts.title,
-                    "message": opts.message,
-                    "source": opts.source,
-                    "actions": actions,
-                    "persist": opts.persist,
-                }));
+                let _ = app_show.emit(
+                    "plugin:notification-rich",
+                    serde_json::json!({
+                        "pluginId": pid,
+                        "severity": opts.severity.unwrap_or_else(|| "info".to_string()),
+                        "title": opts.title,
+                        "message": opts.message,
+                        "source": opts.source,
+                        "actions": actions,
+                        "persist": opts.persist,
+                    }),
+                );
                 Ok(())
             })?,
         )?;

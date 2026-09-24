@@ -1,9 +1,21 @@
+pub mod dialogs;
+pub mod events;
+pub mod pages;
+pub mod store_state;
+pub mod types;
+
+pub use dialogs::{validate_table_dialog, validate_toast, ToastOptions};
+pub use store_state::{PluginStoreState, StoreEntry};
+pub use types::{ConfirmOptions, PaginationOptions, TableColumn, TableRow, TableViewOptions};
+
+pub const SIGNALS_LUAU: &str = include_str!("signals.luau");
+
+use crate::error::StableError;
+use serde::{Deserialize, Serialize};
 use std::collections::HashMap;
 use std::sync::{Arc, Mutex};
-use serde::{Deserialize, Serialize};
 use tauri::{AppHandle, Emitter};
 use tokio::sync::oneshot;
-use crate::error::StableError;
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
@@ -117,13 +129,16 @@ pub async fn show_input_box(
     tokio::time::sleep(std::time::Duration::from_millis(150)).await;
     let id = uuid::Uuid::new_v4().to_string();
     let (tx, rx) = oneshot::channel();
-    
+
     bridge.register(id.clone(), tx);
-    
-    app.emit("plugin:show-input", (id, options)).map_err(|e| StableError::new(crate::error::codes::INTERNAL, e.to_string()))?;
-    
-    let res = rx.await.map_err(|e| StableError::new(crate::error::codes::INTERNAL, e.to_string()))?;
-    
+
+    app.emit("plugin:show-input", (id, options))
+        .map_err(|e| StableError::new(crate::error::codes::INTERNAL, e.to_string()))?;
+
+    let res = rx
+        .await
+        .map_err(|e| StableError::new(crate::error::codes::INTERNAL, e.to_string()))?;
+
     Ok(res.as_str().map(|s| s.to_string()))
 }
 
@@ -135,13 +150,16 @@ pub async fn show_quick_pick(
     tokio::time::sleep(std::time::Duration::from_millis(150)).await;
     let id = uuid::Uuid::new_v4().to_string();
     let (tx, rx) = oneshot::channel();
-    
+
     bridge.register(id.clone(), tx);
-    
-    app.emit("plugin:show-quick-pick", (id, options)).map_err(|e| StableError::new(crate::error::codes::INTERNAL, e.to_string()))?;
-    
-    let res = rx.await.map_err(|e| StableError::new(crate::error::codes::INTERNAL, e.to_string()))?;
-    
+
+    app.emit("plugin:show-quick-pick", (id, options))
+        .map_err(|e| StableError::new(crate::error::codes::INTERNAL, e.to_string()))?;
+
+    let res = rx
+        .await
+        .map_err(|e| StableError::new(crate::error::codes::INTERNAL, e.to_string()))?;
+
     Ok(res.as_str().map(|s| s.to_string()))
 }
 
@@ -156,15 +174,78 @@ pub async fn show_form(
 
     bridge.register(id.clone(), tx);
 
-    app.emit("plugin:show-form", (id, options)).map_err(|e| StableError::new(crate::error::codes::INTERNAL, e.to_string()))?;
+    app.emit("plugin:show-form", (id, options))
+        .map_err(|e| StableError::new(crate::error::codes::INTERNAL, e.to_string()))?;
 
-    let res = rx.await.map_err(|e| StableError::new(crate::error::codes::INTERNAL, e.to_string()))?;
+    let res = rx
+        .await
+        .map_err(|e| StableError::new(crate::error::codes::INTERNAL, e.to_string()))?;
 
     if res.is_null() {
         Ok(None)
     } else {
         Ok(Some(res))
     }
+}
+
+pub async fn show_table_dialog(
+    app: AppHandle,
+    bridge: &UiBridge,
+    options: dialogs::TableDialogOptions,
+) -> Result<Option<String>, StableError> {
+    dialogs::validate_table_dialog(&options)
+        .map_err(|m| StableError::new(crate::error::codes::INTERNAL, m))?;
+    tokio::time::sleep(std::time::Duration::from_millis(150)).await;
+    let id = uuid::Uuid::new_v4().to_string();
+    let (tx, rx) = oneshot::channel();
+    bridge.register(id.clone(), tx);
+    app.emit(events::SHOW_TABLE, (id, options))
+        .map_err(|e| StableError::new(crate::error::codes::INTERNAL, e.to_string()))?;
+    let res = rx
+        .await
+        .map_err(|e| StableError::new(crate::error::codes::INTERNAL, e.to_string()))?;
+    Ok(res.as_str().map(|s| s.to_string()))
+}
+
+pub async fn show_confirm_dialog(
+    app: AppHandle,
+    bridge: &UiBridge,
+    options: ConfirmOptions,
+) -> Result<bool, StableError> {
+    if options.title.trim().is_empty() {
+        return Err(StableError::new(
+            crate::error::codes::INTERNAL,
+            "confirm title must not be empty",
+        ));
+    }
+    tokio::time::sleep(std::time::Duration::from_millis(150)).await;
+    let id = uuid::Uuid::new_v4().to_string();
+    let (tx, rx) = oneshot::channel();
+    bridge.register(id.clone(), tx);
+    app.emit(events::SHOW_CONFIRM, (id, options))
+        .map_err(|e| StableError::new(crate::error::codes::INTERNAL, e.to_string()))?;
+    let res = rx
+        .await
+        .map_err(|e| StableError::new(crate::error::codes::INTERNAL, e.to_string()))?;
+    Ok(res.as_bool().unwrap_or(false))
+}
+
+pub fn emit_toast(
+    app: &AppHandle,
+    plugin_id: &str,
+    options: ToastOptions,
+) -> Result<(), StableError> {
+    validate_toast(&options).map_err(|m| StableError::new(crate::error::codes::INTERNAL, m))?;
+    app.emit(
+        events::SHOW_TOAST,
+        serde_json::json!({
+            "pluginId": plugin_id,
+            "title": options.title,
+            "message": options.message,
+            "severity": options.severity.unwrap_or_else(|| "info".to_string()),
+        }),
+    )
+    .map_err(|e| StableError::new(crate::error::codes::INTERNAL, e.to_string()))
 }
 
 #[tauri::command]
@@ -176,7 +257,10 @@ pub async fn resolve_plugin_ui(
     if bridge.resolve(&id, value) {
         Ok(())
     } else {
-        Err(StableError::new(crate::error::codes::NOT_FOUND, "pending UI not found"))
+        Err(StableError::new(
+            crate::error::codes::NOT_FOUND,
+            "pending UI not found",
+        ))
     }
 }
 

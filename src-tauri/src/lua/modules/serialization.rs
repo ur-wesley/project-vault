@@ -1,5 +1,5 @@
-use mlua::{Lua, LuaSerdeExt, Result, Table};
 use super::ModuleContext;
+use mlua::{Lua, LuaSerdeExt, Result, Table};
 
 pub fn register(lua: &Lua, vault: &Table, _ctx: &ModuleContext) -> Result<()> {
     // vault.json module

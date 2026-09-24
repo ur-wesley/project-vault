@@ -5,8 +5,8 @@ use mlua::Lua;
 
 use crate::error::StableError;
 use crate::lua::deps::{
-    ExternalDependency, ExternalLockEntry, VENDOR_LOCK_FILE, is_allowed_git_url,
-    load_vendor_lock, write_vendor_lock,
+    is_allowed_git_url, load_vendor_lock, write_vendor_lock, ExternalDependency, ExternalLockEntry,
+    VENDOR_LOCK_FILE,
 };
 use crate::lua::plugin_git::{checkout_ref, clone_repo, rev_parse_head};
 
@@ -27,9 +27,8 @@ pub fn merge_vendor_lock(
     dep: &ExternalDependency,
     commit: &str,
 ) -> Result<(), StableError> {
-    let lua = crate::lua::engine::LuaEngine::create_instance().map_err(|e| {
-        StableError::new(crate::error::codes::INTERNAL, format!("lua init: {}", e))
-    })?;
+    let lua = crate::lua::engine::LuaEngine::create_instance()
+        .map_err(|e| StableError::new(crate::error::codes::INTERNAL, format!("lua init: {}", e)))?;
     let lock_path = vendor_lock_path(plugins_dir);
     let mut entries = load_vendor_lock(&lua, &lock_path);
     let new_entry = {
@@ -75,22 +74,18 @@ pub fn resolve_external_spec(
     plugins_dir: &Path,
     dep: &ExternalDependency,
 ) -> Result<ExternalLockEntry, StableError> {
-    let lua = crate::lua::engine::LuaEngine::create_instance().map_err(|e| {
-        StableError::new(crate::error::codes::INTERNAL, format!("lua init: {}", e))
-    })?;
+    let lua = crate::lua::engine::LuaEngine::create_instance()
+        .map_err(|e| StableError::new(crate::error::codes::INTERNAL, format!("lua init: {}", e)))?;
     let lock_path = vendor_lock_path(plugins_dir);
     let entries = load_vendor_lock(&lua, &lock_path);
 
     match dep {
-        ExternalDependency::Id(id) => entries
-            .into_iter()
-            .find(|e| e.id == *id)
-            .ok_or_else(|| {
-                StableError::new(
-                    crate::error::codes::NOT_FOUND,
-                    format!("external '{}' not found in vendor-lock", id),
-                )
-            }),
+        ExternalDependency::Id(id) => entries.into_iter().find(|e| e.id == *id).ok_or_else(|| {
+            StableError::new(
+                crate::error::codes::NOT_FOUND,
+                format!("external '{}' not found in vendor-lock", id),
+            )
+        }),
         ExternalDependency::Spec(spec) => {
             if let Some(repo) = &spec.repo {
                 if !is_allowed_git_url(repo) {
@@ -117,7 +112,10 @@ pub fn resolve_external_spec(
             } else {
                 Err(StableError::new(
                     crate::error::codes::NOT_FOUND,
-                    format!("external '{}' has no repo and is not in vendor-lock", spec.id),
+                    format!(
+                        "external '{}' has no repo and is not in vendor-lock",
+                        spec.id
+                    ),
                 ))
             }
         }
@@ -146,9 +144,8 @@ pub fn ensure_external_installed(
 }
 
 pub fn sync_vendor_lockfile(plugins_dir: &Path) -> Result<Vec<ExternalLockEntry>, StableError> {
-    let lua = crate::lua::engine::LuaEngine::create_instance().map_err(|e| {
-        StableError::new(crate::error::codes::INTERNAL, format!("lua init: {}", e))
-    })?;
+    let lua = crate::lua::engine::LuaEngine::create_instance()
+        .map_err(|e| StableError::new(crate::error::codes::INTERNAL, format!("lua init: {}", e)))?;
     let lock_path = vendor_lock_path(plugins_dir);
     let entries = load_vendor_lock(&lua, &lock_path);
     let mut updated = Vec::new();

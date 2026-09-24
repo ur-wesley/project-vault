@@ -1,5 +1,5 @@
-use tauri::AppHandle;
 use crate::lua::ui::UiBridge;
+use tauri::AppHandle;
 
 #[derive(Clone)]
 pub struct ModuleContext {
@@ -9,21 +9,23 @@ pub struct ModuleContext {
 }
 
 pub mod app_settings;
+pub mod event;
 pub mod external_api;
-pub mod plugin_api;
-pub mod log;
-pub mod notification;
-pub mod settings;
-pub mod theme;
-pub mod i18n;
-pub mod projects;
-pub mod mise;
 pub mod fs;
-pub mod serialization;
-pub mod ui_ext;
 pub mod git;
 pub mod github;
-pub mod event;
+pub mod i18n;
+pub mod log;
+pub mod mise;
+pub mod notification;
+pub mod plugin_api;
+pub mod postgres;
 pub mod process;
+pub mod projects;
+pub mod serialization;
+pub mod settings;
 pub mod shell;
-
+pub mod store;
+pub mod system;
+pub mod theme;
+pub mod ui_ext;

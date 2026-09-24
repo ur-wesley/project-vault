@@ -245,6 +245,101 @@ export type PluginPageOptions = {
     items: { QuickPickItem },
 }
 
+export type TableColumn = {
+    id: string,
+    header: string,
+    accessor: string?,
+    kind: ("text" | "badge" | "icon" | "link" | "progress" | "code" | "date" | "actions")?,
+    sortable: boolean?,
+    width: number?,
+    align: ("left" | "center" | "right")?,
+}
+
+export type TableRow = {
+    id: string,
+    cells: { [string]: any },
+}
+
+--- Per-row buttons: a column with kind "actions" renders its cell
+--- (an array of up to 4 buttons) as inline buttons. Clicking one runs
+--- `execute(button.command or button.id, { pageId, itemId = <row id> })`.
+export type TableCellAction = {
+    id: string,
+    label: string,
+    icon: string?,
+    command: string?,
+}
+
+export type TableViewOptions = {
+    id: string?,
+    columns: { TableColumn },
+    rows: { TableRow },
+    searchable: boolean?,
+    sortable: boolean?,
+    pageSize: number?,
+    rowCommand: string?,
+    layout: ("page" | "fill")?,
+    maxHeight: number?,
+}
+
+export type TableDialogOptions = {
+    title: string,
+    columns: { TableColumn },
+    rows: { TableRow },
+    searchable: boolean?,
+    paginationPageSize: number?,
+}
+
+export type ConfirmOptions = {
+    title: string,
+    message: string?,
+    okLabel: string?,
+    cancelLabel: string?,
+    danger: boolean?,
+}
+
+export type ToastOptions = {
+    title: string,
+    message: string?,
+    severity: ("info" | "success" | "warn" | "error")?,
+}
+
+export type ScrollViewOptions = {
+    id: string?,
+    children: { ViewSpec },
+    maxHeight: number?,
+}
+
+export type ViewSpec = {
+    kind: "list" | "table" | "form" | "stack" | "stats" | "tabs" | "markdown" | "scroll",
+    id: string?,
+    title: string?,
+    [string]: any,
+}
+
+export type SetViewOptions = {
+    id: string,
+    title: string?,
+    view: ViewSpec,
+}
+
+export type VaultStore = {
+    --- Defines a per-plugin store key with an initial value. persist=true writes through to SQLite.
+    define: (options: { key: string, initial: any?, persist: boolean? }) -> { value: any, version: number },
+    --- Sets a store key (creates if missing). Bumps version and notifies bound views.
+    set: (key: string, value: any) -> { value: any, version: number },
+    --- Reads a store key value or nil.
+    get: (key: string) -> any?,
+    --- Removes a store key. Returns true when a key was removed.
+    remove: (key: string) -> boolean,
+    --- Lists all keys defined by this plugin.
+    list: () -> { string },
+    --- Toggles SQLite persistence for an existing key.
+    set_persist: (key: string, persist: boolean) -> boolean,
+    --- Removes all keys of this plugin.
+    clear: () -> (),
+}
+
 export type VaultUI = {
     --- Prompts the user with a text input box. Returns the entered string or nil if cancelled.
     show_input_box: (options: InputBoxOptions) -> string?,
@@ -252,6 +347,12 @@ export type VaultUI = {
     show_quick_pick: (options: QuickPickOptions) -> string?,
     --- Renders a multi-input form dialog with validation. Returns { field_id = value } or nil if cancelled.
     show_form: (options: FormOptions) -> { [string]: any }?,
+    --- Renders a sortable/filterable/paginated data-table dialog. Returns the clicked row id or nil.
+    show_table: (options: TableDialogOptions) -> string?,
+    --- Renders a confirm dialog. Returns true when confirmed.
+    show_confirm: (options: ConfirmOptions) -> boolean,
+    --- Shows a fire-and-forget toast notification.
+    show_toast: (options: ToastOptions) -> (),
     --- Navigates the UI to a project, opening a specific file and line.
     open_project_file: (projectId: string, filePath: string, line: number?) -> (),
     --- Creates or updates a persistent segment in the app footer/status bar.
@@ -265,12 +366,60 @@ export type VaultUI = {
     clear_header_widget: (id: string) -> (),
     --- Renders a beautiful markdown viewer dialog modal with the given raw markdown content.
     show_markdown_dialog: (title: string, markdownContent: string) -> (),
-    --- Creates or updates a persistent plugin page (list view).
+    --- Creates or updates a persistent plugin page (list view, legacy).
     set_page: (options: PluginPageOptions) -> (),
+    --- Creates or updates a plugin page with a versioned native view spec (table/form/stack/...).
+    set_view: (options: SetViewOptions) -> (),
+    --- Partially updates a plugin page view without full resend.
+    update_view: (options: { id: string, patch: any }) -> (),
     --- Removes a plugin page by its id.
     clear_page: (id: string) -> (),
     --- Navigates the host UI to a declared plugin page.
     open_page: (id: string) -> (),
+}
+
+export type VaultPostgres = {
+    --- JSON array of supported major versions, e.g. ["13","14","15","16","17"].
+    supported_versions: () -> string,
+    --- JSON array of { version, installed, path? }.
+    list_versions: () -> string,
+    --- Downloads + unpacks EDB portable binaries (emits progress notifications).
+    install_version: (version: string) -> (),
+    --- Removes an installed version (fails when a cluster still uses it).
+    remove_version: (version: string) -> (),
+    --- JSON { psql?, pg_ctl?, initdb? } for system tools found on PATH.
+    detect_system: () -> string,
+    --- JSON array of { name, version, port, running, pid?, data_dir }.
+    list_clusters: () -> string,
+    --- JSON status of one cluster.
+    cluster_status: (name: string) -> string,
+    --- Creates + initdbs a cluster; port nil = version default (probed free).
+    create_cluster: (name: string, version: string, port: number?) -> string,
+    --- pg_ctl start (waits for socket). Returns JSON status.
+    start_cluster: (name: string) -> string,
+    --- pg_ctl stop -m fast. Returns JSON status.
+    stop_cluster: (name: string) -> string,
+    --- stop + start. Returns JSON status.
+    restart_cluster: (name: string) -> string,
+    --- Stops (if running) and deletes the cluster directory + record.
+    destroy_cluster: (name: string) -> (),
+    --- Last N lines of the cluster logfile.
+    get_log: (name: string, lines: number?) -> string,
+    --- JSON array of external connections { id, name, host, port, database, user }.
+    list_connections: () -> string,
+    --- Registers an external instance (password is never persisted; pass per call).
+    add_connection: (name: string, host: string, port: number?, database: string?, user: string?) -> string,
+    --- Removes an external connection registration.
+    remove_connection: (id: string) -> (),
+    --- Target is "cluster:<name>" or "ext:<id>" (bare cluster names still work).
+    --- JSON { columns, rows, row_count, truncated } of non-template DBs.
+    list_databases: (target: string, password: string?) -> string,
+    --- JSON { columns, rows, ... } of tables in schema (default "public").
+    list_tables: (target: string, database: string, schema: string?, password: string?) -> string,
+    --- Paginated SELECT * (limit clamped 1..200). JSON result.
+    preview_table: (target: string, database: string, schema: string?, table: string, limit: number?, offset: number?, password: string?) -> string,
+    --- Guarded read-only query (SELECT/WITH/EXPLAIN/VALUES only, LIMIT applied). JSON result.
+    run_select: (target: string, database: string, sql: string, limit: number?, password: string?) -> string,
 }
 
 export type VaultMise = {
@@ -289,6 +438,9 @@ export type VaultGit = {
     run: (projectId: string, args: { string }) -> { success: boolean, stdout: string, stderr: string },
     --- Gets Git status details for the project.
     get_status: (projectId: string) -> string,
+    --- Batch scan: one round-trip, statuses computed concurrently on the
+    --- host. Returns a JSON-serialized list of `{ projectId, status }`.
+    get_statuses: (projectIds: { string }) -> string,
     --- Returns a JSON-serialized list of last commits for the given project.
     log: (projectId: string, maxCount: number?) -> string,
     --- Returns the current git status for the project as a JSON-serialized string, or nil.
@@ -331,6 +483,32 @@ export type VaultShell = {
     open_path: (path: string) -> (),
     --- Executes a shell command synchronously in the background, returning status and buffers.
     execute: (command: string, args: { string }?, cwd: string?) -> ShellExecuteResult,
+}
+
+export type VaultSystemInfo = {
+    os: string,
+    osVersion: string?,
+    kernelVersion: string?,
+    arch: string,
+    hostname: string?,
+    cpuCount: number,
+}
+
+export type VaultSystemStats = {
+    cpuUsagePct: number,
+    perCpuPct: { number },
+    totalMemoryBytes: number,
+    usedMemoryBytes: number,
+    freeMemoryBytes: number,
+    availableMemoryBytes: number,
+}
+
+export type VaultSystem = {
+    --- Static host facts as JSON: { os, osVersion?, kernelVersion?, arch, hostname?, cpuCount }.
+    info: () -> string,
+    --- Live snapshot as JSON: { cpuUsagePct, perCpuPct, totalMemoryBytes,
+    --- usedMemoryBytes, freeMemoryBytes, availableMemoryBytes }. Safe to poll at ~0.5 Hz.
+    stats: () -> string,
 }
 
 export type PluginCommandMetadata = {
@@ -402,14 +580,25 @@ export type Vault = {
     theme: VaultTheme,
     i18n: VaultI18n,
     ui: VaultUI,
+    store: VaultStore,
     mise: VaultMise,
+    postgres: VaultPostgres,
     git: VaultGit,
     github: VaultGithub,
     process: VaultProcess,
     event: VaultEvent,
     shell: VaultShell,
+    system: VaultSystem,
     plugin: VaultPlugin,
     external: VaultExternal,
+    --- Solid-style reactive signal. Returns getter + setter bound to this plugin.
+    createSignal: (initial: any) -> ((() -> any) & ((any) -> ())),
+    --- Reactive memo recomputed when its dependencies change.
+    createMemo: (fn: () -> any) -> (() -> any),
+    --- Reactive effect re-running when tracked signals change.
+    createEffect: (fn: () -> ()) -> (() -> ()),
+    --- Batches signal updates into a single flush.
+    batch: (fn: () -> ()) -> (),
 }
 
 -- This module is never required at runtime (vault is injected as a global).

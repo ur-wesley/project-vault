@@ -1,5 +1,5 @@
-use mlua::{Lua, Result, Table};
 use super::ModuleContext;
+use mlua::{Lua, Result, Table};
 use tauri::Manager;
 
 pub fn register(lua: &Lua, vault: &Table, ctx: &ModuleContext) -> Result<()> {
@@ -12,8 +12,12 @@ pub fn register(lua: &Lua, vault: &Table, ctx: &ModuleContext) -> Result<()> {
                 let app = app_c.clone();
                 async move {
                     let db = app.state::<tauri_plugin_sql::DbInstances>();
-                    let pool = crate::db::sqlite_pool(&*db).await.map_err(|e| mlua::Error::RuntimeError(e.message))?;
-                    let val = crate::db::get_setting(&pool, "ui_locale").await.map_err(|e| mlua::Error::RuntimeError(e.message))?;
+                    let pool = crate::db::sqlite_pool(&*db)
+                        .await
+                        .map_err(|e| mlua::Error::RuntimeError(e.message))?;
+                    let val = crate::db::get_setting(&pool, "ui_locale")
+                        .await
+                        .map_err(|e| mlua::Error::RuntimeError(e.message))?;
                     Ok(val.unwrap_or_else(|| "en".to_string()))
                 }
             })?,
@@ -21,9 +25,7 @@ pub fn register(lua: &Lua, vault: &Table, ctx: &ModuleContext) -> Result<()> {
     } else {
         i18n_mod.set(
             "get_locale",
-            lua.create_function(|_, _: ()| {
-                Ok("en".to_string())
-            })?,
+            lua.create_function(|_, _: ()| Ok("en".to_string()))?,
         )?;
     }
     vault.set("i18n", i18n_mod)?;

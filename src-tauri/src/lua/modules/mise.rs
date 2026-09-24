@@ -1,5 +1,5 @@
-use mlua::{Lua, Result, Table};
 use super::ModuleContext;
+use mlua::{Lua, Result, Table};
 use tauri::{Emitter, Manager};
 
 pub fn register(lua: &Lua, vault: &Table, ctx: &ModuleContext) -> Result<()> {
@@ -12,10 +12,14 @@ pub fn register(lua: &Lua, vault: &Table, ctx: &ModuleContext) -> Result<()> {
                 let app = app_get.clone();
                 async move {
                     let db = app.state::<tauri_plugin_sql::DbInstances>();
-                    let pool = crate::db::sqlite_pool(&*db).await.map_err(|e| mlua::Error::RuntimeError(e.message))?;
-                    let project = crate::db::get_project(&pool, &project_id).await.map_err(|e| mlua::Error::RuntimeError(e.message))?;
+                    let pool = crate::db::sqlite_pool(&*db)
+                        .await
+                        .map_err(|e| mlua::Error::RuntimeError(e.message))?;
+                    let project = crate::db::get_project(&pool, &project_id)
+                        .await
+                        .map_err(|e| mlua::Error::RuntimeError(e.message))?;
                     let root = std::path::Path::new(&project.path);
-                    
+
                     if !root.is_dir() {
                         return Ok("[]".to_string());
                     }
@@ -33,14 +37,21 @@ pub fn register(lua: &Lua, vault: &Table, ctx: &ModuleContext) -> Result<()> {
                         return Ok("[]".to_string());
                     }
 
-                    let v: serde_json::Value = serde_json::from_slice(&out.stdout).unwrap_or(serde_json::Value::Null);
+                    let v: serde_json::Value =
+                        serde_json::from_slice(&out.stdout).unwrap_or(serde_json::Value::Null);
                     let mut tools = Vec::new();
                     if let Some(obj) = v.as_object() {
                         for (name, versions) in obj {
                             if let Some(arr) = versions.as_array() {
                                 for item in arr {
-                                    let version = item.get("version").and_then(|v| v.as_str()).unwrap_or("unknown");
-                                    let active = item.get("active").and_then(|v| v.as_bool()).unwrap_or(false);
+                                    let version = item
+                                        .get("version")
+                                        .and_then(|v| v.as_str())
+                                        .unwrap_or("unknown");
+                                    let active = item
+                                        .get("active")
+                                        .and_then(|v| v.as_bool())
+                                        .unwrap_or(false);
                                     if active {
                                         tools.push(serde_json::json!({
                                             "name": name,
@@ -64,10 +75,14 @@ pub fn register(lua: &Lua, vault: &Table, ctx: &ModuleContext) -> Result<()> {
                 let app = app_sug.clone();
                 async move {
                     let db = app.state::<tauri_plugin_sql::DbInstances>();
-                    let pool = crate::db::sqlite_pool(&*db).await.map_err(|e| mlua::Error::RuntimeError(e.message))?;
-                    let project = crate::db::get_project(&pool, &project_id).await.map_err(|e| mlua::Error::RuntimeError(e.message))?;
+                    let pool = crate::db::sqlite_pool(&*db)
+                        .await
+                        .map_err(|e| mlua::Error::RuntimeError(e.message))?;
+                    let project = crate::db::get_project(&pool, &project_id)
+                        .await
+                        .map_err(|e| mlua::Error::RuntimeError(e.message))?;
                     let root = std::path::Path::new(&project.path);
-                    
+
                     if !root.is_dir() {
                         return Ok("[]".to_string());
                     }
@@ -75,9 +90,10 @@ pub fn register(lua: &Lua, vault: &Table, ctx: &ModuleContext) -> Result<()> {
                     let suggestions = crate::mise_tools::suggest_tools_for_project(
                         root,
                         &project.stack,
-                        project.runtime_hint.as_deref()
+                        project.runtime_hint.as_deref(),
                     );
-                    let json = serde_json::to_string(&suggestions).map_err(mlua::Error::external)?;
+                    let json =
+                        serde_json::to_string(&suggestions).map_err(mlua::Error::external)?;
                     Ok(json)
                 }
             })?,
@@ -90,16 +106,22 @@ pub fn register(lua: &Lua, vault: &Table, ctx: &ModuleContext) -> Result<()> {
                 let app = app_pin.clone();
                 async move {
                     let db = app.state::<tauri_plugin_sql::DbInstances>();
-                    let pool = crate::db::sqlite_pool(&*db).await.map_err(|e| mlua::Error::RuntimeError(e.message))?;
-                    let project = crate::db::get_project(&pool, &project_id).await.map_err(|e| mlua::Error::RuntimeError(e.message))?;
+                    let pool = crate::db::sqlite_pool(&*db)
+                        .await
+                        .map_err(|e| mlua::Error::RuntimeError(e.message))?;
+                    let project = crate::db::get_project(&pool, &project_id)
+                        .await
+                        .map_err(|e| mlua::Error::RuntimeError(e.message))?;
                     let root = std::path::Path::new(&project.path);
-                    
+
                     if !root.is_dir() {
-                        return Err(mlua::Error::RuntimeError("project path is not a directory".to_string()));
+                        return Err(mlua::Error::RuntimeError(
+                            "project path is not a directory".to_string(),
+                        ));
                     }
 
-                    let tools: Vec<crate::models::MiseToolSuggestionDto> = serde_json::from_str(&tools_json)
-                        .map_err(mlua::Error::external)?;
+                    let tools: Vec<crate::models::MiseToolSuggestionDto> =
+                        serde_json::from_str(&tools_json).map_err(mlua::Error::external)?;
 
                     crate::mise_tools::pin_tools_to_mise(root, &tools)
                         .map_err(|e| mlua::Error::RuntimeError(e))?;
@@ -169,9 +191,18 @@ pub fn register(lua: &Lua, vault: &Table, ctx: &ModuleContext) -> Result<()> {
             })?,
         )?;
     } else {
-        mise.set("get_tools", lua.create_function(|_, _: String| Ok("[]".to_string()))?)?;
-        mise.set("get_suggestions", lua.create_function(|_, _: String| Ok("[]".to_string()))?)?;
-        mise.set("pin_tools", lua.create_function(|_, _: (String, String)| Ok(()))?)?;
+        mise.set(
+            "get_tools",
+            lua.create_function(|_, _: String| Ok("[]".to_string()))?,
+        )?;
+        mise.set(
+            "get_suggestions",
+            lua.create_function(|_, _: String| Ok("[]".to_string()))?,
+        )?;
+        mise.set(
+            "pin_tools",
+            lua.create_function(|_, _: (String, String)| Ok(()))?,
+        )?;
         mise.set("install_tools", lua.create_function(|_, _: String| Ok(()))?)?;
     }
     vault.set("mise", mise)?;
