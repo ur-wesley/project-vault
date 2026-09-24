@@ -41,7 +41,7 @@ Extend `SearchSchema` with the following fields and a schema version constant:
 - `mtime` — `U64`, file modification time in ms since epoch. Allows the indexer to skip unchanged files on a future incremental update.
 - `size` — `U64`, file size in bytes. Diagnostic.
 
-Keep `content` and `language`. Drop the original `path` field's role as a fuzzy target and reuse it for storage of the relative path string (rename the *role* but keep the field name to minimize migration churn — Tantivy is name-based, so adding new fields is fine; the field named `path` continues to store the same string value).
+Keep `content` and `language`. Drop the original `path` field's role as a fuzzy target and reuse it for storage of the relative path string (rename the _role_ but keep the field name to minimize migration churn — Tantivy is name-based, so adding new fields is fine; the field named `path` continues to store the same string value).
 
 Add `pub const CURRENT_SCHEMA_VERSION: u32 = 2;` and persist a `meta.json` next to the index directory containing the version, written on every successful `build_project_index`.
 

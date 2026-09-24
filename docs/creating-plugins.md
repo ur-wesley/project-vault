@@ -42,28 +42,28 @@ Optional fields: `locales`, `config`, `options`, `category`, `pages`, `get_decor
 
 Lazy-loading hooks (usually on `init.luau`, not in the registry):
 
-| Field | Purpose |
-|-------|---------|
-| `lazy` | Defer loading until a command, key, or event triggers the plugin (default `true` for registry installs) |
-| `cmd` | Command ids that load the plugin when invoked |
-| `event` | App events (`startup`, `project_focus`, `git_status_changed`, …) that load the plugin |
-| `keys` | Keybinding ids that load the plugin |
-| `dependencies` | Other plugin ids (or `{ id, repo, dir }` tables) that must load first |
-| `externals` | Git-pinned Luau libraries in `plugins/vendor/` (string id or `{ id, repo, main }`) |
-| `exports` | Public API table for library plugins (`category = "library"`) |
+| Field          | Purpose                                                                                                 |
+| -------------- | ------------------------------------------------------------------------------------------------------- |
+| `lazy`         | Defer loading until a command, key, or event triggers the plugin (default `true` for registry installs) |
+| `cmd`          | Command ids that load the plugin when invoked                                                           |
+| `event`        | App events (`startup`, `project_focus`, `git_status_changed`, …) that load the plugin                   |
+| `keys`         | Keybinding ids that load the plugin                                                                     |
+| `dependencies` | Other plugin ids (or `{ id, repo, dir }` tables) that must load first                                   |
+| `externals`    | Git-pinned Luau libraries in `plugins/vendor/` (string id or `{ id, repo, main }`)                      |
+| `exports`      | Public API table for library plugins (`category = "library"`)                                           |
 
 ### Lifecycle hooks and git events
 
 The engine calls `plugin.execute(command_id, context)` for hooks that are not user commands. Implement only what your plugin needs:
 
-| Hook / Tauri event | When fired | Plugin `command_id` |
-|--------------------|------------|------------------------|
-| — | App startup, plugin enabled | `init` |
-| — | User opens a different project | `project_focus` |
-| — | Detail tab or sub-view changes | `project_state_changed` |
-| `project:changed` (`changeType`: `git`, `version-bump`, `git-clean`) | Built-in git commands, watcher, or `vault.event.publish` | — (UI cache invalidation only) |
-| `git:status-changed` | Same sources as above (paired with `project:changed`) | — |
-| — | After git events, frontend dispatches to all enabled plugins | `git_status_changed` |
+| Hook / Tauri event                                                   | When fired                                                   | Plugin `command_id`            |
+| -------------------------------------------------------------------- | ------------------------------------------------------------ | ------------------------------ |
+| —                                                                    | App startup, plugin enabled                                  | `init`                         |
+| —                                                                    | User opens a different project                               | `project_focus`                |
+| —                                                                    | Detail tab or sub-view changes                               | `project_state_changed`        |
+| `project:changed` (`changeType`: `git`, `version-bump`, `git-clean`) | Built-in git commands, watcher, or `vault.event.publish`     | — (UI cache invalidation only) |
+| `git:status-changed`                                                 | Same sources as above (paired with `project:changed`)        | —                              |
+| —                                                                    | After git events, frontend dispatches to all enabled plugins | `git_status_changed`           |
 
 Example handler:
 
@@ -96,13 +96,13 @@ pages = {
 },
 ```
 
-| Field | Purpose |
-|-------|---------|
-| `id` | Page id (scoped to the plugin) |
-| `title` | Sidebar label and default page title |
-| `icon` | Optional Iconify icon for the sidebar |
+| Field           | Purpose                                                               |
+| --------------- | --------------------------------------------------------------------- |
+| `id`            | Page id (scoped to the plugin)                                        |
+| `title`         | Sidebar label and default page title                                  |
+| `icon`          | Optional Iconify icon for the sidebar                                 |
 | `defaultPinned` | When `true`, the page appears in the sidebar until the user unpins it |
-| `command` | Plugin command run when the page is opened (load / refresh content) |
+| `command`       | Plugin command run when the page is opened (load / refresh content)   |
 
 ### Push list content
 
@@ -121,23 +121,27 @@ vault.ui.set_page({
 vault.ui.open_page("dirty")
 ```
 
-* **`vault.ui.set_page(options)`** — create or update page content (`id`, optional `title`, optional `itemCommand`, `items`).
-* **`vault.ui.open_page(pageId)`** — navigate the host to `/plugins/<pluginId>/<pageId>`.
-* **`vault.ui.clear_page(pageId)`** — remove stored page content.
+- **`vault.ui.set_page(options)`** — create or update page content (`id`, optional `title`, optional `itemCommand`, `items`).
+- **`vault.ui.open_page(pageId)`** — navigate the host to `/plugins/<pluginId>/<pageId>`.
+- **`vault.ui.clear_page(pageId)`** — remove stored page content.
 
 When a row is clicked, the host runs `itemCommand` with context `{ pageId, itemId }`. Section rows (`id` starting with `section_`) are not clickable.
 
 Pin state is stored per machine in `localStorage`; users can pin or unpin from the page header or sidebar context menu.
 
+> **Full UI cookbook:** tables, composed `stack` pages, table/confirm/toast
+> dialogs, the per-plugin store, and signals are documented with copy-paste Lua
+> in [plugin-ui.md](./plugin-ui.md). Start there for anything beyond a list page.
+
 ## Where files live on disk
 
-| Path | Purpose |
-|------|---------|
-| `plugins/lazy-config.luau` | Your machine: which plugins are enabled, `repo` + `dir` paths |
-| `plugins/vault.luau` | App-managed API stubs (overwritten each start) |
-| `plugins/repos/<repo-slug>/` | Git clone of a plugin repository |
-| `plugins/repos/pv-plugins/harpoon/init.luau` | Example monorepo plugin path |
-| `plugins/<id>/init.luau` | Legacy flat install (no `repo` in lazy-config) |
+| Path                                         | Purpose                                                       |
+| -------------------------------------------- | ------------------------------------------------------------- |
+| `plugins/lazy-config.luau`                   | Your machine: which plugins are enabled, `repo` + `dir` paths |
+| `plugins/vault.luau`                         | App-managed API stubs (overwritten each start)                |
+| `plugins/repos/<repo-slug>/`                 | Git clone of a plugin repository                              |
+| `plugins/repos/pv-plugins/harpoon/init.luau` | Example monorepo plugin path                                  |
+| `plugins/<id>/init.luau`                     | Legacy flat install (no `repo` in lazy-config)                |
 
 ## Single-plugin repository
 
@@ -187,20 +191,30 @@ Official bundle: [pv-plugins](https://github.com/ur-wesley/pv-plugins).
 
 ## `plugins.registry.luau` vs `lazy-config.luau` vs `init.luau`
 
-| File | Responsibility |
-|------|----------------|
-| `plugins.registry.luau` | Which plugins exist in the repo and their folder names (`id`, optional `dir`) |
-| `init.luau` | Authoring surface: `name`, `description`, `version`, `category`, `commands`, `options`, `config`, `locales`, optional `lazy` / `cmd` / `event` / `keys` / `dependencies` |
-| `lazy-config.luau` | Installed plugins on this machine: `id`, `repo`, `dir`, `enabled`, `lazy`, and optional load hooks after install — not a substitute for `init.luau` metadata |
+| File                    | Responsibility                                                                                                                                                           |
+| ----------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
+| `plugins.registry.luau` | Which plugins exist in the repo and their folder names (`id`, optional `dir`)                                                                                            |
+| `init.luau`             | Authoring surface: `name`, `description`, `version`, `category`, `commands`, `options`, `config`, `locales`, optional `lazy` / `cmd` / `event` / `keys` / `dependencies` |
+| `lazy-config.luau`      | Installed plugins on this machine: `id`, `repo`, `dir`, `enabled`, `lazy`, and optional load hooks after install — not a substitute for `init.luau` metadata             |
 
 On registry update, the app refreshes `repo` and `dir` in lazy-config but **preserves** each plugin’s `enabled` flag. The dashboard and command palette read display metadata from `init.luau` when lazy-config rows are minimal.
 
-## Local development
+## Local development (test a folder as a real plugin)
 
-1. Clone or copy your plugin tree into `plugins/repos/<slug>/` (or use a flat `plugins/<id>/` folder with a hand-written lazy-config entry).
-2. Add or update an entry in `plugins/lazy-config.luau` with matching `id`, `repo`, and `dir`.
-3. Open **Settings → Plugins** and enable the plugin.
-4. Watch the log console while editing `init.luau`.
+Fastest loop — no git push needed. The app **links** your folder live (no copy), in debug and release builds:
+
+1. Open **Settings → Plugins → Store → Test a local plugin folder** and pick a plugin folder with `init.luau` (e.g. `pv-plugins/git-hygiene/`) or a monorepo root with `plugins.registry.luau` (e.g. `pv-plugins/`, then choose entries in the picker).
+2. The app stores a `local_path` link in `lazy-config.luau` (no `repo`) and emits `plugin:reload`. The plugin behaves exactly like an installed one: commands in the palette, pages/sidebar, footer/header widgets, `init` / `project_focus` / `git_status_changed` hooks.
+3. Enable it under **Installed**, run its commands, and keep editing your sources — saves hot-reload via the file watcher, which also covers linked folders. Watch the **Logs** tab for output.
+4. Linking the same id as an installed plugin **replaces** it (e.g. local `git-hygiene` shadows the store version). Uninstalling the link removes the spec; reinstall from the Store to get the git version back.
+5. Moved the folder? Hit **Re-link** on the plugin row to point the link at the new location.
+
+Notes:
+
+- Linked local plugins show a `local` badge (they have no Source Repository). Git-installed plugins keep using Update/pull flows.
+- In debug builds (`bun run tauri dev`), the `pv-plugins/` workspace checkout additionally shadows matching installs — an explicit link always wins over that shadow.
+- Install failures now surface the real backend message instead of `[object Object]`; a monorepo root without `init.luau` tells you to pick a subfolder.
+- Manual alternative: copy the tree into `plugins/repos/<slug>/` (or flat `plugins/<id>/`) with a hand-written `lazy-config.luau` entry.
 
 Reference implementations live in [`pv-plugins`](https://github.com/ur-wesley/pv-plugins), available as a git submodule at `pv-plugins/` in this repository (`git submodule update --init`). Plugin sources are not copied into the app at runtime.
 

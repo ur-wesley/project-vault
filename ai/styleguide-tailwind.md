@@ -179,7 +179,7 @@ Rules:
 All shared context stores must return:
 
 ```ts
-readonly [state, actions];
+readonly[(state, actions)];
 ```
 
 Rules:
@@ -291,19 +291,19 @@ Always import through `@ur-wesley/ts-prelude/<subpath>`. The package root export
 
 ### Subpaths in scope
 
-| Subpath | Used for | Replaces |
-| --- | --- | --- |
-| `/result` | `Result`, `ResultAsync`, `ok`, `err`, `matchResult`, `runCatching`, `traverse`, `combineWithAllErrors` | direct `neverthrow` |
-| `/option` | `Option<T>` for nullable values, `fromNullable`, `map`, `andThen`, `getOrElse`, `zip` | `T \| null` chains |
-| `/match` | `match` + `R` / `O` / `P` for exhaustive branching on `Result` / `Option` / tagged unions | direct `ts-pattern` |
-| `/pipe` | `pipe` / `flow` / `tap` / `dbg` for left-to-right composition | direct `remeda` |
-| `/scope` | `let_`, `run`, `apply`, `also`, `with_`, `ifSome`, `ifOk`, `ifErr`, `require` | inline IIFEs |
-| `/interop` | `fromNullable`, `toOption`, `toResult` at API boundaries | manual narrowing |
-| `/types` | `brand`, `tag`, `assertNever`, `refine`, `head` for ADTs and branded types | hand-rolled brands |
-| `/record` | `copy`, `update`, `updatePath` for immutable updates | spread-mutation smell |
-| `/async` | `retry`, `withTimeout`, `race`, `parallel`, `asyncTraverse` for `ResultAsync` | hand-rolled retry / timeout |
+| Subpath      | Used for                                                                                                                                                 | Replaces                      |
+| ------------ | -------------------------------------------------------------------------------------------------------------------------------------------------------- | ----------------------------- |
+| `/result`    | `Result`, `ResultAsync`, `ok`, `err`, `matchResult`, `runCatching`, `traverse`, `combineWithAllErrors`                                                   | direct `neverthrow`           |
+| `/option`    | `Option<T>` for nullable values, `fromNullable`, `map`, `andThen`, `getOrElse`, `zip`                                                                    | `T \| null` chains            |
+| `/match`     | `match` + `R` / `O` / `P` for exhaustive branching on `Result` / `Option` / tagged unions                                                                | direct `ts-pattern`           |
+| `/pipe`      | `pipe` / `flow` / `tap` / `dbg` for left-to-right composition                                                                                            | direct `remeda`               |
+| `/scope`     | `let_`, `run`, `apply`, `also`, `with_`, `ifSome`, `ifOk`, `ifErr`, `require`                                                                            | inline IIFEs                  |
+| `/interop`   | `fromNullable`, `toOption`, `toResult` at API boundaries                                                                                                 | manual narrowing              |
+| `/types`     | `brand`, `tag`, `assertNever`, `refine`, `head` for ADTs and branded types                                                                               | hand-rolled brands            |
+| `/record`    | `copy`, `update`, `updatePath` for immutable updates                                                                                                     | spread-mutation smell         |
+| `/async`     | `retry`, `withTimeout`, `race`, `parallel`, `asyncTraverse` for `ResultAsync`                                                                            | hand-rolled retry / timeout   |
 | `/data/<fn>` | one remeda function per file when only one helper is needed (`filter`, `groupBy`, `sortBy`, `uniqueBy`, `find`, `chunk`, `partition`, `omit`, `pick`, …) | `import * as R from "remeda"` |
-| `/log` | structured logging via consola — `logger.info`, `logger.withTag(...)` | `console.*` |
+| `/log`       | structured logging via consola — `logger.info`, `logger.withTag(...)`                                                                                    | `console.*`                   |
 
 ### Out of scope (mentioned briefly)
 

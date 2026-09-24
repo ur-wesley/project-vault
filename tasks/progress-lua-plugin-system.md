@@ -1,6 +1,7 @@
 # Progress: Lua Plugin System Implementation
 
 ## Phase 1: Engine Foundation
+
 - [x] Integrate `mlua` crate (`luau`, `serialize`, `async`)
 - [x] Build `lua::engine` VM factory
 - [x] Implement `vault.log` API
@@ -9,6 +10,7 @@
 - [x] Basic VM isolation and execution tests
 
 ## Phase 2: Detectors & Templates
+
 - [x] Implement `LuaProjectDetector`
 - [x] Update `DetectorRegistry` to support dynamic Lua detectors
 - [x] Update `scan_library_location` and `refresh_project` to use `AppHandle`-aware registry
@@ -16,6 +18,7 @@
 - [x] Provide script context (`project_name`, `project_root`) to templates
 
 ## Phase 3: Commands & UI Primitives
+
 - [x] Define `PluginCommandMetadata` and `PluginManager` loader
 - [x] Implement `vault.ui` async bridge in Rust (`show_input_box`, `show_quick_pick`)
 - [x] Create `resolve_plugin_ui` Tauri command
@@ -26,6 +29,7 @@
 - [x] Integrate plugin commands into `CommandPalette.tsx`
 
 ## Phase 4: Settings, Theming & Dev Mode
+
 - [x] Implement `vault.settings` API
 - [x] Implement `vault.theme` API and CSS variable injection
 - [x] Build "Plugins" tab in Settings UI
@@ -33,6 +37,7 @@
 - [x] Create Plugin Debugger / Log Overlay
 
 ## Phase 5: Documentation & Examples
+
 - [x] Write `docs/plugins.md`
 - [ ] Create LSP stubs for `vault.*` API
 - [x] Create reference plugins (Search, Advanced Detector)

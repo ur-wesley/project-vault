@@ -125,7 +125,7 @@ function parseWorkspaces(projectRoot: string): Result<string[], Error> {
   }
 }
 
-function findTaskFiles(dir: string, basePath: string = dir): Result<string[], Error> {
+function findTaskFiles(dir: string): Result<string[], Error> {
   try {
     const taskFiles: string[] = [];
     const entries = readdirSync(dir);
@@ -139,7 +139,7 @@ function findTaskFiles(dir: string, basePath: string = dir): Result<string[], Er
         const stat = statSync(fullPath);
 
         if (stat.isDirectory()) {
-          const subResult = findTaskFiles(fullPath, basePath);
+          const subResult = findTaskFiles(fullPath);
           if (subResult.isOk()) {
             taskFiles.push(...subResult.value);
           }
@@ -162,7 +162,7 @@ function findTaskFiles(dir: string, basePath: string = dir): Result<string[], Er
   }
 }
 
-function findPrdFiles(dir: string, basePath: string = dir): Result<string[], Error> {
+function findPrdFiles(dir: string): Result<string[], Error> {
   try {
     const prdFiles: string[] = [];
     const entries = readdirSync(dir);
@@ -176,7 +176,7 @@ function findPrdFiles(dir: string, basePath: string = dir): Result<string[], Err
         const stat = statSync(fullPath);
 
         if (stat.isDirectory()) {
-          const subResult = findPrdFiles(fullPath, basePath);
+          const subResult = findPrdFiles(fullPath);
           if (subResult.isOk()) {
             prdFiles.push(...subResult.value);
           }
@@ -199,7 +199,11 @@ function findPrdFiles(dir: string, basePath: string = dir): Result<string[], Err
   }
 }
 
-function getTaskFiles(projectRoot: string, workspaceDirs: string[], prdFilenames: Set<string>): Result<TaskFile[], Error> {
+function getTaskFiles(
+  projectRoot: string,
+  workspaceDirs: string[],
+  prdFilenames: Set<string>,
+): Result<TaskFile[], Error> {
   const allTasks: TaskFile[] = [];
 
   for (const workspaceDir of workspaceDirs) {
@@ -266,7 +270,11 @@ function getTaskFiles(projectRoot: string, workspaceDirs: string[], prdFilenames
   return ok(allTasks);
 }
 
-function getPrdFiles(projectRoot: string, workspaceDirs: string[], taskFilenames: Set<string>): Result<PrdFile[], Error> {
+function getPrdFiles(
+  projectRoot: string,
+  workspaceDirs: string[],
+  taskFilenames: Set<string>,
+): Result<PrdFile[], Error> {
   const allPrds: PrdFile[] = [];
 
   for (const workspaceDir of workspaceDirs) {

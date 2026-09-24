@@ -66,13 +66,13 @@ Per-repo tooling may differ — see [Project Overrides](#project-overrides).
 
 ### Tauri plugins (enable only what the app needs)
 
-| Category | Examples | Typical use |
-| --- | --- | --- |
-| Core platform | `fs`, `dialog`, `shell`, `process`, `os`, `opener` | Files, dialogs, subprocesses |
-| Persistence | `sql`, `store` | Database, key-value settings |
-| Desktop UX | `clipboard`, `global-shortcut`, `notification`, `autostart`, `window-state` | OS integration |
-| Distribution | `updater`, `deep-link`, `single-instance` | Updates, URL schemes, single instance |
-| Security | `persisted-scope` | Persist FS scope grants across restarts |
+| Category      | Examples                                                                    | Typical use                             |
+| ------------- | --------------------------------------------------------------------------- | --------------------------------------- |
+| Core platform | `fs`, `dialog`, `shell`, `process`, `os`, `opener`                          | Files, dialogs, subprocesses            |
+| Persistence   | `sql`, `store`                                                              | Database, key-value settings            |
+| Desktop UX    | `clipboard`, `global-shortcut`, `notification`, `autostart`, `window-state` | OS integration                          |
+| Distribution  | `updater`, `deep-link`, `single-instance`                                   | Updates, URL schemes, single instance   |
+| Security      | `persisted-scope`                                                           | Persist FS scope grants across restarts |
 
 Plugin config lives in `src-tauri/tauri.conf.json`. Register plugins in `lib.rs` via `.plugin(...)`.
 
@@ -112,13 +112,13 @@ One service file per domain (`settings`, `items`, `files`, etc.). No barrel `ind
 
 ## Layer Boundaries
 
-| Layer | May import | Must not import |
-| --- | --- | --- |
-| `features/*` | `services/tauri/*`, `types/*`, `components/ui`, `lib/*` | `@tauri-apps/api` directly (except rare plugin UI) |
-| `services/tauri/*` | `types/*`, `./utils`, `@tauri-apps/api/core`, `@ur-wesley/ts-prelude/result` | `features/*`, `components/ui` |
-| `components/ui` | `lib/*`, `utils/*` | `services/tauri/*`, `features/*` |
-| `commands/*` (Rust) | `db/`, `models`, domain modules | Heavy logic inline in command fn |
-| Domain modules (Rust) | `error`, `models`, other domain modules | Frontend types |
+| Layer                 | May import                                                                   | Must not import                                    |
+| --------------------- | ---------------------------------------------------------------------------- | -------------------------------------------------- |
+| `features/*`          | `services/tauri/*`, `types/*`, `components/ui`, `lib/*`                      | `@tauri-apps/api` directly (except rare plugin UI) |
+| `services/tauri/*`    | `types/*`, `./utils`, `@tauri-apps/api/core`, `@ur-wesley/ts-prelude/result` | `features/*`, `components/ui`                      |
+| `components/ui`       | `lib/*`, `utils/*`                                                           | `services/tauri/*`, `features/*`                   |
+| `commands/*` (Rust)   | `db/`, `models`, domain modules                                              | Heavy logic inline in command fn                   |
+| Domain modules (Rust) | `error`, `models`, other domain modules                                      | Frontend types                                     |
 
 Rules:
 
@@ -215,7 +215,10 @@ export function mapInvokeError(e: unknown): StableError {
   return { code: "INVOKE_FAILED", message: String(e) };
 }
 
-export function tauriInvoke<T>(cmd: string, args?: Record<string, unknown>): ResultAsync<T, StableError> {
+export function tauriInvoke<T>(
+  cmd: string,
+  args?: Record<string, unknown>,
+): ResultAsync<T, StableError> {
   return ResultAsync.fromPromise(invoke<T>(cmd, args), (e) => {
     console.error("[tauriInvoke] error for cmd:", cmd, "error:", e);
     return mapInvokeError(e);
@@ -253,12 +256,12 @@ Rules:
 
 Must match the Rust `#[tauri::command]` signature exactly:
 
-| Pattern | TS | Rust |
-| --- | --- | --- |
-| Flat | `{ id }`, `{ name }` | `id: String` as param |
-| Wrapped payload | `{ payload }` | `payload: SomePayload` |
-| Wrapped input | `{ input }` | `input: SomeInput` |
-| Wrapped args | `{ args }` | `args: SomeArgs` |
+| Pattern         | TS                   | Rust                   |
+| --------------- | -------------------- | ---------------------- |
+| Flat            | `{ id }`, `{ name }` | `id: String` as param  |
+| Wrapped payload | `{ payload }`        | `payload: SomePayload` |
+| Wrapped input   | `{ input }`          | `input: SomeInput`     |
+| Wrapped args    | `{ args }`           | `args: SomeArgs`       |
 
 When adding a command, check the Rust signature and mirror the arg shape in the TS wrapper.
 
@@ -278,11 +281,11 @@ export function getAutostartEnabled() {
 
 ### Known Exceptions
 
-| Pattern | When |
-| --- | --- |
-| Fire-and-forget + `isTauri()` guard | OS notifications and other non-recoverable side effects |
-| `ResultAsync.fromPromise` on plugin API | Not a Rust command |
-| Raw `invoke` in isolated subsystems | Legacy or plugin bridges — do not extend for new commands |
+| Pattern                                 | When                                                      |
+| --------------------------------------- | --------------------------------------------------------- |
+| Fire-and-forget + `isTauri()` guard     | OS notifications and other non-recoverable side effects   |
+| `ResultAsync.fromPromise` on plugin API | Not a Rust command                                        |
+| Raw `invoke` in isolated subsystems     | Legacy or plugin bridges — do not extend for new commands |
 
 ## Type Definitions
 
@@ -297,10 +300,10 @@ No codegen by default. Types are hand-maintained and must stay in sync between R
 
 Discovered IDEs expose two icon fields:
 
-| Field | Source | UI usage |
-| --- | --- | --- |
-| `icon` | Iconify class fallback (e.g. `devicon-plain--vscode`) | `<span class={cn("iconify", icon)} />` when native extract fails |
-| `iconData` | Native OS icon as `data:image/png;base64,…` (or SVG on Linux) | `<img src={iconData} />` — **prefer this** |
+| Field      | Source                                                        | UI usage                                                         |
+| ---------- | ------------------------------------------------------------- | ---------------------------------------------------------------- |
+| `icon`     | Iconify class fallback (e.g. `devicon-plain--vscode`)         | `<span class={cn("iconify", icon)} />` when native extract fails |
+| `iconData` | Native OS icon as `data:image/png;base64,…` (or SVG on Linux) | `<img src={iconData} />` — **prefer this**                       |
 
 Rust fills `iconData` in `src-tauri/src/ide/icon.rs` during discovery (`push_candidate`). Windows uses `IShellItemImageFactory::GetImage` (256×256) with `ExtractIconExW` fallback; shim paths (`.cmd` / `.bat`) resolve to the real `.exe` first. Extraction failures return `null` — never surface errors to the user.
 
@@ -332,11 +335,11 @@ Co-locate with the command in Rust (`SaveItemPayload` in `commands/items.rs`). M
 
 Two-layer model in `error.rs`:
 
-| Layer | Type | Role |
-| --- | --- | --- |
-| Frontend contract | `StableError` | Serializable `{ code, message }`, camelCase |
-| Internal | `AppError` | `thiserror` enum with `From<AppError> for StableError` |
-| Codes | `error::codes::*` | Stable string constants (`"DB_ERROR"`, `"NOT_FOUND"`, etc.) |
+| Layer             | Type              | Role                                                        |
+| ----------------- | ----------------- | ----------------------------------------------------------- |
+| Frontend contract | `StableError`     | Serializable `{ code, message }`, camelCase                 |
+| Internal          | `AppError`        | `thiserror` enum with `From<AppError> for StableError`      |
+| Codes             | `error::codes::*` | Stable string constants (`"DB_ERROR"`, `"NOT_FOUND"`, etc.) |
 
 Rules:
 
@@ -368,10 +371,10 @@ Never `throw` across the IPC boundary from Rust — return `StableError` from co
 
 ### Two Event Systems
 
-| System | API | When |
-| --- | --- | --- |
+| System                   | API                                                | When                                                                          |
+| ------------------------ | -------------------------------------------------- | ----------------------------------------------------------------------------- |
 | **Tauri backend events** | `app.emit` / `listen` from `@tauri-apps/api/event` | Rust pushes updates to frontend (progress, streaming I/O, cache invalidation) |
-| **Frontend event hub** | `~/lib/event-hub-context` `hub.emit` | In-app UI coordination only — no Rust round-trip |
+| **Frontend event hub**   | `~/lib/event-hub-context` `hub.emit`               | In-app UI coordination only — no Rust round-trip                              |
 
 Do not use the frontend hub for data that originates in Rust. Do not use Tauri events for pure UI coordination.
 
@@ -448,11 +451,11 @@ Capabilities auto-load from `src-tauri/capabilities/`. Not defined inline in `ta
 
 ### Per-Window Permissions
 
-| Pattern | Purpose |
-| --- | --- |
-| `default.json` | Main window — broad app permissions |
-| `desktop.json` | Platform-specific extras (autostart, window-state) |
-| `<window>.json` | Secondary windows — minimal permissions only |
+| Pattern         | Purpose                                            |
+| --------------- | -------------------------------------------------- |
+| `default.json`  | Main window — broad app permissions                |
+| `desktop.json`  | Platform-specific extras (autostart, window-state) |
+| `<window>.json` | Secondary windows — minimal permissions only       |
 
 ### Filesystem Scope
 
@@ -518,25 +521,25 @@ Some apps add custom plugin runtimes (scripting, WASM, etc.). These are project-
 
 ### Rust
 
-| Item | Convention | Example |
-| --- | --- | --- |
-| Command fns | `snake_case` | `get_item`, `save_settings` |
-| DTOs | `PascalCase` + `Dto` | `ItemDto`, `SettingsDto` |
-| Emit payloads | `PascalCase` + `Emit` | `ItemUpdatedEmit`, `SyncProgressEmit` |
+| Item           | Convention                         | Example                                 |
+| -------------- | ---------------------------------- | --------------------------------------- |
+| Command fns    | `snake_case`                       | `get_item`, `save_settings`             |
+| DTOs           | `PascalCase` + `Dto`               | `ItemDto`, `SettingsDto`                |
+| Emit payloads  | `PascalCase` + `Emit`              | `ItemUpdatedEmit`, `SyncProgressEmit`   |
 | Command inputs | `PascalCase` + `Payload` / `Input` | `SaveItemPayload`, `EnableFeatureInput` |
-| Serde JSON | `camelCase` | `#[serde(rename_all = "camelCase")]` |
-| Error codes | `SCREAMING_SNAKE` strings | `codes::NOT_FOUND` → `"NOT_FOUND"` |
-| Events | `namespace:kebab-action` | `item:updated`, `sync:progress` |
-| Modules | `snake_case` | `file_watcher`, `settings` |
+| Serde JSON     | `camelCase`                        | `#[serde(rename_all = "camelCase")]`    |
+| Error codes    | `SCREAMING_SNAKE` strings          | `codes::NOT_FOUND` → `"NOT_FOUND"`      |
+| Events         | `namespace:kebab-action`           | `item:updated`, `sync:progress`         |
+| Modules        | `snake_case`                       | `file_watcher`, `settings`              |
 
 ### TypeScript
 
-| Item | Convention | Example |
-| --- | --- | --- |
-| Service functions | `camelCase` | `getItem`, `saveSettings` |
-| Rust command names | `snake_case` (in `tauriInvoke` string) | `"get_item"` |
-| DTOs | `PascalCase` + `Dto` | `ItemDto` |
-| Service files | `kebab-case` or domain name | `file-watcher.ts`, `settings.ts` |
+| Item               | Convention                             | Example                          |
+| ------------------ | -------------------------------------- | -------------------------------- |
+| Service functions  | `camelCase`                            | `getItem`, `saveSettings`        |
+| Rust command names | `snake_case` (in `tauriInvoke` string) | `"get_item"`                     |
+| DTOs               | `PascalCase` + `Dto`                   | `ItemDto`                        |
+| Service files      | `kebab-case` or domain name            | `file-watcher.ts`, `settings.ts` |
 
 ## Dev and Release
 

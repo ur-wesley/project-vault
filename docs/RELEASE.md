@@ -12,14 +12,14 @@ Placeholders are intentionally not committed so dev builds stay simple until a r
 
 ## Manual QA matrix
 
-| Area                                              | Windows | macOS | Linux |
-| ------------------------------------------------- | ------- | ----- | ----- |
-| Add library folder + scan                         |         |       |       |
-| Project detail: files, tasks, terminal, history   |         |       |       |
-| Command palette (Ctrl/Cmd+K), open project detail |         |       |       |
-| New project wizard + rescan                       |         |       |       |
-| Settings: shell, density, scan interval           |         |       |       |
-| Export library JSON                               |         |       |       |
-| Locale / i18n strings                             |         |       |       |
+| Area                                                   | Windows | macOS | Linux |
+| ------------------------------------------------------ | ------- | ----- | ----- |
+| Add library folder + scan                              |         |       |       |
+| Project detail: files, tasks, terminal, board, history |         |       |       |
+| Command palette (Ctrl/Cmd+K), open project detail      |         |       |       |
+| New project wizard + rescan                            |         |       |       |
+| Settings: shell, density, scan interval                |         |       |       |
+| Export library JSON                                    |         |       |       |
+| Locale / i18n strings                                  |         |       |       |
 
 Record build version and notes in your release ticket.
