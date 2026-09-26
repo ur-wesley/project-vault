@@ -1,5 +1,5 @@
 import { createQuery } from "@tanstack/solid-query";
-import { For, Show } from "solid-js";
+import { For, Show, createSignal } from "solid-js";
 import { getLargestEntries } from "~/services/tauri/projects";
 import { formatBytes } from "~/lib/format-bytes";
 import { cn } from "~/lib/utils";
@@ -8,6 +8,7 @@ import { useI18n } from "~/lib/i18n-context";
 
 export function LargestEntriesHoverIcon(props: { path: string }) {
   const { t } = useI18n();
+  const [hoverOpen, setHoverOpen] = createSignal(false);
 
   const q = createQuery(() => ({
     queryKey: ["largest-entries", props.path],
@@ -16,11 +17,15 @@ export function LargestEntriesHoverIcon(props: { path: string }) {
       if (r.isErr()) throw new Error(r.error.message);
       return r.value;
     },
-    enabled: props.path.length > 0,
+    // Fetch only while the hover card is open: the storage dialog renders
+    // one icon per project, and firing all scans on mount crashed the app.
+    enabled: hoverOpen() && props.path.length > 0,
+    staleTime: 60_000,
+    retry: false,
   }));
 
   return (
-    <HoverCard openDelay={150} closeDelay={100}>
+    <HoverCard openDelay={150} closeDelay={100} onOpenChange={setHoverOpen}>
       <HoverCardTrigger
         as="button"
         type="button"

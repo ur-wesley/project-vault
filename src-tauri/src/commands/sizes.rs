@@ -7,7 +7,7 @@ use walkdir::WalkDir;
 
 use crate::db;
 use crate::error::{codes, StableError};
-use crate::project_move::{is_skip_name, should_skip_path};
+use crate::project_move::{is_skip_name, should_include_entry, should_skip_path};
 
 #[derive(Serialize)]
 #[serde(rename_all = "camelCase")]
@@ -37,7 +37,10 @@ pub async fn get_location_project_sizes(
             });
         }
     }
-    // Also include any projects on disk that aren't in DB yet
+    // Also include any projects on disk that aren't in DB yet.
+    // Only the cheap top-level listing runs here; recursive sizing moves to
+    // a blocking thread so opening the dialog never stalls the async runtime.
+    let mut candidates: Vec<(String, String)> = Vec::new();
     let root = Path::new(&loc.path);
     if root.is_dir() {
         if let Ok(entries) = std::fs::read_dir(root) {
@@ -61,10 +64,17 @@ pub async fn get_location_project_sizes(
                 if out.iter().any(|e| e.path == path_str) {
                     continue;
                 }
-                // Compute size on the fly
-                let size = count_all_dir_unfiltered(&path);
+                candidates.push((path_str, name));
+            }
+        }
+    }
+    if !candidates.is_empty() {
+        let sized = tauri::async_runtime::spawn_blocking(move || {
+            let mut sized = Vec::new();
+            for (path_str, name) in candidates {
+                let size = count_all_dir_unfiltered(Path::new(&path_str));
                 if size > 0 {
-                    out.push(ProjectSizeEntry {
+                    sized.push(ProjectSizeEntry {
                         project_id: String::new(),
                         path: path_str,
                         name,
@@ -72,7 +82,11 @@ pub async fn get_location_project_sizes(
                     });
                 }
             }
-        }
+            sized
+        })
+        .await
+        .map_err(|e| StableError::new(codes::INTERNAL, e.to_string()))?;
+        out.extend(sized);
     }
     out.sort_by(|a, b| b.size_bytes.cmp(&a.size_bytes));
     Ok(out)
@@ -88,11 +102,20 @@ pub struct LargestEntry {
 }
 
 #[tauri::command]
-pub fn get_largest_entries(path: String, limit: u32) -> Result<Vec<LargestEntry>, StableError> {
-    let root = Path::new(&path);
+pub async fn get_largest_entries(path: String, limit: u32) -> Result<Vec<LargestEntry>, StableError> {
+    // Filesystem walks run on a blocking thread: the storage dialog renders
+    // one hover icon per project, so dozens of these can be requested around
+    // the same time and must never stall the async runtime.
+    tauri::async_runtime::spawn_blocking(move || compute_largest_entries(Path::new(&path), limit))
+        .await
+        .map_err(|e| StableError::new(codes::INTERNAL, e.to_string()))?
+}
+
+fn compute_largest_entries(root: &Path, limit: u32) -> Result<Vec<LargestEntry>, StableError> {
     if !root.is_dir() {
         return Err(StableError::new(codes::INVALID_PATH, "not a directory"));
     }
+    let limit = limit.clamp(1, 20) as usize;
 
     let mut entries: Vec<LargestEntry> = Vec::new();
 
@@ -136,8 +159,14 @@ pub fn get_largest_entries(path: String, limit: u32) -> Result<Vec<LargestEntry>
         }
     }
 
-    // Second pass: large files deeper in the tree (skip ignored dirs)
-    for walker in WalkDir::new(root).min_depth(2) {
+    // Second pass: large files deeper in the tree. Skipped dirs
+    // (node_modules, target, .git, ...) are pruned so they are never
+    // walked file-by-file.
+    for walker in WalkDir::new(root)
+        .min_depth(2)
+        .into_iter()
+        .filter_entry(|e| should_include_entry(e, root))
+    {
         let Ok(entry) = walker else { continue };
         if !entry.file_type().is_file() {
             continue;
@@ -159,7 +188,7 @@ pub fn get_largest_entries(path: String, limit: u32) -> Result<Vec<LargestEntry>
     }
 
     entries.sort_by(|a, b| b.size_bytes.cmp(&a.size_bytes));
-    entries.truncate(limit as usize);
+    entries.truncate(limit);
     Ok(entries)
 }
 

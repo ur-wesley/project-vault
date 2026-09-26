@@ -94,10 +94,17 @@ export function ProjectSizeTreemap(props: ProjectSizeTableProps) {
                 {(project) => {
                   const pct = totalSize() > 0 ? (project.sizeBytes / totalSize()) * 100 : 0;
                   const hue = hue_for_value(project.sizeBytes, maxSize());
+                  const canOpen = project.projectId.length > 0;
                   return (
                     <tr
-                      class="border-b border-border/20 cursor-pointer hover:bg-muted/30 transition-colors"
-                      onClick={() => props.onOpenProject(project.projectId)}
+                      class="border-b border-border/20 transition-colors"
+                      classList={{
+                        "cursor-pointer hover:bg-muted/30": canOpen,
+                        "cursor-default": !canOpen,
+                      }}
+                      onClick={() => {
+                        if (canOpen) props.onOpenProject(project.projectId);
+                      }}
                     >
                       <td class="px-3 py-1.5">
                         <div class="flex items-center gap-2">
