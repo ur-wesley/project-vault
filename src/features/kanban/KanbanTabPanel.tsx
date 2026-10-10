@@ -14,6 +14,8 @@ import {
   kanbanListBoards,
   kanbanMoveCard,
 } from "~/services/tauri/kanban";
+import { beadsGetStatus } from "~/services/tauri/beads";
+import { BeadsView } from "~/features/beads";
 import { KanbanBoard } from "./KanbanBoard";
 import { KanbanCardDialog } from "./KanbanCardDialog";
 import { EMPTY_FILTERS, KanbanFilterBar, type KanbanFilters } from "./KanbanFilterBar";
@@ -27,6 +29,7 @@ import {
 
 type Props = Readonly<{
   projectId: string;
+  projectPath: string;
   github: { owner: string; repo: string } | null;
 }>;
 
@@ -70,9 +73,63 @@ export const KanbanTabPanel: Component<Props> = (props) => {
     enabled: boardId() !== null,
   }));
 
+  // TODO(PR1): `issueCount` is deprecated best-effort (backend always
+  // returns 0; no extra process is spawned for it). Prefer
+  // `issuesQ.data.length` when available; do NOT add a list query here
+  // (that would add a `bd` spawn to this panel).
+  const beadsStatusQ = createQuery(() => ({
+    queryKey: ["beads-status", props.projectId],
+    queryFn: async () => {
+      const r = await beadsGetStatus(props.projectPath);
+      if (r.isErr()) return null;
+      return r.value;
+    },
+    enabled: Boolean(props.projectPath),
+    retry: false,
+    staleTime: 10_000,
+  }));
+
+  const BOARD_VIEW_STORAGE_KEY = `pv:board-tab-view:${props.projectId}`;
+  const initialViewMode = (): "kanban" | "beads" => {
+    try {
+      const saved = localStorage.getItem(BOARD_VIEW_STORAGE_KEY);
+      if (saved === "kanban" || saved === "beads") return saved;
+    } catch {
+      // ignore
+    }
+    return "kanban";
+  };
+
+  const [tabView, setTabView] = createSignal<"kanban" | "beads">(initialViewMode());
+
+  createEffect(() => {
+    const boards = boardsQ.data;
+    const beads = beadsStatusQ.data;
+    if (boards !== undefined && beads !== undefined && beads !== null) {
+      try {
+        const saved = localStorage.getItem(BOARD_VIEW_STORAGE_KEY);
+        if (!saved && boards.length === 0 && beads.initialized) {
+          setTabView("beads");
+        }
+      } catch {
+        // ignore
+      }
+    }
+  });
+
+  const switchTabView = (v: "kanban" | "beads") => {
+    setTabView(v);
+    try {
+      localStorage.setItem(BOARD_VIEW_STORAGE_KEY, v);
+    } catch {
+      // ignore
+    }
+  };
+
   const invalidate = () => {
     qc.invalidateQueries({ queryKey: ["kanban-boards", props.projectId] });
     qc.invalidateQueries({ queryKey: ["kanban-board", props.projectId, boardId()] });
+    qc.invalidateQueries({ queryKey: ["beads-status", props.projectId] });
   };
 
   const matchesFilters = (c: KanbanBoardView["cards"][number]) => {
@@ -248,122 +305,164 @@ export const KanbanTabPanel: Component<Props> = (props) => {
 
   return (
     <div class="flex h-full min-h-0 flex-col gap-3">
-      <div class="flex flex-wrap items-center gap-2">
-        <For each={boardsQ.data ?? []}>
-          {(b) => (
-            <Button
-              size="sm"
-              variant={b.id === boardId() ? "default" : "outline"}
-              onClick={() => setBoardId(b.id)}
-            >
-              {b.title}
-              <Badge variant="secondary" class="ml-1.5">
-                {b.cardCount}
+      {/* View Switcher: Kanban vs Beads */}
+      <div class="flex flex-wrap items-center justify-between gap-2 shrink-0">
+        <div class="flex items-center rounded-lg border bg-muted/40 p-0.5">
+          <Button
+            size="sm"
+            variant={tabView() === "kanban" ? "default" : "ghost"}
+            class="h-7 text-xs gap-1.5"
+            onClick={() => switchTabView("kanban")}
+          >
+            <span class="iconify mdi--view-column-outline size-3.5" />
+            {t("kanban.viewKanban") as string}
+            <Show when={(boardsQ.data ?? []).length > 0}>
+              <Badge variant="secondary" class="ml-1 px-1 py-0 text-[10px]">
+                {boardsQ.data!.reduce((acc, b) => acc + (b.cardCount ?? 0), 0)}
               </Badge>
-            </Button>
-          )}
-        </For>
-        <div class="ml-auto flex items-center gap-1.5">
-          <TextField class="w-44">
-            <TextFieldInput
-              ref={boardTitleInput}
-              placeholder={t("kanban.newBoardPlaceholder") as string}
-              value={newBoardTitle()}
-              onInput={(e) => setNewBoardTitle(e.currentTarget.value)}
-              onKeyDown={(e) => {
-                if (e.key === "Enter") void createBoard();
-              }}
-            />
-          </TextField>
-          <Button size="sm" variant="outline" onClick={() => void createBoard()}>
-            {t("kanban.newBoard") as string}
+            </Show>
           </Button>
-          <Show when={boardId()}>
-            <Button
-              size="sm"
-              variant={confirmBoardDelete() ? "destructive" : "ghost"}
-              onClick={() => void deleteBoard()}
-            >
-              {confirmBoardDelete() ? (t("kanban.confirmDelete") as string) : "×"}
-            </Button>
-          </Show>
+          <Button
+            size="sm"
+            variant={tabView() === "beads" ? "default" : "ghost"}
+            class="h-7 text-xs gap-1.5"
+            onClick={() => switchTabView("beads")}
+          >
+            <span class="iconify mdi--dots-hexagon size-3.5" />
+            {t("kanban.viewBeads") as string}
+            <Show when={(beadsStatusQ.data?.issueCount ?? 0) > 0}>
+              <Badge variant="secondary" class="ml-1 px-1 py-0 text-[10px]">
+                {beadsStatusQ.data!.issueCount}
+              </Badge>
+            </Show>
+          </Button>
         </div>
+
+        <Show when={tabView() === "kanban"}>
+          <div class="flex flex-wrap items-center gap-2">
+            <For each={boardsQ.data ?? []}>
+              {(b) => (
+                <Button
+                  size="sm"
+                  variant={b.id === boardId() ? "default" : "outline"}
+                  onClick={() => setBoardId(b.id)}
+                >
+                  {b.title}
+                  <Badge variant="secondary" class="ml-1.5">
+                    {b.cardCount}
+                  </Badge>
+                </Button>
+              )}
+            </For>
+            <div class="ml-auto flex items-center gap-1.5">
+              <TextField class="w-44">
+                <TextFieldInput
+                  ref={boardTitleInput}
+                  placeholder={t("kanban.newBoardPlaceholder") as string}
+                  value={newBoardTitle()}
+                  onInput={(e) => setNewBoardTitle(e.currentTarget.value)}
+                  onKeyDown={(e) => {
+                    if (e.key === "Enter") void createBoard();
+                  }}
+                />
+              </TextField>
+              <Button size="sm" variant="outline" onClick={() => void createBoard()}>
+                {t("kanban.newBoard") as string}
+              </Button>
+              <Show when={boardId()}>
+                <Button
+                  size="sm"
+                  variant={confirmBoardDelete() ? "destructive" : "ghost"}
+                  onClick={() => void deleteBoard()}
+                >
+                  {confirmBoardDelete() ? (t("kanban.confirmDelete") as string) : "×"}
+                </Button>
+              </Show>
+            </div>
+          </div>
+        </Show>
       </div>
 
-      <Show when={hasNoBoards()}>
-        <div class="flex min-h-0 flex-1 flex-col items-center justify-center gap-3 px-6 py-16 text-center">
-          <span class="iconify mdi--view-column-outline size-12 text-muted-foreground/40" />
-          <p class="text-sm font-semibold">{t("kanban.emptyTitle") as string}</p>
-          <p class="max-w-sm text-xs leading-relaxed text-muted-foreground">
-            {t("kanban.emptyDescription") as string}{" "}
-            <code class="rounded bg-muted px-1 py-0.5 font-mono">.vault/kanban/</code>.
-          </p>
-          <Button size="sm" class="mt-1 gap-1.5" onClick={() => boardTitleInput?.focus()}>
-            <span class="iconify mdi--plus size-4" />
-            {t("kanban.newBoard") as string}
-          </Button>
-        </div>
+      <Show when={tabView() === "beads"}>
+        <BeadsView projectId={props.projectId} projectPath={props.projectPath} />
       </Show>
 
-      <Show when={boardQ.data}>
-        <KanbanFilterBar
-          filters={filters()}
-          sort={sort()}
-          tagOptions={tagOptions()}
-          assigneeOptions={assigneeOptions()}
-          showAll={showAll()}
-          view={view()}
-          onFilters={setFilters}
-          onSort={setSort}
-          onShowAll={setShowAll}
-          onView={setView}
-        />
-      </Show>
+      <Show when={tabView() === "kanban"}>
+        <Show when={hasNoBoards()}>
+          <div class="flex min-h-0 flex-1 flex-col items-center justify-center gap-3 px-6 py-16 text-center">
+            <span class="iconify mdi--view-column-outline size-12 text-muted-foreground/40" />
+            <p class="text-sm font-semibold">{t("kanban.emptyTitle") as string}</p>
+            <p class="max-w-sm text-xs leading-relaxed text-muted-foreground">
+              {t("kanban.emptyDescription") as string}{" "}
+              <code class="rounded bg-muted px-1 py-0.5 font-mono">.vault/kanban/</code>.
+            </p>
+            <Button size="sm" class="mt-1 gap-1.5" onClick={() => boardTitleInput?.focus()}>
+              <span class="iconify mdi--plus size-4" />
+              {t("kanban.newBoard") as string}
+            </Button>
+          </div>
+        </Show>
 
-      <Show when={boardId() !== null && boardQ.isPending}>
-        <p class="text-xs text-muted-foreground">{t("kanban.loading") as string}</p>
-      </Show>
-      <Show when={boardId() !== null && boardQ.isError}>
-        <p class="text-xs text-destructive">{t("kanban.loadFailed") as string}</p>
-      </Show>
+        <Show when={boardQ.data}>
+          <KanbanFilterBar
+            filters={filters()}
+            sort={sort()}
+            tagOptions={tagOptions()}
+            assigneeOptions={assigneeOptions()}
+            showAll={showAll()}
+            view={view()}
+            onFilters={setFilters}
+            onSort={setSort}
+            onShowAll={setShowAll}
+            onView={setView}
+          />
+        </Show>
 
-      <Show when={boardQ.data}>
-        {(board) => (
-          <>
-            <Show when={view() === "board"}>
-              <KanbanBoard
-                board={board()}
-                columns={displayColumns()}
-                visibleOrder={visibleOrder()}
-                sortMode={sort()}
-                onMove={(id, to, pos) => void move(id, to, pos)}
-                onCreateCard={(status, title) => void createCard(status, title)}
-                onOpenCard={setSelectedCardId}
-              />
-            </Show>
-            <Show when={view() === "list"}>
-              <KanbanListView
-                cards={flatList()}
-                tagColors={board().tagColors}
-                onOpen={setSelectedCardId}
-              />
-            </Show>
-            <Show when={boardId()}>
-              {(id) => (
-                <KanbanCardDialog
-                  projectId={props.projectId}
-                  boardId={id()}
+        <Show when={boardId() !== null && boardQ.isPending}>
+          <p class="text-xs text-muted-foreground">{t("kanban.loading") as string}</p>
+        </Show>
+        <Show when={boardId() !== null && boardQ.isError}>
+          <p class="text-xs text-destructive">{t("kanban.loadFailed") as string}</p>
+        </Show>
+
+        <Show when={boardQ.data}>
+          {(board) => (
+            <>
+              <Show when={view() === "board"}>
+                <KanbanBoard
                   board={board()}
-                  cardId={selectedCardId()}
-                  github={props.github}
-                  onClose={() => setSelectedCardId(null)}
-                  onChanged={invalidate}
-                  onSelectCard={setSelectedCardId}
+                  columns={displayColumns()}
+                  visibleOrder={visibleOrder()}
+                  sortMode={sort()}
+                  onMove={(id, to, pos) => void move(id, to, pos)}
+                  onCreateCard={(status, title) => void createCard(status, title)}
+                  onOpenCard={setSelectedCardId}
                 />
-              )}
-            </Show>
-          </>
-        )}
+              </Show>
+              <Show when={view() === "list"}>
+                <KanbanListView
+                  cards={flatList()}
+                  tagColors={board().tagColors}
+                  onOpen={setSelectedCardId}
+                />
+              </Show>
+              <Show when={boardId()}>
+                {(id) => (
+                  <KanbanCardDialog
+                    projectId={props.projectId}
+                    boardId={id()}
+                    board={board()}
+                    cardId={selectedCardId()}
+                    github={props.github}
+                    onClose={() => setSelectedCardId(null)}
+                    onChanged={invalidate}
+                    onSelectCard={setSelectedCardId}
+                  />
+                )}
+              </Show>
+            </>
+          )}
+        </Show>
       </Show>
     </div>
   );

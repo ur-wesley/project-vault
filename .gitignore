@@ -93,3 +93,9 @@ graphify-out/
 *.db-wal
 *.db-shm
 *.db-shm-journal
+
+# Beads / Dolt files (added by bd init)
+.dolt/
+.beads-credential-key
+.beads/proxieddb/
+*.gate.lock*

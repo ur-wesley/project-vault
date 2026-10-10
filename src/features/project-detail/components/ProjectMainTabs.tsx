@@ -298,7 +298,11 @@ export const ProjectMainTabs: Component<ProjectMainTabsProps> = (props) => {
             />
           </TabsContent>
           <TabsContent value="board" class="min-h-0 flex-1 overflow-hidden outline-none">
-            <KanbanTabPanel projectId={props.project().id} github={githubInfo()} />
+            <KanbanTabPanel
+              projectId={props.project().id}
+              projectPath={props.project().path}
+              github={githubInfo()}
+            />
           </TabsContent>
           <TabsContent value="files" class="min-h-0 flex-1 outline-none overflow-hidden">
             <FileTree
