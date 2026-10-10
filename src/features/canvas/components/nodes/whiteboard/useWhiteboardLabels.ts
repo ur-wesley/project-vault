@@ -1,47 +1,45 @@
 import { batch, createSignal } from "solid-js";
 
-import type { WhiteboardElement, WhiteboardPoint } from "./types";
-import { baseElement, createElementId, isBindableContainer } from "./types";
-import type { ElementStylePatch } from "./types";
+import type { ExcalidrawElement, ExcalidrawTextElement } from "./excalidrawTypes";
+import type { WhiteboardPoint } from "./types";
+import { createElementId, newElement } from "./excalidrawDefaults";
 import { arrowPath, polylineMidpoint } from "./bindings";
-import { insertWaypointAt, removeWaypointAt } from "./geometry";
-import { getElementBounds, flattenSmoothPath } from "./geometry";
+import { insertWaypointAt, removeWaypointAt } from "./geometryEdit";
+import { flattenSmoothPath, isConnector, isShapeElement, isTextElement } from "./geometry";
 import {
   dedupeBoundTexts,
   growContainerForText,
   isInseparableLabel,
   linkBoundText,
   resolveBoundTextPosition,
-  resolveGroupLabelPosition,
-  snapLabelsToCenter,
 } from "./boundText";
 import { sanitizeTextWidth } from "./textMeasure";
-import { groupBounds } from "./groups";
+import { fontFamilyIdEx, fontFamilyNameEx, measureTextBlock } from "./textMeasure";
+import type { FontName, StylePatch, TextAlignName } from "./whiteboardStyle";
 import type { WhiteboardStore } from "./useWhiteboardStore";
 
 export const TEXT_FONT_SIZE = 16;
 export const TEXT_MAX_CHARS = 2000;
 
-function textDefaultsFromStyle(style: ElementStylePatch) {
+/** Typed text factory (newElement returns the wide union). */
+function newText(patch: Record<string, unknown>): ExcalidrawTextElement {
+  const el = newElement("text", patch);
+  if (!isTextElement(el)) throw new Error("newText: text factory returned non-text");
+  return el;
+}
+
+function textDefaultsFromStyle(style: StylePatch) {
   return {
-    color: style.color ?? "#e5e5e5",
+    strokeColor: style.strokeColor ?? "#e5e5e5",
     strokeWidth: style.strokeWidth ?? 2,
-    background: style.background ?? "transparent",
-    fillColor: style.fillColor ?? "#3b82f6",
-    strokeStyle: style.strokeStyle ?? "solid",
-    opacity: style.opacity ?? 100,
-    roundness: style.roundness ?? "round",
     fontSize: style.fontSize ?? TEXT_FONT_SIZE,
-    fontFamily: style.fontFamily ?? "normal",
-    textAlign: style.textAlign ?? "left",
-    bold: style.bold ?? false,
-    italic: style.italic ?? false,
+    fontFamily: style.fontFamily ?? ("normal" as FontName),
+    textAlign: style.textAlign ?? ("left" as TextAlignName),
   } as const;
 }
 
 export interface LabelEdit {
   containerId: string | null;
-  groupId: string | null;
   textId: string | null;
   at: WhiteboardPoint;
   /** Fixed wrap width for drag-created free text; null = auto-width. */
@@ -49,17 +47,15 @@ export interface LabelEdit {
 }
 
 export interface EditStyle {
-  color: string;
+  strokeColor: string;
   fontSize: number;
-  fontFamily: "hand" | "normal" | "code";
-  textAlign: "left" | "center" | "right";
-  bold: boolean;
-  italic: boolean;
+  fontFamily: FontName;
+  textAlign: TextAlignName;
 }
 
 /**
  * Text-label domain: label overlay state, double-click placement,
- * commit, group labels. Excalidraw-style: multiline textarea, Enter =
+ * commit. Excalidraw-style: multiline textarea, Enter =
  * newline, Escape/blur commits, containers auto-grow, arrow labels on pills.
  */
 export function useWhiteboardLabels(opts: {
@@ -68,7 +64,7 @@ export function useWhiteboardLabels(opts: {
   hasCanvas: () => boolean;
 }) {
   const { store, toLocal, hasCanvas } = opts;
-  const { elements, setElements, persist, activeStyle, setSelectedIds, setTool, commit, resolvedEnds, labelLayout } =
+  const { elements, activeStyle, setSelectedIds, setTool, commit, resolvedEnds, labelLayout } =
     store;
 
   const [labelEdit, setLabelEdit] = createSignal<LabelEdit | null>(null);
@@ -76,45 +72,26 @@ export function useWhiteboardLabels(opts: {
   /** Style snapshot the edit overlay renders with: the edited label's own
    * style, or the text-tool defaults for brand-new labels. */
   const [editStyle, setEditStyle] = createSignal<EditStyle>({
-    color: "#e5e5e5",
+    strokeColor: "#e5e5e5",
     fontSize: TEXT_FONT_SIZE,
     fontFamily: "normal",
     textAlign: "left",
-    bold: false,
-    italic: false,
   });
 
-  const styleOfText = (el: WhiteboardElement): EditStyle => {
-    if (el.kind === "text") {
-      return {
-        color: typeof el.color === "string" ? el.color : "#e5e5e5",
-        fontSize: Number.isFinite(el.fontSize) ? el.fontSize : TEXT_FONT_SIZE,
-        fontFamily: el.fontFamily === "hand" || el.fontFamily === "code" ? el.fontFamily : "normal",
-        textAlign: el.textAlign === "center" || el.textAlign === "right" ? el.textAlign : "left",
-        bold: el.bold === true,
-        italic: el.italic === true,
-      };
-    }
-    const td = textDefaultsFromStyle(activeStyle());
-    return {
-      color: td.color,
-      fontSize: td.fontSize,
-      fontFamily: td.fontFamily,
-      textAlign: td.textAlign,
-      bold: td.bold,
-      italic: td.italic,
-    };
-  };
+  const styleOfText = (el: ExcalidrawTextElement): EditStyle => ({
+    strokeColor: typeof el.strokeColor === "string" ? el.strokeColor : "#e5e5e5",
+    fontSize: Number.isFinite(el.fontSize) ? el.fontSize : TEXT_FONT_SIZE,
+    fontFamily: fontFamilyNameEx(el.fontFamily),
+    textAlign: el.textAlign === "center" || el.textAlign === "right" ? el.textAlign : "left",
+  });
 
   const toolEditStyle = (): EditStyle => {
     const td = textDefaultsFromStyle(activeStyle());
     return {
-      color: td.color,
+      strokeColor: td.strokeColor,
       fontSize: td.fontSize,
       fontFamily: td.fontFamily,
       textAlign: td.textAlign,
-      bold: td.bold,
-      italic: td.italic,
     };
   };
 
@@ -131,31 +108,32 @@ export function useWhiteboardLabels(opts: {
     });
   };
 
+  /** Overlay wrap width for an existing text (null = auto-width). */
+  const overlayWidthFor = (el: ExcalidrawTextElement): number | null =>
+    el.autoResize ? null : el.width;
+
   /** Anchor for a new bound-text edit: existing label position, else container center. */
   const boundAnchorFor = (
-    container: WhiteboardElement | undefined,
-    existing: WhiteboardElement | undefined,
+    container: ExcalidrawElement | undefined,
+    existing: ExcalidrawTextElement | undefined,
     containerId: string,
     td: ReturnType<typeof textDefaultsFromStyle>,
     fallback: WhiteboardPoint,
   ): WhiteboardPoint => {
     if (existing) return labelLayout().anchors.get(existing.id) ?? fallback;
     if (!container) return fallback;
-    return resolveBoundTextPosition(elements(), {
-      ...baseElement("tmp", td.color, td.strokeWidth, td),
-      kind: "text",
-      position: { x: 0, y: 0 },
-      text: "",
-      fontSize: td.fontSize,
-      fontFamily: td.fontFamily,
-      bold: td.bold,
-      italic: td.italic,
-      containerId,
-      labelGroupId: null,
-      offset: { x: 0, y: 0 },
-      width: null,
-      textAlign: "center",
-    });
+    return resolveBoundTextPosition(
+      elements(),
+      newText({
+        id: "tmp",
+        x: 0,
+        y: 0,
+        strokeColor: td.strokeColor,
+        fontSize: td.fontSize,
+        fontFamily: fontFamilyIdEx(td.fontFamily),
+        containerId,
+      }),
+    );
   };
 
   const beginTextAt = (
@@ -165,19 +143,17 @@ export function useWhiteboardLabels(opts: {
     textId: string | null = null,
   ) => {
     if (textId) {
-      const target = elements().find((el) => el.id === textId && el.kind === "text");
-      if (target && target.kind === "text") {
-        const anchor =
-          target.containerId || target.labelGroupId
-            ? resolveBoundTextPosition(elements(), target)
-            : target.position;
+      const target = elements().find((el) => el.id === textId);
+      if (target && isTextElement(target)) {
+        const anchor = target.containerId
+          ? resolveBoundTextPosition(elements(), target)
+          : { x: target.x, y: target.y };
         openEdit(
           {
             containerId: target.containerId,
-            groupId: target.labelGroupId,
             textId: target.id,
             at: anchor,
-            width: target.width ?? null,
+            width: overlayWidthFor(target),
           },
           target.text,
           styleOfText(target),
@@ -190,41 +166,26 @@ export function useWhiteboardLabels(opts: {
     if (containerId) {
       let els = elements();
       const container = els.find((e) => e.id === containerId);
-      if (container && (container.kind === "arrow" || container.kind === "line")) {
+      if (container && isConnector(container)) {
         const healed = dedupeBoundTexts(els, containerId);
         if (healed !== els) {
           commit(healed);
           els = healed;
         }
-        const snapped = snapLabelsToCenter(els, containerId);
-        if (snapped !== els) {
-          setElements(snapped);
-          persist(snapped);
-          els = snapped;
-        }
       }
       const existing = els.find(
-        (el) => el.kind === "text" && el.containerId === containerId,
+        (el): el is ExcalidrawTextElement =>
+          isTextElement(el) && el.containerId === containerId,
       );
       const anchor = boundAnchorFor(container, existing, containerId, td, pt);
       openEdit(
-        { containerId, groupId: null, textId: existing?.id ?? null, at: anchor, width: null },
-        existing && existing.kind === "text" ? existing.text : "",
+        { containerId, textId: existing?.id ?? null, at: anchor, width: null },
+        existing ? existing.text : "",
         existing ? styleOfText(existing) : toolEditStyle(),
       );
       return;
     }
-    openEdit(
-      { containerId: null, groupId: null, textId: null, at: pt, width: w },
-      "",
-      toolEditStyle(),
-    );
-  };
-
-  /** Fallback anchor: center of stored bounds (used when layout misses). */
-  const fallbackPt = (hit: WhiteboardElement): WhiteboardPoint => {
-    const b = getElementBounds(hit);
-    return { x: (b.minX + b.maxX) / 2, y: (b.minY + b.maxY) / 2 };
+    openEdit({ containerId: null, textId: null, at: pt, width: w }, "", toolEditStyle());
   };
 
   const handleDoubleClick = (e: MouseEvent) => {
@@ -233,66 +194,49 @@ export function useWhiteboardLabels(opts: {
     const pt = toLocal(e);
     const hit = store.hitAt(pt);
     if (!hit) {
-      openEdit(
-        { containerId: null, groupId: null, textId: null, at: pt, width: null },
-        "",
-        toolEditStyle(),
-      );
+      openEdit({ containerId: null, textId: null, at: pt, width: null }, "", toolEditStyle());
       return;
     }
-    if (hit.kind === "text") {
+    if (isTextElement(hit)) {
       // A stacked duplicate (several texts on one arrow) heals to the
       // survivor before opening, so only one text stays per arrow.
       let els = elements();
       let target = hit;
       if (hit.containerId) {
         const container = els.find((e) => e.id === hit.containerId);
-        if (container && (container.kind === "arrow" || container.kind === "line")) {
+        if (container && isConnector(container)) {
           const healed = dedupeBoundTexts(els, hit.containerId);
           if (healed !== els) {
             commit(healed);
             els = healed;
           }
           const survivor = els.find(
-            (el): el is Extract<WhiteboardElement, { kind: "text" }> =>
-              el.kind === "text" && el.containerId === hit.containerId,
+            (el): el is ExcalidrawTextElement =>
+              isTextElement(el) && el.containerId === hit.containerId,
           );
           if (survivor) target = survivor;
-          const snapped = snapLabelsToCenter(els, hit.containerId);
-          if (snapped !== els) {
-            setElements(snapped);
-            persist(snapped);
-            els = snapped;
-            const centered = els.find(
-              (el): el is Extract<WhiteboardElement, { kind: "text" }> => el.id === target.id,
-            );
-            if (centered) target = centered;
-          }
         }
       }
-      let anchor: WhiteboardPoint;
-      if (target.containerId) anchor = resolveBoundTextPosition(els, target);
-      else if (target.labelGroupId)
-        anchor = labelLayout().anchors.get(target.id) ?? target.position;
-      else anchor = target.position;
+      const anchor = target.containerId
+        ? resolveBoundTextPosition(els, target)
+        : { x: target.x, y: target.y };
       openEdit(
         {
           containerId: target.containerId,
-          groupId: target.labelGroupId,
           textId: target.id,
           at: anchor,
-          width: target.width ?? null,
+          width: overlayWidthFor(target),
         },
         target.text,
         styleOfText(target),
       );
       return;
     }
-    if (hit.kind === "arrow" || hit.kind === "line") {
+    if (isConnector(hit)) {
       const els = elements();
       const path = arrowPath(els, hit);
       const painted = flattenSmoothPath(path);
-      const resolved = resolvedEnds().get(hit.id) ?? { start: hit.start, end: hit.end };
+      const resolved = resolvedEnds().get(hit.id) ?? connectorFallback(hit);
       const z = store.zoom();
       // Double-click a bend point removes it (bend handles sit exactly on
       // the painted curve, so this always lines up with what you see).
@@ -302,9 +246,7 @@ export function useWhiteboardLabels(opts: {
       if (wpIdx >= 0) {
         commit(
           els.map((el) =>
-            el.id === hit.id && (el.kind === "arrow" || el.kind === "line")
-              ? removeWaypointAt(el, wpIdx)
-              : el,
+            el.id === hit.id && isConnector(el) ? removeWaypointAt(el, wpIdx) : el,
           ),
         );
         setSelectedIds([hit.id]);
@@ -317,65 +259,67 @@ export function useWhiteboardLabels(opts: {
       if (Math.hypot(mid.x - pt.x, mid.y - pt.y) > 18 / z) {
         commit(
           els.map((el) =>
-            el.id === hit.id && (el.kind === "arrow" || el.kind === "line")
-              ? insertWaypointAt(el, pt, resolved)
-              : el,
+            el.id === hit.id && isConnector(el) ? insertWaypointAt(el, pt, resolved) : el,
           ),
         );
         setSelectedIds([hit.id]);
         return;
       }
     }
-    if (isBindableContainer(hit)) {
+    if (isShapeElement(hit) || isConnector(hit)) {
       const td = textDefaultsFromStyle(activeStyle());
       // Connectors carry a single label: heal duplicates (keep first,
       // extras become free texts) before opening the survivor.
       let els = elements();
-      if (hit.kind === "arrow" || hit.kind === "line") {
+      if (isConnector(hit)) {
         const healed = dedupeBoundTexts(els, hit.id);
         if (healed !== els) {
           commit(healed);
           els = healed;
         }
-        const snapped = snapLabelsToCenter(els, hit.id);
-        if (snapped !== els) {
-          setElements(snapped);
-          persist(snapped);
-          els = snapped;
-        }
       }
-      const existing = els.find((el) => el.kind === "text" && el.containerId === hit.id);
+      const existing = els.find(
+        (el): el is ExcalidrawTextElement => isTextElement(el) && el.containerId === hit.id,
+      );
       // Single anchor source (same function render uses): midpoint for new
       // arrow labels, live anchor for existing ones.
       const anchor = existing
         ? resolveBoundTextPosition(els, existing)
-        : resolveBoundTextPosition(els, {
-            ...baseElement("tmp", td.color, td.strokeWidth, td),
-            kind: "text",
-            position: { x: 0, y: 0 },
-            text: "",
-            fontSize: td.fontSize,
-            fontFamily: td.fontFamily,
-            bold: td.bold,
-            italic: td.italic,
-            containerId: hit.id,
-            labelGroupId: null,
-            offset: { x: 0, y: 0 },
-            width: null,
-            textAlign: "center",
-          });
+        : resolveBoundTextPosition(
+            els,
+            newText({
+              id: "tmp",
+              x: 0,
+              y: 0,
+              strokeColor: td.strokeColor,
+              fontSize: td.fontSize,
+              fontFamily: fontFamilyIdEx(td.fontFamily),
+              containerId: hit.id,
+            }),
+          );
       openEdit(
         {
           containerId: hit.id,
-          groupId: null,
           textId: existing?.id ?? null,
           at: anchor,
           width: null,
         },
-        existing && existing.kind === "text" ? existing.text : "",
+        existing ? existing.text : "",
         existing ? styleOfText(existing) : toolEditStyle(),
       );
     }
+  };
+
+  const connectorFallback = (
+    hit: ExcalidrawElement,
+  ): { start: WhiteboardPoint; end: WhiteboardPoint } => {
+    if (isConnector(hit)) {
+      const pts = hit.points.map(([px, py]) => ({ x: hit.x + px, y: hit.y + py }));
+      const first = pts[0] ?? { x: hit.x, y: hit.y };
+      const last = pts[pts.length - 1] ?? { x: hit.x, y: hit.y };
+      return { start: first, end: last };
+    }
+    return { start: { x: 0, y: 0 }, end: { x: 0, y: 0 } };
   };
 
   /** Excalidraw commit: keep interior newlines, drop trailing blank lines. */
@@ -399,7 +343,6 @@ export function useWhiteboardLabels(opts: {
     });
     if (!edit) return;
     const containerId = edit.containerId;
-    const groupId = edit.groupId;
     const textId = edit.textId;
     if (!value) {
       // Empty commit deletes an existing label and unlinks it — except
@@ -407,19 +350,15 @@ export function useWhiteboardLabels(opts: {
       if (textId) {
         if (isInseparableLabel(elements(), textId)) {
           const target = elements().find((e) => e.id === textId);
-          const cid =
-            target && target.kind === "text" && target.containerId ? target.containerId : null;
+          const cid = target && isTextElement(target) ? target.containerId : null;
           setTool("select");
           setSelectedIds(cid ? [cid] : []);
           return;
         }
         const els = elements().map((el) =>
-          el.id === containerId && el.kind !== "text"
-            ? {
-                ...el,
-                boundElements: el.boundElements.filter((b) => b.id !== textId),
-              }
-            : el,
+          el.id !== containerId || isTextElement(el)
+            ? el
+            : { ...el, boundElements: (el.boundElements ?? []).filter((b) => b.id !== textId) },
         );
         commit(els.filter((el) => el.id !== textId));
         setSelectedIds([]);
@@ -429,24 +368,22 @@ export function useWhiteboardLabels(opts: {
     }
     if (textId) {
       const next = elements().map((el) => {
-        if (el.id === textId && el.kind === "text") {
-          const updated = {
-            ...el,
-            text: value,
-            width: el.containerId ? null : (edit.width ?? el.width ?? null),
-          };
-          // Arrow labels stay centered on the connector.
-          if (isInseparableLabel(elements(), textId)) updated.offset = { x: 0, y: 0 };
-          return updated;
+        if (el.id === textId && isTextElement(el)) {
+          // Every commit writes `text` + `originalText` together;
+          // drag-width free texts stay fixed (`autoResize: false`).
+          const free = !el.containerId;
+          const width = free ? (edit.width ?? el.width) : el.width;
+          const autoResize = free ? edit.width == null && el.autoResize : true;
+          return { ...el, text: value, originalText: value, width, autoResize };
         }
         return el;
       });
       // Bound edit may need its container to grow (Excalidraw behavior).
       const textEl = next.find((el) => el.id === textId);
       let grown = next;
-      if (textEl && textEl.kind === "text" && textEl.containerId) {
+      if (textEl && isTextElement(textEl) && textEl.containerId) {
         grown = next.map((el) =>
-          el.id === textEl.containerId && el.kind !== "text"
+          el.id === textEl.containerId && !isTextElement(el)
             ? growContainerForText(el, { ...textEl, text: value })
             : el,
         );
@@ -456,11 +393,15 @@ export function useWhiteboardLabels(opts: {
     } else if (containerId) {
       // Single text per container: a bound text may have appeared since the
       // edit opened (sync echo, double open) — update it instead of doubling.
-      const dupe = elements().find((el) => el.kind === "text" && el.containerId === containerId);
+      const dupe = elements().find(
+        (el): el is ExcalidrawTextElement => isTextElement(el) && el.containerId === containerId,
+      );
       if (dupe) {
         commit(
           elements().map((el) =>
-            el.id === dupe.id && el.kind === "text" ? { ...el, text: value } : el,
+            el.id === dupe.id && isTextElement(el)
+              ? { ...el, text: value, originalText: value }
+              : el,
           ),
         );
         revertToSelect([dupe.id]);
@@ -469,118 +410,55 @@ export function useWhiteboardLabels(opts: {
       const id = createElementId();
       const td = textDefaultsFromStyle(activeStyle());
       const container = elements().find((e) => e.id === containerId);
-      const onConnector =
-        !!container && (container.kind === "arrow" || container.kind === "line");
-      const nt: WhiteboardElement = {
-        ...baseElement(id, td.color, td.strokeWidth, td),
-        kind: "text",
-        position: edit.at,
-        text: value,
+      const onConnector = !!container && isConnector(container);
+      const strokeColor =
+        onConnector && container && !isTextElement(container)
+          ? container.strokeColor
+          : td.strokeColor;
+      const nt = newText({
+        id,
+        x: Math.round(edit.at.x),
+        y: Math.round(edit.at.y),
+        strokeColor,
         fontSize: td.fontSize,
-        fontFamily: onConnector ? "normal" : td.fontFamily,
-        bold: onConnector ? false : td.bold,
-        italic: onConnector ? false : td.italic,
-        containerId,
-        labelGroupId: null,
-        offset: { x: 0, y: 0 },
-        width: null,
+        fontFamily: onConnector ? 2 : fontFamilyIdEx(td.fontFamily),
         textAlign: "center",
-      };
-      if (onConnector && container && container.kind !== "text") {
-        // Arrow labels inherit the connector's styling; only size is settable.
-        (nt as Extract<WhiteboardElement, { kind: "text" }>).color = container.color;
-        (nt as Extract<WhiteboardElement, { kind: "text" }>).opacity = container.opacity;
-      } else if (container && td.color === "#e5e5e5" && container.color !== td.color) {
-        // Bound-text font inheritance: keep container-linked color when the
-        // text tool still holds its default stroke color.
-        (nt as Extract<WhiteboardElement, { kind: "text" }>).color = container.color;
-      }
+        text: value,
+        originalText: value,
+        containerId,
+        autoResize: true,
+      });
       const withText = linkBoundText([...elements(), nt], containerId, id);
       const grown = withText.map((el) =>
-        el.id === containerId && el.kind !== "text" ? growContainerForText(el, nt) : el,
+        el.id === containerId && !isTextElement(el) && isTextElement(nt)
+          ? growContainerForText(el, nt)
+          : el,
       );
       commit(grown);
-      revertToSelect([id]);
-    } else if (groupId) {
-      const id = createElementId();
-      const td = textDefaultsFromStyle(activeStyle());
-      const nt: WhiteboardElement = {
-        ...baseElement(id, td.color, td.strokeWidth, td),
-        kind: "text",
-        position: edit.at,
-        text: value,
-        fontSize: td.fontSize,
-        fontFamily: td.fontFamily,
-        bold: td.bold,
-        italic: td.italic,
-        containerId: null,
-        labelGroupId: groupId,
-        offset: { x: 0, y: 0 },
-        width: edit.width,
-        textAlign: td.textAlign ?? "center",
-      };
-      commit([...elements(), nt]);
       revertToSelect([id]);
     } else {
       const id = createElementId();
       const td = textDefaultsFromStyle(activeStyle());
-      commit([
-        ...elements(),
-        {
-          ...baseElement(id, td.color, td.strokeWidth, td),
-          kind: "text",
-          position: edit.at,
-          text: value,
-          fontSize: td.fontSize,
-          fontFamily: td.fontFamily,
-          bold: td.bold,
-          italic: td.italic,
-          containerId: null,
-          labelGroupId: null,
-          offset: { x: 0, y: 0 },
-          width: edit.width,
-          textAlign: td.textAlign ?? "left",
-        } as WhiteboardElement,
-      ]);
+      const block = measureTextBlock(value, td.fontSize, edit.width ?? null, {
+        fontFamily: fontFamilyIdEx(td.fontFamily),
+      });
+      const nt = newText({
+        id,
+        x: Math.round(edit.at.x),
+        y: Math.round(edit.at.y),
+        width: Math.max(block.width, edit.width ?? block.width),
+        height: block.height,
+        strokeColor: td.strokeColor,
+        fontSize: td.fontSize,
+        fontFamily: fontFamilyIdEx(td.fontFamily),
+        textAlign: td.textAlign,
+        text: value,
+        originalText: value,
+        autoResize: edit.width == null,
+      });
+      commit([...elements(), nt]);
       revertToSelect([id]);
     }
-  };
-
-  const openGroupLabel = () => {
-    const g = store.selectedGroup();
-    if (!g) return;
-    const td = textDefaultsFromStyle(activeStyle());
-    const els = elements();
-    const existing = els.find((el) => el.kind === "text" && el.labelGroupId === g);
-    const gb = groupBounds(els, g);
-    const anchor = existing
-      ? (labelLayout().anchors.get(existing.id) ?? fallbackPt(existing))
-      : resolveGroupLabelPosition(gb, {
-          ...baseElement("tmp", td.color, td.strokeWidth, td),
-          kind: "text",
-          position: { x: 0, y: 0 },
-          text: "",
-          fontSize: td.fontSize,
-          fontFamily: td.fontFamily,
-          bold: td.bold,
-          italic: td.italic,
-          containerId: null,
-          labelGroupId: g,
-          offset: { x: 0, y: 0 },
-          width: null,
-          textAlign: "center",
-        });
-    openEdit(
-      {
-        containerId: null,
-        groupId: g,
-        textId: existing?.id ?? null,
-        at: anchor,
-        width: existing && existing.kind === "text" ? (existing.width ?? null) : null,
-      },
-      existing && existing.kind === "text" ? existing.text : "",
-      existing ? styleOfText(existing) : toolEditStyle(),
-    );
   };
 
   const revertToSelect = (select: string[]) => {
@@ -600,7 +478,6 @@ export function useWhiteboardLabels(opts: {
     beginTextAt,
     handleDoubleClick,
     commitLabel,
-    openGroupLabel,
     setTextInputRef: (el: HTMLTextAreaElement | undefined) => {
       textInputRef = el;
     },

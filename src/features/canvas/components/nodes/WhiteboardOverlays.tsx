@@ -2,8 +2,7 @@ import { Show, createEffect, type Component } from "solid-js";
 
 import type { WhiteboardLabels } from "./whiteboard/useWhiteboardLabels";
 import type { WhiteboardStore } from "./whiteboard/useWhiteboardStore";
-import { FONT_STACKS } from "./whiteboard/types";
-import { TEXT_LINE_HEIGHT, measureTextBlock } from "./whiteboard/textMeasure";
+import { fontStackFor, TEXT_LINE_HEIGHT, measureTextBlock } from "./whiteboard/textMeasure";
 
 /**
  * Label-edit overlay (positioned inside the relative board div).
@@ -24,16 +23,25 @@ export const WhiteboardOverlays: Component<{
   return (
     <Show when={labels.labelEdit()}>
       {(edit) => {
-        const bound = !!(edit().containerId || edit().groupId);
+        const bound = !!edit().containerId;
         const fixedW = edit().width;
         const st = labels.editStyle();
-        const stack = FONT_STACKS[st.fontFamily] ?? FONT_STACKS.normal;
+        const stack = fontStackFor(st.fontFamily);
         const z = store.zoom();
         const screen = () => store.worldToScreen(edit().at.x, edit().at.y);
+        // Arrow-label edits render as a centered pill (mirrors the painted
+        // midpoint pill in paint.ts) instead of a plain textarea.
+        const container = () =>
+          edit().containerId
+            ? store.elements().find((e) => e.id === edit().containerId)
+            : undefined;
+        const arrowLabel = () => {
+          const c = container();
+          return !!c && (c.type === "arrow" || c.type === "line");
+        };
         const wrap = fixedW ?? (bound ? 220 : null);
         const block = () =>
           measureTextBlock(labels.textValue() || " ", st.fontSize, wrap, {
-            bold: st.bold,
             fontFamily: st.fontFamily,
           });
         const lineH = () => st.fontSize * TEXT_LINE_HEIGHT;
@@ -63,11 +71,7 @@ export const WhiteboardOverlays: Component<{
             }}
             onPointerDown={(e) => e.stopPropagation()}
             onDblClick={(e) => e.stopPropagation()}
-            placeholder={
-              edit().containerId || edit().groupId
-                ? "Label text, Esc to place"
-                : "Type text, Esc to place"
-            }
+            placeholder={edit().containerId ? "Label text, Esc to place" : "Type text, Esc to place"}
             rows={1}
             class="absolute z-10 rounded border border-primary/50 bg-background px-1.5 py-1 text-foreground focus:outline-none"
             style={{
@@ -78,6 +82,7 @@ export const WhiteboardOverlays: Component<{
               "min-width": bound ? `${80 * z}px` : `${32 * z}px`,
               "max-width": `${320 * z}px`,
               height: editHeight(),
+              "border-radius": arrowLabel() ? "9999px" : undefined,
               "text-align": bound ? "center" : st.textAlign,
               "white-space": "pre-wrap",
               "overflow-wrap": "break-word",
@@ -86,9 +91,7 @@ export const WhiteboardOverlays: Component<{
               "font-size": `${st.fontSize * z}px`,
               "line-height": "1.25",
               "font-family": stack,
-              "font-weight": st.bold ? "700" : "400",
-              "font-style": st.italic ? "italic" : "normal",
-              color: st.color,
+              color: st.strokeColor,
             }}
           />
         );

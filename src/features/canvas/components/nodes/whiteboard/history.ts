@@ -1,12 +1,12 @@
-import type { WhiteboardElement } from "./types";
+import type { ExcalidrawElement } from "./excalidrawTypes";
 
 /**
  * Bounded undo/redo over immutable element snapshots.
  * Pure functions — the component owns the live state, history only stores it.
  */
 export interface WhiteboardHistory {
-  past: WhiteboardElement[][];
-  future: WhiteboardElement[][];
+  past: ExcalidrawElement[][];
+  future: ExcalidrawElement[][];
 }
 
 export const HISTORY_LIMIT = 50;
@@ -16,15 +16,18 @@ export function emptyHistory(): WhiteboardHistory {
 }
 
 /** Push the state *before* a mutation. Clears the redo stack. */
-export function historyPush(h: WhiteboardHistory, before: WhiteboardElement[]): WhiteboardHistory {
+export function historyPush(
+  h: WhiteboardHistory,
+  before: ExcalidrawElement[],
+): WhiteboardHistory {
   const past = [...h.past, before].slice(-HISTORY_LIMIT);
   return { past, future: [] };
 }
 
 export function historyUndo(
   h: WhiteboardHistory,
-  current: WhiteboardElement[],
-): { history: WhiteboardHistory; elements: WhiteboardElement[] } {
+  current: ExcalidrawElement[],
+): { history: WhiteboardHistory; elements: ExcalidrawElement[] } {
   const prev = h.past[h.past.length - 1];
   if (!prev) return { history: h, elements: current };
   return {
@@ -35,8 +38,8 @@ export function historyUndo(
 
 export function historyRedo(
   h: WhiteboardHistory,
-  current: WhiteboardElement[],
-): { history: WhiteboardHistory; elements: WhiteboardElement[] } {
+  current: ExcalidrawElement[],
+): { history: WhiteboardHistory; elements: ExcalidrawElement[] } {
   const next = h.future[0];
   if (!next) return { history: h, elements: current };
   return {

@@ -15,18 +15,18 @@ export const LABEL_PILL_PAD_Y = 3;
 
 export function estimateCharWidth(
   fontSize: number,
-  opts?: { bold?: boolean; fontFamily?: string },
+  opts?: { bold?: boolean; fontFamily?: string | number },
 ): number {
   let w = fontSize * 0.55;
   if (opts?.bold) w *= 1.08;
-  if (opts?.fontFamily === "code") w *= 1.12;
+  if (fontFamilyNameEx(opts?.fontFamily) === "code") w *= 1.12;
   return w;
 }
 
 export function estimateLineWidth(
   line: string,
   fontSize: number,
-  opts?: { bold?: boolean; fontFamily?: string },
+  opts?: { bold?: boolean; fontFamily?: string | number },
 ): number {
   if (line.length === 0) return 0;
   return line.length * estimateCharWidth(fontSize, opts);
@@ -55,7 +55,7 @@ function wrapParagraph(
   paragraph: string,
   maxWidthPx: number | null,
   fontSize: number,
-  opts?: { bold?: boolean; fontFamily?: string },
+  opts?: { bold?: boolean; fontFamily?: string | number },
 ): string[] {
   if (maxWidthPx == null) return [paragraph];
   if (paragraph === "") return [""];
@@ -109,7 +109,7 @@ export function measureTextBlock(
   text: string,
   fontSize: number,
   maxWidthPx: number | null,
-  opts?: { bold?: boolean; fontFamily?: string },
+  opts?: { bold?: boolean; fontFamily?: string | number },
 ): TextBlock {
   const paras = splitParagraphs(text).slice(0, TEXT_MAX_LINES);
   const lines: string[] = [];
@@ -140,16 +140,82 @@ export function sanitizeTextWidth(raw: unknown): number | null {
   return Math.min(1200, Math.round(raw));
 }
 
-export type TextAlign = "left" | "center" | "right";
+/* ------------------------------------------------------------------ */
+/* Excalidraw-native text fields: fontFamily 1/2/3 -> hand/normal/code    */
+/* stacks; fontSize, textAlign, verticalAlign, lineHeight, autoResize.    */
+/* ------------------------------------------------------------------ */
 
-export function sanitizeTextAlign(raw: unknown, fallback: TextAlign = "left"): TextAlign {
-  return raw === "center" || raw === "left" || raw === "right" ? raw : fallback;
+/** Excalidraw font ids: 1 hand-drawn, 2 normal, 3 code. */
+export type ExcalidrawFontFamily = 1 | 2 | 3;
+export const EXCALIDRAW_FONT_IDS: ExcalidrawFontFamily[] = [1, 2, 3];
+
+export const EXCALIDRAW_FONT_STACKS: Record<ExcalidrawFontFamily, string> = {
+  1: '"Segoe Print", "Bradley Hand", "Virgil", cursive',
+  2: "system-ui, sans-serif",
+  3: 'ui-monospace, "Cascadia Code", "Fira Code", monospace',
+};
+
+export type VerticalAlign = "top" | "middle" | "bottom";
+
+/** Numeric-or-string font family -> canonical stack name. */
+export function fontFamilyNameEx(raw: unknown): "hand" | "normal" | "code" {
+  if (raw === 3 || raw === "code") return "code";
+  if (raw === 1 || raw === "hand") return "hand";
+  if (raw === 2 || raw === "normal") return "normal";
+  return "normal";
 }
 
-export function sanitizeFontFamily(raw: unknown): "hand" | "normal" | "code" {
-  return raw === "hand" || raw === "code" ? raw : "normal";
+/** Numeric-or-string font family -> Excalidraw id (default 2 normal). */
+export function fontFamilyIdEx(raw: unknown): ExcalidrawFontFamily {
+  if (raw === 1 || raw === "hand") return 1;
+  if (raw === 3 || raw === "code") return 3;
+  return 2;
 }
 
-export function sanitizeBool(raw: unknown, fallback = false): boolean {
-  return typeof raw === "boolean" ? raw : fallback;
+/** CSS font stack for an Excalidraw-or-legacy family value. */
+export function fontStackFor(raw: unknown): string {
+  return EXCALIDRAW_FONT_STACKS[fontFamilyIdEx(raw)];
+}
+
+export function sanitizeFontFamilyId(raw: unknown): ExcalidrawFontFamily {
+  if (raw === 1 || raw === 2 || raw === 3) return raw;
+  return fontFamilyIdEx(raw);
+}
+
+export function sanitizeVerticalAlign(raw: unknown): VerticalAlign {
+  if (raw === "middle" || raw === "bottom" || raw === "top") return raw;
+  return "top";
+}
+
+/** Clamp lineHeight to a sane range (default TEXT_LINE_HEIGHT). */
+export function sanitizeLineHeight(raw: unknown): number {
+  if (typeof raw !== "number" || !Number.isFinite(raw)) return TEXT_LINE_HEIGHT;
+  return Math.min(3, Math.max(0.5, raw));
+}
+
+/** autoResize flag (default true = auto-width, Excalidraw behavior). */
+export function sanitizeAutoResize(raw: unknown): boolean {
+  if (typeof raw === "boolean") return raw;
+  return true;
+}
+
+/** Resolve the effective line height for an element-like value. */
+export function resolveLineHeight(el: { lineHeight?: unknown }): number {
+  return sanitizeLineHeight(el.lineHeight);
+}
+
+/**
+ * Wrap width for an Excalidraw text element: autoResize (or non-positive
+ * width) = null (auto-width), otherwise the fixed width. Mirrors
+ * geometry.nativeTextBounds so measure == render == hit-test.
+ */
+export function wrapWidthForAutoResize(el: {
+  width: unknown;
+  autoResize?: unknown;
+}): number | null {
+  const auto = sanitizeAutoResize(el.autoResize);
+  if (auto) return null;
+  if (typeof el.width !== "number" || !Number.isFinite(el.width)) return null;
+  if (el.width < TEXT_MIN_WRAP) return null;
+  return Math.min(1200, Math.round(el.width));
 }

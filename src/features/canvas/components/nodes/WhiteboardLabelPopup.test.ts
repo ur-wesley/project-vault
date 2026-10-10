@@ -29,23 +29,22 @@ const LABEL_ID = "t1";
 function arrowEl(partial?: Record<string, unknown>) {
   return {
     id: ARROW_ID,
-    kind: "arrow",
-    color: "#e5e5e5",
+    type: "arrow",
+    x: 10,
+    y: 10,
+    width: 90,
+    height: 0,
+    strokeColor: "#e5e5e5",
     strokeWidth: 2,
-    background: "transparent",
-    fillColor: "#3b82f6",
-    strokeStyle: "solid",
-    opacity: 100,
-    roundness: "round",
-    groupIds: [],
+    points: [
+      [0, 0],
+      [90, 0],
+    ],
     boundElements: [{ type: "text", id: LABEL_ID }],
-    start: { x: 10, y: 10 },
-    end: { x: 100, y: 10 },
     startBinding: null,
     endBinding: null,
-    startArrow: "none",
-    endArrow: "arrow",
-    waypoints: [],
+    startArrowhead: null,
+    endArrowhead: "arrow",
     ...partial,
   };
 }
@@ -53,24 +52,16 @@ function arrowEl(partial?: Record<string, unknown>) {
 function labelEl(partial?: Record<string, unknown>) {
   return {
     id: LABEL_ID,
-    kind: "text",
-    color: "#ef4444",
-    strokeWidth: 2,
-    background: "transparent",
-    fillColor: "#3b82f6",
-    strokeStyle: "solid",
-    opacity: 100,
-    roundness: "round",
-    position: { x: 0, y: 0 },
+    type: "text",
+    x: 30,
+    y: 0,
+    strokeColor: "#ef4444",
     text: "line one\nline two is longer",
     fontSize: 20,
-    fontFamily: "code",
-    bold: true,
-    italic: false,
+    fontFamily: 3,
     containerId: ARROW_ID,
-    labelGroupId: null,
-    offset: { x: 0, y: 0 },
-    width: null,
+    originalText: "line one\nline two is longer",
+    autoResize: true,
     textAlign: "center",
     ...partial,
   };
@@ -85,7 +76,7 @@ function boardWith(elements: unknown[]): CanvasNodeDto {
     y: 0,
     width: 560,
     height: 420,
-    dataJson: JSON.stringify({ version: 5, elements }),
+    dataJson: JSON.stringify({ type: "excalidraw", version: 2, elements }),
   };
 }
 
@@ -189,7 +180,6 @@ describe("WhiteboardNode arrow-label popup", () => {
       expect(area?.style.top).toBe("10px");
       // Uses the label's own style, not the text-tool default (16px).
       expect(area?.style.fontSize).toBe("20px");
-      expect(area?.style.fontWeight).toBe("700");
       // Height fits both lines (2 rows at 20px * 1.25 = 50px minimum).
       expect(Number.parseFloat(area?.style.height ?? "0")).toBeGreaterThanOrEqual(50);
     } finally {
@@ -259,11 +249,11 @@ describe("WhiteboardNode arrow-label popup", () => {
       await new Promise((r) => setTimeout(r, 900));
       expect(seen.length).toBeGreaterThan(0);
       const last = JSON.parse(seen[seen.length - 1] as string) as {
-        elements: { id: string; kind: string; containerId?: string | null; text?: string }[];
+        elements: { id: string; type: string; containerId?: string | null; text?: string }[];
       };
       expect(
         last.elements
-          .filter((el) => el.kind === "text" && el.containerId === ARROW_ID)
+          .filter((el) => el.type === "text" && el.containerId === ARROW_ID)
           .map((el) => el.id),
       ).toEqual(["t1"]);
       // The extra survives as a free text (content preserved).
@@ -447,21 +437,25 @@ describe("WhiteboardNode arrow-label popup", () => {
       const last = JSON.parse(seen[seen.length - 1] as string) as {
         elements: {
           id: string;
-          kind: string;
-          start?: { x: number; y: number };
-          end?: { x: number; y: number };
+          type: string;
+          x?: number;
+          y?: number;
+          points?: [number, number][];
           containerId?: string | null;
-          offset?: { x: number; y: number };
         }[];
       };
       expect(last.elements.find((el) => el.id === "a1")).toMatchObject({
-        start: { x: 30, y: 30 },
-        end: { x: 120, y: 30 },
+        x: 30,
+        y: 30,
+        points: [
+          [0, 0],
+          [90, 0],
+        ],
       });
-      expect(last.elements.find((el) => el.id === "t1")).toMatchObject({
-        containerId: "a1",
-        offset: { x: 0, y: 0 },
-      });
+      // The label stays bound and follows the arrow (origin re-synced to the anchor).
+      const label = last.elements.find((el) => el.id === "t1");
+      expect(label).toMatchObject({ containerId: "a1" });
+      expect(label?.x !== 30 || label?.y !== 0).toBe(true);
     } finally {
       restore();
     }

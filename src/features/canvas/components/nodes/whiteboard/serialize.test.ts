@@ -1,31 +1,25 @@
 import { describe, it, expect } from "vitest";
 import {
-  parseWhiteboardData,
   encodeWhiteboardData,
-  sanitizeElements,
   MAX_ELEMENTS,
+  MAX_JSON_BYTES,
+  parseElements,
+  parseWhiteboardData,
 } from "./serialize";
-import type { WhiteboardData } from "./types";
-import { baseElement } from "./types";
+import { emptyScene, newElement } from "./excalidrawDefaults";
+import type { ExcalidrawScene } from "./excalidrawTypes";
 
 describe("parseWhiteboardData", () => {
-  it("returns empty v5 board for missing/corrupt payloads", () => {
-    expect(parseWhiteboardData(null)).toEqual({ version: 5, elements: [] });
-    expect(parseWhiteboardData(undefined)).toEqual({ version: 5, elements: [] });
-    expect(parseWhiteboardData("not json")).toEqual({ version: 5, elements: [] });
-    expect(parseWhiteboardData('"just a string"')).toEqual({ version: 5, elements: [] });
+  it("returns an empty scene for missing/corrupt payloads", () => {
+    const raws = [null, undefined, "", "not json", '"just a string"', "[unclosed"];
+    for (const raw of raws) {
+      expect(parseWhiteboardData(raw).elements).toEqual([]);
+    }
   });
 
-  it("rejects unknown schema versions instead of migrating", () => {
-    expect(parseWhiteboardData(JSON.stringify({ version: 99, elements: [] }))).toEqual({
+  it("wipes legacy v1-v5 boards (dev-mode, no migration)", () => {
+    const legacy = JSON.stringify({
       version: 5,
-      elements: [],
-    });
-  });
-
-  it("migrates v1 boards, defaulting new fields", () => {
-    const raw = JSON.stringify({
-      version: 1,
       elements: [
         {
           id: "a",
@@ -54,182 +48,91 @@ describe("parseWhiteboardData", () => {
         },
       ],
     });
-    const parsed = parseWhiteboardData(raw);
-    expect(parsed.version).toBe(5);
-    expect(parsed.elements).toHaveLength(3);
-    for (const el of parsed.elements) {
-      expect(el.groupIds).toEqual([]);
-      expect(el.boundElements).toEqual([]);
-    }
-    const arrow = parsed.elements.find((e) => e.id === "b");
-    expect(arrow).toMatchObject({ startBinding: null, endBinding: null });
-    const text = parsed.elements.find((e) => e.id === "c");
-    expect(text).toMatchObject({ containerId: null, labelGroupId: null, offset: { x: 0, y: 0 } });
+    const parsed = parseWhiteboardData(legacy);
+    expect(parsed.type).toBe("excalidraw");
+    expect(parsed.version).toBe(2);
+    expect(parsed.elements).toEqual([]);
   });
 
-  it("parses v2 bindings and links", () => {
-    const raw = JSON.stringify({
-      version: 2,
-      elements: [
-        {
-          id: "a",
-          kind: "arrow",
-          color: "#e5e5e5",
-          strokeWidth: 2,
-          groupIds: [],
-          boundElements: [],
-          start: { x: 0, y: 0 },
-          end: { x: 20, y: 20 },
-          startBinding: { elementId: "s", gap: 4 },
-          endBinding: null,
-        },
-      ],
-    });
-    const [arrow] = parseWhiteboardData(raw).elements;
-    expect(arrow).toMatchObject({ startBinding: { elementId: "s", gap: 4 }, endBinding: null });
+  it("rejects unknown scene versions instead of migrating", () => {
+    const raw = JSON.stringify({ type: "excalidraw", version: 99, elements: [] });
+    expect(parseWhiteboardData(raw).elements).toEqual([]);
+  });
+
+  it("accepts bare elements[] arrays (clipboard pastes)", () => {
+    const rect = newElement("rectangle", { x: 1, y: 2, width: 30, height: 40 });
+    const parsed = parseWhiteboardData(JSON.stringify([rect, { type: "spaceship" }]));
+    expect(parsed.type).toBe("excalidraw");
+    expect(parsed.elements).toEqual([rect]);
   });
 
   it("drops malformed elements but keeps valid ones", () => {
+    const line = newElement("line", { points: [[0, 0], [5, 5]] });
     const raw = JSON.stringify({
+      type: "excalidraw",
       version: 2,
-      elements: [
-        { id: "bad", kind: "rectangle" },
-        { id: "nope", kind: "spaceship" },
-        {
-          id: "ok",
-          kind: "line",
-          color: "#e5e5e5",
-          strokeWidth: 2,
-          start: { x: 0, y: 0 },
-          end: { x: 5, y: 5 },
-        },
-      ],
+      elements: [{ type: "rectangle" }, { id: "x", kind: "line" }, line],
     });
-    const parsed = parseWhiteboardData(raw);
-    expect(parsed.elements.map((e) => e.id)).toEqual(["ok"]);
+    expect(parseWhiteboardData(raw).elements).toEqual([line]);
   });
 });
 
-describe("sanitizeElements", () => {
+describe("parseElements", () => {
   it("caps at MAX_ELEMENTS", () => {
     const raw = Array.from({ length: MAX_ELEMENTS + 50 }, (_, i) => ({
+      type: "rectangle",
       id: `e${i}`,
-      kind: "line",
-      color: "#e5e5e5",
-      strokeWidth: 2,
-      start: { x: 0, y: 0 },
-      end: { x: 1, y: 1 },
+      x: 0,
+      y: 0,
+      width: 1,
+      height: 1,
     }));
-    expect(sanitizeElements(raw)).toHaveLength(MAX_ELEMENTS);
+    expect(parseElements(raw)).toHaveLength(MAX_ELEMENTS);
   });
 
-  it("clamps stroke widths and text sizes", () => {
-    const [t] = sanitizeElements([
-      {
-        id: "t",
-        kind: "text",
-        color: "not-a-color",
-        strokeWidth: 999,
-        position: { x: 0, y: 0 },
-        text: "hi",
-        fontSize: 999,
-      },
-    ]);
-    expect(t.color).toBe("#e5e5e5");
-    expect(t.strokeWidth).toBe(32);
-    if (t.kind === "text") expect(t.fontSize).toBe(96);
-    else throw new Error("expected text element");
-  });
-
-  it("flattens legacy groupId and nested groupIds to single-level", () => {
-    const [a, b] = sanitizeElements([
-      { id: "a", kind: "line", start: { x: 0, y: 0 }, end: { x: 1, y: 1 }, groupId: "g1" },
-      {
-        id: "b",
-        kind: "line",
-        start: { x: 0, y: 0 },
-        end: { x: 1, y: 1 },
-        groupIds: ["g1", "g2"],
-      },
-    ]);
-    expect(a.groupIds).toEqual(["g1"]);
-    expect(b.groupIds).toEqual(["g1"]);
+  it("returns [] for non-arrays", () => {
+    expect(parseElements(null)).toEqual([]);
+    expect(parseElements({})).toEqual([]);
   });
 });
 
 describe("encodeWhiteboardData", () => {
-  it("round-trips through parse", () => {
-    const data: WhiteboardData = {
-      version: 5,
+  it("round-trips byte-identical through parse", () => {
+    const scene: ExcalidrawScene = {
+      ...emptyScene(),
       elements: [
-        {
-          ...baseElement("a", "#3b82f6", 2),
-          kind: "ellipse",
-          start: { x: 1, y: 2 },
-          end: { x: 30, y: 40 },
-        },
+        newElement("rectangle", { x: 1, y: 2, width: 30, height: 40 }),
+        newElement("ellipse", { x: 5, y: 5, width: 10, height: 10 }),
+        newElement("diamond", { x: 0, y: 0, width: 8, height: 8 }),
+        newElement("arrow", { points: [[0, 0], [60, 0]] }),
+        newElement("line", { points: [[0, 0], [60, 0]] }),
+        newElement("freedraw", {
+          points: [[0, 0], [1, 1], [2, 0]],
+          pressures: [0.5, 0.6, 0.5],
+        }),
+        newElement("text", { x: 3, y: 4, text: "hi" }),
+        newElement("image", { x: 0, y: 0, width: 64, height: 64 }),
+        newElement("frame", { x: 0, y: 0, width: 200, height: 200, name: "Frame" }),
       ],
     };
-    const json = encodeWhiteboardData(data);
+    const json = encodeWhiteboardData(scene);
     expect(json).not.toBeNull();
-    expect(parseWhiteboardData(json)).toEqual(data);
+    expect(parseWhiteboardData(json)).toEqual(scene);
+    expect(encodeWhiteboardData(parseWhiteboardData(json))).toBe(json);
   });
 
-  it("round-trips waypoints, migrates legacy elbows, defaults missing to []", () => {
-    const [bent] = sanitizeElements([
-      {
-        id: "a",
-        kind: "arrow",
-        color: "#e5e5e5",
-        strokeWidth: 2,
-        start: { x: 0, y: 0 },
-        end: { x: 10, y: 10 },
-        waypoints: [
-          { x: 5, y: 0 },
-          { x: 7, y: 2 },
-        ],
-      },
-    ]);
-    expect(bent).toMatchObject({
-      waypoints: [
-        { x: 5, y: 0 },
-        { x: 7, y: 2 },
-      ],
-    });
-    const [legacy] = sanitizeElements([
-      {
-        id: "legacy",
-        kind: "arrow",
-        color: "#e5e5e5",
-        strokeWidth: 2,
-        start: { x: 0, y: 0 },
-        end: { x: 10, y: 10 },
-        elbow: { x: 5, y: 0 },
-      },
-    ]);
-    expect(legacy).toMatchObject({ waypoints: [{ x: 5, y: 0 }] });
-    const [straight] = sanitizeElements([
-      {
-        id: "b",
-        kind: "line",
-        color: "#e5e5e5",
-        strokeWidth: 2,
-        start: { x: 0, y: 0 },
-        end: { x: 10, y: 10 },
-      },
-    ]);
-    expect(straight).toMatchObject({ waypoints: [] });
-    const [invalid] = sanitizeElements([
-      {
-        id: "c",
-        kind: "line",
-        color: "#e5e5e5",
-        strokeWidth: 2,
-        start: { x: 0, y: 0 },
-        end: { x: 10, y: 10 },
-        elbow: "nope",
-      },
-    ]);
-    expect(invalid).toMatchObject({ waypoints: [] });
+  it("shrinks oversized freedraw payloads under the byte budget", () => {
+    const points = Array.from({ length: 20_000 }, (_, i) => [i, i % 100]) as [number, number][];
+    const scene: ExcalidrawScene = {
+      ...emptyScene(),
+      elements: [newElement("freedraw", { points, pressures: points.map(() => 0.5) })],
+    };
+    const json = encodeWhiteboardData(scene);
+    expect(json).not.toBeNull();
+    expect((json as string).length).toBeLessThanOrEqual(MAX_JSON_BYTES);
+    const [el] = parseWhiteboardData(json).elements;
+    if (el?.type !== "freedraw") throw new Error("expected freedraw element");
+    expect(el.points.length).toBe(el.pressures.length);
+    expect(el.points.length).toBeGreaterThan(0);
   });
 });

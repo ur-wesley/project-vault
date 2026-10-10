@@ -1,7 +1,15 @@
-import type { WhiteboardElement, WhiteboardPoint } from "./types";
-import { getElementBounds, flattenSmoothPath, type BoundingBox } from "./geometry";
+import type { ExcalidrawElement, ExcalidrawTextElement } from "./excalidrawTypes";
+import type { WhiteboardPoint } from "./types";
+import {
+  getElementBounds,
+  flattenSmoothPath,
+  fontFamilyName,
+  isConnector,
+  isShapeElement,
+  isTextElement,
+  type BoundingBox,
+} from "./geometry";
 import { arrowPath, polylineMidpoint } from "./bindings";
-import { groupBounds } from "./groups";
 import {
   LABEL_PILL_PAD_X,
   LABEL_PILL_PAD_Y,
@@ -11,6 +19,17 @@ import {
   measureTextBlock,
 } from "./textMeasure";
 
+/**
+ * Bound text on Excalidraw-native elements. Texts link via `containerId`
+ * with `originalText` kept in sync; `groupIds` nesting is allowed (see
+ * `./groups`); frame membership rides on `frameId`, and group labels are
+ * frame names (see {@link frameLabel}).
+ *
+ * Bound labels render centered on their anchor (container center or
+ * connector midpoint) — the stored `x/y` is derived, see
+ * {@link syncBoundTextOrigins}. Direct label drags move the container.
+ */
+
 /** Quantize to half-px so sub-pixel midpoint drift doesn't flicker labels. */
 function quantize(pt: WhiteboardPoint): WhiteboardPoint {
   return { x: Math.round(pt.x * 2) / 2, y: Math.round(pt.y * 2) / 2 };
@@ -18,77 +37,65 @@ function quantize(pt: WhiteboardPoint): WhiteboardPoint {
 
 /**
  * Derived render position of a bound text element: shape center or arrow
- * midpoint, plus the user-draggable offset. Unbound text renders at its
- * stored position.
+ * midpoint. Unbound text renders at its stored position.
  */
 export function resolveBoundTextPosition(
-  elements: WhiteboardElement[],
-  text: Extract<WhiteboardElement, { kind: "text" }>,
+  elements: ExcalidrawElement[],
+  text: ExcalidrawTextElement,
 ): WhiteboardPoint {
   const base = boundTextAnchor(elements, text);
-  if (!base) return text.position;
-  return quantize({ x: base.x + text.offset.x, y: base.y + text.offset.y });
+  if (!base) return { x: text.x, y: text.y };
+  return quantize(base);
 }
 
 function boundTextAnchor(
-  elements: WhiteboardElement[],
-  text: Extract<WhiteboardElement, { kind: "text" }>,
+  elements: ExcalidrawElement[],
+  text: ExcalidrawTextElement,
 ): WhiteboardPoint | null {
-  if (text.containerId) {
-    const container = elements.find((e) => e.id === text.containerId);
-    if (!container) return null;
-    if (container.kind === "arrow" || container.kind === "line") {
-      // Bent, curved or straight: label sits at the arc-length midpoint of
-      // the painted curve.
-      return polylineMidpoint(flattenSmoothPath(arrowPath(elements, container)));
-    }
-    if (
-      container.kind === "rectangle" ||
-      container.kind === "ellipse" ||
-      container.kind === "diamond"
-    ) {
-      const b = getElementBounds(container);
-      return { x: (b.minX + b.maxX) / 2, y: (b.minY + b.maxY) / 2 };
-    }
-    return null;
+  if (!text.containerId) return null;
+  const container = elements.find((e) => e.id === text.containerId);
+  if (!container) return null;
+  if (isConnector(container)) {
+    // Bent, curved or straight: label sits at the arc-length midpoint of
+    // the painted curve.
+    return polylineMidpoint(flattenSmoothPath(arrowPath(elements, container)));
+  }
+  if (isShapeElement(container)) {
+    const b = getElementBounds(container);
+    return { x: (b.minX + b.maxX) / 2, y: (b.minY + b.maxY) / 2 };
   }
   return null;
 }
 
-/** Render position of a group label: top-center above the union bounds. */
-export function groupLabelAnchor(groupBox: BoundingBox): WhiteboardPoint {
-  return { x: (groupBox.minX + groupBox.maxX) / 2, y: groupBox.minY };
-}
-
-export function resolveGroupLabelPosition(
-  groupBox: BoundingBox | null,
-  text: Extract<WhiteboardElement, { kind: "text" }>,
-): WhiteboardPoint {
-  if (!groupBox) return text.position;
-  const anchor = groupLabelAnchor(groupBox);
-  return quantize({ x: anchor.x + text.offset.x, y: anchor.y + text.offset.y - 8 });
+/**
+ * Group-label → frame-name mapping: in the native model a group label is
+ * the frame's name (frames group visually). Returns the frame name for a
+ * frame id, or null when missing/unnamed.
+ */
+export function frameLabel(elements: ExcalidrawElement[], frameId: string): string | null {
+  const frame = elements.find((e) => e.id === frameId);
+  if (!frame || frame.type !== "frame") return null;
+  return frame.name;
 }
 
 /** Link a text element to a container (adds both sides of the link). */
 export function linkBoundText(
-  elements: WhiteboardElement[],
+  elements: ExcalidrawElement[],
   containerId: string,
   textId: string,
-): WhiteboardElement[] {
+): ExcalidrawElement[] {
   return elements.map((el) => {
-    if (
-      el.id === containerId &&
-      (el.kind === "rectangle" ||
-        el.kind === "ellipse" ||
-        el.kind === "diamond" ||
-        el.kind === "arrow" ||
-        el.kind === "line")
-    ) {
-      if (el.boundElements.some((b) => b.id === textId)) return el;
-      return { ...el, boundElements: [...el.boundElements, { type: "text" as const, id: textId }] };
+    if (el.id === containerId && (isShapeElement(el) || isConnector(el))) {
+      const bound = el.boundElements ?? [];
+      if (bound.some((b) => b.id === textId)) return el;
+      return { ...el, boundElements: [...bound, { type: "text" as const, id: textId }] };
     }
-    if (el.id === textId && el.kind === "text") {
-      return { ...el, containerId };
+    if (el.id === textId && el.type === "text") {
+      return {
+        ...el,
+        containerId,
+        originalText: el.originalText ? el.originalText : el.text,
+      };
     }
     return el;
   });
@@ -99,23 +106,27 @@ export function linkBoundText(
  * texts, arrows bound to any deleted element (cascade), and bound texts
  * of those arrows. Fixed-point iteration handles chains.
  */
-export function cascadeDeleteIds(elements: WhiteboardElement[], rootIds: Set<string>): Set<string> {
+export function cascadeDeleteIds(
+  elements: ExcalidrawElement[],
+  rootIds: Set<string>,
+): Set<string> {
   const dead = new Set(rootIds);
   let changed = true;
   while (changed) {
     changed = false;
     for (const el of elements) {
       if (dead.has(el.id)) continue;
-      if (el.kind === "text" && el.containerId && dead.has(el.containerId)) {
-        dead.add(el.id);
-        changed = true;
-        continue;
+      if (isTextElement(el)) {
+        if (el.containerId && dead.has(el.containerId)) {
+          dead.add(el.id);
+          changed = true;
+          continue;
+        }
       }
-      if (el.kind === "arrow" || el.kind === "line") {
-        if (
-          (el.startBinding && dead.has(el.startBinding.elementId)) ||
-          (el.endBinding && dead.has(el.endBinding.elementId))
-        ) {
+      if (isConnector(el)) {
+        const startId = el.startBinding?.elementId;
+        const endId = el.endBinding?.elementId;
+        if ((startId && dead.has(startId)) || (endId && dead.has(endId))) {
           dead.add(el.id);
           changed = true;
         }
@@ -127,36 +138,28 @@ export function cascadeDeleteIds(elements: WhiteboardElement[], rootIds: Set<str
 
 /** Wrap width used for layout of a text element (null = auto-width). */
 export function textWrapWidth(
-  elements: WhiteboardElement[],
-  text: Extract<WhiteboardElement, { kind: "text" }>,
+  elements: ExcalidrawElement[],
+  text: ExcalidrawTextElement,
 ): number | null {
   if (text.containerId) {
     const container = elements.find((e) => e.id === text.containerId);
-    if (
-      container &&
-      (container.kind === "rectangle" ||
-        container.kind === "ellipse" ||
-        container.kind === "diamond")
-    ) {
+    if (container && isShapeElement(container)) {
       const b = getElementBounds(container);
       return boundWrapWidth(b.maxX - b.minX);
     }
-    // Arrow/line labels + group labels wrap to their own fixed width when set.
-    return text.width ?? 220;
+    // Arrow/line labels wrap to their own fixed width when set.
+    return text.width > 0 ? text.width : 220;
   }
-  if (text.labelGroupId) return text.width ?? 220;
-  return text.width;
+  return text.width > 0 ? text.width : null;
 }
 
-/**
- * All texts bound to a container, in document order.
- */
-export function boundTextsFor(  elements: WhiteboardElement[],
+/** All texts bound to a container, in document order. */
+export function boundTextsFor(
+  elements: ExcalidrawElement[],
   containerId: string,
-): Extract<WhiteboardElement, { kind: "text" }>[] {
+): ExcalidrawTextElement[] {
   return elements.filter(
-    (el): el is Extract<WhiteboardElement, { kind: "text" }> =>
-      el.kind === "text" && el.containerId === containerId,
+    (el): el is ExcalidrawTextElement => isTextElement(el) && el.containerId === containerId,
   );
 }
 
@@ -167,29 +170,23 @@ export function boundTextsFor(  elements: WhiteboardElement[],
  * Returns the input array unchanged when there is nothing to heal.
  */
 export function dedupeBoundTexts(
-  elements: WhiteboardElement[],
+  elements: ExcalidrawElement[],
   containerId: string,
-): WhiteboardElement[] {
-  const bound = boundTextsFor(elements, containerId);
-  if (bound.length <= 1) return elements;
-  const extraIds = new Set(bound.slice(1).map((el) => el.id));
+): ExcalidrawElement[] {
+  const all = elements.filter(
+    (el): el is ExcalidrawTextElement =>
+      isTextElement(el) && el.containerId === containerId,
+  );
+  if (all.length <= 1) return elements;
+  const extraIds = new Set(all.slice(1).map((el) => el.id));
   return elements.map((el) => {
-    if (el.id === containerId && el.kind !== "text") {
-      return {
-        ...el,
-        boundElements: el.boundElements.filter((b) => !extraIds.has(b.id)),
-      };
+    if (el.id === containerId && !isTextElement(el)) {
+      const boundRefs = el.boundElements ?? [];
+      return { ...el, boundElements: boundRefs.filter((b) => !extraIds.has(b.id)) };
     }
-    if (extraIds.has(el.id) && el.kind === "text") {
+    if (extraIds.has(el.id) && isTextElement(el)) {
       const box = getTextBounds(elements, el);
-      return {
-        ...el,
-        containerId: null,
-        offset: { x: 0, y: 0 },
-        position: { x: box.minX, y: box.minY },
-        width: null,
-        textAlign: "left" as const,
-      };
+      return { ...el, containerId: null, x: box.minX, y: box.minY };
     }
     return el;
   });
@@ -199,11 +196,12 @@ export function dedupeBoundTexts(
  * True when the id is a label bound to an arrow/line: an inseparable part
  * of the connector, never selectable, movable, resizable, or deletable alone.
  */
-export function isInseparableLabel(elements: WhiteboardElement[], id: string): boolean {
+export function isInseparableLabel(elements: ExcalidrawElement[], id: string): boolean {
   const el = elements.find((e) => e.id === id);
-  if (!el || el.kind !== "text" || !el.containerId) return false;
+  if (!el || !isTextElement(el)) return false;
+  if (!el.containerId) return false;
   const container = elements.find((e) => e.id === el.containerId);
-  return !!container && (container.kind === "arrow" || container.kind === "line");
+  return !!container && isConnector(container);
 }
 
 /**
@@ -212,44 +210,28 @@ export function isInseparableLabel(elements: WhiteboardElement[], id: string): b
  * through (double-click and the text tool keep raw hit-testing for editing).
  */
 export function redirectLabelHit(
-  elements: WhiteboardElement[],
-  hit: WhiteboardElement | null,
-): WhiteboardElement | null {
-  if (!hit || hit.kind !== "text" || !hit.containerId) return hit;
+  elements: ExcalidrawElement[],
+  hit: ExcalidrawElement | null,
+): ExcalidrawElement | null {
+  if (!hit || !isTextElement(hit)) return hit;
+  if (!hit.containerId) return hit;
   const container = elements.find((e) => e.id === hit.containerId);
-  if (container && (container.kind === "arrow" || container.kind === "line")) return container;
+  if (container && isConnector(container)) return container;
   return hit;
 }
 
 /** Drop inseparable labels from an id list (marquee hits, delete roots). */
 export function excludeInseparableLabels(
-  elements: WhiteboardElement[],
+  elements: ExcalidrawElement[],
   ids: readonly string[],
 ): string[] {
   return ids.filter((id) => !isInseparableLabel(elements, id));
 }
 
-/**
- * Snap arrow/line-bound texts back to the connector center (zero offset).
- * Returns the input array unchanged when already centered.
- */
-export function snapLabelsToCenter(
-  elements: WhiteboardElement[],
-  containerId: string,
-): WhiteboardElement[] {
-  let changed = false;
-  const next = elements.map((el) => {
-    if (
-      el.kind === "text" &&
-      el.containerId === containerId &&
-      (el.offset.x !== 0 || el.offset.y !== 0)
-    ) {
-      changed = true;
-      return { ...el, offset: { x: 0, y: 0 } };
-    }
-    return el;
+function measureFor(text: ExcalidrawTextElement, wrap: number | null) {
+  return measureTextBlock(text.text, text.fontSize, wrap, {
+    fontFamily: fontFamilyName(text.fontFamily),
   });
-  return changed ? next : elements;
 }
 
 /**
@@ -258,18 +240,15 @@ export function snapLabelsToCenter(
  * Uses the same wrapped layout as render so hit-box == visual.
  */
 export function getTextBounds(
-  elements: WhiteboardElement[],
-  text: Extract<WhiteboardElement, { kind: "text" }>,
+  elements: ExcalidrawElement[],
+  text: ExcalidrawTextElement,
 ): BoundingBox {
   const wrap = textWrapWidth(elements, text);
-  const block = measureTextBlock(text.text, text.fontSize, wrap, {
-    bold: text.bold,
-    fontFamily: text.fontFamily,
-  });
+  const block = measureFor(text, wrap);
   const isArrowLabel = (() => {
     if (!text.containerId) return false;
     const c = elements.find((e) => e.id === text.containerId);
-    return !!c && (c.kind === "arrow" || c.kind === "line");
+    return !!c && isConnector(c);
   })();
   const padX = isArrowLabel ? LABEL_PILL_PAD_X : 0;
   const padY = isArrowLabel ? LABEL_PILL_PAD_Y : 0;
@@ -279,16 +258,12 @@ export function getTextBounds(
     const c = resolveBoundTextPosition(elements, text);
     return { minX: c.x - w / 2, minY: c.y - h / 2, maxX: c.x + w / 2, maxY: c.y + h / 2 };
   }
-  if (text.labelGroupId) {
-    const gb = groupBounds(elements, text.labelGroupId);
-    const c = resolveGroupLabelPosition(gb, text);
-    return { minX: c.x - w / 2, minY: c.y - h / 2, maxX: c.x + w / 2, maxY: c.y + h / 2 };
-  }
+  const fixedW = text.width;
   return {
-    minX: text.position.x,
-    minY: text.position.y,
-    maxX: text.position.x + Math.max(w, text.width ?? w),
-    maxY: text.position.y + h,
+    minX: text.x,
+    minY: text.y,
+    maxX: text.x + Math.max(w, fixedW > 0 ? fixedW : w),
+    maxY: text.y + h,
   };
 }
 
@@ -298,22 +273,13 @@ export function getTextBounds(
  * when it already fits / target isn't a shape.
  */
 export function growContainerForText(
-  container: WhiteboardElement,
-  text: Extract<WhiteboardElement, { kind: "text" }>,
-): WhiteboardElement {
-  if (
-    container.kind !== "rectangle" &&
-    container.kind !== "ellipse" &&
-    container.kind !== "diamond"
-  ) {
-    return container;
-  }
+  container: ExcalidrawElement,
+  text: ExcalidrawTextElement,
+): ExcalidrawElement {
+  if (!isShapeElement(container)) return container;
   const box = getElementBounds(container);
   const wrap = boundWrapWidth(box.maxX - box.minX);
-  const block = measureTextBlock(text.text, text.fontSize, wrap, {
-    bold: text.bold,
-    fontFamily: text.fontFamily,
-  });
+  const block = measureFor(text, wrap);
   const needW = block.width + TEXT_PADDING_X * 2;
   const needH = block.height + TEXT_PADDING_Y * 2;
   const curW = box.maxX - box.minX;
@@ -323,9 +289,25 @@ export function growContainerForText(
   const cy = (box.minY + box.maxY) / 2;
   const nextW = Math.max(curW, needW);
   const nextH = Math.max(curH, needH);
-  return {
-    ...container,
-    start: { x: cx - nextW / 2, y: cy - nextH / 2 },
-    end: { x: cx + nextW / 2, y: cy + nextH / 2 },
-  };
+  return { ...container, x: cx - nextW / 2, y: cy - nextH / 2, width: nextW, height: nextH };
+}
+
+/**
+ * Normalize stored `x/y` of bound texts to their anchor top-left (the
+ * render position minus half the laid-out box). Bound labels are always
+ * centered on their anchor in paint, hit-test, and selection — this keeps
+ * the persisted scene identical to what's on screen, so exports open on
+ * excalidraw.com exactly as painted here. Unbound texts and texts with a
+ * missing container are untouched. Returns the input when nothing changes.
+ */
+export function syncBoundTextOrigins(elements: ExcalidrawElement[]): ExcalidrawElement[] {
+  let changed = false;
+  const next = elements.map((el) => {
+    if (!isTextElement(el) || !el.containerId) return el;
+    const box = getTextBounds(elements, el);
+    if (box.minX === el.x && box.minY === el.y) return el;
+    changed = true;
+    return { ...el, x: box.minX, y: box.minY };
+  });
+  return changed ? next : elements;
 }

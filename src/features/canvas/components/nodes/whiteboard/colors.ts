@@ -83,15 +83,83 @@ export function defaultFillForStroke(stroke: string): string {
   return lighten(normalizeHex(stroke), 0.8);
 }
 
+/** Excalidraw stroke palette (dark + neutrals + accents). */
+export const EXCALIDRAW_STROKE_COLORS = [
+  "#1e1e1e",
+  "#e03131",
+  "#2f9e44",
+  "#1971c2",
+  "#f08c00",
+  "#9c36b5",
+  "#0c8599",
+  "#e5e5e5",
+] as const;
+
+/** Excalidraw background palette: "transparent" + tints. */
+export const EXCALIDRAW_BACKGROUND_COLORS = [
+  "transparent",
+  "#ffc9c9",
+  "#b2f2bb",
+  "#a5d8ff",
+  "#ffec99",
+  "#e5dbff",
+  "#99e9f2",
+  "#e5e5e5",
+] as const;
+
+export type ExcalidrawFillStyle = "transparent" | "solid" | "hachure" | "cross-hatch";
+export const EXCALIDRAW_FILL_STYLES: ExcalidrawFillStyle[] = [
+  "transparent",
+  "solid",
+  "hachure",
+  "cross-hatch",
+];
+
+/** Excalidraw stroke widths: thin / base / bold. */
+export const EXCALIDRAW_STROKE_WIDTHS = [1, 2, 4] as const;
+export type ExcalidrawStrokeWidth = (typeof EXCALIDRAW_STROKE_WIDTHS)[number];
+
+export type ExcalidrawStrokeStyle = "solid" | "dashed" | "dotted";
+export const EXCALIDRAW_STROKE_STYLES: ExcalidrawStrokeStyle[] = ["solid", "dashed", "dotted"];
+
+/** Roughness 0 Architect / 1 Artist / 2 Cartoonist. */
+export const ROUGHNESS_LEVELS = [
+  { value: 0, label: "Architect", hint: "Clean straight lines" },
+  { value: 1, label: "Artist", hint: "Hand-drawn wobble" },
+  { value: 2, label: "Cartoonist", hint: "Heavy double stroke" },
+] as const;
+export type RoughnessLevel = (typeof ROUGHNESS_LEVELS)[number]["value"];
+
+/** Clamp to a valid Excalidraw stroke width (nearest of 1/2/4). */
+export function sanitizeExStrokeWidth(raw: unknown): ExcalidrawStrokeWidth {
+  if (raw === 1 || raw === 2 || raw === 4) return raw;
+  if (typeof raw !== "number" || !Number.isFinite(raw)) return 2;
+  if (raw <= 1.5) return 1;
+  if (raw >= 3) return 4;
+  return 2;
+}
+
+/** Clamp opacity to Excalidraw 0..100. */
+export function sanitizeOpacityEx(raw: unknown, fallback = 100): number {
+  if (typeof raw !== "number" || !Number.isFinite(raw)) return fallback;
+  return Math.min(100, Math.max(0, Math.round(raw)));
+}
+
+export function sanitizeFillStyle(raw: unknown): ExcalidrawFillStyle {
+  if (raw === "solid" || raw === "hachure" || raw === "cross-hatch") return raw;
+  return "transparent";
+}
+
 /**
- * Pure helper for auto-follow fills: when the patch changes the stroke
- * color without an explicit fill and `auto` is on, derive the fill tint.
- * Returns the patch to apply (original when no expansion needed).
+ * Auto-follow for background fills: a strokeColor change derives a
+ * backgroundColor tint while auto is on.
  */
-export function withAutoFill(
-  patch: { color?: string; fillColor?: string },
+export function withAutoBackground(
+  patch: { strokeColor?: string; backgroundColor?: string },
   auto: boolean,
-): { color?: string; fillColor?: string } {
-  if (patch.fillColor !== undefined || patch.color === undefined || !auto) return patch;
-  return { ...patch, fillColor: defaultFillForStroke(patch.color) };
+): { strokeColor?: string; backgroundColor?: string } {
+  if (patch.backgroundColor !== undefined || patch.strokeColor === undefined || !auto) {
+    return patch;
+  }
+  return { ...patch, backgroundColor: defaultFillForStroke(patch.strokeColor) };
 }

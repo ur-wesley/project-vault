@@ -1,10 +1,9 @@
 import { For, Show, type Component } from "solid-js";
 import { cn } from "~/lib/utils";
 import type { WhiteboardStore } from "./useWhiteboardStore";
-import { isArrowLabelOnly } from "./useWhiteboardStore";
-import { backgroundVariants } from "./colors";
+import { isArrowLabelOnly, type ArrowheadName, type FontName, type RoundnessName } from "./whiteboardStyle";
+import { backgroundVariants, ROUGHNESS_LEVELS, type ExcalidrawFillStyle, type ExcalidrawStrokeStyle } from "./colors";
 import { boundTextsFor } from "./boundText";
-import type { Arrowhead, BackgroundStyle, FontFamily, Roundness, StrokeStyleKind } from "./types";
 
 export const STROKE_COLORS = [
   "#e5e5e5",
@@ -34,34 +33,41 @@ export const FILL_COLORS = [
   "#1e1e1e",
 ];
 
-export const STROKE_WIDTHS = [1, 2, 4, 8];
+/** Excalidraw stroke widths: thin / base / bold. */
+export const STROKE_WIDTHS = [1, 2, 4];
 export const FONT_SIZES = [12, 16, 20, 28];
 
-const BACKGROUNDS: { id: BackgroundStyle; icon: string; label: string }[] = [
+/**
+ * Excalidraw-native field names throughout: strokeColor, backgroundColor,
+ * fillStyle, roughness 0 Architect / 1 Artist / 2 Cartoonist.
+ */
+export const ROUGHNESS = ROUGHNESS_LEVELS;
+
+const BACKGROUNDS: { id: ExcalidrawFillStyle; icon: string; label: string }[] = [
   { id: "transparent", icon: "mdi--square-outline", label: "Transparent fill" },
   { id: "solid", icon: "mdi--square", label: "Solid fill" },
   { id: "hachure", icon: "mdi--square-opacity", label: "Hachure fill" },
   { id: "cross-hatch", icon: "mdi--grid", label: "Cross-hatch fill" },
 ];
 
-const STROKE_STYLES: { id: StrokeStyleKind; icon: string; label: string }[] = [
+const STROKE_STYLES: { id: ExcalidrawStrokeStyle; icon: string; label: string }[] = [
   { id: "solid", icon: "mdi--minus", label: "Solid line" },
   { id: "dashed", icon: "mdi--dots-horizontal", label: "Dashed line" },
   { id: "dotted", icon: "mdi--dots-horizontal-circle-outline", label: "Dotted line" },
 ];
 
-const ROUNDNESS: { id: Roundness; icon: string; label: string }[] = [
+const ROUNDNESS: { id: RoundnessName; icon: string; label: string }[] = [
   { id: "sharp", icon: "mdi--square-outline", label: "Sharp corners" },
   { id: "round", icon: "mdi--squircle", label: "Round corners" },
 ];
 
-const FONT_FAMILIES: { id: FontFamily; icon: string; label: string }[] = [
+const FONT_FAMILIES: { id: FontName; icon: string; label: string }[] = [
   { id: "hand", icon: "mdi--draw", label: "Hand-drawn font" },
   { id: "normal", icon: "mdi--format-text", label: "Normal font" },
   { id: "code", icon: "mdi--code-tags", label: "Code font" },
 ];
 
-const ARROWHEADS: { id: Arrowhead; icon: string; label: string }[] = [
+const ARROWHEADS: { id: ArrowheadName; icon: string; label: string }[] = [
   { id: "none", icon: "mdi--minus", label: "No head" },
   { id: "arrow", icon: "mdi--arrow-right", label: "Arrow head" },
   { id: "dot", icon: "mdi--circle", label: "Dot head" },
@@ -93,24 +99,30 @@ function RowButton(props: {
   );
 }
 
+function roughnessGlyph(value: number): string {
+  if (value === 0) return "A";
+  if (value === 2) return "C";
+  return "B";
+}
+
 function Divider() {
   return <div class="mx-1 h-4 w-px bg-border/60" />;
 }
 
 /**
  * Excalidraw-like contextual style panel. Shows the union of relevant
- * controls for the active tool, or for the current selection kinds.
+ * controls for the active tool, or for the current selection types.
  * Mixed selection values render indeterminate (no pressed state).
  */
 export const StylePanel: Component<{ store: WhiteboardStore }> = (props) => {
   const { store } = props;
 
-  const kinds = () => {
+  const types = () => {
     const ids = new Set(store.selectedIds());
     const els = store
       .elements()
       .filter((e) => ids.has(e.id))
-      .map((e) => e.kind);
+      .map((e) => e.type);
     return new Set(els);
   };
   const hasSel = () => store.selectedIds().length > 0;
@@ -119,17 +131,17 @@ export const StylePanel: Component<{ store: WhiteboardStore }> = (props) => {
       return (
         store.tool() === "rectangle" || store.tool() === "ellipse" || store.tool() === "diamond"
       );
-    const k = kinds();
+    const k = types();
     return k.has("rectangle") || k.has("ellipse") || k.has("diamond");
   };
   const showConnectors = () => {
     if (!hasSel()) return store.tool() === "arrow" || store.tool() === "line";
-    const k = kinds();
+    const k = types();
     return k.has("arrow") || k.has("line");
   };
   const showText = () => {
     if (!hasSel()) return store.tool() === "text";
-    return kinds().has("text");
+    return types().has("text");
   };
   const showStroke = () => {
     const t = store.tool();
@@ -145,7 +157,7 @@ export const StylePanel: Component<{ store: WhiteboardStore }> = (props) => {
     if (ids.length !== 1) return null;
     const els = store.elements();
     const el = els.find((e) => e.id === ids[0]);
-    if (!el || (el.kind !== "arrow" && el.kind !== "line")) return null;
+    if (!el || (el.type !== "arrow" && el.type !== "line")) return null;
     const bound = boundTextsFor(els, el.id);
     return bound.length > 0 ? bound[0] : null;
   };
@@ -153,40 +165,42 @@ export const StylePanel: Component<{ store: WhiteboardStore }> = (props) => {
   return (
     <div class="flex flex-wrap items-center gap-1 pb-2" onPointerDown={(e) => e.stopPropagation()}>
       <Show when={showStroke() && !arrowLabelOnly()}>
+        {/* strokeColor palette. */}
         <For each={STROKE_COLORS}>
           {(c) => (
             <button
               type="button"
-              title={`Stroke ${c}`}
-              aria-label={`Stroke ${c}`}
-              aria-pressed={(sel().color ?? store.color()) === c}
-              onClick={() => store.commitStyle({ color: c })}
+              title={`strokeColor ${c}`}
+              aria-label={`strokeColor ${c}`}
+              aria-pressed={(sel().strokeColor ?? store.strokeColor()) === c}
+              onClick={() => store.commitStyle({ strokeColor: c })}
               style={{ "background-color": c }}
               class={cn(
                 "size-4 rounded-full border border-border/60 transition-transform hover:scale-110",
-                (sel().color ?? store.color()) === c &&
+                (sel().strokeColor ?? store.strokeColor()) === c &&
                   "ring-2 ring-primary ring-offset-1 ring-offset-card",
-                sel().color === undefined && hasSel() && "opacity-70",
+                sel().strokeColor === undefined && hasSel() && "opacity-70",
               )}
             />
           )}
         </For>
         <input
           type="color"
-          title="Custom stroke color"
-          aria-label="Custom stroke color"
-          value={store.color()}
+          title="Custom strokeColor"
+          aria-label="Custom strokeColor"
+          value={store.strokeColor()}
           onInput={(e) => {
             store.beginStyleGesture();
-            store.liveStyle({ color: e.currentTarget.value });
+            store.liveStyle({ strokeColor: e.currentTarget.value });
           }}
           onChange={(e) => {
-            store.liveStyle({ color: e.currentTarget.value });
+            store.liveStyle({ strokeColor: e.currentTarget.value });
             store.endStyleGesture();
           }}
           class="size-4 cursor-pointer rounded-full border border-border/60 bg-transparent p-0"
         />
         <Divider />
+        {/* strokeWidth 1/2/4 (Excalidraw). */}
         <For each={STROKE_WIDTHS}>
           {(w) => (
             <RowButton
@@ -215,36 +229,53 @@ export const StylePanel: Component<{ store: WhiteboardStore }> = (props) => {
             </RowButton>
           )}
         </For>
+        <Divider />
+        {/* Roughness 0 Architect / 1 Artist / 2 Cartoonist (strokeColor-family). */}
+        <For each={ROUGHNESS}>
+          {(r) => (
+            <RowButton
+              title={`${r.label} (roughness ${r.value}) — ${r.hint}`}
+              label={`${r.label} roughness`}
+              pressed={(sel().roughness ?? store.roughness()) === r.value}
+              onClick={() => store.commitStyle({ roughness: r.value })}
+            >
+              <span class="text-[11px] font-semibold leading-none">
+                {roughnessGlyph(r.value)}
+              </span>
+            </RowButton>
+          )}
+        </For>
       </Show>
 
       <Show when={showShapes()}>
         <Divider />
+        {/* fillStyle. */}
         <For each={BACKGROUNDS}>
           {(b) => (
             <RowButton
-              title={b.label}
-              label={b.label}
-              pressed={(sel().background ?? store.background()) === b.id}
-              onClick={() => store.commitStyle({ background: b.id })}
+              title={`${b.label} (fillStyle ${b.id})`}
+              label={`${b.label} (fillStyle ${b.id})`}
+              pressed={(sel().fillStyle ?? store.fillStyle()) === b.id}
+              onClick={() => store.commitStyle({ fillStyle: b.id })}
             >
               <span class={cn("iconify size-4", b.icon)} />
             </RowButton>
           )}
         </For>
-        <Show when={(sel().background ?? store.background()) !== "transparent"}>
-          {/* Derived lighter/darker tints of the current stroke color. */}
-          <For each={backgroundVariants(sel().color ?? store.color())}>
+        <Show when={(sel().fillStyle ?? store.fillStyle()) !== "transparent"}>
+          {/* backgroundColor swatches. */}
+          <For each={backgroundVariants(sel().strokeColor ?? store.strokeColor())}>
             {(v) => (
               <button
                 type="button"
                 title={v.label}
                 aria-label={v.label}
-                aria-pressed={(sel().fillColor ?? store.fillColor()) === v.value}
-                onClick={() => store.commitStyle({ fillColor: v.value })}
+                aria-pressed={(sel().backgroundColor ?? store.backgroundColor()) === v.value}
+                onClick={() => store.commitStyle({ backgroundColor: v.value })}
                 style={{ "background-color": v.value }}
                 class={cn(
                   "size-4 rounded border border-border/60 transition-transform hover:scale-110",
-                  (sel().fillColor ?? store.fillColor()) === v.value &&
+                  (sel().backgroundColor ?? store.backgroundColor()) === v.value &&
                     "ring-2 ring-primary ring-offset-1 ring-offset-card",
                 )}
               />
@@ -262,14 +293,14 @@ export const StylePanel: Component<{ store: WhiteboardStore }> = (props) => {
             {(c) => (
               <button
                 type="button"
-                title={`Fill ${c}`}
-                aria-label={`Fill ${c}`}
-                aria-pressed={(sel().fillColor ?? store.fillColor()) === c}
-                onClick={() => store.commitStyle({ fillColor: c })}
+                title={`backgroundColor ${c}`}
+                aria-label={`backgroundColor ${c}`}
+                aria-pressed={(sel().backgroundColor ?? store.backgroundColor()) === c}
+                onClick={() => store.commitStyle({ backgroundColor: c })}
                 style={{ "background-color": c }}
                 class={cn(
                   "size-4 rounded border border-border/60 transition-transform hover:scale-110",
-                  (sel().fillColor ?? store.fillColor()) === c &&
+                  (sel().backgroundColor ?? store.backgroundColor()) === c &&
                     "ring-2 ring-primary ring-offset-1 ring-offset-card",
                 )}
               />
@@ -277,21 +308,22 @@ export const StylePanel: Component<{ store: WhiteboardStore }> = (props) => {
           </For>
           <input
             type="color"
-            title="Custom fill color"
-            aria-label="Custom fill color"
-            value={sel().fillColor ?? store.fillColor()}
+            title="Custom backgroundColor"
+            aria-label="Custom backgroundColor"
+            value={sel().backgroundColor ?? store.backgroundColor()}
             onInput={(e) => {
               store.beginStyleGesture();
-              store.liveStyle({ fillColor: e.currentTarget.value });
+              store.liveStyle({ backgroundColor: e.currentTarget.value });
             }}
             onChange={(e) => {
-              store.liveStyle({ fillColor: e.currentTarget.value });
+              store.liveStyle({ backgroundColor: e.currentTarget.value });
               store.endStyleGesture();
             }}
             class="size-4 cursor-pointer rounded border border-border/60 bg-transparent p-0"
           />
         </Show>
         <Divider />
+        {/* Roundness toggle: sharp (type 0) / round (per-type). */}
         <For each={ROUNDNESS}>
           {(r) => (
             <RowButton
@@ -314,8 +346,8 @@ export const StylePanel: Component<{ store: WhiteboardStore }> = (props) => {
             <RowButton
               title={`Start ${a.label}`}
               label={`Start ${a.label}`}
-              pressed={(sel().startArrow ?? store.startArrow()) === a.id}
-              onClick={() => store.commitStyle({ startArrow: a.id })}
+              pressed={(sel().startArrowhead ?? store.startArrowhead()) === a.id}
+              onClick={() => store.commitStyle({ startArrowhead: a.id })}
             >
               <span class={cn("iconify size-4", a.icon)} />
             </RowButton>
@@ -327,8 +359,8 @@ export const StylePanel: Component<{ store: WhiteboardStore }> = (props) => {
             <RowButton
               title={`End ${a.label}`}
               label={`End ${a.label}`}
-              pressed={(sel().endArrow ?? store.endArrow()) === a.id}
-              onClick={() => store.commitStyle({ endArrow: a.id })}
+              pressed={(sel().endArrowhead ?? store.endArrowhead()) === a.id}
+              onClick={() => store.commitStyle({ endArrowhead: a.id })}
             >
               <span class={cn("iconify size-4", a.icon)} />
             </RowButton>
@@ -398,22 +430,6 @@ export const StylePanel: Component<{ store: WhiteboardStore }> = (props) => {
                   </RowButton>
                 )}
               </For>
-              <RowButton
-                title="Bold"
-                label="Bold"
-                pressed={sel().bold ?? store.bold()}
-                onClick={() => store.commitStyle({ bold: !(sel().bold ?? store.bold()) })}
-              >
-                <span class="iconify mdi--format-bold size-4" />
-              </RowButton>
-              <RowButton
-                title="Italic"
-                label="Italic"
-                pressed={sel().italic ?? store.italic()}
-                onClick={() => store.commitStyle({ italic: !(sel().italic ?? store.italic()) })}
-              >
-                <span class="iconify mdi--format-italic size-4" />
-              </RowButton>
             </>
           }
         >
@@ -430,7 +446,7 @@ export const StylePanel: Component<{ store: WhiteboardStore }> = (props) => {
           <span class="iconify mdi--opacity size-4" />
           <input
             type="range"
-            min={10}
+            min={0}
             max={100}
             step={5}
             value={sel().opacity ?? store.opacity()}

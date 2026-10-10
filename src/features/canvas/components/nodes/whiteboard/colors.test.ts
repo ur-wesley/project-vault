@@ -6,7 +6,10 @@ import {
   lighten,
   mixHex,
   normalizeHex,
-  withAutoFill,
+  sanitizeExStrokeWidth,
+  sanitizeFillStyle,
+  sanitizeOpacityEx,
+  withAutoBackground,
 } from "./colors";
 
 describe("mixHex / lighten / darken", () => {
@@ -48,18 +51,39 @@ describe("backgroundVariants", () => {
   });
 });
 
-describe("withAutoFill", () => {
+describe("withAutoBackground", () => {
   it("derives a fill tint when stroke changes and auto is on", () => {
-    const out = withAutoFill({ color: "#ef4444" }, true);
-    expect(out.fillColor).toBe(defaultFillForStroke("#ef4444"));
+    const out = withAutoBackground({ strokeColor: "#ef4444" }, true);
+    expect(out.backgroundColor).toBe(defaultFillForStroke("#ef4444"));
   });
 
-  it("keeps explicit fills and respects manual mode", () => {
-    expect(withAutoFill({ color: "#ef4444", fillColor: "#000000" }, true)).toEqual({
-      color: "#ef4444",
-      fillColor: "#000000",
+  it("keeps explicit backgrounds and respects manual mode", () => {
+    expect(withAutoBackground({ strokeColor: "#ef4444", backgroundColor: "#000000" }, true)).toEqual({
+      strokeColor: "#ef4444",
+      backgroundColor: "#000000",
     });
-    expect(withAutoFill({ color: "#ef4444" }, false)).toEqual({ color: "#ef4444" });
-    expect(withAutoFill({ strokeWidth: 4 }, true)).toEqual({ strokeWidth: 4 });
+    expect(withAutoBackground({ strokeColor: "#ef4444" }, false)).toEqual({
+      strokeColor: "#ef4444",
+    });
+    expect(withAutoBackground({}, true)).toEqual({});
+  });
+});
+
+describe("native sanitizers", () => {
+  it("clamps stroke widths to the Excalidraw set", () => {
+    expect(sanitizeExStrokeWidth(1)).toBe(1);
+    expect(sanitizeExStrokeWidth(3)).toBe(4);
+    expect(sanitizeExStrokeWidth(Number.NaN)).toBe(2);
+  });
+
+  it("clamps opacity to 0..100", () => {
+    expect(sanitizeOpacityEx(-5)).toBe(0);
+    expect(sanitizeOpacityEx(150)).toBe(100);
+    expect(sanitizeOpacityEx("x")).toBe(100);
+  });
+
+  it("falls back to transparent fills", () => {
+    expect(sanitizeFillStyle("solid")).toBe("solid");
+    expect(sanitizeFillStyle("glitter")).toBe("transparent");
   });
 });

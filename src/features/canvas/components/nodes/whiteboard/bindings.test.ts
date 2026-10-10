@@ -10,41 +10,42 @@ import {
   anchorToPoint,
   arrowPath,
   polylineMidpoint,
+  attachArrowBinding,
+  detachArrowBinding,
   BIND_SNAP_DISTANCE,
   BIND_HOVER_DISTANCE,
 } from "./bindings";
-import { resolveConnectorWaypoints } from "./geometry";
-import { baseElement, type ElementBinding, type WhiteboardElement } from "./types";
+import { resolveConnectorWaypoints } from "./geometryEdit";
+import { newElement } from "./excalidrawDefaults";
+import type {
+  ExcalidrawArrowElement,
+  ExcalidrawElement,
+} from "./excalidrawTypes";
 
-const rect = (id: string, x1: number, y1: number, x2: number, y2: number): WhiteboardElement => ({
-  ...baseElement(id, "#e5e5e5", 2),
-  kind: "rectangle",
-  start: { x: x1, y: y1 },
-  end: { x: x2, y: y2 },
-});
+type NativeBinding = NonNullable<ExcalidrawArrowElement["startBinding"]>;
 
-const ellipse = (id: string): WhiteboardElement => ({
-  ...baseElement(id, "#e5e5e5", 2),
-  kind: "ellipse",
-  start: { x: 0, y: 0 },
-  end: { x: 100, y: 100 },
-});
+/** Relative-points literal helper (keeps `[x, y]` tuple typing). */
+const P = (...ps: Array<[number, number]>): Array<[number, number]> => ps;
+
+const rect = (id: string, x: number, y: number, w: number, h: number): ExcalidrawElement =>
+  newElement("rectangle", { id, x, y, width: w, height: h });
+
+const ellipse = (id: string): ExcalidrawElement =>
+  newElement("ellipse", { id, x: 0, y: 0, width: 100, height: 100 });
 
 const arrow = (
   id: string,
-  startBinding: ElementBinding | null,
-  endBinding: ElementBinding | null,
-): Extract<WhiteboardElement, { kind: "arrow" }> => ({
-  ...baseElement(id, "#e5e5e5", 2),
-  kind: "arrow",
-  start: { x: 0, y: 0 },
-  end: { x: 300, y: 50 },
-  startBinding,
-  endBinding,
-  startArrow: "none",
-  endArrow: "arrow",
-  waypoints: [],
-});
+  startBinding: NativeBinding | null,
+  endBinding: NativeBinding | null,
+): ExcalidrawArrowElement =>
+  newElement("arrow", {
+    id,
+    x: 0,
+    y: 0,
+    points: P([0, 0], [300, 50]),
+    startBinding,
+    endBinding,
+  }) as ExcalidrawArrowElement;
 
 describe("intersectBoundary", () => {
   it("hits the right edge of a rectangle for a horizontal ray", () => {
@@ -61,13 +62,10 @@ describe("intersectBoundary", () => {
 });
 
 describe("resolveEndpoints", () => {
-  it("derives bound ends from live target bounds plus gap", () => {
+  it("derives bound ends from live target bounds plus gap (ray fallback)", () => {
     const s = rect("s", 0, 0, 100, 100);
-    const a = arrow("a", { elementId: "s", gap: 4 }, null);
-    const { start, end } = resolveEndpoints(
-      [s, a],
-      a as Extract<WhiteboardElement, { kind: "arrow" }>,
-    );
+    const a = arrow("a", { elementId: "s", gap: 4, focus: 0 }, null);
+    const { start, end } = resolveEndpoints([s, a], a);
     // Ray from center (50,50) toward the free end (300,50) exits the right
     // edge x=100, pushed out by the gap.
     expect(start.x).toBeCloseTo(104, 5);
@@ -77,63 +75,55 @@ describe("resolveEndpoints", () => {
 
   it("follows the target when it moves", () => {
     const s1 = rect("s", 0, 0, 100, 100);
-    const moved = {
-      ...s1,
-      kind: "rectangle" as const,
-      start: { x: 200, y: 0 },
-      end: { x: 300, y: 100 },
-    };
-    const a = arrow("a", { elementId: "s", gap: 0 }, null);
-    const before = resolveEndpoints([s1, a], a as Extract<WhiteboardElement, { kind: "arrow" }>);
-    const after = resolveEndpoints([moved, a], a as Extract<WhiteboardElement, { kind: "arrow" }>);
+    const moved = rect("s", 200, 0, 100, 100);
+    const a = arrow("a", { elementId: "s", gap: 0, focus: 0 }, null);
+    const before = resolveEndpoints([s1, a], a);
+    const after = resolveEndpoints([moved, a], a);
     expect(after.start.x).toBeGreaterThan(before.start.x + 100);
   });
 
   it("falls back to stored coords for missing targets", () => {
-    const a = arrow("a", { elementId: "ghost", gap: 4 }, null);
-    const { start } = resolveEndpoints([a], a as Extract<WhiteboardElement, { kind: "arrow" }>);
+    const a = arrow("a", { elementId: "ghost", gap: 4, focus: 0 }, null);
+    const { start } = resolveEndpoints([a], a);
     expect(start).toEqual({ x: 0, y: 0 });
   });
 });
 
 describe("findBindCandidate", () => {
   it("finds shapes within the attach zone, nearest wins", () => {
-    const els = [rect("a", 0, 0, 100, 100), rect("b", 200, 200, 300, 300)];
+    const els = [rect("a", 0, 0, 100, 100), rect("b", 200, 200, 100, 100)];
     expect(findBindCandidate(els, { x: 105, y: 50 })?.id).toBe("a");
     expect(findBindCandidate(els, { x: 500, y: 500 })).toBeNull();
   });
 
   it("ignores excluded ids and non-shapes", () => {
-    const els = [
+    const els: ExcalidrawElement[] = [
       rect("a", 0, 0, 100, 100),
-      {
-        ...baseElement("t", "#e5e5e5", 2),
-        kind: "text",
-        position: { x: 0, y: 0 },
-        text: "hi",
-        fontSize: 14,
-        fontFamily: "normal",
-        bold: false,
-        italic: false,
-        containerId: null,
-        labelGroupId: null,
-        offset: { x: 0, y: 0 },
-        width: null,
-        textAlign: "left",
-      } as WhiteboardElement,
+      newElement("text", { id: "t", x: 0, y: 0, text: "hi" }),
     ];
     expect(findBindCandidate(els, { x: 50, y: 50 }, new Set(["a"]))).toBeNull();
   });
 });
 
 describe("arrowPath / polylineMidpoint", () => {
-  const bent = { ...arrow("bent", null, null), waypoints: [{ x: 150, y: 100 }] };
+  const bent = {
+    ...arrow("bent", null, null),
+    points: P([0, 0], [150, 100], [300, 50]),
+  } as ExcalidrawArrowElement;
 
   it("returns two points for straight connectors", () => {
     const a = arrow("a", null, null);
     expect(arrowPath([a], a)).toEqual([
       { x: 0, y: 0 },
       { x: 300, y: 50 },
+    ]);
+  });
+
+  it("resolves absolute coords from x/y + relative points", () => {
+    const moved = { ...arrow("m", null, null), x: 10, y: 20 } as ExcalidrawArrowElement;
+    expect(arrowPath([moved], moved)).toEqual([
+      { x: 10, y: 20 },
+      { x: 310, y: 70 },
     ]);
   });
 
@@ -149,11 +139,8 @@ describe("arrowPath / polylineMidpoint", () => {
   it("chains multiple waypoints in order", () => {
     const multi = {
       ...arrow("m", null, null),
-      waypoints: [
-        { x: 100, y: 0 },
-        { x: 200, y: 100 },
-      ],
-    };
+      points: P([0, 0], [100, 0], [200, 100], [300, 50]),
+    } as ExcalidrawArrowElement;
     expect(arrowPath([multi], multi)).toEqual([
       { x: 0, y: 0 },
       { x: 100, y: 0 },
@@ -199,9 +186,7 @@ describe("sticky side+focus anchors", () => {
 
   it("resolves sticky bindings from side+focus plus gap", () => {
     const s = rect("s", 0, 0, 100, 100);
-    const a = {
-      ...arrow("a", { elementId: "s", gap: 4, side: "e" as const, focus: 0 }, null),
-    };
+    const a = arrow("a", { elementId: "s", gap: 4, side: "e", focus: 0 }, null);
     const { start } = resolveEndpoints([s, a], a);
     expect(start.x).toBeCloseTo(104, 5);
     expect(start.y).toBeCloseTo(50, 5);
@@ -209,12 +194,13 @@ describe("sticky side+focus anchors", () => {
 
   it("sticky anchor survives the opposite end moving (no slide)", () => {
     const s = rect("s", 0, 0, 100, 100);
-    const mk = (end: { x: number; y: number }) => ({
-      ...arrow("a", { elementId: "s", gap: 4, side: "e" as const, focus: 0 }, null),
-      end,
-    });
-    const r1 = resolveEndpoints([s, mk({ x: 300, y: 50 })], mk({ x: 300, y: 50 }));
-    const r2 = resolveEndpoints([s, mk({ x: 300, y: 500 })], mk({ x: 300, y: 500 }));
+    const mk = (points: Array<[number, number]>) =>
+      ({
+        ...arrow("a", { elementId: "s", gap: 4, side: "e", focus: 0 }, null),
+        points,
+      }) as ExcalidrawArrowElement;
+    const r1 = resolveEndpoints([s, mk(P([0, 0], [300, 50]))], mk(P([0, 0], [300, 50])));
+    const r2 = resolveEndpoints([s, mk(P([0, 0], [300, 500]))], mk(P([0, 0], [300, 500])));
     // East-side anchor stays put even when the free end swings away.
     expect(r2.start.x).toBeCloseTo(r1.start.x, 5);
     expect(r2.start.y).toBeCloseTo(r1.start.y, 5);
@@ -240,17 +226,9 @@ describe("sticky side+focus anchors", () => {
 
   it("straight bound arrows extend when the target moves", () => {
     const s = rect("s", 0, 0, 100, 100);
-    const a = {
-      ...arrow("a", { elementId: "s", gap: 0, side: "e" as const, focus: 0 }, null),
-      end: { x: 300, y: 50 },
-    };
+    const a = arrow("a", { elementId: "s", gap: 0, side: "e", focus: 0 }, null);
     const before = arrowPath([s, a], a);
-    const moved = {
-      ...s,
-      kind: "rectangle" as const,
-      start: { x: 50, y: 0 },
-      end: { x: 150, y: 100 },
-    };
+    const moved = rect("s", 50, 0, 100, 100);
     const after = arrowPath([moved, a], a);
     // Bound end follows the shape (+50); free end stays put — arrow stretches.
     expect(after[0].x).toBeCloseTo(before[0].x + 50, 5);
@@ -260,16 +238,11 @@ describe("sticky side+focus anchors", () => {
   it("bent waypoints translate with the resolved chord", () => {
     const s = rect("s", 0, 0, 100, 100);
     const bent = {
-      ...arrow("bent", { elementId: "s", gap: 0, side: "e" as const, focus: 0 }, null),
-      waypoints: [{ x: 200, y: 100 }],
-    };
+      ...arrow("bent", { elementId: "s", gap: 0, side: "e", focus: 0 }, null),
+      points: P([0, 0], [200, 100], [300, 50]),
+    } as ExcalidrawArrowElement;
     const before = arrowPath([s, bent], bent);
-    const moved = {
-      ...s,
-      kind: "rectangle" as const,
-      start: { x: 200, y: 0 },
-      end: { x: 300, y: 100 },
-    };
+    const moved = rect("s", 200, 0, 100, 100);
     const after = arrowPath([moved, bent], bent);
     const midDx = (after[0].x + after[2].x) / 2 - (before[0].x + before[2].x) / 2;
     // Waypoints follow the resolved chord midpoint (translate, never distort).
@@ -277,5 +250,48 @@ describe("sticky side+focus anchors", () => {
     expect(resolveConnectorWaypoints(bent, { start: before[0], end: before[2] })).toEqual([
       before[1],
     ]);
+  });
+});
+
+describe("binding writes with back-refs", () => {
+  it("attachArrowBinding sets the binding, snaps the end, and writes back-refs", () => {
+    const s = rect("s", 0, 0, 100, 100);
+    const a = arrow("a", null, null);
+    const out = attachArrowBinding([s, a], "a", "start", s, { x: 120, y: 50 }, 4);
+    const next = out.find((e) => e.id === "a");
+    if (!next || next.type !== "arrow") throw new Error("expected arrow");
+    expect(next.startBinding).toMatchObject({ elementId: "s", side: "e", gap: 4 });
+    // Snapped to the east anchor plus gap: (104, 50) relative to origin.
+    expect(next.points[0]).toEqual([104, 50]);
+    const target = out.find((e) => e.id === "s");
+    expect(target?.boundElements).toEqual([{ type: "arrow", id: "a" }]);
+    // Resolved start lands on the snapped anchor.
+    const { start } = resolveEndpoints(out, next);
+    expect(start.x).toBeCloseTo(104, 5);
+    expect(start.y).toBeCloseTo(50, 5);
+  });
+
+  it("rebinding clears the stale back-ref", () => {
+    const s1 = rect("s1", 0, 0, 100, 100);
+    const s2 = rect("s2", 300, 300, 100, 100);
+    const a = arrow("a", null, null);
+    const once = attachArrowBinding([s1, s2, a], "a", "start", s1, { x: 120, y: 50 }, 4);
+    const arrowOnce = once.find((e) => e.id === "a");
+    if (!arrowOnce || arrowOnce.type !== "arrow") throw new Error("expected arrow");
+    const twice = attachArrowBinding(once, "a", "start", s2, { x: 290, y: 350 }, 4);
+    expect(twice.find((e) => e.id === "s1")?.boundElements ?? []).toEqual([]);
+    expect(twice.find((e) => e.id === "s2")?.boundElements).toEqual([{ type: "arrow", id: "a" }]);
+    void arrowOnce;
+  });
+
+  it("detachArrowBinding clears the binding and the back-ref", () => {
+    const s = rect("s", 0, 0, 100, 100);
+    const a = arrow("a", null, null);
+    const attached = attachArrowBinding([s, a], "a", "end", s, { x: 50, y: 120 }, 4);
+    const detached = detachArrowBinding(attached, "a", "end");
+    const next = detached.find((e) => e.id === "a");
+    if (!next || next.type !== "arrow") throw new Error("expected arrow");
+    expect(next.endBinding).toBeNull();
+    expect(detached.find((e) => e.id === "s")?.boundElements ?? []).toEqual([]);
   });
 });

@@ -8,19 +8,23 @@ import {
   canRedo,
   HISTORY_LIMIT,
 } from "./history";
-import { baseElement, type WhiteboardElement } from "./types";
+import { newElement } from "./excalidrawDefaults";
+import type { ExcalidrawElement } from "./excalidrawTypes";
 
-const el = (id: string): WhiteboardElement => ({
-  ...baseElement(id, "#e5e5e5", 2),
-  kind: "line",
-  start: { x: 0, y: 0 },
-  end: { x: 10, y: 10 },
-  startBinding: null,
-  endBinding: null,
-  startArrow: "none",
-  endArrow: "none",
-  waypoints: [],
-});
+const el = (id: string): ExcalidrawElement =>
+  newElement("line", {
+    id,
+    x: 0,
+    y: 0,
+    points: [
+      [0, 0],
+      [10, 10],
+    ],
+    startBinding: null,
+    endBinding: null,
+    startArrowhead: null,
+    endArrowhead: null,
+  });
 
 describe("whiteboard history", () => {
   it("starts empty with no undo/redo", () => {
@@ -30,7 +34,7 @@ describe("whiteboard history", () => {
   });
 
   it("undo restores the pushed snapshot and enables redo", () => {
-    const before: WhiteboardElement[] = [];
+    const before: ExcalidrawElement[] = [];
     const after = [el("a")];
     const h = historyPush(emptyHistory(), before);
     expect(canUndo(h)).toBe(true);

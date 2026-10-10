@@ -1,12 +1,65 @@
-import type { WhiteboardElement, WhiteboardPoint } from "./types";
-import { MAX_WAYPOINTS } from "./serialize";
+import type {
+  ExcalidrawArrowElement,
+  ExcalidrawElement,
+  ExcalidrawFreedrawElement,
+  ExcalidrawLineElement,
+  ExcalidrawTextElement,
+} from "./excalidrawTypes";
+import type { WhiteboardPoint } from "./types";
 import { measureTextBlock } from "./textMeasure";
+
+/**
+ * Geometry on Excalidraw-native `x/y/width/height`. `angle` is ignored —
+ * all bounds and hit-tests are axis-aligned. Connector and freedraw
+ * `points` are relative to the `x/y` origin; every entry point here works
+ * in absolute board coords. Editing ops (move/resize/waypoints/handles)
+ * live in `./geometryEdit`.
+ */
+
+export type ConnectorElement = ExcalidrawArrowElement | ExcalidrawLineElement;
+
+export type ShapeElement = Extract<
+  ExcalidrawElement,
+  { type: "rectangle" | "ellipse" | "diamond" }
+>;
+
+export type TextEl = ExcalidrawTextElement;
+
+/** True for arrows/lines (narrows for binding/point access). */
+export function isConnector(el: ExcalidrawElement): el is ConnectorElement {
+  return el.type === "arrow" || el.type === "line";
+}
+
+/** True for rectangle/ellipse/diamond. */
+export function isShapeElement(el: ExcalidrawElement): el is ShapeElement {
+  return el.type === "rectangle" || el.type === "ellipse" || el.type === "diamond";
+}
+
+/** True for text. */
+export function isTextElement(el: ExcalidrawElement): el is ExcalidrawTextElement {
+  return el.type === "text";
+}
+
+/** True for elements an arrow endpoint can bind to: shapes only. */
+export function isArrowBindTarget(el: ExcalidrawElement): boolean {
+  return isShapeElement(el);
+}
 
 export interface BoundingBox {
   minX: number;
   minY: number;
   maxX: number;
   maxY: number;
+}
+
+/** Max bend vertices per connector (intermediate points). */
+export const MAX_WAYPOINTS = 24;
+
+/** Map Excalidraw `fontFamily` 1/2/3 (or a legacy name) to a measurement stack name. */
+export function fontFamilyName(f: unknown): "hand" | "normal" | "code" {
+  if (f === "code" || f === 3) return "code";
+  if (f === "hand" || f === 1) return "hand";
+  return "normal";
 }
 
 export function distanceToSegment(
@@ -29,6 +82,16 @@ export function normalizeBox(start: WhiteboardPoint, end: WhiteboardPoint): Boun
     minY: Math.min(start.y, end.y),
     maxX: Math.max(start.x, end.x),
     maxY: Math.max(start.y, end.y),
+  };
+}
+
+/** Normalize native `x/y/width/height` (tolerates negative `width`/`height`). */
+export function normalizeXYWH(x: number, y: number, w: number, h: number): BoundingBox {
+  return {
+    minX: Math.min(x, x + w),
+    minY: Math.min(y, y + h),
+    maxX: Math.max(x, x + w),
+    maxY: Math.max(y, y + h),
   };
 }
 
@@ -65,39 +128,101 @@ function distanceToPolygon(pt: WhiteboardPoint, poly: WhiteboardPoint[]): number
   return best;
 }
 
-export function getElementBounds(el: WhiteboardElement): BoundingBox {
-  switch (el.kind) {
+/** Absolute points of a connector (`x/y` origin + relative `points`). */
+export function connectorAbsolutePoints(el: ConnectorElement): WhiteboardPoint[] {
+  return el.points.map(([px, py]) => ({ x: el.x + px, y: el.y + py }));
+}
+
+/** Absolute points of a freedraw (`x/y` origin + relative `points`). */
+export function freedrawAbsolutePoints(el: ExcalidrawFreedrawElement): WhiteboardPoint[] {
+  return el.points.map(([px, py]) => ({ x: el.x + px, y: el.y + py }));
+}
+
+/**
+ * Replace a connector's relative points, recomputing `width`/`height`
+ * from the absolute bounds (Excalidraw invariant). Origin `x/y` is fixed.
+ */
+export function withRelativePoints(
+  el: ConnectorElement,
+  rel: [number, number][],
+): ConnectorElement {
+  const abs = rel.map(([px, py]) => ({ x: el.x + px, y: el.y + py }));
+  const b = pathBounds(abs);
+  return { ...el, points: rel, width: b.maxX - b.minX, height: b.maxY - b.minY };
+}
+
+/** Replace a freedraw's relative points, recomputing `width`/`height`. */
+export function withFreedrawPoints(
+  el: ExcalidrawFreedrawElement,
+  rel: [number, number][],
+): ExcalidrawFreedrawElement {
+  const abs = rel.map(([px, py]) => ({ x: el.x + px, y: el.y + py }));
+  const b = pathBounds(abs);
+  return { ...el, points: rel, width: b.maxX - b.minX, height: b.maxY - b.minY };
+}
+
+/**
+ * Rebase a connector/freedraw so `x/y` is the top-left of its absolute
+ * points (negative relative offsets become non-negative). Shapes/text
+ * with negative `width`/`height` are normalized in place. Returns the
+ * input when already normalized.
+ */
+export function normalizeElementOrigin(el: ExcalidrawElement): ExcalidrawElement {
+  if (el.type === "arrow" || el.type === "line" || el.type === "freedraw") {
+    const abs =
+      el.type === "freedraw" ? freedrawAbsolutePoints(el) : connectorAbsolutePoints(el);
+    if (abs.length === 0) return el;
+    const b = pathBounds(abs);
+    const rel = abs.map((p): [number, number] => [p.x - b.minX, p.y - b.minY]);
+    return {
+      ...el,
+      x: b.minX,
+      y: b.minY,
+      width: b.maxX - b.minX,
+      height: b.maxY - b.minY,
+      points: rel,
+    };
+  }
+  if (el.width < 0 || el.height < 0) {
+    const b = normalizeXYWH(el.x, el.y, el.width, el.height);
+    return { ...el, x: b.minX, y: b.minY, width: b.maxX - b.minX, height: b.maxY - b.minY };
+  }
+  return el;
+}
+
+function textBounds(el: ExcalidrawTextElement): BoundingBox {
+  const wrap = !el.autoResize && el.width > 0 ? el.width : null;
+  const block = measureTextBlock(el.text, el.fontSize, wrap, {
+    fontFamily: fontFamilyName(el.fontFamily),
+  });
+  const w = el.width > 0 ? el.width : block.width;
+  const h = el.height > 0 ? el.height : block.height;
+  const finalW = el.autoResize ? Math.max(w, block.width) : w;
+  const finalH = el.autoResize ? Math.max(h, block.height) : h;
+  return { minX: el.x, minY: el.y, maxX: el.x + finalW, maxY: el.y + finalH };
+}
+
+export function getElementBounds(el: ExcalidrawElement): BoundingBox {
+  switch (el.type) {
     case "rectangle":
     case "ellipse":
     case "diamond":
+    case "image":
+    case "frame":
+      return normalizeXYWH(el.x, el.y, el.width, el.height);
     case "arrow":
-    case "line":
-      return normalizeBox(el.start, el.end);
-    case "freehand": {
-      if (el.points.length === 0) return { minX: 0, minY: 0, maxX: 0, maxY: 0 };
-      let minX = el.points[0].x;
-      let minY = el.points[0].y;
-      let maxX = el.points[0].x;
-      let maxY = el.points[0].y;
-      for (const p of el.points) {
-        if (p.x < minX) minX = p.x;
-        if (p.y < minY) minY = p.y;
-        if (p.x > maxX) maxX = p.x;
-        if (p.y > maxY) maxY = p.y;
-      }
-      return { minX, minY, maxX, maxY };
+    case "line": {
+      const abs = connectorAbsolutePoints(el);
+      if (abs.length === 0) return normalizeXYWH(el.x, el.y, el.width, el.height);
+      return pathBounds(abs);
     }
-    case "text": {
-      const wrap = el.width ?? null;
-      const block = measureTextBlock(el.text, el.fontSize, wrap);
-      const w = Math.max(block.width, el.width ?? block.width);
-      return {
-        minX: el.position.x,
-        minY: el.position.y,
-        maxX: el.position.x + w,
-        maxY: el.position.y + block.height,
-      };
+    case "freedraw": {
+      const abs = freedrawAbsolutePoints(el);
+      if (abs.length === 0) return { minX: el.x, minY: el.y, maxX: el.x, maxY: el.y };
+      return pathBounds(abs);
     }
+    case "text":
+      return textBounds(el);
   }
 }
 
@@ -312,27 +437,22 @@ export function pathBounds(pts: WhiteboardPoint[], padding = 0): BoundingBox {
 }
 
 /** Hit threshold scales with stroke width so thick strokes are easy to grab. */
-export function hitThreshold(el: WhiteboardElement): number {
+export function hitThreshold(el: ExcalidrawElement): number {
   return Math.max(8, el.strokeWidth + 4);
 }
 
-export function hitTestElement(el: WhiteboardElement, pt: WhiteboardPoint): boolean {
+export function hitTestElement(el: ExcalidrawElement, pt: WhiteboardPoint): boolean {
   const t = hitThreshold(el);
-  switch (el.kind) {
+  switch (el.type) {
     case "arrow":
-    case "line": {
-      // Painted geometry is the flattened smooth curve (bend points lie
-      // exactly on it), so hit-testing uses the same dense path.
-      const sparse =
-        el.waypoints.length > 0 ? [el.start, ...el.waypoints, el.end] : [el.start, el.end];
-      return distanceToPolyline(pt, flattenSmoothPath(sparse)) <= t;
-    }
+    case "line":
+      return distanceToPolyline(pt, flattenSmoothPath(connectorAbsolutePoints(el))) <= t;
     case "rectangle": {
-      const b = normalizeBox(el.start, el.end);
+      const b = normalizeXYWH(el.x, el.y, el.width, el.height);
       return pt.x >= b.minX - 4 && pt.x <= b.maxX + 4 && pt.y >= b.minY - 4 && pt.y <= b.maxY + 4;
     }
     case "ellipse": {
-      const b = normalizeBox(el.start, el.end);
+      const b = normalizeXYWH(el.x, el.y, el.width, el.height);
       const rx = Math.max((b.maxX - b.minX) / 2, 1);
       const ry = Math.max((b.maxY - b.minY) / 2, 1);
       const cx = (b.minX + b.maxX) / 2;
@@ -344,18 +464,21 @@ export function hitTestElement(el: WhiteboardElement, pt: WhiteboardPoint): bool
       return approx <= t;
     }
     case "diamond": {
-      const b = normalizeBox(el.start, el.end);
+      const b = normalizeXYWH(el.x, el.y, el.width, el.height);
       const poly = diamondVertices(b);
       if (pointInPolygon(pt, poly)) return true;
       return distanceToPolygon(pt, poly) <= t;
     }
-    case "freehand": {
-      for (let i = 0; i < el.points.length - 1; i++) {
-        if (distanceToSegment(pt, el.points[i], el.points[i + 1]) <= t) return true;
+    case "freedraw": {
+      const abs = freedrawAbsolutePoints(el);
+      for (let i = 0; i < abs.length - 1; i++) {
+        if (distanceToSegment(pt, abs[i], abs[i + 1]) <= t) return true;
       }
       return false;
     }
-    case "text": {
+    case "text":
+    case "image":
+    case "frame": {
       const b = getElementBounds(el);
       return pt.x >= b.minX && pt.x <= b.maxX && pt.y >= b.minY && pt.y <= b.maxY;
     }
@@ -364,38 +487,13 @@ export function hitTestElement(el: WhiteboardElement, pt: WhiteboardPoint): bool
 
 /** Topmost (last-drawn) element under the point, or null. */
 export function pickElement(
-  elements: WhiteboardElement[],
+  elements: ExcalidrawElement[],
   pt: WhiteboardPoint,
-): WhiteboardElement | null {
+): ExcalidrawElement | null {
   for (let i = elements.length - 1; i >= 0; i--) {
     if (hitTestElement(elements[i], pt)) return elements[i];
   }
   return null;
-}
-
-export function moveElement(el: WhiteboardElement, dx: number, dy: number): WhiteboardElement {
-  switch (el.kind) {
-    case "rectangle":
-    case "ellipse":
-    case "diamond":
-      return {
-        ...el,
-        start: { x: el.start.x + dx, y: el.start.y + dy },
-        end: { x: el.end.x + dx, y: el.end.y + dy },
-      };
-    case "arrow":
-    case "line":
-      return {
-        ...el,
-        start: { x: el.start.x + dx, y: el.start.y + dy },
-        end: { x: el.end.x + dx, y: el.end.y + dy },
-        waypoints: el.waypoints.map((p) => ({ x: p.x + dx, y: p.y + dy })),
-      };
-    case "freehand":
-      return { ...el, points: el.points.map((p) => ({ x: p.x + dx, y: p.y + dy })) };
-    case "text":
-      return { ...el, position: { x: el.position.x + dx, y: el.position.y + dy } };
-  }
 }
 
 /** Drop intermediate points closer than minDist to keep dataJson small. */
@@ -410,247 +508,6 @@ export function decimatePoints(points: WhiteboardPoint[], minDist = 2): Whiteboa
   }
   out.push(points[points.length - 1]);
   return out;
-}
-
-export type ResizeHandleId =
-  | "nw"
-  | "ne"
-  | "sw"
-  | "se"
-  | "n"
-  | "s"
-  | "e"
-  | "w"
-  | "start"
-  | "end"
-  | "bend"
-  | `wp-${number}`;
-
-export interface ResizeHandle {
-  id: ResizeHandleId;
-  x: number;
-  y: number;
-  cursor: string;
-}
-
-const HANDLE_CURSORS: Record<string, string> = {
-  nw: "nwse-resize",
-  se: "nwse-resize",
-  ne: "nesw-resize",
-  sw: "nesw-resize",
-  n: "ns-resize",
-  s: "ns-resize",
-  e: "ew-resize",
-  w: "ew-resize",
-  start: "move",
-  end: "move",
-  bend: "move",
-};
-
-/** Minimum box dimension after resize so shapes can't collapse to zero. */
-export const MIN_BOX_SIZE = 8;
-
-/**
- * Resize handles for an element. Arrows/lines expose their two endpoints
- * plus one handle per waypoint (`wp-0`, `wp-1`, …). With no waypoints a
- * single `bend` handle at the midpoint creates the first waypoint on drag.
- * Pass resolved binding-aware ends via `arrowEnds`; waypoint positions are
- * replayed relative to the resolved chord (see resolveConnectorWaypoints).
- */
-export function getResizeHandles(
-  el: WhiteboardElement,
-  bounds?: BoundingBox,
-  arrowEnds?: { start: WhiteboardPoint; end: WhiteboardPoint },
-): ResizeHandle[] {
-  if (el.kind === "arrow" || el.kind === "line") {
-    const s = arrowEnds?.start ?? el.start;
-    const e = arrowEnds?.end ?? el.end;
-    const handles: ResizeHandle[] = [
-      { id: "start", x: s.x, y: s.y, cursor: HANDLE_CURSORS.start },
-      { id: "end", x: e.x, y: e.y, cursor: HANDLE_CURSORS.end },
-    ];
-    const resolved = resolveConnectorWaypoints(el, { start: s, end: e });
-    if (resolved.length === 0) {
-      handles.push({
-        id: "bend",
-        x: (s.x + e.x) / 2,
-        y: (s.y + e.y) / 2,
-        cursor: HANDLE_CURSORS.bend,
-      });
-    } else {
-      resolved.forEach((p, i) => {
-        handles.push({ id: `wp-${i}`, x: p.x, y: p.y, cursor: "move" });
-      });
-    }
-    return handles;
-  }
-  const box = bounds ?? getElementBounds(el);
-  const cx = (box.minX + box.maxX) / 2;
-  const cy = (box.minY + box.maxY) / 2;
-  const pts: [ResizeHandleId, number, number][] = [
-    ["nw", box.minX, box.minY],
-    ["ne", box.maxX, box.minY],
-    ["sw", box.minX, box.maxY],
-    ["se", box.maxX, box.maxY],
-    ["n", cx, box.minY],
-    ["s", cx, box.maxY],
-    ["w", box.minX, cy],
-    ["e", box.maxX, cy],
-  ];
-  return pts.map(([id, x, y]) => ({ id, x, y, cursor: HANDLE_CURSORS[id] }));
-}
-
-export function hitTestHandle(
-  el: WhiteboardElement,
-  pt: WhiteboardPoint,
-  bounds?: BoundingBox,
-  arrowEnds?: { start: WhiteboardPoint; end: WhiteboardPoint },
-  threshold = 9,
-): ResizeHandle | null {
-  for (const h of getResizeHandles(el, bounds, arrowEnds)) {
-    if (Math.hypot(pt.x - h.x, pt.y - h.y) <= threshold) return h;
-  }
-  return null;
-}
-
-function clampBox(
-  minX: number,
-  minY: number,
-  maxX: number,
-  maxY: number,
-): { minX: number; minY: number; maxX: number; maxY: number } {
-  if (maxX - minX < MIN_BOX_SIZE) {
-    // Keep the dragged edge, push the anchored one.
-    maxX = minX + MIN_BOX_SIZE;
-  }
-  if (maxY - minY < MIN_BOX_SIZE) {
-    maxY = minY + MIN_BOX_SIZE;
-  }
-  return { minX, minY, maxX, maxY };
-}
-
-/**
- * Drag one edge/corner of an arbitrary box to the pointer. The opposite
- * edge anchors; result is clamped to MIN_BOX_SIZE. Shared by single
- * resize, union (multi-select) resize, and marquee normalization callers.
- */
-export function dragBoxHandle(
-  box: BoundingBox,
-  handleId: ResizeHandleId,
-  pt: WhiteboardPoint,
-): BoundingBox {
-  let { minX, minY, maxX, maxY } = box;
-  if (handleId.includes("n")) minY = Math.min(pt.y, maxY - MIN_BOX_SIZE);
-  if (handleId.includes("s")) maxY = Math.max(pt.y, minY + MIN_BOX_SIZE);
-  if (handleId.includes("w")) minX = Math.min(pt.x, maxX - MIN_BOX_SIZE);
-  if (handleId.includes("e")) maxX = Math.max(pt.x, minX + MIN_BOX_SIZE);
-  return clampBox(minX, minY, maxX, maxY);
-}
-
-/** 8 box handles for an arbitrary bounding box (union/multi-select). */
-export function boxHandles(box: BoundingBox): ResizeHandle[] {
-  const cx = (box.minX + box.maxX) / 2;
-  const cy = (box.minY + box.maxY) / 2;
-  const pts: [ResizeHandleId, number, number][] = [
-    ["nw", box.minX, box.minY],
-    ["ne", box.maxX, box.minY],
-    ["sw", box.minX, box.maxY],
-    ["se", box.maxX, box.maxY],
-    ["n", cx, box.minY],
-    ["s", cx, box.maxY],
-    ["w", box.minX, cy],
-    ["e", box.maxX, cy],
-  ];
-  return pts.map(([id, x, y]) => ({ id, x, y, cursor: HANDLE_CURSORS[id] }));
-}
-
-export function hitTestBoxHandles(
-  box: BoundingBox,
-  pt: WhiteboardPoint,
-  threshold = 9,
-): ResizeHandle | null {
-  for (const h of boxHandles(box)) {
-    if (Math.hypot(pt.x - h.x, pt.y - h.y) <= threshold) return h;
-  }
-  return null;
-}
-
-/**
- * Apply a resize drag to an element. Returns the updated element.
- * For arrows/lines the moved endpoint detaches (binding cleared) — the
- * caller rebinds on pointer-up if the release lands on a shape
- * (see WhiteboardNode endpoint rebind flow).
- * For bend/wp drags `resolved` is the binding-aware chord the pointer
- * lives in; the point is converted back to stored coords so bound arrows
- * don't double-offset (the jumpy-bend bug).
- */
-export function resizeElement(
-  el: WhiteboardElement,
-  handleId: ResizeHandleId,
-  pt: WhiteboardPoint,
-  resolved?: { start: WhiteboardPoint; end: WhiteboardPoint },
-): WhiteboardElement {
-  if (el.kind === "arrow" || el.kind === "line") {
-    // Dragging the bend handle creates the first waypoint; dragging a
-    // `wp-i` handle moves that waypoint; dragging an endpoint detaches
-    // that binding (manual placement wins, rebind happens on pointer-up).
-    if (handleId === "bend") return { ...el, waypoints: [resolvedToStored(el, resolved, pt)] };
-    if (handleId.startsWith("wp-")) {
-      const i = Number(handleId.slice(3));
-      if (!Number.isInteger(i) || i < 0 || i >= el.waypoints.length) return el;
-      const stored = resolvedToStored(el, resolved, pt);
-      return { ...el, waypoints: el.waypoints.map((p, j) => (j === i ? stored : p)) };
-    }
-    if (handleId === "start") return { ...el, start: pt, startBinding: null };
-    if (handleId === "end") return { ...el, end: pt, endBinding: null };
-    return el;
-  }
-  if (el.kind === "text" && !el.containerId && !el.labelGroupId) {
-    return resizeStandaloneText(el, handleId, pt);
-  }
-  const box = getElementBounds(el);
-  const { minX, minY, maxX, maxY } = dragBoxHandle(box, handleId, pt);
-
-  switch (el.kind) {
-    case "rectangle":
-    case "ellipse":
-    case "diamond":
-      return { ...el, start: { x: minX, y: minY }, end: { x: maxX, y: maxY } };
-    case "freehand": {
-      const sx = (maxX - minX) / Math.max(box.maxX - box.minX, 1);
-      const sy = (maxY - minY) / Math.max(box.maxY - box.minY, 1);
-      return {
-        ...el,
-        points: el.points.map((p) => ({
-          x: minX + (p.x - box.minX) * sx,
-          y: minY + (p.y - box.minY) * sy,
-        })),
-      };
-    }
-    case "text": {
-      // Bound/group-label text reflows via its container; only the manual
-      // offset box changes here — treat as a move of the offset.
-      const dx = (minX + maxX) / 2 - (box.minX + box.maxX) / 2;
-      const dy = (minY + maxY) / 2 - (box.minY + box.maxY) / 2;
-      return { ...el, offset: { x: el.offset.x + dx, y: el.offset.y + dy } };
-    }
-  }
-}
-
-function resizeStandaloneText(
-  el: Extract<WhiteboardElement, { kind: "text" }>,
-  handleId: ResizeHandleId,
-  pt: WhiteboardPoint,
-) {
-  const box = getElementBounds(el);
-  const oldH = Math.max(box.maxY - box.minY, 1);
-  const { minX, minY, maxY } = dragBoxHandle(box, handleId, pt);
-  const ratio = (maxY - minY) / oldH;
-  return {
-    ...el,
-    position: { x: minX, y: minY },
-    fontSize: Math.min(96, Math.max(8, Math.round(el.fontSize * ratio))),
-  };
 }
 
 export function boxesOverlap(a: BoundingBox, b: BoundingBox): boolean {
@@ -669,128 +526,4 @@ export function unionBounds(boxes: BoundingBox[]): BoundingBox | null {
     };
   }
   return out;
-}
-
-/** Translate every element in the list by the same delta (group/marquee move). */
-export function moveElements(
-  elements: WhiteboardElement[],
-  ids: Set<string>,
-  dx: number,
-  dy: number,
-): WhiteboardElement[] {
-  if (dx === 0 && dy === 0) return elements;
-  return elements.map((el) => (ids.has(el.id) ? moveElement(el, dx, dy) : el));
-}
-
-// ---------------------------------------------------------------------------
-// Connector waypoints (multi-point bends)
-// ---------------------------------------------------------------------------
-
-/** Stored midpoint of a connector's fallback coords (pre-resolve). */
-export function storedConnectorMid(
-  el: Extract<WhiteboardElement, { kind: "arrow" | "line" }>,
-): WhiteboardPoint {
-  return { x: (el.start.x + el.end.x) / 2, y: (el.start.y + el.end.y) / 2 };
-}
-
-/**
- * Waypoints replayed relative to the resolved chord: each stored waypoint's
- * offset from the stored midpoint is applied on top of the resolved
- * midpoint. Bound shapes can move (stretching the chord) without distorting
- * the bends — the same delta that moves the chord moves every waypoint.
- */
-export function resolveConnectorWaypoints(
-  el: Extract<WhiteboardElement, { kind: "arrow" | "line" }>,
-  resolved: { start: WhiteboardPoint; end: WhiteboardPoint },
-): WhiteboardPoint[] {
-  if (el.waypoints.length === 0) return [];
-  const sm = storedConnectorMid(el);
-  const rm = {
-    x: (resolved.start.x + resolved.end.x) / 2,
-    y: (resolved.start.y + resolved.end.y) / 2,
-  };
-  const dx = rm.x - sm.x;
-  const dy = rm.y - sm.y;
-  return el.waypoints.map((p) => ({ x: p.x + dx, y: p.y + dy }));
-}
-
-/** Chord delta between stored and resolved spaces. */
-function chordDelta(
-  el: Extract<WhiteboardElement, { kind: "arrow" | "line" }>,
-  resolved?: { start: WhiteboardPoint; end: WhiteboardPoint },
-): WhiteboardPoint {
-  if (!resolved) return { x: 0, y: 0 };
-  const sm = storedConnectorMid(el);
-  const rm = {
-    x: (resolved.start.x + resolved.end.x) / 2,
-    y: (resolved.start.y + resolved.end.y) / 2,
-  };
-  return { x: rm.x - sm.x, y: rm.y - sm.y };
-}
-
-/**
- * Convert a pointer in resolved (on-screen) coords back to stored coords.
- * Identity for unbound connectors; subtracts the chord delta for bound ones.
- */
-export function resolvedToStored(
-  el: Extract<WhiteboardElement, { kind: "arrow" | "line" }>,
-  resolved: { start: WhiteboardPoint; end: WhiteboardPoint } | undefined,
-  pt: WhiteboardPoint,
-): WhiteboardPoint {
-  const d = chordDelta(el, resolved);
-  return { x: pt.x - d.x, y: pt.y - d.y };
-}
-
-/** Convert stored coords to resolved (on-screen) coords. */
-export function storedToResolved(
-  el: Extract<WhiteboardElement, { kind: "arrow" | "line" }>,
-  resolved: { start: WhiteboardPoint; end: WhiteboardPoint } | undefined,
-  pt: WhiteboardPoint,
-): WhiteboardPoint {
-  const d = chordDelta(el, resolved);
-  return { x: pt.x + d.x, y: pt.y + d.y };
-}
-
-/**
- * Insert a waypoint at the click point (resolved coords). The nearest
- * segment of the *painted* (flattened smooth) curve decides the index, so
- * clicks on the visible line land between the right neighbors; the point
- * is converted back to stored coords so it re-resolves to the click
- * position. Returns the updated element, or the original when capped.
- */
-export function insertWaypointAt(
-  el: Extract<WhiteboardElement, { kind: "arrow" | "line" }>,
-  clickPt: WhiteboardPoint,
-  resolved: { start: WhiteboardPoint; end: WhiteboardPoint },
-): Extract<WhiteboardElement, { kind: "arrow" | "line" }> {
-  if (el.waypoints.length >= MAX_WAYPOINTS) return el;
-  const rps = resolveConnectorWaypoints(el, resolved);
-  const sparse = [resolved.start, ...rps, resolved.end];
-  const { points: flat, spans } = flattenSmoothPathDetailed(sparse);
-  let bestFlat = 0;
-  let bestDist = Infinity;
-  for (let i = 0; i < flat.length - 1; i++) {
-    const d = distanceToSegment(clickPt, flat[i], flat[i + 1]);
-    // Strict < keeps the earliest span on ties -> stable path order.
-    if (d < bestDist - 1e-9) {
-      bestDist = d;
-      bestFlat = i;
-    }
-  }
-  // inserts between sparse[bestIdx] and sparse[bestIdx+1].
-  const bestIdx = Math.min(spans[bestFlat] ?? 0, sparse.length - 2);
-  // Convert click (resolved space) back to stored space.
-  const stored = resolvedToStored(el, resolved, clickPt);
-  const next = [...el.waypoints];
-  next.splice(bestIdx, 0, stored);
-  return { ...el, waypoints: next };
-}
-
-/** Remove the waypoint at `index` (no-op when out of range). */
-export function removeWaypointAt(
-  el: Extract<WhiteboardElement, { kind: "arrow" | "line" }>,
-  index: number,
-): Extract<WhiteboardElement, { kind: "arrow" | "line" }> {
-  if (index < 0 || index >= el.waypoints.length) return el;
-  return { ...el, waypoints: el.waypoints.filter((_, j) => j !== index) };
 }

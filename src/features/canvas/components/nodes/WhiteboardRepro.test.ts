@@ -45,50 +45,48 @@ describe("WhiteboardNode saved-board regression", () => {
     vi.useRealTimers();
   });
 
-  it("paints a persisted v4 board (no new style fields) on mount", async () => {
+  it("paints a persisted v2 board on mount", async () => {
     const dataJson = JSON.stringify({
-      version: 4,
+      type: "excalidraw",
+      version: 2,
+      source: "project-vault",
       elements: [
         {
           id: "s",
-          kind: "rectangle",
-          color: "#ef4444",
+          type: "rectangle",
+          x: 10,
+          y: 10,
+          width: 100,
+          height: 50,
+          strokeColor: "#ef4444",
           strokeWidth: 4,
-          groupIds: [],
-          boundElements: [],
-          start: { x: 10, y: 10 },
-          end: { x: 110, y: 60 },
         },
         {
           id: "a",
-          kind: "arrow",
-          color: "#e5e5e5",
-          strokeWidth: 2,
-          groupIds: [],
-          boundElements: [],
-          start: { x: 0, y: 0 },
-          end: { x: 200, y: 20 },
-          startBinding: null,
-          endBinding: null,
-          waypoints: [],
+          type: "arrow",
+          x: 0,
+          y: 0,
+          width: 200,
+          height: 20,
+          points: [
+            [0, 0],
+            [200, 20],
+          ],
+          endArrowhead: "arrow",
         },
         {
           id: "t",
-          kind: "text",
-          color: "#e5e5e5",
-          strokeWidth: 2,
-          groupIds: [],
-          boundElements: [],
-          position: { x: 5, y: 80 },
+          type: "text",
+          x: 5,
+          y: 80,
           text: "hello",
           fontSize: 14,
-          containerId: null,
-          labelGroupId: null,
-          offset: { x: 0, y: 0 },
-          width: null,
+          fontFamily: 2,
           textAlign: "left",
         },
       ],
+      appState: { viewBackgroundColor: "#ffffff", gridSize: null },
+      files: {},
     });
     const node: CanvasNodeDto = {
       id: "n-repro",
@@ -143,6 +141,58 @@ describe("WhiteboardNode saved-board regression", () => {
       // The saved rectangle + text must actually paint.
       expect(calls).toContain("stroke");
       expect(calls).toContain("fillText");
+    } finally {
+      HTMLCanvasElement.prototype.getContext = origGetContext;
+      Element.prototype.getBoundingClientRect = origRect;
+    }
+  });
+
+  it("wipes legacy custom boards on mount (dev-mode, no migration)", async () => {
+    const dataJson = JSON.stringify({
+      version: 4,
+      elements: [{ id: "s", kind: "rectangle", start: { x: 0, y: 0 }, end: { x: 5, y: 5 } }],
+    });
+    const node: CanvasNodeDto = {
+      id: "n-repro-wipe",
+      nodeType: "whiteboard",
+      title: "WB",
+      x: 0,
+      y: 0,
+      width: 560,
+      height: 420,
+      dataJson,
+    };
+    const { ctx } = stub2d();
+    const origGetContext = HTMLCanvasElement.prototype.getContext;
+    (HTMLCanvasElement.prototype as unknown as Record<string, unknown>).getContext = () => ctx;
+    const origRect = Element.prototype.getBoundingClientRect;
+    Element.prototype.getBoundingClientRect = (() =>
+      ({
+        x: 0,
+        y: 0,
+        width: 560,
+        height: 300,
+        top: 0,
+        left: 0,
+        right: 560,
+        bottom: 300,
+      }) as DOMRect) as typeof origRect;
+    try {
+      dispose = render(
+        () =>
+          WhiteboardNode({
+            node,
+            onDataChange: () => {},
+            onFocusNode: () => {},
+          } as never) as unknown as Element,
+        document.body,
+      );
+      (
+        document.body.querySelector('button[aria-label="Select / move"]') as HTMLButtonElement
+      ).click();
+      await new Promise((r) => setTimeout(r, 100));
+
+      expect(document.body.textContent ?? "").toMatch(/0 elements/);
     } finally {
       HTMLCanvasElement.prototype.getContext = origGetContext;
       Element.prototype.getBoundingClientRect = origRect;

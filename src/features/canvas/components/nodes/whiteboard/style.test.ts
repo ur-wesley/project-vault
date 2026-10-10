@@ -1,54 +1,41 @@
 import { describe, it, expect } from "vitest";
 import {
   applyStylePatch,
+  arrowheadNameOf,
+  arrowheadToNative,
+  defaultStyleFor,
+  expandPatchAuto,
   isArrowLabelOnly,
   propagateConnectorStyle,
   scopePatchForSelection,
-} from "./useWhiteboardStore";
-import { baseElement } from "./types";
-import type { WhiteboardElement } from "./types";
+  selectionStyleFor,
+} from "./whiteboardStyle";
+import { newElement } from "./excalidrawDefaults";
+import type { ExcalidrawElement, ExcalidrawTextElement } from "./excalidrawTypes";
 import { parseWhiteboardData, encodeWhiteboardData } from "./serialize";
+import { emptyScene } from "./excalidrawDefaults";
 import { renderBoard } from "./render";
 
-function rect(): WhiteboardElement {
-  return {
-    ...baseElement("r", "#e5e5e5", 2),
-    kind: "rectangle",
-    start: { x: 0, y: 0 },
-    end: { x: 50, y: 50 },
-  };
+function rect(id = "r"): ExcalidrawElement {
+  return newElement("rectangle", { id, x: 0, y: 0, width: 50, height: 50 });
 }
 
-function arrow(): Extract<WhiteboardElement, { kind: "arrow" }> {
-  return {
-    ...baseElement("a", "#e5e5e5", 2),
-    kind: "arrow",
-    start: { x: 0, y: 0 },
-    end: { x: 60, y: 0 },
+function arrow(id = "a"): Extract<ExcalidrawElement, { type: "arrow" }> {
+  return newElement("arrow", {
+    id,
+    x: 0,
+    y: 0,
+    points: [
+      [0, 0],
+      [60, 0],
+    ],
     startBinding: null,
     endBinding: null,
-    startArrow: "none",
-    endArrow: "arrow",
-    waypoints: [],
-  };
+  }) as Extract<ExcalidrawElement, { type: "arrow" }>;
 }
 
-function text(): Extract<WhiteboardElement, { kind: "text" }> {
-  return {
-    ...baseElement("t", "#e5e5e5", 2),
-    kind: "text",
-    position: { x: 0, y: 0 },
-    text: "hi",
-    fontSize: 16,
-    fontFamily: "normal",
-    bold: false,
-    italic: false,
-    containerId: null,
-    labelGroupId: null,
-    offset: { x: 0, y: 0 },
-    width: null,
-    textAlign: "left",
-  };
+function text(id = "t"): ExcalidrawTextElement {
+  return newElement("text", { id, x: 0, y: 0, text: "hi" }) as ExcalidrawTextElement;
 }
 
 function stubCtx() {
@@ -77,139 +64,119 @@ function stubCtx() {
 describe("applyStylePatch", () => {
   it("restyles shapes with fill but ignores arrowheads", () => {
     const out = applyStylePatch(rect(), {
-      background: "hachure",
-      fillColor: "#ef4444",
-      startArrow: "dot",
+      fillStyle: "hachure",
+      backgroundColor: "#ef4444",
+      startArrowhead: "dot",
       fontSize: 28,
     });
-    expect(out.background).toBe("hachure");
-    expect(out.fillColor).toBe("#ef4444");
-    expect(out).not.toHaveProperty("startArrow");
-    expect(out).not.toHaveProperty("fontSize");
+    expect(out).toMatchObject({ fillStyle: "hachure", backgroundColor: "#ef4444" });
+    if (out.type !== "rectangle") throw new Error("expected rect");
+    expect(out).not.toHaveProperty("startArrowhead");
   });
 
   it("restyles connectors with arrowheads but ignores fill", () => {
     const out = applyStylePatch(arrow(), {
-      startArrow: "dot",
-      endArrow: "none",
+      startArrowhead: "dot",
+      endArrowhead: "none",
       strokeStyle: "dashed",
-      background: "solid",
-    }) as Extract<WhiteboardElement, { kind: "arrow" }>;
-    expect(out.startArrow).toBe("dot");
-    expect(out.endArrow).toBe("none");
-    expect(out.strokeStyle).toBe("dashed");
-    expect(out.background).toBe("transparent");
+      fillStyle: "solid",
+    });
+    expect(out).toMatchObject({
+      startArrowhead: "dot",
+      endArrowhead: null,
+      strokeStyle: "dashed",
+    });
+    if (out.type !== "arrow") throw new Error("expected arrow");
+    expect(out.fillStyle).toBe("transparent");
   });
 
-  it("restyles text with font fields", () => {
+  it("restyles text with font fields and maps roundness per type", () => {
     const out = applyStylePatch(text(), {
       fontSize: 28,
       fontFamily: "code",
-      bold: true,
-      italic: true,
       textAlign: "right",
-    }) as Extract<WhiteboardElement, { kind: "text" }>;
-    expect(out).toMatchObject({
-      fontSize: 28,
-      fontFamily: "code",
-      bold: true,
-      italic: true,
-      textAlign: "right",
+      roundness: "sharp",
+    });
+    expect(out).toMatchObject({ fontSize: 28, fontFamily: 3, textAlign: "right" });
+    if (out.type !== "text") throw new Error("expected text");
+    expect(out.roundness).toEqual({ type: 0 });
+    const roundRect = applyStylePatch(rect(), { roundness: "round" });
+    if (roundRect.type !== "rectangle") throw new Error("expected rect");
+    expect(roundRect.roundness).toEqual({ type: 3 });
+  });
+
+  it("maps arrowhead names both ways", () => {
+    expect(arrowheadToNative("none")).toBeNull();
+    expect(arrowheadToNative("arrow")).toBe("arrow");
+    expect(arrowheadNameOf("triangle", "none")).toBe("arrow");
+    expect(arrowheadNameOf(null, "arrow")).toBe("arrow");
+    expect(arrowheadNameOf(undefined, "none")).toBe("none");
+  });
+
+  it("expands auto background tints only in auto mode", () => {
+    const out = expandPatchAuto({ strokeColor: "#ef4444" }, true);
+    expect(out.backgroundColor).toBeDefined();
+    expect(expandPatchAuto({ strokeColor: "#ef4444" }, false)).toEqual({
+      strokeColor: "#ef4444",
+    });
+    expect(
+      expandPatchAuto({ strokeColor: "#ef4444", backgroundColor: "#000000" }, true),
+    ).toEqual({ strokeColor: "#ef4444", backgroundColor: "#000000" });
+  });
+
+  it("merges selection styles, dropping mixed fields", () => {
+    const els = [rect("r1"), { ...rect("r2"), strokeColor: "#ef4444" }];
+    const merged = selectionStyleFor(els, ["r1", "r2"]);
+    expect(merged.strokeColor).toBeUndefined();
+    expect(merged.strokeWidth).toBe(2);
+    expect(selectionStyleFor(els, [])).toEqual({});
+    expect(defaultStyleFor("arrow")).toMatchObject({
+      startArrowhead: "none",
+      endArrowhead: "arrow",
     });
   });
 });
 
 describe("style serialize", () => {
-  it("migrates v4 boards to v5 style defaults", () => {
-    const raw = JSON.stringify({
-      version: 4,
-      elements: [
-        {
-          id: "a",
-          kind: "rectangle",
-          color: "#ef4444",
-          strokeWidth: 4,
-          start: { x: 0, y: 0 },
-          end: { x: 5, y: 5 },
-        },
-      ],
-    });
-    const [el] = parseWhiteboardData(raw).elements;
-    expect(el).toMatchObject({
-      background: "transparent",
-      strokeStyle: "solid",
-      opacity: 100,
-      roundness: "round",
-    });
-  });
-
-  it("falls back on invalid enums but keeps custom hex", () => {
-    const raw = JSON.stringify({
-      version: 5,
-      elements: [
-        {
-          id: "a",
-          kind: "rectangle",
-          color: "#123abc",
-          strokeWidth: 2,
-          background: "glitter",
-          strokeStyle: "wavy",
-          opacity: 999,
-          roundness: "squishy",
-          start: { x: 0, y: 0 },
-          end: { x: 5, y: 5 },
-        },
-      ],
-    });
-    const [el] = parseWhiteboardData(raw).elements;
-    expect(el.color).toBe("#123abc");
-    expect(el).toMatchObject({
-      background: "transparent",
-      strokeStyle: "solid",
-      opacity: 100,
-      roundness: "round",
-    });
-  });
-
-  it("round-trips full v5 styles", () => {
-    const els: WhiteboardElement[] = [
+  it("keeps native v2 styles through encode/parse", () => {
+    const els: ExcalidrawElement[] = [
       {
         ...rect(),
-        background: "cross-hatch",
-        fillColor: "#eab308",
+        fillStyle: "cross-hatch",
+        backgroundColor: "#eab308",
         strokeStyle: "dotted",
         opacity: 50,
-        roundness: "sharp",
+        roundness: { type: 0 },
       },
-      { ...arrow(), startArrow: "dot", endArrow: "dot" },
-      { ...text(), fontFamily: "hand", bold: true, textAlign: "right" },
+      { ...arrow(), startArrowhead: "dot", endArrowhead: "dot" },
+      { ...text(), fontFamily: 1, textAlign: "right" },
     ];
-    const json = encodeWhiteboardData({ version: 5, elements: els });
+    const scene = { ...emptyScene(), elements: els };
+    const json = encodeWhiteboardData(scene);
     expect(parseWhiteboardData(json).elements).toEqual(els);
+  });
+
+  it("drops unknown element types but keeps valid ones", () => {
+    const scene = { ...emptyScene(), elements: [rect()] };
+    const raw = JSON.stringify({ ...scene, elements: [...scene.elements, { type: "nope" }] });
+    expect(parseWhiteboardData(raw).elements).toHaveLength(1);
   });
 });
 
 describe("style render", () => {
   it("paints fills, dashes, heads and styled text without throwing", () => {
-    const els: WhiteboardElement[] = [
+    const els: ExcalidrawElement[] = [
       {
         ...rect(),
-        background: "hachure",
-        fillColor: "#ef4444",
+        fillStyle: "hachure",
+        backgroundColor: "#ef4444",
         strokeStyle: "dashed",
         opacity: 60,
-        roundness: "sharp",
+        roundness: { type: 0 },
       },
-      {
-        ...rect(),
-        background: "solid",
-        fillColor: "#22c55e",
-        roundness: "round",
-        start: { x: 60, y: 0 },
-        end: { x: 110, y: 50 },
-      },
-      { ...arrow(), startArrow: "dot", endArrow: "arrow", strokeStyle: "dotted" },
-      { ...text(), fontFamily: "code", bold: true, italic: true, fontSize: 20, textAlign: "right" },
+      { ...rect("r2"), fillStyle: "solid", backgroundColor: "#22c55e", x: 60 },
+      { ...arrow(), startArrowhead: "dot", endArrowhead: "arrow", strokeStyle: "dotted" },
+      { ...text(), fontFamily: 3, fontSize: 20, textAlign: "right" },
     ];
     const { ctx, calls } = stubCtx();
     expect(() => renderBoard(ctx, els, null, [], { selectedIds: [] })).not.toThrow();
@@ -217,45 +184,24 @@ describe("style render", () => {
   });
 
   it("isolates a corrupt element instead of blanking the board", () => {
-    const good = { ...rect(), background: "solid", fillColor: "#22c55e" };
+    const good = { ...rect(), fillStyle: "solid" as const, backgroundColor: "#22c55e" };
     const corrupt = {
       ...rect(),
       id: "bad",
-      // Simulate a foreign/hand-edited payload missing style fields entirely.
-      color: undefined,
+      strokeColor: undefined,
       strokeWidth: undefined,
-      opacity: undefined,
-      background: "glitter",
-      strokeStyle: "wavy",
-      start: { x: 200, y: 0 },
-      end: { x: 250, y: 50 },
-    } as unknown as WhiteboardElement;
-    const badText = {
-      ...text(),
-      id: "bad-text",
-      text: undefined,
-      fontSize: undefined,
-    } as unknown as WhiteboardElement;
+    } as unknown as ExcalidrawElement;
     const { ctx, calls } = stubCtx();
-    expect(() =>
-      renderBoard(ctx, [corrupt, good, badText], null, [], { selectedIds: [] }),
-    ).not.toThrow();
+    expect(() => renderBoard(ctx, [corrupt, good], null, [], { selectedIds: [] })).not.toThrow();
     // The valid element still paints (fill + stroke) despite corrupt siblings.
     expect(calls).toContain("fill");
     expect(calls).toContain("stroke");
   });
 
   it("cuts the connector stroke behind a bound label pill", () => {
-    const a = { ...arrow(), id: "a", boundElements: [{ type: "text" as const, id: "t" }] };
-    const t = {
-      ...text(),
-      id: "t",
-      text: "edge",
-      fontSize: 16,
-      containerId: "a",
-      textAlign: "center" as const,
-    };
-    const els: WhiteboardElement[] = [a, t];
+    const a = { ...arrow(), boundElements: [{ type: "text" as const, id: "t" }] };
+    const t = { ...text("t"), text: "edge", fontSize: 16, containerId: "a", textAlign: "center" as const };
+    const els: ExcalidrawElement[] = [a, t];
     const { ctx, calls } = stubCtx();
     const strokesBefore = calls.filter((c) => c === "stroke").length;
     expect(() =>
@@ -273,10 +219,10 @@ describe("style render", () => {
 });
 
 describe("arrow-label style scoping", () => {
-  const board = (): WhiteboardElement[] => [
-    { ...arrow(), id: "a", color: "#ef4444", boundElements: [{ type: "text" as const, id: "t" }] },
-    { ...text(), id: "t", color: "#ef4444", containerId: "a", textAlign: "center" as const },
-    { ...rect() },
+  const board = (): ExcalidrawElement[] => [
+    { ...arrow(), strokeColor: "#ef4444", boundElements: [{ type: "text" as const, id: "t" }] },
+    { ...text(), strokeColor: "#ef4444", containerId: "a", textAlign: "center" },
+    rect(),
   ];
 
   it("detects arrow-label-only selections", () => {
@@ -291,24 +237,24 @@ describe("arrow-label style scoping", () => {
   it("narrows patches for arrow labels down to font size", () => {
     const els = board();
     expect(
-      scopePatchForSelection(els, ["t"], { color: "#22c55e", bold: true, fontSize: 28 }),
+      scopePatchForSelection(els, ["t"], { strokeColor: "#22c55e", fontSize: 28 }),
     ).toEqual({ fontSize: 28 });
-    expect(scopePatchForSelection(els, ["t"], { color: "#22c55e" })).toEqual({});
-    expect(scopePatchForSelection(els, ["a"], { color: "#22c55e" })).toEqual({
-      color: "#22c55e",
+    expect(scopePatchForSelection(els, ["t"], { strokeColor: "#22c55e" })).toEqual({});
+    expect(scopePatchForSelection(els, ["a"], { strokeColor: "#22c55e" })).toEqual({
+      strokeColor: "#22c55e",
     });
   });
 
   it("propagates connector color/opacity/size to bound labels", () => {
     const els = board();
-    const out = propagateConnectorStyle(els, ["a"], { color: "#22c55e", opacity: 50 });
+    const out = propagateConnectorStyle(els, ["a"], { strokeColor: "#22c55e", opacity: 50 });
     const label = out.find((el) => el.id === "t");
-    expect(label).toMatchObject({ color: "#22c55e", opacity: 50 });
+    expect(label).toMatchObject({ strokeColor: "#22c55e", opacity: 50 });
     const sized = propagateConnectorStyle(els, ["a"], { fontSize: 28 });
     expect(sized.find((el) => el.id === "t")).toMatchObject({ fontSize: 28 });
     // Unrelated elements untouched; no connector selected → identical.
     expect(out.find((el) => el.id === "r")).toEqual(els[2]);
     expect(propagateConnectorStyle(els, ["a"], { strokeWidth: 4 })).toBe(els);
-    expect(propagateConnectorStyle(els, ["t"], { color: "#22c55e" })).toBe(els);
+    expect(propagateConnectorStyle(els, ["t"], { strokeColor: "#22c55e" })).toBe(els);
   });
 });

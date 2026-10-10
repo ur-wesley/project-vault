@@ -59,6 +59,28 @@ export const WhiteboardNode: Component<CanvasNodeComponentProps> = (props) => {
       else store.groupSel();
       return;
     }
+    // Excalidraw editing map (Phase 3): Ctrl+D duplicates the selection.
+    if (mod && e.key.toLowerCase() === "d") {
+      e.stopPropagation();
+      e.preventDefault();
+      store.duplicateSelected();
+      return;
+    }
+    // Arrow-key nudge: 1px, 10px with Shift (Excalidraw parity).
+    if (!mod && store.selectedIds().length > 0) {
+      const step = e.shiftKey ? 10 : 1;
+      let dir: { x: number; y: number } | null = null;
+      if (e.key === "ArrowLeft") dir = { x: -step, y: 0 };
+      if (e.key === "ArrowRight") dir = { x: step, y: 0 };
+      if (e.key === "ArrowUp") dir = { x: 0, y: -step };
+      if (e.key === "ArrowDown") dir = { x: 0, y: step };
+      if (dir) {
+        e.stopPropagation();
+        e.preventDefault();
+        store.nudgeSelected(dir.x, dir.y);
+        return;
+      }
+    }
     if ((e.key === "Delete" || e.key === "Backspace") && store.selectedIds().length > 0) {
       e.stopPropagation();
       store.deleteSelected();
@@ -100,6 +122,56 @@ export const WhiteboardNode: Component<CanvasNodeComponentProps> = (props) => {
 
   let boardWrap: HTMLDivElement | undefined;
 
+  /** Phase 4 import: paste excalidraw.com JSON / drop .excalidraw files. */
+  const looksLikeScene = (t: string): boolean => {
+    const s = t.trimStart();
+    return s.startsWith("{") || s.startsWith("[");
+  };
+
+  const handlePaste = (e: ClipboardEvent) => {
+    // Text overlay owns its own paste.
+    if (labels.labelEdit()) return;
+    const text = e.clipboardData?.getData("text/plain") ?? "";
+    if (!looksLikeScene(text)) return;
+    const { added } = store.importText(text);
+    if (added > 0) {
+      e.preventDefault();
+      e.stopPropagation();
+    }
+  };
+
+  const handleDrop = (e: DragEvent) => {
+    const files = e.dataTransfer?.files;
+    if (!files || files.length === 0) return;
+    e.preventDefault();
+    e.stopPropagation();
+    const file = files[0];
+    if (file.type.startsWith("image/")) {
+      store.setInteropNotice("Image drops aren't supported — import .excalidraw files for now");
+      return;
+    }
+    void file
+      .text()
+      .then((text) => {
+        store.importText(text);
+      })
+      .catch(() => {
+        store.setInteropNotice("Import failed — unreadable file");
+      });
+  };
+
+  /** Canvas paint (Phase 3 appState parity): bg color + dotted grid overlay. */
+  const boardStyle = (): Record<string, string> => {    const style: Record<string, string> = { "min-height": "280px" };
+    const bg = store.viewBackgroundColor();
+    if (bg !== "transparent") style["background-color"] = bg;
+    const grid = store.gridSize();
+    if (grid !== null && grid > 0) {
+      style["background-image"] = "radial-gradient(circle, rgba(148, 163, 184, 0.35) 1px, transparent 1px)";
+      style["background-size"] = `${grid}px ${grid}px`;
+    }
+    return style;
+  };
+
   return (
     <CanvasNodeContainer
       node={props.node}
@@ -120,7 +192,7 @@ export const WhiteboardNode: Component<CanvasNodeComponentProps> = (props) => {
       onTitleChange={props.onTitleChange}
       onStartDrag={props.onStartDrag}
     >
-      <WhiteboardToolbar store={store} openGroupLabel={labels.openGroupLabel} />
+      <WhiteboardToolbar store={store} />
 
       {/* Board */}
       <div
@@ -132,13 +204,16 @@ export const WhiteboardNode: Component<CanvasNodeComponentProps> = (props) => {
         onKeyDown={handleKeyDown}
         onKeyUp={handleKeyUp}
         onWheel={pointer.handleWheel}
+        onPaste={handlePaste}
+        onDrop={handleDrop}
+        onDragOver={(e) => e.preventDefault()}
         class={cn(
           "relative min-h-60 w-full flex-1 overflow-hidden rounded border border-border/40 bg-background/50 focus:outline-none focus:ring-1 focus:ring-primary/50",
           store.cursor(),
         )}
         // Inline fallback so the board keeps a paintable area even if the
         // utility class ever fails to generate.
-        style={{ "min-height": "280px" }}
+        style={boardStyle()}
       >
         <canvas
           ref={(el) => pointer.setCanvasRef(el)}

@@ -1,11 +1,34 @@
-import type { ElementBinding, WhiteboardElement, WhiteboardPoint, BindSide } from "./types";
-import { isArrowBindTarget, DEFAULT_BIND_GAP } from "./types";
+import type { ExcalidrawElement } from "./excalidrawTypes";
+import type { WhiteboardPoint } from "./types";
 import {
   getElementBounds,
-  normalizeBox,
-  resolveConnectorWaypoints,
+  isArrowBindTarget,
+  withRelativePoints,
   type BoundingBox,
+  type ConnectorElement,
 } from "./geometry";
+import { connectorStoredEnds, resolveConnectorWaypoints } from "./geometryEdit";
+
+/**
+ * Bindings on Excalidraw-native elements. The working model stays side+focus
+ * sticky anchors, read from / written to the native `startBinding`/`endBinding`
+ * (`{ elementId, focus, gap, side? }` — `side` is our extension, ignored by
+ * excalidraw.com) plus `boundElements` back-refs (`{ type: "arrow", id }` on
+ * bound targets). `arrowPath` resolves to absolute coords from `x/y+points`.
+ */
+
+export type BindSide = "n" | "s" | "e" | "w";
+
+/** Native endpoint binding (side absent on imports — falls back to ray resolve). */
+export interface ElementBinding {
+  elementId: string;
+  focus: number;
+  gap: number;
+  side?: BindSide;
+}
+
+/** Gap in px between the target boundary and the arrow endpoint. */
+export const DEFAULT_BIND_GAP = 4;
 
 /**
  * Single magnetic binding radius (Excalidraw-lite): the visible highlight
@@ -25,7 +48,7 @@ export interface ResolvedEndpoints {
 }
 
 export interface BindAnchor {
-  element: WhiteboardElement;
+  element: ExcalidrawElement;
   side: BindSide;
   /** Normalized offset along the side (-1..1). 0 = center. */
   focus: number;
@@ -40,12 +63,12 @@ export interface BindAnchor {
  * shape boundary. Falls back to the boundary point nearest `outer`.
  */
 export function intersectBoundary(
-  el: WhiteboardElement,
+  el: ExcalidrawElement,
   inner: WhiteboardPoint,
   outer: WhiteboardPoint,
 ): WhiteboardPoint {
   const box = getElementBounds(el);
-  if (el.kind === "ellipse") {
+  if (el.type === "ellipse") {
     return intersectEllipse(box, inner, outer);
   }
   // Rectangle + diamond: intersect with the (axis-aligned) box edges.
@@ -136,15 +159,8 @@ function intersectEllipse(
   return { x: inner.x + dx * t, y: inner.y + dy * t };
 }
 
-function centerOf(el: WhiteboardElement): WhiteboardPoint {
-  if (el.kind === "arrow" || el.kind === "line") {
-    return { x: (el.start.x + el.end.x) / 2, y: (el.start.y + el.end.y) / 2 };
-  }
-  if (el.kind === "freehand" || el.kind === "text") {
-    const b = getElementBounds(el);
-    return { x: (b.minX + b.maxX) / 2, y: (b.minY + b.maxY) / 2 };
-  }
-  const b = normalizeBox(el.start, el.end);
+function centerOf(el: ExcalidrawElement): WhiteboardPoint {
+  const b = getElementBounds(el);
   return { x: (b.minX + b.maxX) / 2, y: (b.minY + b.maxY) / 2 };
 }
 
@@ -223,7 +239,7 @@ export function sideFocusForPoint(
   const dS = insideX ? Math.abs(pt.y - box.maxY) : Infinity;
   const dW = insideY ? Math.abs(pt.x - box.minX) : Infinity;
   const dE = insideY ? Math.abs(pt.x - box.maxX) : Infinity;
-  let best = Math.min(dN, dS, dW, dE);
+  const best = Math.min(dN, dS, dW, dE);
   if (best !== Infinity) {
     if (best === dN) return { side: "n", focus: clampFocus((pt.x - cx) / halfW) };
     if (best === dS) return { side: "s", focus: clampFocus((pt.x - cx) / halfW) };
@@ -239,12 +255,20 @@ export function sideFocusForPoint(
   return { side: ny >= 0 ? "s" : "n", focus: clampFocus((pt.x - cx) / halfW) };
 }
 
+/** Sticky side+focus binding built by {@link createBinding} (always has side+focus). */
+export interface StickyBinding {
+  elementId: string;
+  gap: number;
+  side: BindSide;
+  focus: number;
+}
+
 /** Build a sticky binding for a drop point near a target. */
 export function createBinding(
-  target: WhiteboardElement,
+  target: ExcalidrawElement,
   pt: WhiteboardPoint,
   gap: number = DEFAULT_BIND_GAP,
-): ElementBinding {
+): StickyBinding {
   const box = getElementBounds(target);
   const { side, focus } = sideFocusForPoint(box, pt);
   return { elementId: target.id, gap, side, focus };
@@ -252,7 +276,7 @@ export function createBinding(
 
 /** Detailed magnetic candidate: nearest bindable shape within `radius`. */
 export function findBindAnchor(
-  elements: WhiteboardElement[],
+  elements: ExcalidrawElement[],
   pt: WhiteboardPoint,
   radius: number = BIND_DISTANCE,
   excludeIds: Set<string> = new Set(),
@@ -273,7 +297,7 @@ export function findBindAnchor(
 }
 
 function resolveEnd(
-  byId: Map<string, WhiteboardElement>,
+  byId: Map<string, ExcalidrawElement>,
   binding: ElementBinding,
   from: WhiteboardPoint,
 ): WhiteboardPoint | null {
@@ -287,7 +311,8 @@ function resolveEnd(
       typeof binding.focus === "number" && Number.isFinite(binding.focus) ? binding.focus : 0;
     return pushOutByGap(anchorToPoint(box, binding.side, focus), binding.side, gap);
   }
-  // Legacy path (v1/v2 boards): ray from target center toward the other end.
+  // Import path (excalidraw.com bindings carry no side): ray from target
+  // center toward the other end.
   const center = centerOf(target);
   const onBoundary = intersectBoundary(target, center, from);
   const dx = onBoundary.x - center.x;
@@ -303,15 +328,16 @@ function resolveEnd(
  * missing targets fall back to stored coordinates.
  */
 export function resolveEndpoints(
-  elements: WhiteboardElement[],
-  el: Extract<WhiteboardElement, { kind: "arrow" | "line" }>,
+  elements: ExcalidrawElement[],
+  el: ConnectorElement,
 ): ResolvedEndpoints {
   const byId = new Map(elements.map((e) => [e.id, e]));
-  let start = el.start;
-  let end = el.end;
+  const stored = connectorStoredEnds(el);
+  let start = stored.start;
+  let end = stored.end;
   // Resolve against the *other* end's current position (free or resolved).
   if (el.startBinding) {
-    const r = resolveEnd(byId, el.startBinding, el.end);
+    const r = resolveEnd(byId, el.startBinding, stored.end);
     if (r) start = r;
   }
   if (el.endBinding) {
@@ -327,11 +353,11 @@ export function resolveEndpoints(
  * on release gets attached.
  */
 export function findBindCandidate(
-  elements: WhiteboardElement[],
+  elements: ExcalidrawElement[],
   pt: WhiteboardPoint,
   excludeIds: Set<string> = new Set(),
   radius: number = BIND_DISTANCE,
-): WhiteboardElement | null {
+): ExcalidrawElement | null {
   return findBindAnchor(elements, pt, radius, excludeIds)?.element ?? null;
 }
 
@@ -340,7 +366,7 @@ export function findBindCandidate(
  * tier — previewed drops always attach.
  */
 export function findBindHover(
-  elements: WhiteboardElement[],
+  elements: ExcalidrawElement[],
   pt: WhiteboardPoint,
   excludeIds: Set<string> = new Set(),
   radius: number = BIND_DISTANCE,
@@ -353,7 +379,7 @@ export function findBindHover(
  * anchor to preview a detach.
  */
 export function isDetachPreview(
-  elements: WhiteboardElement[],
+  elements: ExcalidrawElement[],
   binding: ElementBinding,
   pt: WhiteboardPoint,
 ): boolean {
@@ -368,11 +394,12 @@ export function isDetachPreview(
 /**
  * Full render/hit-test path for an arrow or line: resolved (binding-aware)
  * endpoints with the waypoints (relative to the resolved chord) in between.
- * Straight connectors yield exactly two points.
+ * Straight connectors yield exactly two points. Connectors resolve
+ * from `x/y + points` (relative) to absolute coords.
  */
 export function arrowPath(
-  elements: WhiteboardElement[],
-  el: Extract<WhiteboardElement, { kind: "arrow" | "line" }>,
+  elements: ExcalidrawElement[],
+  el: ConnectorElement,
 ): WhiteboardPoint[] {
   const resolved = resolveEndpoints(elements, el);
   return [resolved.start, ...resolveConnectorWaypoints(el, resolved), resolved.end];
@@ -402,4 +429,105 @@ export function polylineMidpoint(pts: WhiteboardPoint[]): WhiteboardPoint {
     target -= lens[i];
   }
   return { ...pts[pts.length - 1] };
+}
+
+// ---------------------------------------------------------------------------
+// Binding writes with boundElements back-refs (Excalidraw interop)
+// ---------------------------------------------------------------------------
+
+/** Add `{ type: "arrow", id }` to a target's back-refs (deduped, null-safe). */
+function addArrowBackref(el: ExcalidrawElement, arrowId: string): ExcalidrawElement {
+  const bound = el.boundElements ?? [];
+  if (bound.some((b) => b.id === arrowId)) return el;
+  return { ...el, boundElements: [...bound, { type: "arrow" as const, id: arrowId }] };
+}
+
+/** Remove `{ id: arrowId }` from an element's back-refs (null-safe). */
+function removeBackref(el: ExcalidrawElement, arrowId: string): ExcalidrawElement {
+  const bound = el.boundElements ?? [];
+  if (!bound.some((b) => b.id === arrowId)) return el;
+  return { ...el, boundElements: bound.filter((b) => b.id !== arrowId) };
+}
+
+function setStoredEnd(
+  el: ConnectorElement,
+  which: "start" | "end",
+  pt: WhiteboardPoint,
+): ConnectorElement {
+  const rel: [number, number] = [pt.x - el.x, pt.y - el.y];
+  if (which === "start") {
+    const next: [number, number][] = [rel, ...el.points.slice(1)];
+    if (next.length < 2) next.push(rel);
+    return withRelativePoints(el, next);
+  }
+  const next: [number, number][] = [...el.points.slice(0, -1), rel];
+  if (next.length < 2) next.unshift(rel);
+  return withRelativePoints(el, next);
+}
+
+/** Set one endpoint binding on a connector. */
+function withBinding(
+  el: ConnectorElement,
+  which: "start" | "end",
+  binding: StickyBinding | null,
+): ConnectorElement {
+  return which === "start" ? { ...el, startBinding: binding } : { ...el, endBinding: binding };
+}
+
+/**
+ * Attach one arrow/line endpoint to a target: sets the sticky side+focus
+ * `startBinding`/`endBinding`, snaps the stored end to the anchor, writes
+ * the `{ type: "arrow", id }` back-ref on the target, and clears a stale
+ * back-ref when rebinding away from another target. Pure — caller commits.
+ */
+export function attachArrowBinding(
+  elements: ExcalidrawElement[],
+  arrowId: string,
+  which: "start" | "end",
+  target: ExcalidrawElement,
+  pt: WhiteboardPoint,
+  gap: number = DEFAULT_BIND_GAP,
+): ExcalidrawElement[] {
+  const arrow = elements.find((e) => e.id === arrowId);
+  if (!arrow || (arrow.type !== "arrow" && arrow.type !== "line")) return elements;
+  const prev = which === "start" ? arrow.startBinding : arrow.endBinding;
+  const binding = createBinding(target, pt, gap);
+  const box = getElementBounds(target);
+  const snapped = pushOutByGap(
+    anchorToPoint(box, binding.side, binding.focus),
+    binding.side,
+    binding.gap,
+  );
+  return elements.map((el) => {
+    if (el.id === arrowId && (el.type === "arrow" || el.type === "line")) {
+      return withBinding(setStoredEnd(el, which, snapped), which, binding);
+    }
+    if (el.id === target.id) return addArrowBackref(el, arrowId);
+    if (prev && el.id === prev.elementId && el.id !== target.id) {
+      return removeBackref(el, arrowId);
+    }
+    return el;
+  });
+}
+
+/**
+ * Detach one arrow/line endpoint: clears the binding and removes the
+ * back-ref from its target. The stored end keeps its last position.
+ */
+export function detachArrowBinding(
+  elements: ExcalidrawElement[],
+  arrowId: string,
+  which: "start" | "end",
+): ExcalidrawElement[] {
+  const arrow = elements.find((e) => e.id === arrowId);
+  if (!arrow || (arrow.type !== "arrow" && arrow.type !== "line")) return elements;
+  const prev = which === "start" ? arrow.startBinding : arrow.endBinding;
+  if (!prev) return elements;
+  return elements.map((el) => {
+    if (el.id === arrowId && (el.type === "arrow" || el.type === "line")) {
+      return withBinding(el, which, null);
+    }
+    if (el.id === prev.elementId) return removeBackref(el, arrowId);
+    return el;
+  });
 }

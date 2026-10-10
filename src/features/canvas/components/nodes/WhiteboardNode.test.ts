@@ -121,12 +121,15 @@ describe("WhiteboardNode drawing", () => {
       await new Promise((r) => setTimeout(r, 700));
       expect(seen.length).toBeGreaterThan(0);
       const last = JSON.parse(seen[seen.length - 1] as string);
-      expect(last.version).toBe(5);
+      expect(last.version).toBe(2);
+      expect(last.type).toBe("excalidraw");
       expect(last.elements).toHaveLength(1);
       expect(last.elements[0]).toMatchObject({
-        kind: "rectangle",
-        start: { x: 10, y: 10 },
-        end: { x: 100, y: 80 },
+        type: "rectangle",
+        x: 10,
+        y: 10,
+        width: 90,
+        height: 70,
       });
 
       // Tool smart-reverts to select: dragging the shape now moves it.
@@ -136,8 +139,10 @@ describe("WhiteboardNode drawing", () => {
       await new Promise((r) => setTimeout(r, 700));
       const moved = JSON.parse(seen[seen.length - 1] as string);
       expect(moved.elements[0]).toMatchObject({
-        start: { x: 30, y: 30 },
-        end: { x: 120, y: 100 },
+        x: 30,
+        y: 30,
+        width: 90,
+        height: 70,
       });
     } finally {
       HTMLCanvasElement.prototype.getContext = origGetContext;
@@ -199,7 +204,8 @@ describe("WhiteboardNode drawing", () => {
       await new Promise((r) => setTimeout(r, 700));
       expect(seen.length).toBeGreaterThan(0);
       const drawn = JSON.parse(seen[seen.length - 1] as string);
-      expect(drawn.elements[0]).toMatchObject({ kind: "arrow", waypoints: [] });
+      expect(drawn.elements[0]).toMatchObject({ type: "arrow" });
+      expect(drawn.elements[0].points).toHaveLength(2);
 
       // Bend handle sits at the segment midpoint (55, 10).
       canvas.dispatchEvent(ptr("pointerdown", 55, 10));
@@ -207,7 +213,8 @@ describe("WhiteboardNode drawing", () => {
       canvas.dispatchEvent(ptr("pointerup", 55, 50));
       await new Promise((r) => setTimeout(r, 700));
       const bent = JSON.parse(seen[seen.length - 1] as string);
-      expect(bent.elements[0]).toMatchObject({ waypoints: [{ x: 55, y: 50 }] });
+      expect(bent.elements[0].points).toHaveLength(3);
+      expect(bent.elements[0].points[1]).toEqual([45, 40]);
     } finally {
       HTMLCanvasElement.prototype.getContext = origGetContext;
     }
@@ -273,14 +280,14 @@ describe("WhiteboardNode drawing", () => {
       canvas.dispatchEvent(dbl(80, 10));
       await new Promise((r) => setTimeout(r, 700));
       const bent = JSON.parse(seen[seen.length - 1] as string);
-      expect(bent.elements[0].waypoints).toHaveLength(1);
-      expect(bent.elements[0].waypoints[0].x).toBeCloseTo(80, 0);
+      expect(bent.elements[0].points).toHaveLength(3);
+      expect(bent.elements[0].points[1][0]).toBeCloseTo(70, 0);
 
       // Double-clicking the bend point itself removes it again.
       canvas.dispatchEvent(dbl(80, 10));
       await new Promise((r) => setTimeout(r, 700));
       const straight = JSON.parse(seen[seen.length - 1] as string);
-      expect(straight.elements[0].waypoints).toHaveLength(0);
+      expect(straight.elements[0].points).toHaveLength(2);
     } finally {
       HTMLCanvasElement.prototype.getContext = origGetContext;
     }
@@ -353,9 +360,11 @@ describe("WhiteboardNode drawing", () => {
       await new Promise((r) => setTimeout(r, 700));
       const drawn = JSON.parse(seen[seen.length - 1] as string);
       expect(drawn.elements[0]).toMatchObject({
-        kind: "rectangle",
-        start: { x: 10, y: 10 },
-        end: { x: 110, y: 90 },
+        type: "rectangle",
+        x: 10,
+        y: 10,
+        width: 100,
+        height: 80,
       });
 
       // Wheel over the board zooms to the cursor (canvas behavior).
