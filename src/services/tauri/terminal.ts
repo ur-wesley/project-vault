@@ -9,8 +9,24 @@ export function openProjectShell(projectId: string) {
   return tauriInvoke<void>("open_project_shell", { payload: { projectId } });
 }
 
-export function embeddedTerminalSpawn(projectId: string, shell?: string) {
-  return tauriInvoke<string>("embedded_terminal_spawn", { projectId, shell: shell ?? null });
+export type PtySizeHint = { rows: number | null; cols: number | null };
+
+function ptySizeHint(rows?: number, cols?: number): PtySizeHint | null {
+  if (rows == null && cols == null) return null;
+  return { rows: rows ?? null, cols: cols ?? null };
+}
+
+export function embeddedTerminalSpawn(
+  projectId: string,
+  shell?: string,
+  rows?: number,
+  cols?: number,
+) {
+  return tauriInvoke<string>("embedded_terminal_spawn", {
+    projectId,
+    shell: shell ?? null,
+    size: ptySizeHint(rows, cols),
+  });
 }
 
 export function embeddedTerminalWrite(sessionId: string, data: string) {
@@ -41,10 +57,11 @@ export function listDiscoveredTools() {
   return tauriInvoke<unknown[]>("list_discovered_tools");
 }
 
-export function globalTerminalSpawn(cwd?: string, shell?: string) {
+export function globalTerminalSpawn(cwd?: string, shell?: string, rows?: number, cols?: number) {
   return tauriInvoke<string>("global_terminal_spawn", {
     cwd: cwd ?? null,
     shell: shell ?? null,
+    size: ptySizeHint(rows, cols),
   });
 }
 

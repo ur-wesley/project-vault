@@ -26,10 +26,11 @@ pub async fn global_terminal_spawn(
     #[cfg(not(any(target_os = "android", target_os = "ios")))] buffers: State<'_, TerminalBuffers>,
     cwd: Option<String>,
     shell: Option<String>,
+    size: Option<embedded::PtySizeHint>,
 ) -> Result<String, StableError> {
     #[cfg(any(target_os = "android", target_os = "ios"))]
     {
-        let _ = (app, db, terms, cwd, shell);
+        let _ = (app, db, terms, cwd, shell, size);
         return Err(StableError::new(
             crate::error::codes::INTERNAL,
             "embedded terminal not available on this platform",
@@ -63,7 +64,14 @@ pub async fn global_terminal_spawn(
 
         let shell_pref = crate::common::resolve_shell_pref(&pool, shell).await?;
 
-        embedded::spawn_session(app, &terms, &buffers, resolved_cwd, shell_pref)
+        embedded::spawn_session(
+            app,
+            &terms,
+            &buffers,
+            resolved_cwd,
+            shell_pref,
+            size.unwrap_or_default(),
+        )
     }
 }
 
@@ -87,10 +95,11 @@ pub async fn embedded_terminal_spawn(
     #[cfg(not(any(target_os = "android", target_os = "ios")))] buffers: State<'_, TerminalBuffers>,
     project_id: String,
     shell: Option<String>,
+    size: Option<embedded::PtySizeHint>,
 ) -> Result<String, StableError> {
     #[cfg(any(target_os = "android", target_os = "ios"))]
     {
-        let _ = (app, db, terms, project_id, shell);
+        let _ = (app, db, terms, project_id, shell, size);
         return Err(StableError::new(
             crate::error::codes::INTERNAL,
             "embedded terminal not available on this platform",
@@ -104,7 +113,7 @@ pub async fn embedded_terminal_spawn(
 
         let shell_pref = crate::common::resolve_shell_pref(&pool, shell).await?;
 
-        embedded::spawn_session(app, &terms, &buffers, cwd, shell_pref)
+        embedded::spawn_session(app, &terms, &buffers, cwd, shell_pref, size.unwrap_or_default())
     }
 }
 

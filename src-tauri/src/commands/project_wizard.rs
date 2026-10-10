@@ -721,7 +721,14 @@ pub async fn run_template_command(
         if !cwd.is_dir() {
             return Err(StableError::new(codes::INVALID_PATH, "cwd not a directory"));
         }
-        let session_id = crate::spawn::embedded::spawn_session(app, &terms, &buffers, cwd, None)?;
+        let session_id = crate::spawn::embedded::spawn_session(
+            app,
+            &terms,
+            &buffers,
+            cwd,
+            None,
+            crate::spawn::embedded::PtySizeHint::default(),
+        )?;
         // Write the command to the terminal
         let cmd = format!("{}\r", payload.command);
         crate::spawn::embedded::write_session(&terms, &session_id, &cmd)?;

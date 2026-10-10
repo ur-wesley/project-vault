@@ -7,7 +7,7 @@ use std::sync::{Arc, Mutex};
 use std::time::Duration;
 
 use base64::{engine::general_purpose::STANDARD, Engine as _};
-use portable_pty::{native_pty_system, ChildKiller, PtySize};
+use portable_pty::{native_pty_system, ChildKiller};
 use tauri::{AppHandle, Emitter};
 
 use crate::error::{codes, StableError};
@@ -89,12 +89,7 @@ pub fn spawn_concurrent_tasks(
         let effective_cwd = if sub_cwd.is_dir() { &sub_cwd } else { cwd };
 
         let pair = pty_system
-            .openpty(PtySize {
-                rows: 24,
-                cols: 80,
-                pixel_width: 0,
-                pixel_height: 0,
-            })
+            .openpty(embedded::resolve_pty_size(None, None))
             .map_err(|e| StableError::new(codes::SPAWN_FAILED, e.to_string()))?;
 
         let cmd = embedded::task_command(

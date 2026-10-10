@@ -40,6 +40,39 @@ fn is_terminal_launcher(_path: &str) -> bool {
 
 const TERMINAL_BUFFER_MAX: usize = 5000;
 
+const DEFAULT_PTY_ROWS: u16 = 24;
+const DEFAULT_PTY_COLS: u16 = 80;
+
+/// Frontend-provided PTY size hint (xterm geometry measured after fit).
+/// Missing values fall back to 80x24 via `resolve_pty_size`.
+#[derive(Debug, Clone, Copy, Default, serde::Deserialize)]
+pub struct PtySizeHint {
+    pub rows: Option<u16>,
+    pub cols: Option<u16>,
+}
+
+/// Clamp a frontend-provided PTY size to sane bounds. Missing or
+/// impossibly small values fall back to 80x24 so a hidden tab can never
+/// spawn a 0-size PTY that desyncs interactive prompts from xterm.
+pub fn resolve_pty_size(rows: Option<u16>, cols: Option<u16>) -> PtySize {
+    let r = rows.unwrap_or(0);
+    let c = cols.unwrap_or(0);
+    PtySize {
+        rows: if r < 5 {
+            DEFAULT_PTY_ROWS
+        } else {
+            r.min(300)
+        },
+        cols: if c < 20 {
+            DEFAULT_PTY_COLS
+        } else {
+            c.min(1000)
+        },
+        pixel_width: 0,
+        pixel_height: 0,
+    }
+}
+
 #[derive(Clone, Default)]
 pub struct EmbeddedTerminals(pub Arc<Mutex<HashMap<String, EmbeddedSession>>>);
 
@@ -142,10 +175,17 @@ fn task_command_windows_shell_wrap(
         .join(" ");
 
     let shell = if let Some(s) = shell_pref {
-        if Path::new(s).exists() && !is_terminal_launcher(s) {
+        if s.trim().is_empty() {
+            "cmd.exe".to_string()
+        } else if Path::new(s).exists() && !is_terminal_launcher(s) {
             s.to_string()
         } else {
-            "cmd.exe".to_string()
+            // Never silently swap to cmd.exe: surface the misconfigured
+            // shell so the frontend can toast instead of hiding it.
+            return Err(StableError::new(
+                codes::INVALID_PATH,
+                format!("shell not found: {s}"),
+            ));
         }
     } else {
         "cmd.exe".to_string()
@@ -278,12 +318,7 @@ pub fn spawn_task_in_pty(
     }
     let pty_system = native_pty_system();
     let pair = pty_system
-        .openpty(PtySize {
-            rows: 24,
-            cols: 80,
-            pixel_width: 0,
-            pixel_height: 0,
-        })
+        .openpty(resolve_pty_size(None, None))
         .map_err(|e| StableError::new(codes::SPAWN_FAILED, e.to_string()))?;
 
     let cmd = task_command(
@@ -421,27 +456,41 @@ pub fn spawn_task_in_pty(
     Ok(())
 }
 
+fn with_term_env(mut c: CommandBuilder) -> CommandBuilder {
+    // Interactive children (prompts, colors) expect a terminal type. Only
+    // fill these in when the host environment does not define them.
+    // CommandBuilder inherits the PTY (no piped stdio), so children see a
+    // real TTY and TTY-gated prompts (e.g. `bun x bumpp`) render correctly.
+    if std::env::var_os("TERM").is_none() {
+        c.env("TERM", "xterm-256color");
+    }
+    if std::env::var_os("COLORTERM").is_none() {
+        c.env("COLORTERM", "truecolor");
+    }
+    c
+}
+
 fn shell_command(shell_pref: Option<&str>, cwd: &Path) -> Result<CommandBuilder, StableError> {
     if let Some(p) = shell_pref {
         let p = p.trim();
         if !p.is_empty() && !is_terminal_launcher(p) {
             let mut c = CommandBuilder::new(p);
             c.cwd(cwd);
-            return Ok(c);
+            return Ok(with_term_env(c));
         }
     }
     #[cfg(windows)]
     {
         let mut c = CommandBuilder::new("cmd.exe");
         c.cwd(cwd);
-        return Ok(c);
+        Ok(with_term_env(c))
     }
     #[cfg(not(windows))]
     {
         let sh = std::env::var("SHELL").unwrap_or_else(|_| "/bin/bash".to_string());
         let mut c = CommandBuilder::new(&sh);
         c.cwd(cwd);
-        Ok(c)
+        Ok(with_term_env(c))
     }
 }
 
@@ -451,20 +500,21 @@ pub fn spawn_session(
     buffers: &TerminalBuffers,
     cwd: std::path::PathBuf,
     shell_pref: Option<String>,
+    size_hint: PtySizeHint,
 ) -> Result<String, StableError> {
     if !cwd.is_dir() {
         return Err(StableError::new(codes::INVALID_PATH, "cwd not a directory"));
     }
     let session_id = Uuid::new_v4().to_string();
     let pty_system = native_pty_system();
+    let size = resolve_pty_size(size_hint.rows, size_hint.cols);
     let pair = pty_system
-        .openpty(PtySize {
-            rows: 24,
-            cols: 80,
-            pixel_width: 0,
-            pixel_height: 0,
-        })
+        .openpty(size)
         .map_err(|e| StableError::new(codes::SPAWN_FAILED, e.to_string()))?;
+    // ConPTY snapshots the size at spawn; resize immediately so the shell
+    // and its first interactive children observe the real xterm geometry
+    // instead of the 80x24 fallback.
+    let _ = pair.master.resize(size);
 
     let cmd = shell_command(shell_pref.as_deref(), &cwd)?;
     let mut child = pair

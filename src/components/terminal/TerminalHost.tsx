@@ -1,4 +1,3 @@
-import { listen } from "@tauri-apps/api/event";
 import { openUrl } from "@tauri-apps/plugin-opener";
 import { readText } from "tauri-plugin-clipboard-api";
 import { FitAddon } from "@xterm/addon-fit";
@@ -20,10 +19,13 @@ import { useI18n } from "~/lib/i18n-context";
 import { stableErrorMessage } from "~/lib/invoke-error";
 import {
   attachTerminalWindowRepaint,
+  clearTerminalResize,
+  fitAndPushTerminalSize,
   repaintTerminal,
-  terminalHasMinSize,
+  scheduleTerminalResize,
   TERMINAL_MIN_HEIGHT,
   TERMINAL_MIN_WIDTH,
+  type TerminalResizeTimer,
 } from "~/lib/terminal-repaint";
 import { cn } from "~/lib/utils";
 import {
@@ -35,10 +37,17 @@ import {
 import {
   embeddedTerminalKill,
   embeddedTerminalResize,
-  embeddedTerminalWrite,
   embeddedTerminalIsAlive,
   embeddedTerminalGetBuffer,
 } from "~/services/tauri/terminal";
+import {
+  decodeTerminalChunk,
+  ensureTerminalListeners,
+  isTerminalInput,
+  queueTerminalWrite,
+  subscribeTerminalData,
+  subscribeTerminalExit,
+} from "./terminal-io";
 import type { Result } from "neverthrow";
 import { formatCommandTitle, parseCommandFromLine } from "./parse-command-title";
 
@@ -89,15 +98,6 @@ function registerTauriWebLinks(term: XTermTerminal): { dispose: () => void } {
   return term.registerLinkProvider(provider);
 }
 
-function decodeChunk(b64: string): Uint8Array {
-  const bin = atob(b64);
-  const out = new Uint8Array(bin.length);
-  for (let i = 0; i < bin.length; i++) {
-    out[i] = bin.charCodeAt(i);
-  }
-  return out;
-}
-
 export type TerminalHostInstance = {
   id: string;
   name: string;
@@ -112,7 +112,7 @@ export function TerminalHost(props: {
   instance: TerminalHostInstance;
   activeId: Accessor<string | null>;
   isActivePane: boolean;
-  spawnFn: (shell?: string) => PromiseLike<Result<string, any>>;
+  spawnFn: (shell?: string, rows?: number, cols?: number) => PromiseLike<Result<string, any>>;
   onSessionId: (id: string, sessionId: string) => void;
   onError: (msg: string | null) => void;
   onProcessExit?: (id: string, hasContent: boolean) => void;
@@ -130,16 +130,12 @@ export function TerminalHost(props: {
   let fit: FitAddon | null = null;
   let sessionId: string | null = null;
 
-  const MIN_COLS = 20;
-  const MIN_ROWS = 5;
-
-  const doResize = () => {
-    if (!sessionId || !term || !fit) return;
-    if (!terminalHasMinSize(term)) return;
-    fit.fit();
-    if (term.cols >= MIN_COLS && term.rows >= MIN_ROWS) {
-      void embeddedTerminalResize(sessionId, term.rows, term.cols);
-    }
+  const doResize = (): boolean => {
+    if (!sessionId) return false;
+    const sid: string = sessionId;
+    return fitAndPushTerminalSize(term, fit, (rows, cols) => {
+      void embeddedTerminalResize(sid, rows, cols);
+    });
   };
 
   createEffect(() => {
@@ -150,13 +146,26 @@ export function TerminalHost(props: {
 
     let raf = 0;
     let timer = 0;
+    let retryTimer: number | undefined;
 
     raf = requestAnimationFrame(() => {
       timer = window.setTimeout(() => {
         if (!active() || !currentTerm.element) return;
         if (currentTerm.element.offsetParent !== null) {
           if (!noAutoFocus) currentTerm.focus();
-          repaintTerminal(currentTerm, fit, doResize);
+          // The first post-activation resize must never be silently dropped:
+          // background tabs kept the 80x24 spawn size, so retry once after
+          // layout settles when no valid dims could be pushed yet.
+          let pushed = false;
+          repaintTerminal(currentTerm, fit, () => {
+            pushed = doResize();
+          });
+          if (!pushed) {
+            retryTimer = window.setTimeout(() => {
+              if (!active()) return;
+              repaintTerminal(currentTerm, fit, doResize);
+            }, 150);
+          }
         }
       }, 150);
     });
@@ -164,6 +173,7 @@ export function TerminalHost(props: {
     onCleanup(() => {
       cancelAnimationFrame(raf);
       window.clearTimeout(timer);
+      window.clearTimeout(retryTimer);
     });
   });
 
@@ -215,7 +225,7 @@ export function TerminalHost(props: {
     let unData: (() => void) | undefined;
     let unExit: (() => void) | undefined;
     let ro: ResizeObserver | null = null;
-    let resizeT: number | undefined;
+    const resizeTimer: TerminalResizeTimer = { id: undefined };
     let onWindowResize: (() => void) | null = null;
     let linkProvider: { dispose: () => void } | null = null;
     let cleanupOnKeyDown: ((e: KeyboardEvent) => void) | null = null;
@@ -255,37 +265,26 @@ export function TerminalHost(props: {
       });
 
       cleanupOnKeyDown = (e: KeyboardEvent) => {
-        if (e.key === "Enter" && term) {
-          const onCommandEntered = untrack(() => props.onCommandEntered);
-          if (onCommandEntered) {
-            const buffer = term.buffer.active;
-            const currentLine = buffer.getLine(buffer.cursorY);
-            let lineText = "";
-            if (currentLine) {
-              const endX = buffer.cursorX;
-              for (let x = 0; x < endX; x++) {
-                const cell = currentLine.getCell(x);
-                lineText += cell?.getChars() ?? "";
-              }
-            }
-            const command = parseCommandFromLine(lineText);
-            if (command) {
-              onCommandEntered(instanceId, formatCommandTitle(command));
-            } else {
-              onCommandEntered(instanceId, "");
-            }
-          }
-        }
-
         const isPaste = (e.ctrlKey || e.metaKey) && (e.key === "v" || e.key === "V");
         const isCopy = (e.ctrlKey || e.metaKey) && (e.key === "c" || e.key === "C");
+        if (!isPaste && !isCopy) return;
+        if (!term) return;
+        // Scope clipboard shortcuts to the xterm surface so tab-bar focus and
+        // global hotkeys keep working. Enter is intentionally untouched here —
+        // tab renames go through onData after xterm accepted the key.
+        const target = e.target as Node | null;
+        const surface = term.element;
+        const inSurface =
+          !!surface && !!target && (target === term.textarea || surface.contains(target));
+        if (!inSurface) return;
 
-        if (isPaste && term) {
+        if (isPaste) {
           e.preventDefault();
           e.stopPropagation();
           readText()
             .then((text) => {
-              if (term) term.paste(text);
+              if (!isTerminalInput(text) || !term) return;
+              term.paste(text);
             })
             .catch((err) => {
               console.error("clipboard read failed:", err);
@@ -293,7 +292,7 @@ export function TerminalHost(props: {
           return;
         }
 
-        if (isCopy && term && term.hasSelection()) {
+        if (isCopy && term.hasSelection()) {
           e.preventDefault();
           e.stopPropagation();
           const text = term.getSelection();
@@ -310,33 +309,37 @@ export function TerminalHost(props: {
       let isReady = false;
       let exitFired = false;
 
-      let unDataPromise = listen<{ sessionId: string; chunk: string }>(
-        "embedded-terminal-data",
-        (ev) => {
-          appendTerminalChunk(ev.payload.sessionId, ev.payload.chunk);
-          if (!isReady || ev.payload.sessionId !== sid || !term) return;
-          term.write(decodeChunk(ev.payload.chunk));
-        },
-      );
+      // Display-only subscriptions: the shared bus appends each chunk to the
+      // replay buffer exactly once no matter how many tabs are mounted.
+      const subscribeSession = (id: string) => {
+        unData?.();
+        unExit?.();
+        unData = subscribeTerminalData(id, (chunk) => {
+          if (!isReady || !term) return;
+          term.write(decodeTerminalChunk(chunk));
+        });
+        unExit = subscribeTerminalExit(id, () => {
+          exitFired = true;
+          if (!isReady || !term) return;
+          const hasContent = hasTerminalContent(id);
+          if (!hasContent) {
+            props.onProcessExit?.(instanceId, false);
+            return;
+          }
+          term.writeln(
+            "\r\n\x1b[90m" + (t("projectDetail.terminalProcessExited") as string) + "\x1b[0m",
+          );
+        });
+      };
 
-      let unExitPromise = listen<{ sessionId: string }>("embedded-terminal-exit", (ev) => {
-        if (ev.payload.sessionId === sid) exitFired = true;
-        if (!isReady || ev.payload.sessionId !== sid || !term) return;
-        const hasContent = hasTerminalContent(ev.payload.sessionId);
-        if (!hasContent) {
-          props.onProcessExit?.(instanceId, false);
-          return;
-        }
-        term.writeln(
-          "\r\n\x1b[90m" + (t("projectDetail.terminalProcessExited") as string) + "\x1b[0m",
-        );
-      });
-
-      unData = await unDataPromise;
-      unExit = await unExitPromise;
+      // Buffer early output even before the fresh sid exists.
+      ensureTerminalListeners();
+      if (sid) subscribeSession(sid);
 
       if (!sid) {
-        const spawn = await spawnFn(instanceShell);
+        // Measure after open+fit so the backend PTY starts at the real xterm
+        // geometry; the backend clamps invalid values back to 80x24.
+        const spawn = await spawnFn(instanceShell, term.rows, term.cols);
         if (spawn.isErr()) {
           onError(stableErrorMessage(t, spawn.error));
           term.dispose();
@@ -345,6 +348,7 @@ export function TerminalHost(props: {
         }
         sid = spawn.value;
         spawnedByThisEffect = true;
+        subscribeSession(sid);
       } else {
         const aliveResult = await embeddedTerminalIsAlive(sid);
         if (cancelled) {
@@ -395,14 +399,14 @@ export function TerminalHost(props: {
           for (const chunk of bufferResult.value) {
             appendTerminalChunk(sessionId, chunk);
             if (!term) break;
-            term.write(decodeChunk(chunk));
+            term.write(decodeTerminalChunk(chunk));
           }
         }
       } else {
         const replay = getTerminalReplay(sessionId);
         for (const chunk of replay) {
           if (!term) break;
-          term.write(decodeChunk(chunk));
+          term.write(decodeTerminalChunk(chunk));
         }
       }
 
@@ -420,11 +424,29 @@ export function TerminalHost(props: {
       }
 
       term.onData((data) => {
-        if (!sessionId) return;
-        const result = embeddedTerminalWrite(sessionId, data);
-        result.mapErr((err) => {
-          console.error("terminal write error:", err);
-        });
+        if (!isTerminalInput(data)) return;
+        queueTerminalWrite(sessionId, data);
+        if (!data.includes("\r")) return;
+        // Tab rename off the keydown hot path: xterm has accepted the key by
+        // now, so a sync store update can no longer swallow the first Enter
+        // in raw-mode prompts. Deferred one macrotask for extra safety.
+        window.setTimeout(() => {
+          if (!term) return;
+          const onCommandEntered = untrack(() => props.onCommandEntered);
+          if (!onCommandEntered) return;
+          const buffer = term.buffer.active;
+          const currentLine = buffer.getLine(buffer.cursorY);
+          let lineText = "";
+          if (currentLine) {
+            const endX = buffer.cursorX;
+            for (let x = 0; x < endX; x++) {
+              const cell = currentLine.getCell(x);
+              lineText += cell?.getChars() ?? "";
+            }
+          }
+          const command = parseCommandFromLine(lineText);
+          onCommandEntered(instanceId, command ? formatCommandTitle(command) : "");
+        }, 0);
       });
 
       doResize();
@@ -435,14 +457,12 @@ export function TerminalHost(props: {
       );
 
       ro = new ResizeObserver(() => {
-        window.clearTimeout(resizeT);
-        resizeT = window.setTimeout(() => doResize(), 120);
+        scheduleTerminalResize(resizeTimer, doResize, 120);
       });
       ro.observe(node);
 
       onWindowResize = () => {
-        window.clearTimeout(resizeT);
-        resizeT = window.setTimeout(() => doResize(), 30); // Fast response during drag
+        scheduleTerminalResize(resizeTimer, doResize, 30); // Fast response during drag
       };
       window.addEventListener("resize", onWindowResize);
     })();
@@ -450,7 +470,7 @@ export function TerminalHost(props: {
     onCleanup(() => {
       cancelled = true;
       detachWindowRepaint?.();
-      window.clearTimeout(resizeT);
+      clearTerminalResize(resizeTimer);
       ro?.disconnect();
       if (onWindowResize) window.removeEventListener("resize", onWindowResize);
       unData?.();

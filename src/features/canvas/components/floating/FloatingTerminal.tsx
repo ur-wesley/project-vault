@@ -138,7 +138,7 @@ export const FloatingTerminal: Component<CanvasNodeComponentProps> = (props) => 
               activeId={instanceId}
               isActivePane={true}
               autoFocus={false}
-              spawnFn={(sh) => embeddedTerminalSpawn(props.project().id, sh ?? shell())}
+              spawnFn={(sh, rows, cols) => embeddedTerminalSpawn(props.project().id, sh ?? shell(), rows, cols)}
               onSessionId={(_id, sid) => persistSession(sid)}
               onError={(msg) => {
                 setError(msg);

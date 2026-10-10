@@ -1,4 +1,3 @@
-import { listen } from "@tauri-apps/api/event";
 import { isTauri } from "@tauri-apps/api/core";
 import { openUrl } from "@tauri-apps/plugin-opener";
 import { readText } from "tauri-plugin-clipboard-api";
@@ -17,16 +16,25 @@ import {
   DialogTitle,
 } from "~/components/ui/dialog";
 import { useI18n } from "~/lib/i18n-context";
-import { attachTerminalWindowRepaint, terminalHasMinSize } from "~/lib/terminal-repaint";
+import {
+  attachTerminalWindowRepaint,
+  clearTerminalResize,
+  fitAndPushTerminalSize,
+  scheduleTerminalResize,
+  type TerminalResizeTimer,
+} from "~/lib/terminal-repaint";
 import {
   embeddedTerminalKill,
   embeddedTerminalResize,
-  embeddedTerminalWrite,
   embeddedTerminalGetBuffer,
 } from "~/services/tauri/terminal";
-
-const MIN_COLS = 20;
-const MIN_ROWS = 5;
+import {
+  decodeTerminalChunk,
+  isTerminalInput,
+  queueTerminalWrite,
+  subscribeTerminalData,
+  subscribeTerminalExit,
+} from "~/components/terminal/terminal-io";
 
 const WEB_LINK_REGEX = /https?:\/\/[^\s"<>|`{}[\]^]+/g;
 
@@ -74,15 +82,6 @@ function registerTauriWebLinks(term: XTermTerminal): { dispose: () => void } {
   return term.registerLinkProvider(provider);
 }
 
-function decodeChunk(b64: string): Uint8Array {
-  const bin = atob(b64);
-  const out = new Uint8Array(bin.length);
-  for (let i = 0; i < bin.length; i++) {
-    out[i] = bin.charCodeAt(i);
-  }
-  return out;
-}
-
 function TaskStreamTerminal(props: { sessionId: string; active: boolean }) {
   const [host, setHost] = createSignal<HTMLDivElement | null>(null);
   let term: Terminal | null = null;
@@ -115,17 +114,14 @@ function TaskStreamTerminal(props: { sessionId: string; active: boolean }) {
     let unData: (() => void) | undefined;
     let unExit: (() => void) | undefined;
     let ro: ResizeObserver | null = null;
-    let resizeT: number | undefined;
+    const resizeTimer: TerminalResizeTimer = { id: undefined };
     let linkProvider: { dispose: () => void } | null = null;
     let detachWindowRepaint: (() => void) | undefined;
 
     const pushResize = () => {
-      if (!term || !fit) return;
-      if (!terminalHasMinSize(term)) return;
-      fit.fit();
-      if (term.cols >= MIN_COLS && term.rows >= MIN_ROWS) {
-        void embeddedTerminalResize(sid, term.rows, term.cols);
-      }
+      fitAndPushTerminalSize(term, fit, (rows, cols) => {
+        void embeddedTerminalResize(sid, rows, cols);
+      });
     };
 
     void (async () => {
@@ -149,7 +145,8 @@ function TaskStreamTerminal(props: { sessionId: string; active: boolean }) {
           event.preventDefault();
           readText()
             .then((text) => {
-              if (term) term.paste(text);
+              if (!isTerminalInput(text) || !term) return;
+              term.paste(text);
             })
             .catch(() => {});
           return false;
@@ -159,9 +156,7 @@ function TaskStreamTerminal(props: { sessionId: string; active: boolean }) {
       term.open(el);
 
       window.setTimeout(() => {
-        if (!cancelled && term && fit && terminalHasMinSize(term)) {
-          fit.fit();
-        }
+        if (!cancelled) pushResize();
       }, 200);
 
       if (cancelled) {
@@ -170,7 +165,8 @@ function TaskStreamTerminal(props: { sessionId: string; active: boolean }) {
       }
 
       term.onData((data) => {
-        void embeddedTerminalWrite(sid, data);
+        if (!isTerminalInput(data)) return;
+        queueTerminalWrite(sid, data);
       });
 
       const bufferResult = await embeddedTerminalGetBuffer(sid);
@@ -178,20 +174,18 @@ function TaskStreamTerminal(props: { sessionId: string; active: boolean }) {
       if (bufferResult.isOk()) {
         for (const chunk of bufferResult.value) {
           if (!term) break;
-          term.write(decodeChunk(chunk));
+          term.write(decodeTerminalChunk(chunk));
         }
       }
 
-      unData = await listen<{ sessionId: string; chunk: string }>(
-        "embedded-terminal-data",
-        (ev) => {
-          if (ev.payload.sessionId !== sid || !term) return;
-          term.write(decodeChunk(ev.payload.chunk));
-        },
-      );
+      // Display-only: shared bus owns the single buffer append.
+      unData = subscribeTerminalData(sid, (chunk) => {
+        if (!term) return;
+        term.write(decodeTerminalChunk(chunk));
+      });
 
-      unExit = await listen<{ sessionId: string }>("embedded-terminal-exit", (ev) => {
-        if (ev.payload.sessionId !== sid || !term) return;
+      unExit = subscribeTerminalExit(sid, () => {
+        if (!term) return;
         term.writeln("\r\n\x1b[90m[process exited]\x1b[0m");
       });
 
@@ -202,8 +196,7 @@ function TaskStreamTerminal(props: { sessionId: string; active: boolean }) {
       );
 
       ro = new ResizeObserver(() => {
-        window.clearTimeout(resizeT);
-        resizeT = window.setTimeout(() => pushResize(), 150);
+        scheduleTerminalResize(resizeTimer, pushResize, 150);
       });
       ro.observe(el);
     })();
@@ -211,7 +204,7 @@ function TaskStreamTerminal(props: { sessionId: string; active: boolean }) {
     onCleanup(() => {
       cancelled = true;
       detachWindowRepaint?.();
-      window.clearTimeout(resizeT);
+      clearTerminalResize(resizeTimer);
       ro?.disconnect();
       unData?.();
       unExit?.();

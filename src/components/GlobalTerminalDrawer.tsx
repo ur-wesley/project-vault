@@ -285,7 +285,7 @@ export function GlobalTerminalDrawer() {
                   instance={inst}
                   activeId={store.activeId}
                   isActivePane={store.open()}
-                  spawnFn={(shell) => globalTerminalSpawn(undefined, shell)}
+                  spawnFn={(shell, rows, cols) => globalTerminalSpawn(undefined, shell, rows, cols)}
                   onSessionId={updateSessionId}
                   onError={(err) => {
                     if (err) toast.error(err);
