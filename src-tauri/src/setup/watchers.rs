@@ -17,6 +17,9 @@ pub fn start_watchers(
     let git_watcher = crate::git_watcher::GitWatcher::new(handle.clone());
     app.manage(git_watcher);
 
+    let beads_watcher = crate::beads::BeadsWatcher::new(handle.clone());
+    app.manage(beads_watcher);
+
     let file_watcher = std::sync::Arc::new(
         crate::file_watcher::FileWatcher::new(handle.clone())
             .map_err(|e| format!("file watcher init: {e}"))?,

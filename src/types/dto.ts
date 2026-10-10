@@ -1,5 +1,6 @@
 // Barrel: DTOs live in domain slices under ./dto/. Importers keep
 // `~/types/dto` working; new code may import the domain file directly.
+export * from "./dto/beads";
 export * from "./dto/canvas";
 export * from "./dto/cleaner";
 export * from "./dto/clipboard";

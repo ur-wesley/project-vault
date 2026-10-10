@@ -1,3 +1,4 @@
+pub mod beads;
 pub mod clipboard_history;
 mod commands;
 pub mod common;
@@ -365,6 +366,15 @@ pub fn run() {
             commands::kanban::kanban_delete_board,
             commands::kanban::kanban_list_tags,
             commands::kanban::kanban_set_tag_color,
+            commands::beads::beads_get_status,
+            commands::beads::beads_list_issues,
+            commands::beads::beads_create_issue,
+            commands::beads::beads_update_issue_status,
+            commands::beads::beads_init,
+            commands::beads::beads_get_comments,
+            commands::beads::beads_add_comment,
+            commands::beads::start_beads_watcher,
+            commands::beads::stop_beads_watcher,
             commands::workspaces::workspace_list,
             commands::workspaces::workspace_get,
             commands::workspaces::workspace_create,

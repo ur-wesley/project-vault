@@ -8,6 +8,7 @@ pub mod github_remote;
 pub mod ide;
 pub mod issues;
 pub mod kanban;
+pub use crate::beads::commands as beads;
 pub mod locations;
 pub mod notifications;
 pub mod project_cleaner;

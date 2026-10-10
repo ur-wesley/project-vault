@@ -1,6 +1,7 @@
 // Barrel for Tauri invoke services (namespace re-exports: no name collisions).
 // Prefer `~/services/tauri` over deep imports for new code.
 export * as autostart from "./autostart";
+export * as beads from "./beads";
 export * as canvas from "./canvas";
 export * as clipboardHistory from "./clipboard-history";
 export * as dokploy from "./dokploy";
