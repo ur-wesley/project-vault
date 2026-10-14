@@ -18,7 +18,7 @@ type ProjectTabsBarProps = Readonly<{
 }>;
 
 const TabFace: Component<{ tab: PinnedTabProject }> = (props) => (
-  <span class="flex min-w-0 flex-1 items-center gap-1.5">
+  <span class="flex min-w-0 flex-1 items-center gap-2">
     <Show when={props.tab.running}>
       <span
         class="size-1.5 shrink-0 rounded-full bg-green-500"
@@ -26,7 +26,7 @@ const TabFace: Component<{ tab: PinnedTabProject }> = (props) => (
         title="Running"
       />
     </Show>
-    <span class="min-w-0 flex-1 truncate text-xs font-medium">{props.tab.name}</span>
+    <span class="min-w-0 flex-1 truncate text-sm font-medium">{props.tab.name}</span>
   </span>
 );
 
@@ -50,7 +50,7 @@ export const ProjectTabsBar: Component<ProjectTabsBarProps> = (props) => {
     const tab = props.tabs.find((tab) => tab.id === id);
     if (!tab) return null;
     return (
-      <div class="flex h-8 items-center gap-1.5 rounded-t-lg border border-b-0 border-border/60 bg-background px-2.5 shadow-lg">
+      <div class="flex h-10 min-w-48 max-w-72 items-center gap-2 rounded-t-lg border border-b-0 border-border/60 bg-background px-4 shadow-lg">
         <TabFace tab={tab} />
       </div>
     );
@@ -66,7 +66,7 @@ export const ProjectTabsBar: Component<ProjectTabsBarProps> = (props) => {
     >
       <div
         ref={scrollRef}
-        class="flex min-h-0 w-full flex-1 items-end gap-0.5 overflow-x-auto overflow-y-hidden px-2 pt-1.5 scrollbar-none"
+        class="flex min-h-0 w-full flex-1 items-end gap-2 overflow-x-auto overflow-y-hidden px-3 pt-1.5 scrollbar-none"
         data-tauri-drag-region="false"
         role="tablist"
         aria-label="Pinned projects"
@@ -96,7 +96,7 @@ export const ProjectTabsBar: Component<ProjectTabsBarProps> = (props) => {
                         transition,
                       }}
                       class={cn(
-                        "group relative flex h-8 max-w-44 shrink-0 cursor-grab items-center rounded-t-lg rounded-b-none border border-b-0 pl-2.5 pr-2 transition-colors",
+                        "group relative flex h-10 min-w-48 max-w-72 shrink-0 cursor-grab items-center rounded-t-lg rounded-b-none border border-b-0 px-4 transition-colors",
                         active()
                           ? "border-border/60 bg-background text-foreground shadow-sm"
                           : "border-transparent text-muted-foreground hover:bg-muted/60 hover:text-foreground",
@@ -123,7 +123,7 @@ export const ProjectTabsBar: Component<ProjectTabsBarProps> = (props) => {
                       <button
                         type="button"
                         data-tab-close
-                        class="absolute right-1 top-1/2 size-5 -translate-y-1/2 rounded-full p-0 opacity-0 hover:bg-foreground/15 hover:drop-shadow-sm group-hover:opacity-100 focus-visible:opacity-100"
+                        class="absolute right-1.5 top-1/2 size-5 -translate-y-1/2 rounded-full p-0 opacity-0 hover:bg-foreground/15 hover:drop-shadow-sm group-hover:opacity-100 focus-visible:opacity-100"
                         onPointerDown={(e) => e.stopPropagation()}
                         onClick={(e) => {
                           e.stopPropagation();
