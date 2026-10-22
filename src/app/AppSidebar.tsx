@@ -82,7 +82,7 @@ export const AppSidebar: Component<{
           filter={props.libraryFilter}
           setFilter={props.setLibraryFilter}
           filterOptions={filterOptions}
-          t={(k) => t(k) as string}
+          t={(k: string) => t(k as Parameters<typeof t>[0]) as string}
           shortcutHint={props.shortcutHint}
           onOpenCommandPalette={props.onOpenCommandPalette}
         />

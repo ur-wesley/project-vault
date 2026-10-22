@@ -104,17 +104,30 @@ export const StatusBar: Component<{
             <For each={leftSegments()}>
               {(seg) => (
                 <Tooltip>
-                  <TooltipTrigger
-                    as={seg.command ? "button" : "span"}
-                    type={seg.command ? "button" : undefined}
-                    onClick={() =>
-                      seg.command && handleFooterSegmentClick(seg.pluginId, seg.command)
+                  <Show
+                    when={seg.command}
+                    fallback={
+                      <TooltipTrigger
+                        as="span"
+                        class={`flex shrink-0 items-center gap-1 rounded px-1.5 py-0.5 text-[10px] transition-colors ${footerColorClass(seg.color)} cursor-default`}
+                      >
+                        <PluginIcon icon={seg.icon} class="size-3" />
+                        <span class="font-mono">{seg.text}</span>
+                      </TooltipTrigger>
                     }
-                    class={`flex shrink-0 items-center gap-1 rounded px-1.5 py-0.5 text-[10px] transition-colors ${footerColorClass(seg.color)} ${seg.command ? "cursor-pointer" : "cursor-default"}`}
                   >
-                    <PluginIcon icon={seg.icon} class="size-3" />
-                    <span class="font-mono">{seg.text}</span>
-                  </TooltipTrigger>
+                    <TooltipTrigger
+                      as="button"
+                      type="button"
+                      onClick={() =>
+                        seg.command && handleFooterSegmentClick(seg.pluginId, seg.command)
+                      }
+                      class={`flex shrink-0 items-center gap-1 rounded px-1.5 py-0.5 text-[10px] transition-colors ${footerColorClass(seg.color)} cursor-pointer`}
+                    >
+                      <PluginIcon icon={seg.icon} class="size-3" />
+                      <span class="font-mono">{seg.text}</span>
+                    </TooltipTrigger>
+                  </Show>
                   <Show when={seg.tooltip}>
                     <TooltipContent>{seg.tooltip}</TooltipContent>
                   </Show>
@@ -132,17 +145,30 @@ export const StatusBar: Component<{
             <For each={rightSegments()}>
               {(seg) => (
                 <Tooltip>
-                  <TooltipTrigger
-                    as={seg.command ? "button" : "span"}
-                    type={seg.command ? "button" : undefined}
-                    onClick={() =>
-                      seg.command && handleFooterSegmentClick(seg.pluginId, seg.command)
+                  <Show
+                    when={seg.command}
+                    fallback={
+                      <TooltipTrigger
+                        as="span"
+                        class={`flex shrink-0 items-center gap-1 rounded px-1.5 py-0.5 text-[10px] transition-colors ${footerColorClass(seg.color)} cursor-default`}
+                      >
+                        <PluginIcon icon={seg.icon} class="size-3" />
+                        <span class="font-mono">{seg.text}</span>
+                      </TooltipTrigger>
                     }
-                    class={`flex shrink-0 items-center gap-1 rounded px-1.5 py-0.5 text-[10px] transition-colors ${footerColorClass(seg.color)} ${seg.command ? "cursor-pointer" : "cursor-default"}`}
                   >
-                    <PluginIcon icon={seg.icon} class="size-3" />
-                    <span class="font-mono">{seg.text}</span>
-                  </TooltipTrigger>
+                    <TooltipTrigger
+                      as="button"
+                      type="button"
+                      onClick={() =>
+                        seg.command && handleFooterSegmentClick(seg.pluginId, seg.command)
+                      }
+                      class={`flex shrink-0 items-center gap-1 rounded px-1.5 py-0.5 text-[10px] transition-colors ${footerColorClass(seg.color)} cursor-pointer`}
+                    >
+                      <PluginIcon icon={seg.icon} class="size-3" />
+                      <span class="font-mono">{seg.text}</span>
+                    </TooltipTrigger>
+                  </Show>
                   <Show when={seg.tooltip}>
                     <TooltipContent>{seg.tooltip}</TooltipContent>
                   </Show>

@@ -46,6 +46,8 @@ function App() {
   const qc = useQueryClient();
   const globalTerminal = getGlobalTerminalStore();
   const screenshot = useScreenshot();
+  const tBridge = (k: string, a?: Record<string, unknown>) =>
+    t(k as Parameters<typeof t>[0], a as never) as string;
   const [librarySearch, setLibrarySearch] = createSignal("");
   const [libraryFilter, setLibraryFilter] = createSignal("touched-10d");
   const [wizardOpen, setWizardOpen] = createSignal(false);
@@ -135,7 +137,7 @@ function App() {
       } else if (payload.action === "terminal:toggle") {
         globalTerminal.setOpen(!globalTerminal.open());
       } else if (payload.action === "screenshot:capture") {
-        void screenshot.selectSource({ type: "region" }, (k, a) => t(k, a) as string);
+        void screenshot.selectSource({ type: "region" }, tBridge);
       } else if (payload.action === "clipboard-history:open") {
         void openClipboardOverlay().catch((e) => {
           console.error("Failed to open clipboard overlay:", e);
@@ -365,9 +367,7 @@ function App() {
               routing.setActiveView("settings");
               routing.setSettingsTab(tab);
             }}
-            onOpenScreenshotSelector={() =>
-              void screenshot.openSelector((k, a) => t(k, a) as string)
-            }
+            onOpenScreenshotSelector={() => void screenshot.openSelector(tBridge)}
           />
           <SidebarInset class="flex min-h-0 flex-1 flex-col overflow-hidden">
             <Toaster position="bottom-right" richColors />
@@ -405,7 +405,7 @@ function App() {
           <SourceSelector
             screens={screenshot.screens()}
             windows={screenshot.windows()}
-            onSelect={(source) => void screenshot.selectSource(source, (k, a) => t(k, a) as string)}
+            onSelect={(source) => void screenshot.selectSource(source, tBridge)}
             onClose={() => screenshot.close()}
           />
         </Show>
@@ -413,8 +413,8 @@ function App() {
           <AnnotationEditor
             imageData={screenshot.imageData()!}
             onClose={() => screenshot.close()}
-            onSave={(data) => void screenshot.save(data, (k, a) => t(k, a) as string)}
-            onCopy={(data) => void screenshot.copyToClipboard(data, (k, a) => t(k, a) as string)}
+            onSave={(data) => void screenshot.save(data, tBridge)}
+            onCopy={(data) => void screenshot.copyToClipboard(data, tBridge)}
           />
         </Show>
       </SidebarProvider>

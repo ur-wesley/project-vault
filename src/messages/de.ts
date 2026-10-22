@@ -255,6 +255,7 @@ const de = {
     rescanAll: "Alle Bibliotheksordner neu scannen",
     newProject: "Neues Projekt aus Vorlage",
     settings: "Einstellungen",
+    pluginCommands: "Plugin-Befehle",
     comingSoon: "Bald verfügbar",
   },
   wizard: {

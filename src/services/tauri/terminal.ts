@@ -68,3 +68,15 @@ export function globalTerminalSpawn(cwd?: string, shell?: string, rows?: number,
 export function embeddedTerminalClearBuffer(sessionId: string) {
   return tauriInvoke<void>("embedded_terminal_clear_buffer", { sessionId });
 }
+
+export type TerminalSessionDto = {
+  sessionId: string;
+  projectId: string | null;
+  cwd: string;
+  startedAtMs: number;
+  isActive: boolean;
+};
+
+export function listTerminalSessions() {
+  return tauriInvoke<TerminalSessionDto[]>("list_terminal_sessions");
+}

@@ -9,7 +9,9 @@ export const PluginUpdatesNotificationHost: Component = () => {
 
   return (
     <PluginUpdatesNotificationBridge
-      t={(key, params) => t(key as never, params as never) as string}
+      t={(key: string, params?: Record<string, unknown>) =>
+        t(key as Parameters<typeof t>[0], params as never) as string
+      }
       onOpenPluginsSettings={() => {
         hub.emit("ui:open-plugins-settings");
       }}

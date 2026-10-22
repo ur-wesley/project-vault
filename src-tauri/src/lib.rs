@@ -256,6 +256,7 @@ pub fn run() {
             commands::sessions::clear_sessions_for_project,
             commands::sessions::get_session_count_for_project,
             commands::sessions::list_all_processes,
+            commands::sessions::list_terminal_sessions,
             commands::sessions::stop_all_project_processes,
             commands::scan::scan_library_location,
             commands::scan::debug_detect_project,

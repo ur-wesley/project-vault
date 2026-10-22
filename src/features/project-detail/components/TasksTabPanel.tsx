@@ -532,15 +532,14 @@ export function TasksTabPanel(props: { project: () => ProjectDto; model: Project
 
                         <Show when={task.kind === "mise" || task.kind === "justfile"}>
                           <DropdownMenu>
-                            <DropdownMenuTrigger asChild>
-                              <Button
-                                type="button"
-                                size="icon"
-                                variant="ghost"
-                                class="size-6 text-muted-foreground hover:text-foreground hover:bg-background/50"
-                              >
-                                <span class="iconify mdi--dots-vertical size-4" />
-                              </Button>
+                            <DropdownMenuTrigger
+                              as={Button}
+                              type="button"
+                              size="icon"
+                              variant="ghost"
+                              class="size-6 text-muted-foreground hover:text-foreground hover:bg-background/50"
+                            >
+                              <span class="iconify mdi--dots-vertical size-4" />
                             </DropdownMenuTrigger>
                             <DropdownMenuContent class="w-40">
                               <DropdownMenuItem

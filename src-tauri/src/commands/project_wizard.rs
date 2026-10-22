@@ -728,6 +728,7 @@ pub async fn run_template_command(
             cwd,
             None,
             crate::spawn::embedded::PtySizeHint::default(),
+            None,
         )?;
         // Write the command to the terminal
         let cmd = format!("{}\r", payload.command);

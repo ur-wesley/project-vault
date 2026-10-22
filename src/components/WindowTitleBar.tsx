@@ -202,7 +202,7 @@ export const WindowTitleBar: Component<WindowTitleBarProps> = (props) => {
       </div>
       <Show when={props.showTabs}>
         <div
-          class="flex h-11 min-h-11 w-full shrink-0 items-stretch border-t border-border/60"
+          class="flex h-9 min-h-9 w-full shrink-0 items-stretch border-t border-border/60"
           data-tauri-drag-region="false"
         >
           <ProjectTabsBar

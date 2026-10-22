@@ -64,6 +64,11 @@ pub async fn global_terminal_spawn(
 
         let shell_pref = crate::common::resolve_shell_pref(&pool, shell).await?;
 
+        let resolved_project_id = db::find_project_by_path(&pool, &resolved_cwd.to_string_lossy())
+            .await
+            .ok()
+            .map(|p| p.id);
+
         embedded::spawn_session(
             app,
             &terms,
@@ -71,6 +76,7 @@ pub async fn global_terminal_spawn(
             resolved_cwd,
             shell_pref,
             size.unwrap_or_default(),
+            resolved_project_id,
         )
     }
 }
@@ -113,7 +119,15 @@ pub async fn embedded_terminal_spawn(
 
         let shell_pref = crate::common::resolve_shell_pref(&pool, shell).await?;
 
-        embedded::spawn_session(app, &terms, &buffers, cwd, shell_pref, size.unwrap_or_default())
+        embedded::spawn_session(
+            app,
+            &terms,
+            &buffers,
+            cwd,
+            shell_pref,
+            size.unwrap_or_default(),
+            Some(project_id),
+        )
     }
 }
 

@@ -80,10 +80,7 @@ export const ProjectMainTabs: Component<ProjectMainTabsProps> = (props) => {
   const activeTab = () => m().activeDetailTab();
   const canGoWide = () => FULL_WIDTH_TABS.has(activeTab());
   const isWide = () => wideTabs()[activeTab()] === true;
-  // Locked width: once wide is enabled for any tab, keep the container
-  // full-bleed across tab switches so hotkey cycling doesn't snap between
-  // max-w-none and max-w-7xl (and px-1 vs px-4).
-  const lockedWide = () => Object.values(wideTabs()).some(Boolean);
+  const isContainerWide = () => canGoWide() && isWide();
   const toggleWide = () => {
     const tab = activeTab();
     if (!FULL_WIDTH_TABS.has(tab)) return;
@@ -138,7 +135,7 @@ export const ProjectMainTabs: Component<ProjectMainTabsProps> = (props) => {
       <div
         class={cn(
           "mx-auto flex w-full flex-1 flex-col min-h-0",
-          lockedWide() ? "max-w-none px-1" : "max-w-7xl px-4",
+          isContainerWide() ? "max-w-none px-1" : "max-w-7xl px-4",
         )}
       >
         <Show when={!terminalFullscreen()}>

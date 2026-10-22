@@ -40,7 +40,7 @@ export function CleanProjectDialog(props: {
     const preview = cleanPreview();
     if (!preview) return;
     if (allSelected()) {
-      setCleanSelected(new Set());
+      setCleanSelected(new Set<string>());
     } else {
       setCleanSelected(new Set(preview.entries.map((e) => e.path)));
     }
@@ -49,7 +49,7 @@ export function CleanProjectDialog(props: {
   const onOpen = async () => {
     console.log("[CleanProjectDialog] onOpen called");
     setCleanPreview(null);
-    setCleanSelected(new Set());
+    setCleanSelected(new Set<string>());
     setCleanResetTracked(false);
     setCleanError(null);
     try {
@@ -82,7 +82,7 @@ export function CleanProjectDialog(props: {
         props.onOpenChange(v);
         if (!v) {
           setCleanPreview(null);
-          setCleanSelected(new Set());
+          setCleanSelected(new Set<string>());
           setCleanResetTracked(false);
           setCleanError(null);
         }

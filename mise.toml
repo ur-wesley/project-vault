@@ -1,5 +1,5 @@
 [tools]
-bun = "latest"
+bun = "1.4.3"
 rust = "1.96.0"
 
 [tasks]

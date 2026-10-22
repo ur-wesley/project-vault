@@ -61,28 +61,28 @@ export function createProjectDetailModel(props: ProjectDetailViewProps) {
   const git = useProjectGit({
     projectId: () => props.projectId,
     isFocused,
-    t: (k, a) => t(k, a) as string,
+    t: (k, a) => t(k as Parameters<typeof t>[0], a) as string,
     showBanner,
     showInfoBanner,
   });
 
   const terminal = useProjectTerminal({
     projectId: () => props.projectId,
-    t: (k, a) => t(k, a) as string,
+    t: (k, a) => t(k as Parameters<typeof t>[0], a) as string,
     showBanner,
     onDetailTabChange: props.onDetailTabChange,
   });
 
   const tasks = useProjectTasks({
     projectId: () => props.projectId,
-    t: (k, a) => t(k, a) as string,
+    t: (k, a) => t(k as Parameters<typeof t>[0], a) as string,
     showBanner,
     attachToTask: terminal.attachToTask,
   });
 
   const move = useProjectMove({
     projectId: () => props.projectId,
-    t: (k, a) => t(k, a) as string,
+    t: (k, a) => t(k as Parameters<typeof t>[0], a) as string,
     showBanner,
     showInfoBanner,
     project: () => projectQ.data,

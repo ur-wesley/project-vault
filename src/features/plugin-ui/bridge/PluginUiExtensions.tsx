@@ -76,7 +76,7 @@ export function PluginUiExtensions() {
         }>("plugin:show-toast", (event) => {
           const e = event.payload;
           center.notify({
-            severity: e.severity,
+            severity: e.severity === "warn" ? "warning" : e.severity,
             title: e.title,
             body: e.message ?? "",
             durationMs: 4000,

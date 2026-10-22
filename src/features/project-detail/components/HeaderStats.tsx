@@ -3,7 +3,7 @@ import type { Accessor } from "solid-js";
 
 import { Tooltip, TooltipContent, TooltipTrigger } from "~/components/ui/tooltip";
 import { formatRelativeTime } from "~/lib/format-date";
-import type { useI18n } from "~/lib/i18n-context";
+import { useI18n } from "~/lib/i18n-context";
 import type { ProjectDto } from "~/types/dto";
 import { formatWorktime } from "../lib/format";
 
@@ -11,8 +11,6 @@ type T = ReturnType<typeof useI18n>["t"];
 
 /**
  * Playtime + last-opened stats row.
- * (Extracted verbatim from ProjectDetailHeader, including the pre-existing
- * single-arg formatRelativeTime call — WIP signature drift, not touched.)
  */
 export const HeaderStats: Component<{
   t: T;
@@ -20,6 +18,7 @@ export const HeaderStats: Component<{
   livePlaytimeMs: Accessor<number>;
 }> = (props) => {
   const { t, p, livePlaytimeMs } = props;
+  const { localeCode } = useI18n();
 
   return (
     <div class="flex items-center gap-1.5 text-[10px] font-medium leading-tight text-muted-foreground/70">
@@ -35,7 +34,7 @@ export const HeaderStats: Component<{
         <span class="truncate tabular-nums">
           {
             t("projectDetail.lastStartedRelative", {
-              time: formatRelativeTime(p().lastOpenedAtMs),
+              time: formatRelativeTime(p().lastOpenedAtMs, localeCode()) ?? "",
             }) as string
           }
         </span>

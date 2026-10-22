@@ -438,7 +438,9 @@ export const LocationManager: Component = () => {
                 </div>
                 <div class="mb-4">
                   <LibraryLocationDiskBlock
-                    t={(k, a) => t(k, a) as string}
+                    t={(k: string, a?: Record<string, unknown>) =>
+                      t(k as Parameters<typeof t>[0], a as never) as string
+                    }
                     isPending={diskQ.isPending}
                     isError={diskQ.isError}
                     row={diskRowForPath(loc.path)}
@@ -534,7 +536,7 @@ export const LocationManager: Component = () => {
         setDraft={setRenameDraft}
         onConfirm={commitRename}
         busy={busy()}
-        t={(k) => t(k) as string}
+        t={(k: string) => t(k as Parameters<typeof t>[0]) as string}
       />
 
       <LocationImportDialog
@@ -544,7 +546,7 @@ export const LocationManager: Component = () => {
         deleteSource={importDeleteSource()}
         setDeleteSource={setImportDeleteSource}
         onConfirm={commitImport}
-        t={(k) => t(k) as string}
+        t={(k: string) => t(k as Parameters<typeof t>[0]) as string}
       />
 
       <SizeTreemapDialog

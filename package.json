@@ -21,7 +21,9 @@
     "lint": "oxlint",
     "lint:budget": "node scripts/check-file-budget.mjs",
     "format": "oxfmt .",
-    "typecheck": "tsc --noEmit"
+    "typecheck": "bun check",
+    "typecheck:tsc": "tsc --noEmit",
+    "setup:hooks": "git config core.hooksPath .githooks"
   },
   "dependencies": {
     "@codemirror/autocomplete": "^6.20.3",
@@ -134,5 +136,5 @@
   "engines": {
     "bun": ">=1.1.0"
   },
-  "packageManager": "bun@1.3.14"
+  "packageManager": "bun@1.4.3"
 }

@@ -20,6 +20,7 @@ import { toast } from "solid-sonner";
 import { useI18n } from "~/lib/i18n-context";
 import { stableErrorMessage } from "~/lib/invoke-error";
 import { listProjects, listRunningProjects, setProjectFavorite } from "~/services/tauri/projects";
+import { listAllProcesses } from "~/services/tauri/sessions";
 import { listDiscoveredIdes } from "~/services/tauri/ide";
 import { openProjectInIde, stopProjectIde } from "~/services/tauri/ide";
 import { queryKeys } from "~/services/query-keys";
@@ -69,16 +70,46 @@ export function LibraryView(props: {
     refetchInterval: 10000,
   }));
 
-  // Listen for IDE state changes
+  const processesQ = createQuery(() => ({
+    queryKey: ["processes", "all"] as const,
+    queryFn: async () => {
+      const r = await listAllProcesses();
+      return r.isErr() ? [] : r.value;
+    },
+    refetchInterval: 3000,
+  }));
+
+  const activeProjectIds = createMemo(() => {
+    const ids = new Set<string>(runningProjectsQ.data ?? []);
+    for (const p of processesQ.data ?? []) {
+      if (p.state === "running" || p.state === "starting") {
+        ids.add(p.projectId);
+      }
+    }
+    return ids;
+  });
+
+  // Listen for IDE + terminal state changes
   createEffect(() => {
     let un: (() => void) | undefined;
+    let un2: (() => void) | undefined;
     void (async () => {
       un = await listen<{ projectId: string; running: boolean }>("ide-state-changed", () => {
         void qc.invalidateQueries({ queryKey: ["projects", "running-ides"] });
         void qc.invalidateQueries({ queryKey: queryKeys.projects });
       });
+      un2 = await listen<{ projectId: string; running: boolean }>(
+        "terminal-state-changed",
+        () => {
+          void qc.invalidateQueries({ queryKey: ["processes", "all"] });
+          void qc.invalidateQueries({ queryKey: queryKeys.projects });
+        },
+      );
     })();
-    onCleanup(() => un?.());
+    onCleanup(() => {
+      un?.();
+      un2?.();
+    });
   });
 
   const ghViewerQ = createQuery(() => ({
@@ -418,7 +449,7 @@ export function LibraryView(props: {
               <ProjectCard
                 project={project}
                 selected={props.selectedProjectId() === project.id}
-                isRunning={runningProjectsQ.data?.includes(project.id) ?? false}
+                isRunning={activeProjectIds().has(project.id)}
                 hasDefaultIde={!!defaultIde()}
                 onOpenProject={() => props.onOpenProject?.(project.id)}
                 onOpenProjectTab={(tab) => props.onOpenProjectTab?.(project.id, tab)}

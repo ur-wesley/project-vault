@@ -31,7 +31,7 @@ export const MiseToolsSuggestion: Component<{
 
   const toggleSelectAll = () => {
     if (allSelected()) {
-      setSelected(new Set());
+      setSelected(new Set<string>());
     } else {
       setSelected(new Set(props.suggestions.map((s) => s.name)));
     }

@@ -289,7 +289,10 @@ export const ClipboardHistoryOverlay: Component = () => {
       blurTimer = setTimeout(dismiss, 80);
     };
 
-    void prepareClipboardOverlayWindow().catch(() => {});
+    void prepareClipboardOverlayWindow().match(
+      () => undefined,
+      () => undefined,
+    );
 
     document.addEventListener("keydown", handleListKeyDown, true);
     unlistens.push(() => document.removeEventListener("keydown", handleListKeyDown, true));

@@ -30,9 +30,7 @@ const statusOptions: StatusOption[] = [
   { value: "cancelled", label: "Cancelled" },
 ];
 
-function statusVariant(
-  state: string,
-): "default" | "secondary" | "outline" | "destructive" | "success" {
+function statusVariant(state: string): "default" | "secondary" | "outline" | "error" | "success" {
   switch (state) {
     case "running":
     case "starting":
@@ -41,7 +39,7 @@ function statusVariant(
       return "success";
     case "error":
     case "cancelled":
-      return "destructive";
+      return "error";
     default:
       return "secondary";
   }
@@ -123,17 +121,16 @@ export function HistoryTabPanel(props: { model: ProjectDetailModel }) {
 
         <div class="ml-auto">
           <AlertDialog>
-            <AlertDialogTrigger asChild>
-              <Button
-                type="button"
-                variant="ghost"
-                size="sm"
-                class="h-8 text-xs text-muted-foreground hover:text-destructive"
-                disabled={m().clearSessionsMu.isPending}
-              >
-                <span class="iconify mdi--delete-outline mr-1.5 size-4" />
-                {t("history.clear") as string}
-              </Button>
+            <AlertDialogTrigger
+              as={Button}
+              type="button"
+              variant="ghost"
+              size="sm"
+              class="h-8 text-xs text-muted-foreground hover:text-destructive"
+              disabled={m().clearSessionsMu.isPending}
+            >
+              <span class="iconify mdi--delete-outline mr-1.5 size-4" />
+              {t("history.clear") as string}
             </AlertDialogTrigger>
             <AlertDialogContent>
               <AlertDialogHeader>
@@ -177,7 +174,9 @@ export function HistoryTabPanel(props: { model: ProjectDetailModel }) {
               <li class="rounded-md border border-border/60 bg-muted/30 px-3 py-2.5">
                 <div class="flex items-start justify-between gap-3">
                   <p class="text-xs text-muted-foreground whitespace-nowrap">
-                    {formatSessionRange(s.startedAtMs, s.endedAtMs, t)}
+                    {formatSessionRange(s.startedAtMs, s.endedAtMs, (k: string) =>
+                      t(k as Parameters<typeof t>[0]),
+                    )}
                   </p>
                   <Badge
                     variant={statusVariant(s.state)}

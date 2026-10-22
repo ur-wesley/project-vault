@@ -249,6 +249,7 @@ const en = {
     rescanAll: "Rescan all library folders",
     newProject: "New project from template",
     settings: "Settings",
+    pluginCommands: "Plugin Commands",
     comingSoon: "Soon",
   },
   wizard: {

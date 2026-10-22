@@ -123,6 +123,148 @@ pub struct EmbeddedSession {
     pub master: Arc<Mutex<Box<dyn MasterPty + Send>>>,
     pub writer: Arc<Mutex<Box<dyn Write + Send>>>,
     pub killer: Arc<Mutex<Box<dyn ChildKiller + Send + Sync>>>,
+    pub project_id: Option<String>,
+    pub cwd: String,
+    pub started_at_ms: i64,
+    pub root_pid: Option<u32>,
+}
+
+#[derive(Debug, Clone, serde::Serialize)]
+#[serde(rename_all = "camelCase")]
+pub struct TerminalMeta {
+    pub session_id: String,
+    pub project_id: Option<String>,
+    pub cwd: String,
+    pub started_at_ms: i64,
+    pub root_pid: Option<u32>,
+}
+
+#[derive(Clone, serde::Serialize)]
+#[serde(rename_all = "camelCase")]
+struct TerminalStateChangedPayload {
+    pub project_id: String,
+    pub running: bool,
+}
+
+fn emit_terminal_state(app: &AppHandle, project_id: &Option<String>, running: bool) {
+    if let Some(pid) = project_id {
+        let _ = app.emit(
+            "terminal-state-changed",
+            TerminalStateChangedPayload {
+                project_id: pid.clone(),
+                running,
+            },
+        );
+    }
+}
+
+pub fn list_terminal_metas(sessions: &EmbeddedTerminals) -> Vec<TerminalMeta> {
+    sessions
+        .0
+        .lock()
+        .ok()
+        .map(|g| {
+            g.iter()
+                .map(|(sid, s)| TerminalMeta {
+                    session_id: sid.clone(),
+                    project_id: s.project_id.clone(),
+                    cwd: s.cwd.clone(),
+                    started_at_ms: s.started_at_ms,
+                    root_pid: s.root_pid,
+                })
+                .collect()
+        })
+        .unwrap_or_default()
+}
+
+/// Debounce for the project-active dot: a terminal only counts as active
+/// once it is this old AND has a live child process. Prevents an idle
+/// shell prompt from marking the project active instantly on open.
+pub const TERMINAL_ACTIVE_DEBOUNCE_MS: i64 = 5000;
+
+/// True when the PTY shell (`root_pid`) has at least one live descendant
+/// (direct child or grandchild). Fail-closed to idle: unknown PID,
+/// dead root, or lookup failure returns false.
+pub fn terminal_has_task_with_sys(
+    sys: &sysinfo::System,
+    root_pid: Option<u32>,
+) -> bool {
+    let Some(root) = root_pid else {
+        return false;
+    };
+    if sys.process(sysinfo::Pid::from(root as usize)).is_none() {
+        return false;
+    }
+    // BFS over the parent->children map from the shell root. Any reachable
+    // descendant is a running task; equivalent to walking each process's
+    // ancestor chain up to the root, but in a single pass.
+    let mut children_by_parent: HashMap<u32, Vec<u32>> = HashMap::new();
+    for (pid, process) in sys.processes() {
+        if let Some(parent) = process.parent() {
+            children_by_parent
+                .entry(parent.as_u32())
+                .or_default()
+                .push(pid.as_u32());
+        }
+    }
+    let mut queue: std::collections::VecDeque<u32> = std::collections::VecDeque::new();
+    if let Some(kids) = children_by_parent.get(&root) {
+        for kid in kids {
+            queue.push_back(*kid);
+        }
+    }
+    let mut seen = std::collections::HashSet::new();
+    while let Some(pid) = queue.pop_front() {
+        if !seen.insert(pid) {
+            continue;
+        }
+        // First reachable descendant already proves a live task.
+        return true;
+    }
+    false
+}
+
+/// Convenience wrapper with its own fresh `sysinfo` snapshot.
+/// Kept as the single-PID public API (debugging/tests); the hot path in
+/// `list_all_processes` uses the shared-snapshot variant below.
+#[allow(dead_code)]
+pub fn terminal_has_task(root_pid: Option<u32>) -> bool {
+    let Some(_) = root_pid else {
+        return false;
+    };
+    let mut sys = sysinfo::System::new_all();
+    sys.refresh_processes(sysinfo::ProcessesToUpdate::All, true);
+    terminal_has_task_with_sys(&sys, root_pid)
+}
+
+/// Full active gate: old enough AND has a live child task.
+pub fn terminal_is_active(
+    started_at_ms: i64,
+    root_pid: Option<u32>,
+    now_ms: i64,
+    sys: &sysinfo::System,
+) -> bool {
+    now_ms - started_at_ms >= TERMINAL_ACTIVE_DEBOUNCE_MS
+        && terminal_has_task_with_sys(sys, root_pid)
+}
+
+pub fn kill_project_terminals(sessions: &EmbeddedTerminals, project_id: &str) -> usize {
+    let ids: Vec<String> = sessions
+        .0
+        .lock()
+        .ok()
+        .map(|g| {
+            g.iter()
+                .filter(|(_, s)| s.project_id.as_deref() == Some(project_id))
+                .map(|(sid, _)| sid.clone())
+                .collect()
+        })
+        .unwrap_or_default();
+    let n = ids.len();
+    for sid in ids {
+        let _ = kill_session(sessions, &sid);
+    }
+    n
 }
 
 #[cfg(windows)]
@@ -343,7 +485,7 @@ pub fn spawn_task_in_pty(
         monitors,
         TaskRegisterInput {
             session_id: stream_session_id.clone(),
-            project_id,
+            project_id: project_id.clone(),
             command: command_line,
             root_pid,
             stream_output: true,
@@ -366,12 +508,17 @@ pub fn spawn_task_in_pty(
         master,
         writer,
         killer,
+        project_id: Some(project_id.clone()),
+        cwd: cwd.to_string_lossy().to_string(),
+        started_at_ms,
+        root_pid,
     };
     sessions
         .0
         .lock()
         .map_err(|e| StableError::new(codes::INTERNAL, e.to_string()))?
         .insert(stream_session_id.clone(), sess);
+    emit_terminal_state(&app, &Some(project_id.clone()), true);
 
     let app_read = app.clone();
     let sid_read = stream_session_id.clone();
@@ -401,6 +548,7 @@ pub fn spawn_task_in_pty(
     let sid_wait = stream_session_id.clone();
     let map = sessions.0.clone();
     let monitors_wait = monitors.clone();
+    let exit_project_id = Some(project_id.clone());
     std::thread::spawn(move || {
         let wait_res = child.wait();
         let _ = reader_thread.join();
@@ -439,6 +587,7 @@ pub fn spawn_task_in_pty(
                 session_id: sid_wait.clone(),
             },
         );
+        emit_terminal_state(&app_wait, &exit_project_id, false);
         let monitors_done = monitors_wait.clone();
         tauri::async_runtime::block_on(async move {
             let _ = task_monitor::finalize_task(
@@ -501,10 +650,13 @@ pub fn spawn_session(
     cwd: std::path::PathBuf,
     shell_pref: Option<String>,
     size_hint: PtySizeHint,
+    project_id: Option<String>,
 ) -> Result<String, StableError> {
     if !cwd.is_dir() {
         return Err(StableError::new(codes::INVALID_PATH, "cwd not a directory"));
     }
+    let started_at_ms = crate::db::now_ms();
+    let cwd_str = cwd.to_string_lossy().to_string();
     let session_id = Uuid::new_v4().to_string();
     let pty_system = native_pty_system();
     let size = resolve_pty_size(size_hint.rows, size_hint.cols);
@@ -521,6 +673,7 @@ pub fn spawn_session(
         .slave
         .spawn_command(cmd)
         .map_err(|e| StableError::new(codes::SPAWN_FAILED, e.to_string()))?;
+    let root_pid = child.process_id();
     let killer = Arc::new(Mutex::new(child.clone_killer()));
     let reader = pair
         .master
@@ -536,12 +689,18 @@ pub fn spawn_session(
         master,
         writer,
         killer,
+        project_id: project_id.clone(),
+        cwd: cwd_str,
+        started_at_ms,
+        root_pid,
     };
     sessions
         .0
         .lock()
         .map_err(|e| StableError::new(codes::INTERNAL, e.to_string()))?
         .insert(session_id.clone(), sess);
+    // Born idle: the shell prompt alone must not mark the project active.
+    emit_terminal_state(&app, &project_id, false);
 
     let app_read = app.clone();
     let sid_read = session_id.clone();
@@ -567,6 +726,7 @@ pub fn spawn_session(
     let app_wait = app.clone();
     let sid_wait = session_id.clone();
     let map = sessions.0.clone();
+    let exit_project_id = project_id.clone();
     std::thread::spawn(move || {
         let _ = child.wait();
         let _ = reader_thread.join();
@@ -576,9 +736,10 @@ pub fn spawn_session(
         let _ = app_wait.emit(
             "embedded-terminal-exit",
             TermExitPayload {
-                session_id: sid_wait,
+                session_id: sid_wait.clone(),
             },
         );
+        emit_terminal_state(&app_wait, &exit_project_id, false);
     });
 
     Ok(session_id)

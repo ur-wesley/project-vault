@@ -10,7 +10,8 @@ import {
   DialogTitle,
 } from "~/components/ui/dialog";
 import { useI18n } from "~/lib/i18n-context";
-import type { DiscoverVersionFilesResultDto } from "~/types/dto";
+import { unknownErrorMessage } from "~/lib/invoke-error";
+import type { DiscoverVersionFilesResultDto, GitPreviewVersionsDto } from "~/types/dto";
 import type { ProjectDetailModel } from "../model/createProjectDetailModel";
 
 export function TagVersionDialog(props: {
@@ -102,8 +103,8 @@ export function TagVersionDialog(props: {
                   setDiscoveredFiles(result);
                   setSelectedVersionFiles(new Set<string>(result.files.map((f) => f.path)));
                   setTagStep("files");
-                } catch (e: any) {
-                  setTagError(e?.message || String(e));
+                } catch (e: unknown) {
+                  setTagError(unknownErrorMessage(e));
                 }
               }}
             />
@@ -121,8 +122,8 @@ export function TagVersionDialog(props: {
                   setDiscoveredFiles(result);
                   setSelectedVersionFiles(new Set<string>(result.files.map((f) => f.path)));
                   setTagStep("files");
-                } catch (e: any) {
-                  setTagError(e?.message || String(e));
+                } catch (e: unknown) {
+                  setTagError(unknownErrorMessage(e));
                 }
               }}
             />
@@ -140,8 +141,8 @@ export function TagVersionDialog(props: {
                   setDiscoveredFiles(result);
                   setSelectedVersionFiles(new Set<string>(result.files.map((f) => f.path)));
                   setTagStep("files");
-                } catch (e: any) {
-                  setTagError(e?.message || String(e));
+                } catch (e: unknown) {
+                  setTagError(unknownErrorMessage(e));
                 }
               }}
             />
@@ -159,8 +160,8 @@ export function TagVersionDialog(props: {
                   setDiscoveredFiles(result);
                   setSelectedVersionFiles(new Set<string>(result.files.map((f) => f.path)));
                   setTagStep("files");
-                } catch (e: any) {
-                  setTagError(e?.message || String(e));
+                } catch (e: unknown) {
+                  setTagError(unknownErrorMessage(e));
                 }
               }}
             />
@@ -293,15 +294,7 @@ function BumpButton(props: {
   selectedBump: string;
   isDiscovering: () => boolean;
   previewVersionsQ: {
-    data:
-      | {
-          currentVersion: string;
-          patchVersion: string;
-          minorVersion: string;
-          majorVersion: string;
-          betaVersion: string;
-        }
-      | undefined;
+    data: GitPreviewVersionsDto | null | undefined;
   };
   onClick: () => void;
 }) {
