@@ -99,3 +99,7 @@ graphify-out/
 .beads-credential-key
 .beads/proxieddb/
 *.gate.lock*
+
+# Superpowers daemon runtime files
+.superpowers/**/*.pid
+.superpowers/**/.server-stopped
