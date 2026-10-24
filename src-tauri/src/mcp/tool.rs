@@ -10,8 +10,6 @@ use sqlx::{Pool, Sqlite};
 use tauri::AppHandle;
 
 use crate::db;
-use crate::issues::models::CreateIssueInput;
-use crate::issues::provider::IssueProvider;
 use crate::mcp::protocol::{CallToolResult, Tool};
 
 /// Trait implemented by any MCP tool in Project Vault.
@@ -118,8 +116,9 @@ pub static REGISTRY: Lazy<ToolRegistry> = Lazy::new(|| {
     reg.register(ListLocationsTool);
     reg.register(GetGitStatusTool);
     reg.register(ListProjectTasksTool);
-    reg.register(ListIssuesTool);
-    reg.register(CreateIssueTool);
+    reg.register(crate::mcp::issue_tools::ListIssuesTool);
+    reg.register(crate::mcp::issue_tools::CreateIssueTool);
+    reg.register(crate::mcp::issue_tools::CloseIssueTool);
     reg.register(crate::mcp::kanban_tools::KanbanListBoards);
     reg.register(crate::mcp::kanban_tools::KanbanGetBoard);
     reg.register(crate::mcp::kanban_tools::KanbanListCards);
@@ -567,133 +566,3 @@ impl McpTool for ListProjectTasksTool {
     }
 }
 
-// 7. list_issues
-#[derive(Deserialize)]
-struct ListIssuesArgs {
-    project_id: String,
-    state: Option<String>,
-}
-
-pub struct ListIssuesTool;
-
-#[async_trait]
-impl McpTool for ListIssuesTool {
-    fn name(&self) -> &'static str {
-        "list_issues"
-    }
-
-    fn description(&self) -> &'static str {
-        "List issues tracked in Project Vault for a specific project."
-    }
-
-    fn schema(&self) -> serde_json::Value {
-        json!({
-            "type": "object",
-            "properties": {
-                "project_id": {
-                    "type": "string",
-                    "description": "Project ID"
-                },
-                "state": {
-                    "type": "string",
-                    "description": "Filter by state ('open' or 'closed')"
-                }
-            },
-            "required": ["project_id"]
-        })
-    }
-
-    async fn execute(&self, args: serde_json::Value, pool: &Pool<Sqlite>) -> CallToolResult {
-        let params: ListIssuesArgs = match serde_json::from_value(args) {
-            Ok(p) => p,
-            Err(e) => return CallToolResult::error(format!("Invalid arguments: {e}")),
-        };
-
-        let provider = crate::issues::local::LocalSqliteProvider::new(pool.clone());
-        match provider.list_issues(&params.project_id).await {
-            Ok(issues) => {
-                let filtered: Vec<_> = issues
-                    .into_iter()
-                    .filter(|i| {
-                        if let Some(ref s) = params.state {
-                            i.state.eq_ignore_ascii_case(s)
-                        } else {
-                            true
-                        }
-                    })
-                    .collect();
-                CallToolResult::text(serde_json::to_string_pretty(&filtered).unwrap_or_default())
-            }
-            Err(e) => CallToolResult::error(format!("Failed to list issues: {e}")),
-        }
-    }
-}
-
-// 8. create_issue
-#[derive(Deserialize)]
-struct CreateIssueArgs {
-    project_id: String,
-    title: String,
-    body: Option<String>,
-    #[serde(default)]
-    tags: Vec<String>,
-}
-
-pub struct CreateIssueTool;
-
-#[async_trait]
-impl McpTool for CreateIssueTool {
-    fn name(&self) -> &'static str {
-        "create_issue"
-    }
-
-    fn description(&self) -> &'static str {
-        "Create a new local issue for a project in Project Vault."
-    }
-
-    fn schema(&self) -> serde_json::Value {
-        json!({
-            "type": "object",
-            "properties": {
-                "project_id": {
-                    "type": "string",
-                    "description": "Project ID"
-                },
-                "title": {
-                    "type": "string",
-                    "description": "Issue title"
-                },
-                "body": {
-                    "type": "string",
-                    "description": "Optional markdown issue body description"
-                },
-                "tags": {
-                    "type": "array",
-                    "items": { "type": "string" },
-                    "description": "Optional list of tags"
-                }
-            },
-            "required": ["project_id", "title"]
-        })
-    }
-
-    async fn execute(&self, args: serde_json::Value, pool: &Pool<Sqlite>) -> CallToolResult {
-        let params: CreateIssueArgs = match serde_json::from_value(args) {
-            Ok(p) => p,
-            Err(e) => return CallToolResult::error(format!("Invalid arguments: {e}")),
-        };
-
-        let provider = crate::issues::local::LocalSqliteProvider::new(pool.clone());
-        let input = CreateIssueInput {
-            title: params.title,
-            body: params.body,
-            tags: params.tags,
-        };
-        match provider.create_issue(&params.project_id, input).await {
-            Ok(issue) => {
-                CallToolResult::text(serde_json::to_string_pretty(&issue).unwrap_or_default())
-            }
-            Err(e) => CallToolResult::error(format!("Failed to create issue: {e}")),
-        }
-    }
-}
