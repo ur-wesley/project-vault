@@ -49,7 +49,7 @@ import {
   subscribeTerminalExit,
 } from "./terminal-io";
 import type { Result } from "neverthrow";
-import { formatCommandTitle, parseCommandFromLine } from "./parse-command-title";
+import { resolveEnteredCommandTitle } from "./parse-command-title";
 
 const WEB_LINK_REGEX = /https?:\/\/[^\s"<>|`{}[\]^]+/g;
 const ESC_BLUR_WINDOW_MS = 450;
@@ -129,11 +129,16 @@ export function TerminalHost(props: {
   let term: Terminal | null = null;
   let fit: FitAddon | null = null;
   let sessionId: string | null = null;
+  let lastRows = 0;
+  let lastCols = 0;
 
   const doResize = (): boolean => {
     if (!sessionId) return false;
     const sid: string = sessionId;
     return fitAndPushTerminalSize(term, fit, (rows, cols) => {
+      if (rows === lastRows && cols === lastCols) return;
+      lastRows = rows;
+      lastCols = cols;
       void embeddedTerminalResize(sid, rows, cols);
     });
   };
@@ -347,6 +352,8 @@ export function TerminalHost(props: {
           return;
         }
         sid = spawn.value;
+        lastRows = term.rows;
+        lastCols = term.cols;
         spawnedByThisEffect = true;
         subscribeSession(sid);
       } else {
@@ -391,22 +398,33 @@ export function TerminalHost(props: {
       }
       setTerminalReady(true);
 
+      let replaying = false;
       if (existingSid) {
         const bufferResult = await embeddedTerminalGetBuffer(sessionId);
         if (cancelled) return;
-        if (bufferResult.isOk()) {
+        if (bufferResult.isOk() && bufferResult.value.length > 0) {
+          replaying = true;
           clearTerminalBuffer(sessionId);
           for (const chunk of bufferResult.value) {
             appendTerminalChunk(sessionId, chunk);
             if (!term) break;
             term.write(decodeTerminalChunk(chunk));
           }
+          term?.write("", () => {
+            replaying = false;
+          });
         }
       } else {
         const replay = getTerminalReplay(sessionId);
-        for (const chunk of replay) {
-          if (!term) break;
-          term.write(decodeTerminalChunk(chunk));
+        if (replay.length > 0) {
+          replaying = true;
+          for (const chunk of replay) {
+            if (!term) break;
+            term.write(decodeTerminalChunk(chunk));
+          }
+          term?.write("", () => {
+            replaying = false;
+          });
         }
       }
 
@@ -424,28 +442,24 @@ export function TerminalHost(props: {
       }
 
       term.onData((data) => {
-        if (!isTerminalInput(data)) return;
+        if (replaying || !isTerminalInput(data)) return;
         queueTerminalWrite(sessionId, data);
-        if (!data.includes("\r")) return;
-        // Tab rename off the keydown hot path: xterm has accepted the key by
-        // now, so a sync store update can no longer swallow the first Enter
-        // in raw-mode prompts. Deferred one macrotask for extra safety.
-        window.setTimeout(() => {
-          if (!term) return;
-          const onCommandEntered = untrack(() => props.onCommandEntered);
-          if (!onCommandEntered) return;
-          const buffer = term.buffer.active;
-          const currentLine = buffer.getLine(buffer.cursorY);
-          let lineText = "";
-          if (currentLine) {
-            const endX = buffer.cursorX;
-            for (let x = 0; x < endX; x++) {
-              const cell = currentLine.getCell(x);
-              lineText += cell?.getChars() ?? "";
-            }
+        if (!data.includes("\r") || !term) return;
+        const buffer = term.buffer.active;
+        const currentLine = buffer.getLine(buffer.cursorY);
+        let lineText = "";
+        if (currentLine) {
+          const endX = buffer.cursorX;
+          for (let x = 0; x < endX; x++) {
+            const cell = currentLine.getCell(x);
+            lineText += cell?.getChars() ?? "";
           }
-          const command = parseCommandFromLine(lineText);
-          onCommandEntered(instanceId, command ? formatCommandTitle(command) : "");
+        }
+        const nextTitle = resolveEnteredCommandTitle(lineText);
+        if (nextTitle === null) return;
+        window.setTimeout(() => {
+          const onCommandEntered = untrack(() => props.onCommandEntered);
+          onCommandEntered?.(instanceId, nextTitle);
         }, 0);
       });
 

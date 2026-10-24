@@ -1,5 +1,5 @@
 import { createQuery } from "@tanstack/solid-query";
-import { For, Show, createEffect, onCleanup, type Accessor } from "solid-js";
+import { For, Show, createEffect, createMemo, onCleanup, untrack, type Accessor } from "solid-js";
 import { toast } from "solid-sonner";
 
 import { Button } from "~/components/ui/button";
@@ -99,6 +99,8 @@ export function EmbeddedTerminalPane(props: {
   const updateInstanceName = (id: string, command: string) => {
     props.onUpdateName?.(id, command);
   };
+
+  const instanceIds = createMemo(() => props.instances().map((i) => i.id));
 
   createEffect(() => {
     if (!props.active) return;
@@ -277,23 +279,27 @@ export function EmbeddedTerminalPane(props: {
           class="relative flex-1 min-h-0 overflow-hidden rounded-sm flex flex-col"
           style={{ "background-color": "#111111" }}
         >
-          <For each={props.instances()}>
-            {(inst) => (
-              <TerminalHost
-                instance={inst}
-                activeId={props.activeId}
-                isActivePane={props.active}
-                spawnFn={(shell, rows, cols) => embeddedTerminalSpawn(props.projectId, shell, rows, cols)}
-                onSessionId={(id, sid) => props.onUpdateSessionId(id, sid)}
-                onError={(err) => toast.error(err)}
-                onProcessExit={(id, hasContent) => {
-                  if (!hasContent) {
-                    void props.onCloseTerminal(id);
-                  }
-                }}
-                onCommandEntered={updateInstanceName}
-              />
-            )}
+          <For each={instanceIds()}>
+            {(id) => {
+              const inst = untrack(() => props.instances().find((i) => i.id === id));
+              if (!inst) return null;
+              return (
+                <TerminalHost
+                  instance={inst}
+                  activeId={props.activeId}
+                  isActivePane={props.active}
+                  spawnFn={(shell, rows, cols) => embeddedTerminalSpawn(props.projectId, shell, rows, cols)}
+                  onSessionId={(instanceId, sid) => props.onUpdateSessionId(instanceId, sid)}
+                  onError={(err) => toast.error(err)}
+                  onProcessExit={(instanceId, hasContent) => {
+                    if (!hasContent) {
+                      void props.onCloseTerminal(instanceId);
+                    }
+                  }}
+                  onCommandEntered={updateInstanceName}
+                />
+              );
+            }}
           </For>
           <Show when={props.instances().length === 0}>
             <div class="flex h-full items-center justify-center text-sm text-muted-foreground">

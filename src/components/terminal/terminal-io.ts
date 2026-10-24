@@ -24,9 +24,15 @@ export type TerminalExitPayload = {
   sessionId: string;
 };
 
-/** True for non-empty strings only — guards paste/clipboard and xterm onData payloads. */
+const FOCUS_REPORT_SEQUENCES = new Set(["\x1b[I", "\x1b[O"]);
+
+/**
+ * True for non-empty user/terminal input strings, excluding xterm DECSET 1004
+ * focus reports (\x1b[I / \x1b[O) that ConPTY enables via \x1b[?1004h and
+ * forwards raw into Node readline/prompts stdin as `undefined` keystrokes.
+ */
 export function isTerminalInput(value: unknown): value is string {
-  return typeof value === "string" && value.length > 0;
+  return typeof value === "string" && value.length > 0 && !FOCUS_REPORT_SEQUENCES.has(value);
 }
 
 export function decodeTerminalChunk(b64: string): Uint8Array {

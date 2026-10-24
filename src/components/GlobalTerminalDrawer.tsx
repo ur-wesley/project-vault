@@ -1,4 +1,4 @@
-import { For, Show, createEffect, createSignal } from "solid-js";
+import { For, Show, createEffect, createMemo, createSignal, untrack } from "solid-js";
 import { createQuery } from "@tanstack/solid-query";
 import { toast } from "solid-sonner";
 
@@ -134,6 +134,8 @@ export function GlobalTerminalDrawer() {
       return current.map((i) => (i.id === id ? { ...i, name: nextName } : i));
     });
   };
+
+  const instanceIds = createMemo(() => store.instances().map((i) => i.id));
 
   const handleMouseDown = (e: MouseEvent) => {
     e.preventDefault();
@@ -279,25 +281,29 @@ export function GlobalTerminalDrawer() {
         {/* Terminal content — flexbox matches exact available height and resizes in real time */}
         <div class="min-h-0 flex-1 p-1 flex flex-col">
           <div class="relative flex-1 min-h-0 overflow-hidden rounded-sm flex flex-col bg-black/60 backdrop-blur-md">
-            <For each={store.instances()}>
-              {(inst) => (
-                <TerminalHost
-                  instance={inst}
-                  activeId={store.activeId}
-                  isActivePane={store.open()}
-                  spawnFn={(shell, rows, cols) => globalTerminalSpawn(undefined, shell, rows, cols)}
-                  onSessionId={updateSessionId}
-                  onError={(err) => {
-                    if (err) toast.error(err);
-                  }}
-                  onProcessExit={(id, hasContent) => {
-                    if (!hasContent) {
-                      void closeInstance(id);
-                    }
-                  }}
-                  onCommandEntered={updateInstanceName}
-                />
-              )}
+            <For each={instanceIds()}>
+              {(id) => {
+                const inst = untrack(() => store.instances().find((i) => i.id === id));
+                if (!inst) return null;
+                return (
+                  <TerminalHost
+                    instance={inst}
+                    activeId={store.activeId}
+                    isActivePane={store.open()}
+                    spawnFn={(shell, rows, cols) => globalTerminalSpawn(undefined, shell, rows, cols)}
+                    onSessionId={updateSessionId}
+                    onError={(err) => {
+                      if (err) toast.error(err);
+                    }}
+                    onProcessExit={(instanceId, hasContent) => {
+                      if (!hasContent) {
+                        void closeInstance(instanceId);
+                      }
+                    }}
+                    onCommandEntered={updateInstanceName}
+                  />
+                );
+              }}
             </For>
             <Show when={store.instances().length === 0}>
               <div class="flex h-full items-center justify-center text-sm text-muted-foreground flex-1">

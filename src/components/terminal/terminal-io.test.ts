@@ -43,8 +43,10 @@ describe("isTerminalInput", () => {
     expect(isTerminalInput("\r")).toBe(true);
   });
 
-  it("rejects empty and non-string payloads", () => {
+  it("rejects empty, non-string, and xterm DECSET 1004 focus report payloads", () => {
     expect(isTerminalInput("")).toBe(false);
+    expect(isTerminalInput("\x1b[I")).toBe(false);
+    expect(isTerminalInput("\x1b[O")).toBe(false);
     expect(isTerminalInput(undefined)).toBe(false);
     expect(isTerminalInput(null)).toBe(false);
     expect(isTerminalInput(0)).toBe(false);

@@ -164,18 +164,23 @@ function TaskStreamTerminal(props: { sessionId: string; active: boolean }) {
         return;
       }
 
+      let replaying = false;
       term.onData((data) => {
-        if (!isTerminalInput(data)) return;
+        if (replaying || !isTerminalInput(data)) return;
         queueTerminalWrite(sid, data);
       });
 
       const bufferResult = await embeddedTerminalGetBuffer(sid);
       if (cancelled) return;
-      if (bufferResult.isOk()) {
+      if (bufferResult.isOk() && bufferResult.value.length > 0) {
+        replaying = true;
         for (const chunk of bufferResult.value) {
           if (!term) break;
           term.write(decodeTerminalChunk(chunk));
         }
+        term?.write("", () => {
+          replaying = false;
+        });
       }
 
       // Display-only: shared bus owns the single buffer append.
