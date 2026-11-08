@@ -30,4 +30,3 @@ export * as terminal from "./terminal";
 export * as tunnel from "./tunnel";
 export * as updates from "./updates";
 export * as tauriUtils from "./utils";
-export * as workspaces from "./workspaces";

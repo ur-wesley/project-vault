@@ -27,21 +27,27 @@ export type TerminalExitPayload = {
 const FOCUS_REPORT_SEQUENCES = new Set(["\x1b[I", "\x1b[O"]);
 
 /**
- * True for non-empty user/terminal input strings, excluding xterm DECSET 1004
- * focus reports (\x1b[I / \x1b[O) that ConPTY enables via \x1b[?1004h and
- * forwards raw into Node readline/prompts stdin as `undefined` keystrokes.
+ * True for non-empty user/terminal input strings, excluding ghostty-web
+ * focus-report sequences (DECSET 1004, \x1b[I / \x1b[O) that ConPTY enables
+ * via \x1b[?1004h and forwards raw into Node readline/prompts stdin as
+ * `undefined` keystrokes.
  */
 export function isTerminalInput(value: unknown): value is string {
   return typeof value === "string" && value.length > 0 && !FOCUS_REPORT_SEQUENCES.has(value);
 }
 
 export function decodeTerminalChunk(b64: string): Uint8Array {
-  const bin = atob(b64);
-  const out = new Uint8Array(bin.length);
-  for (let i = 0; i < bin.length; i++) {
-    out[i] = bin.charCodeAt(i);
+  try {
+    const bin = atob(b64);
+    const out = new Uint8Array(bin.length);
+    for (let i = 0; i < bin.length; i++) {
+      out[i] = bin.charCodeAt(i);
+    }
+    return out;
+  } catch (err) {
+    console.error("decodeTerminalChunk: skipping malformed base64 chunk:", err);
+    return new Uint8Array(0);
   }
-  return out;
 }
 
 function readPayloadString(payload: unknown, key: string): string {
@@ -147,6 +153,12 @@ export const TERMINAL_SLOW_WRITE_MS = 1000;
 /** Pending writes beyond this depth log a warning (once per crossing). */
 export const TERMINAL_WRITE_QUEUE_WARN_DEPTH = 10;
 
+type MappableErr = { mapErr: (fn: (err: unknown) => void) => void };
+
+function hasMapErr(value: unknown): value is MappableErr {
+  return isRecord(value) && typeof value.mapErr === "function";
+}
+
 async function runTerminalWrite(
   write: TerminalWriteFn,
   sessionId: string,
@@ -155,9 +167,9 @@ async function runTerminalWrite(
   const startedAt = Date.now();
   try {
     const out: unknown = write(sessionId, data);
-    if (isRecord(out) && typeof out.mapErr === "function") {
+    if (hasMapErr(out)) {
       // neverthrow ResultAsync: log failures, never throw.
-      (out.mapErr as (fn: (err: unknown) => void) => void)((err: unknown) => {
+      out.mapErr((err: unknown) => {
         console.error("terminal write error:", err);
       });
     }

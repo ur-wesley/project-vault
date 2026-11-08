@@ -25,7 +25,7 @@ export type KanbanCardMeta = {
   relations: KanbanRelation[];
   due: string | null;
   archived: boolean;
-  links: { tasks: string[]; files: string[]; issues: string[]; workspaces: string[] };
+  links: { tasks: string[]; files: string[]; issues: string[] };
   checklist: { label: string; done: boolean }[];
 };
 

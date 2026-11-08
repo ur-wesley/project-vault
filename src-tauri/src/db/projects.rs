@@ -428,3 +428,20 @@ pub async fn delete_projects_for_location_not_in_paths(
     }
     Ok(n)
 }
+
+pub async fn resolve_project(
+    pool: &Pool<Sqlite>,
+    id_or_path: &str,
+) -> Result<(String, std::path::PathBuf), StableError> {
+    if let Ok(p) = get_project(pool, id_or_path).await {
+        return Ok((p.id, std::path::PathBuf::from(p.path)));
+    }
+    let projects = list_projects(pool).await?;
+    let found = projects
+        .into_iter()
+        .find(|pr| pr.name.eq_ignore_ascii_case(id_or_path) || pr.path == id_or_path);
+    match found {
+        Some(p) => Ok((p.id, std::path::PathBuf::from(p.path))),
+        None => Err(StableError::new(codes::NOT_FOUND, "project not found")),
+    }
+}

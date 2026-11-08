@@ -84,7 +84,7 @@ pub async fn my_command(payload: String) -> Result<Response, Error> {
 ### 4. Terminal/PTY
 
 - Use `portable-pty` in Rust for terminal integration.
-- Use `@xterm/xterm` in Frontend for rendering.
+- Use `ghostty-web` in Frontend for rendering.
 - Sync state via Tauri events (`listen`).
 
 ---

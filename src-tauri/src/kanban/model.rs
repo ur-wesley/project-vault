@@ -27,8 +27,6 @@ pub struct CardLinks {
     pub files: Vec<String>,
     #[serde(default)]
     pub issues: Vec<String>,
-    #[serde(default)]
-    pub workspaces: Vec<String>,
 }
 
 /// Parent/child (sub-issue) + peer relationships, vibe-kanban style:

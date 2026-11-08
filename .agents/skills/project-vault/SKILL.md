@@ -1,6 +1,6 @@
 ---
 name: project-vault
-description: "Trigger: managing projects, kanban cards, or agent worktrees in Project Vault. Operates the Project Vault MCP server for workspace and board automation."
+description: "Trigger: managing projects or kanban cards in Project Vault. Operates the Project Vault MCP server for board automation."
 license: MIT
 metadata:
   author: project-vault
@@ -23,10 +23,7 @@ Activate this skill when:
 
 1. **Project Root Resolution**: When calling kanban tools, provide the project name, ID, or absolute root directory in `project`.
 2. **Card State Validity**: Card column transitions (`status` or `move_card.to`) MUST use valid columns: `backlog`, `todo`, `doing`, `review`, `done`, or `cancelled`.
-3. **Card-Prompt Inheritance**: When creating a workspace for a card via `start_workspace`, supply `board_id` and `card_id`; do NOT duplicate card content in `prompt` unless augmenting instructions.
-4. **Non-Destructive Deletions**: Do not call `delete_workspace` with `delete_branch: true` or `delete_board` without explicit user confirmation.
 5. **Session Monitoring**: To inspect running agent progress, call `get_execution` to read the live PTY terminal buffer tail instead of polling processes directly.
-6. **PR Merge Automation**: Use `merge_pr` to finalize workspace tasks; it automatically transitions linked kanban cards to `done` and archives the workspace.
 
 ## Decision Gates
 
@@ -42,13 +39,8 @@ Activate this skill when:
 | Update card fields | `update_card` | `project: "...", board_id: "...", card_id: "...", <fields>` |
 | Close issue | `close_issue` | `project_id: "...", issue_number: <num_or_id>, reason: "..."` |
 | Transition card column | `move_card` | `project: "...", board_id: "...", card_id: "...", to: "<column>"` |
-| List agent worktrees | `list_workspaces` | `project: "<project>"` |
-| Launch agent in worktree | `start_workspace` | `project: "...", name: "...", board_id: "...", card_id: "..."` |
 | Read agent live output | `get_execution` | `session_id: "<session_id>"` |
 | Send prompt to agent | `session_prompt` | `session_id: "...", prompt: "..."` |
-| Push worktree branch | `workspace_push` | `workspace_id: "<workspace_id>"` |
-| Open GitHub PR | `create_pr` | `workspace_id: "<workspace_id>"` |
-| Merge PR & complete card | `merge_pr` | `workspace_id: "...", owner: "...", repo: "...", number: <num>` |
 
 ## Execution Steps
 
@@ -70,11 +62,9 @@ Activate this skill when:
 
 - **Query Responses**: Present project names, IDs, paths, stacks, and git status concisely.
 - **Card Updates**: Report card ID, board ID, and new status column upon card creation or move.
-- **Agent Workspaces**: State workspace ID, worktree path, branch name, and latest terminal output tail when reporting session progress.
 
 ## References
 
 - [Tools Reference](references/tools-reference.md) — Parameter schemas for all 35 Project Vault tools.
 - [Connection Guide](references/connection-guide.md) — Server endpoints (`/sse`, `/mcp`), client configuration, and authentication.
 - [Kanban Workflow](references/kanban-workflow.md) — Markdown card format, column lifecycles, and card links.
-- [Workspaces Workflow](references/workspaces-workflow.md) — Git worktrees, executor sessions, and PR merge automation.

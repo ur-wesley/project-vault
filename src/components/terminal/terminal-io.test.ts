@@ -43,7 +43,7 @@ describe("isTerminalInput", () => {
     expect(isTerminalInput("\r")).toBe(true);
   });
 
-  it("rejects empty, non-string, and xterm DECSET 1004 focus report payloads", () => {
+  it("rejects empty, non-string, and focus-report (DECSET 1004) payloads", () => {
     expect(isTerminalInput("")).toBe(false);
     expect(isTerminalInput("\x1b[I")).toBe(false);
     expect(isTerminalInput("\x1b[O")).toBe(false);
@@ -58,6 +58,21 @@ describe("decodeTerminalChunk", () => {
   it("round-trips base64 output", () => {
     const bytes = decodeTerminalChunk(toBase64("hello-123"));
     expect(Array.from(bytes)).toEqual(Array.from(new TextEncoder().encode("hello-123")));
+  });
+
+  it("returns empty without throwing on malformed base64", () => {
+    const errSpy = vi.spyOn(console, "error").mockImplementation(() => {});
+    try {
+      let bytes: Uint8Array | undefined;
+      expect(() => {
+        bytes = decodeTerminalChunk("!!!-not-base64-!!!");
+      }).not.toThrow();
+      expect(bytes).toBeInstanceOf(Uint8Array);
+      expect(bytes?.length).toBe(0);
+      expect(errSpy).toHaveBeenCalled();
+    } finally {
+      errSpy.mockRestore();
+    }
   });
 });
 

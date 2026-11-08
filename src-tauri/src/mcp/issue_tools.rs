@@ -56,7 +56,7 @@ impl McpTool for ListIssuesTool {
             Err(e) => return CallToolResult::error(format!("Invalid arguments: {e}")),
         };
 
-        let (project_id, _) = crate::workspaces::service::resolve_project(pool, &params.project_id)
+        let (project_id, _) = crate::db::resolve_project(pool, &params.project_id)
             .await
             .unwrap_or_else(|_| (params.project_id.clone(), PathBuf::new()));
 
@@ -138,7 +138,7 @@ impl McpTool for CreateIssueTool {
             Err(e) => return CallToolResult::error(format!("Invalid arguments: {e}")),
         };
 
-        let (project_id, _) = crate::workspaces::service::resolve_project(pool, &params.project_id)
+        let (project_id, _) = crate::db::resolve_project(pool, &params.project_id)
             .await
             .unwrap_or_else(|_| (params.project_id.clone(), PathBuf::new()));
 
@@ -209,7 +209,7 @@ impl McpTool for CloseIssueTool {
         };
 
         let (project_id, project_path) =
-            match crate::workspaces::service::resolve_project(pool, &params.project_id).await {
+            match crate::db::resolve_project(pool, &params.project_id).await {
                 Ok((id, path)) => (id, path),
                 Err(_) => (
                     params.project_id.clone(),

@@ -121,7 +121,7 @@ export const FloatingTerminal: Component<CanvasNodeComponentProps> = (props) => 
           </div>
         </Show>
         <div
-          data-xterm-container
+          data-terminal-container
           onWheel={(e) => e.stopPropagation()}
           class="flex min-h-0 flex-1 flex-col overflow-hidden rounded border border-slate-800"
           style={{ "min-height": "200px", "background-color": "#111111" }}

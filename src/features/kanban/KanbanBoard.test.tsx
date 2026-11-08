@@ -24,7 +24,7 @@ function makeCard(
     relations: [],
     due: null,
     archived: false,
-    links: { tasks: [], files: [], issues: [], workspaces: [] },
+    links: { tasks: [], files: [], issues: [] },
     checklist: [],
     body: "",
   };

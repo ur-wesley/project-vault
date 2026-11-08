@@ -56,22 +56,7 @@ fn resolve_git_dir(project_path: &Path) -> Option<PathBuf> {
     crate::commands::git::utils::resolve_git_dir(project_path)
 }
 
-/// owner/repo of the `origin` remote for any git dir (main repo or
-/// worktree — git resolves the real config). Used by workspace PR flows.
-pub(crate) fn origin_owner_repo(cwd: &Path) -> Option<(String, String)> {
-    let out = crate::process_util::hidden_command("git")
-        .arg("config")
-        .arg("--get")
-        .arg("remote.origin.url")
-        .current_dir(cwd)
-        .output()
-        .ok()?;
-    if !out.status.success() {
-        return None;
-    }
-    parse_github_url(String::from_utf8_lossy(&out.stdout).trim())
-}
-
+    
 #[tauri::command]
 pub async fn get_github_repo_for_project(
     db: State<'_, DbInstances>,
