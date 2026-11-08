@@ -25,4 +25,3 @@ pub mod task_runner;
 pub mod tools;
 pub mod updater;
 pub mod volumes;
-pub mod workspaces;

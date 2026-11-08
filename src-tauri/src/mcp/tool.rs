@@ -132,20 +132,6 @@ pub static REGISTRY: Lazy<ToolRegistry> = Lazy::new(|| {
     reg.register(crate::mcp::kanban_tools::KanbanSetTagColor);
     reg.register(crate::mcp::kanban_tools::KanbanCreateRelation);
     reg.register(crate::mcp::kanban_tools::KanbanDeleteRelation);
-    reg.register(crate::mcp::workspace_tools::WorkspaceList);
-    reg.register(crate::mcp::workspace_tools::WorkspaceGet);
-    reg.register(crate::mcp::workspace_tools::WorkspaceStart);
-    reg.register(crate::mcp::workspace_tools::SessionCreate);
-    reg.register(crate::mcp::workspace_tools::SessionList);
-    reg.register(crate::mcp::workspace_tools::SessionPrompt);
-    reg.register(crate::mcp::workspace_tools::ExecutionGet);
-    reg.register(crate::mcp::workspace_tools::WorkspaceDelete);
-    reg.register(crate::mcp::workspace_tools::WorkspaceLink);
-    reg.register(crate::mcp::workspace_tools::WorkspacePush);
-    reg.register(crate::mcp::workspace_tools::WorkspaceGitInfo);
-    reg.register(crate::mcp::workspace_tools::PrCreate);
-    reg.register(crate::mcp::workspace_tools::PrStatus);
-    reg.register(crate::mcp::workspace_tools::PrMerge);
     reg
 });
 

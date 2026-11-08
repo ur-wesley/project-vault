@@ -11,6 +11,7 @@ dist/
 dist-tauri/
 public/file-icons/
 public/iconify/
+public/ghostty-vt.wasm
 
 # Misc
 *.pem
@@ -103,3 +104,7 @@ graphify-out/
 # Superpowers daemon runtime files
 .superpowers/**/*.pid
 .superpowers/**/.server-stopped
+.fabrik/issues.db
+.fabrik/issues.db-wal
+.fabrik/issues.db-shm
+.fabrik/graph.db

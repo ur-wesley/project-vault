@@ -17,7 +17,7 @@ import { GithubProjectPanel } from "../GithubProjectPanel";
 import { TasksTabPanel } from "./TasksTabPanel";
 import { HistoryTabPanel } from "./HistoryTabPanel";
 import { KanbanTabPanel } from "~/features/kanban/KanbanTabPanel";
-import { WorkspacePanel } from "~/features/kanban/WorkspacePanel";
+
 import { CanvasView, openCanvasWindow } from "~/features/canvas";
 import type { ProjectDto } from "~/types/dto";
 
@@ -26,7 +26,7 @@ type ProjectMainTabsProps = Readonly<{
   project: () => ProjectDto;
 }>;
 
-const FULL_WIDTH_TABS = new Set(["canvas", "files", "terminal", "board", "workspaces"]);
+const FULL_WIDTH_TABS = new Set(["canvas", "files", "terminal", "board"]);
 const WIDE_TABS_KEY = "pv:project-tabs-wide";
 
 function readInitialWideTabs(): Record<string, boolean> {
@@ -213,16 +213,9 @@ export const ProjectMainTabs: Component<ProjectMainTabsProps> = (props) => {
                 </span>
               </TabsTrigger>
               <TabsTrigger
-                value="workspaces"
-                class="flex-1 text-xs font-semibold"
-                title={tabShortcutTitle(8, t("projectDetail.tabWorkspaces") as string)}
-              >
-                {t("projectDetail.tabWorkspaces") as string}
-              </TabsTrigger>
-              <TabsTrigger
                 value="history"
                 class="flex-1 text-xs font-semibold"
-                title={tabShortcutTitle(9, t("projectDetail.tabHistory") as string)}
+                title={tabShortcutTitle(8, t("projectDetail.tabHistory") as string)}
               >
                 {t("projectDetail.tabHistory") as string}
               </TabsTrigger>
@@ -350,9 +343,6 @@ export const ProjectMainTabs: Component<ProjectMainTabsProps> = (props) => {
                 onToggleFullscreen={() => setTerminalFullscreen((v) => !v)}
               />
             </div>
-          </TabsContent>
-          <TabsContent value="workspaces" class="min-h-0 flex-1 overflow-hidden outline-none">
-            <WorkspacePanel projectId={props.project().id} attachToTask={m().attachToTask} />
           </TabsContent>
           <TabsContent
             value="history"

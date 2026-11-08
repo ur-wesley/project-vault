@@ -15,4 +15,3 @@ export * from "./dto/screenshot";
 export * from "./dto/search";
 export * from "./dto/settings";
 export * from "./dto/tasks";
-export * from "./dto/workspaces";

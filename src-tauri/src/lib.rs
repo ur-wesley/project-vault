@@ -36,7 +36,6 @@ pub mod task_config;
 #[cfg(not(any(target_os = "android", target_os = "ios")))]
 mod tools;
 pub mod tunnel;
-pub mod workspaces;
 
 use tauri::{Emitter, Manager};
 use tauri_plugin_sql::{Builder as SqlPluginBuilder, Migration, MigrationKind};
@@ -376,25 +375,6 @@ pub fn run() {
             commands::beads::beads_add_comment,
             commands::beads::start_beads_watcher,
             commands::beads::stop_beads_watcher,
-            commands::workspaces::workspace_list,
-            commands::workspaces::workspace_get,
-            commands::workspaces::workspace_create,
-            commands::workspaces::workspace_delete,
-            commands::workspaces::workspace_archive,
-            commands::workspaces::workspace_link_card,
-            commands::workspaces::workspace_changes,
-            commands::workspaces::workspace_file_diff,
-            commands::workspaces::session_create,
-            commands::workspaces::session_list,
-            commands::workspaces::session_prompt,
-            commands::workspaces::session_stop,
-            commands::workspaces::session_get,
-            commands::workspaces::executors_list,
-            commands::workspaces::workspace_push,
-            commands::workspaces::workspace_git_info,
-            commands::workspaces::pr_create,
-            commands::workspaces::pr_status,
-            commands::workspaces::pr_merge,
             commands::sizes::get_location_project_sizes,
             commands::sizes::get_largest_entries,
             commands::sizes::get_dir_size_breakdown,

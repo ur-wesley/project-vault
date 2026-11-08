@@ -13,7 +13,6 @@ pub mod screenshot;
 pub mod search;
 pub mod sessions;
 pub mod tasks;
-pub mod workspaces;
 
 pub use canvas::*;
 pub use cleaner::*;
@@ -26,4 +25,3 @@ pub use screenshot::*;
 pub use search::*;
 pub use sessions::*;
 pub use tasks::*;
-pub use workspaces::*;

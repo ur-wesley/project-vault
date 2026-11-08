@@ -428,3 +428,17 @@ html[data-ui-density="compact"] .pv-library-grid {
   word-break: normal !important;
   white-space: pre !important;
 }
+
+/* Suppress ghostty-web hidden helper textarea caret artifact */
+[data-shortcut-scope="terminal"] textarea,
+[data-terminal-container] textarea {
+  caret-color: transparent !important;
+  color: transparent !important;
+  position: absolute !important;
+  left: -9999px !important;
+  top: -9999px !important;
+  width: 0 !important;
+  height: 0 !important;
+  opacity: 0 !important;
+  pointer-events: none !important;
+}

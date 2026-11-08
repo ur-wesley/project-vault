@@ -1,12 +1,9 @@
-import { isTauri } from "@tauri-apps/api/core";
-import { openUrl } from "@tauri-apps/plugin-opener";
-import { readText } from "tauri-plugin-clipboard-api";
-import { FitAddon } from "@xterm/addon-fit";
-import { Terminal } from "@xterm/xterm";
-import type { ILink, ILinkProvider, Terminal as XTermTerminal } from "@xterm/xterm";
+import { FitAddon, Terminal } from "ghostty-web";
 import { Show, createEffect, createSignal, on, onCleanup } from "solid-js";
 
-import "@xterm/xterm/css/xterm.css";
+import { ensureGhosttyReady } from "~/lib/ghostty-init";
+import { asString } from "~/lib/guards";
+import { stableErrorMessage } from "~/lib/invoke-error";
 
 import {
   Dialog,
@@ -21,10 +18,12 @@ import {
   clearTerminalResize,
   fitAndPushTerminalSize,
   scheduleTerminalResize,
+  TERMINAL_DIALOG_PUSH_DELAY_MS,
+  TERMINAL_FOCUS_DELAY_MS,
+  TERMINAL_RESIZE_DEBOUNCE_MS,
   type TerminalResizeTimer,
 } from "~/lib/terminal-repaint";
 import {
-  embeddedTerminalKill,
   embeddedTerminalResize,
   embeddedTerminalGetBuffer,
 } from "~/services/tauri/terminal";
@@ -35,55 +34,14 @@ import {
   subscribeTerminalData,
   subscribeTerminalExit,
 } from "~/components/terminal/terminal-io";
-
-const WEB_LINK_REGEX = /https?:\/\/[^\s"<>|`{}[\]^]+/g;
-
-function registerTauriWebLinks(term: XTermTerminal): { dispose: () => void } {
-  const provider: ILinkProvider = {
-    provideLinks(y, callback) {
-      const line = term.buffer.active.getLine(y - 1);
-      if (!line) {
-        callback(undefined);
-        return;
-      }
-
-      let text = "";
-      for (let x = 0; x < line.length; x++) {
-        const cell = line.getCell(x);
-        text += cell?.getChars() || "";
-      }
-
-      const links: ILink[] = [];
-      let match: RegExpExecArray | null;
-      WEB_LINK_REGEX.lastIndex = 0;
-
-      while ((match = WEB_LINK_REGEX.exec(text)) !== null) {
-        const uri = match[0];
-        const startX = match.index;
-        const endX = startX + uri.length;
-
-        links.push({
-          text: uri,
-          range: {
-            start: { x: startX + 1, y },
-            end: { x: endX, y },
-          },
-          activate(event, text) {
-            if (!event.ctrlKey && !event.metaKey) return;
-            void openUrl(text);
-          },
-        });
-      }
-
-      callback(links);
-    },
-  };
-
-  return term.registerLinkProvider(provider);
-}
+import { mapInvokeError } from "~/services/tauri/utils";
+import { attachTauriLinkHandler } from "~/components/terminal/terminal-links";
+import { attachTerminalClipboard } from "~/components/terminal/terminal-clipboard";
 
 function TaskStreamTerminal(props: { sessionId: string; active: boolean }) {
   const [host, setHost] = createSignal<HTMLDivElement | null>(null);
+  const [loadError, setLoadError] = createSignal<string | null>(null);
+  const { t } = useI18n();
   let term: Terminal | null = null;
   let fit: FitAddon | null = null;
 
@@ -116,6 +74,7 @@ function TaskStreamTerminal(props: { sessionId: string; active: boolean }) {
     let ro: ResizeObserver | null = null;
     const resizeTimer: TerminalResizeTimer = { id: undefined };
     let linkProvider: { dispose: () => void } | null = null;
+    let detachClipboard: (() => void) | undefined;
     let detachWindowRepaint: (() => void) | undefined;
 
     const pushResize = () => {
@@ -125,85 +84,99 @@ function TaskStreamTerminal(props: { sessionId: string; active: boolean }) {
     };
 
     void (async () => {
-      term = new Terminal({
-        cursorBlink: true,
-        fontFamily: "ui-monospace, Consolas, monospace",
-        fontSize: 12,
-        theme: {
-          background: "#111111",
-          foreground: "#D4D4D4",
-          cursor: "#FF5F5F",
-        },
-      });
-      fit = new FitAddon();
-      term.loadAddon(fit);
-      linkProvider = registerTauriWebLinks(term);
-      term.attachCustomKeyEventHandler((event) => {
-        if (event.type !== "keydown") return true;
-        const isPaste = (event.ctrlKey || event.metaKey) && event.key === "v";
-        if (isPaste && isTauri() && term) {
-          event.preventDefault();
-          readText()
-            .then((text) => {
-              if (!isTerminalInput(text) || !term) return;
-              term.paste(text);
-            })
-            .catch(() => {});
-          return false;
-        }
-        return true;
-      });
-      term.open(el);
+      try {
+        // ensureGhosttyReady() resets initPromise on failure, so a retry reloads WASM.
+        await ensureGhosttyReady();
+        if (cancelled) return;
 
-      window.setTimeout(() => {
-        if (!cancelled) pushResize();
-      }, 200);
-
-      if (cancelled) {
-        term.dispose();
-        return;
-      }
-
-      let replaying = false;
-      term.onData((data) => {
-        if (replaying || !isTerminalInput(data)) return;
-        queueTerminalWrite(sid, data);
-      });
-
-      const bufferResult = await embeddedTerminalGetBuffer(sid);
-      if (cancelled) return;
-      if (bufferResult.isOk() && bufferResult.value.length > 0) {
-        replaying = true;
-        for (const chunk of bufferResult.value) {
-          if (!term) break;
-          term.write(decodeTerminalChunk(chunk));
-        }
-        term?.write("", () => {
-          replaying = false;
+        term = new Terminal({
+          cursorBlink: true,
+          fontFamily: "ui-monospace, Consolas, monospace",
+          fontSize: 12,
+          theme: {
+            background: "#111111",
+            foreground: "#D4D4D4",
+            cursor: "#FF5F5F",
+          },
         });
+        fit = new FitAddon();
+        term.loadAddon(fit);
+        term.open(el);
+        // Hidden helper-textarea styling is single-sourced in src/App.css
+        // ([data-shortcut-scope="terminal"] textarea) — no TS inline styles.
+        linkProvider = attachTauriLinkHandler(term, el);
+        // P2-5.4 (OQ-4) copy/paste parity: the dialog consumes the shared
+        // clipboard module (copy on selection + paste), not a paste-only
+        // inline handler — clipboard errors surface via console.error.
+        detachClipboard = attachTerminalClipboard(el, () => term);
+
+        window.setTimeout(() => {
+          if (!cancelled) pushResize();
+        }, TERMINAL_DIALOG_PUSH_DELAY_MS);
+
+        if (cancelled) {
+          term.dispose();
+          return;
+        }
+
+        let replaying = false;
+        term.onData((data) => {
+          if (replaying || !isTerminalInput(data)) return;
+          queueTerminalWrite(sid, data);
+        });
+
+        const bufferResult = await embeddedTerminalGetBuffer(sid);
+        if (cancelled) return;
+        if (bufferResult.isOk() && bufferResult.value.length > 0) {
+          replaying = true;
+          for (const chunk of bufferResult.value) {
+            if (!term) break;
+            const decoded = decodeTerminalChunk(chunk);
+            if (decoded.length === 0) continue;
+            term.write(decoded);
+          }
+          // Empty write = ghostty-web flush callback: fires after queued writes drain.
+          term?.write("", () => {
+            replaying = false;
+          });
+        }
+
+        // Display-only: shared bus owns the single buffer append.
+        unData = subscribeTerminalData(sid, (chunk) => {
+          if (!term) return;
+          const decoded = decodeTerminalChunk(chunk);
+          if (decoded.length === 0) return;
+          term.write(decoded);
+        });
+
+        unExit = subscribeTerminalExit(sid, () => {
+          if (!term) return;
+          term.writeln("\r\n\x1b[90m[process exited]\x1b[0m");
+        });
+
+        detachWindowRepaint = attachTerminalWindowRepaint(
+          () => term,
+          () => fit,
+          pushResize,
+        );
+
+        ro = new ResizeObserver(() => {
+          // Unified on TERMINAL_RESIZE_DEBOUNCE_MS (was 150ms here vs 120ms in
+          // TerminalHost) — same debounce purpose, one tuning knob.
+          scheduleTerminalResize(resizeTimer, pushResize, TERMINAL_RESIZE_DEBOUNCE_MS);
+        });
+        ro.observe(el);
+        if (el.parentElement) {
+          ro.observe(el.parentElement);
+        }
+      } catch (err: unknown) {
+        console.error("[TaskStreamTerminal] ghostty init failed:", err);
+        if (cancelled) return;
+        setLoadError(stableErrorMessage(t, mapInvokeError(err)));
+        term?.dispose();
+        term = null;
+        fit = null;
       }
-
-      // Display-only: shared bus owns the single buffer append.
-      unData = subscribeTerminalData(sid, (chunk) => {
-        if (!term) return;
-        term.write(decodeTerminalChunk(chunk));
-      });
-
-      unExit = subscribeTerminalExit(sid, () => {
-        if (!term) return;
-        term.writeln("\r\n\x1b[90m[process exited]\x1b[0m");
-      });
-
-      detachWindowRepaint = attachTerminalWindowRepaint(
-        () => term,
-        () => fit,
-        pushResize,
-      );
-
-      ro = new ResizeObserver(() => {
-        scheduleTerminalResize(resizeTimer, pushResize, 150);
-      });
-      ro.observe(el);
     })();
 
     onCleanup(() => {
@@ -214,7 +187,9 @@ function TaskStreamTerminal(props: { sessionId: string; active: boolean }) {
       unData?.();
       unExit?.();
       linkProvider?.dispose();
-      void embeddedTerminalKill(sid);
+      detachClipboard?.();
+      // OQ-1 detach-and-keep-alive: dialog close only disposes the viewer —
+      // the PTY keeps running. Killing stays behind explicit onStopTask.
       term?.dispose();
       term = null;
       fit = null;
@@ -231,7 +206,7 @@ function TaskStreamTerminal(props: { sessionId: string; active: boolean }) {
             if (document.activeElement !== t.textarea) {
               t.focus();
             }
-          }, 150);
+          }, TERMINAL_FOCUS_DELAY_MS);
         }
       },
       { defer: true },
@@ -239,10 +214,25 @@ function TaskStreamTerminal(props: { sessionId: string; active: boolean }) {
   );
 
   return (
-    <div
-      class="border-border bg-card mt-2 min-h-[400px] min-w-0 overflow-hidden rounded-md border p-2"
-      ref={setHost}
-    />
+    <Show
+      when={loadError()}
+      fallback={
+        <div
+          class="border-border bg-card mt-2 min-h-[400px] min-w-0 w-full overflow-hidden rounded-md border p-2"
+          data-shortcut-scope="terminal"
+          ref={setHost}
+        />
+      }
+    >
+      {(message) => (
+        <div
+          class="border-destructive/50 bg-destructive/10 mt-2 min-h-[400px] w-full rounded-md border p-4 text-sm text-destructive"
+          role="alert"
+        >
+          {message()}
+        </div>
+      )}
+    </Show>
   );
 }
 
@@ -258,12 +248,12 @@ export function TaskStreamDialog(props: {
     <Dialog open={props.open} onOpenChange={props.onOpenChange}>
       <DialogContent class="flex max-h-[90vh] max-w-4xl flex-col">
         <DialogHeader>
-          <DialogTitle>{t("projectDetail.taskOutputTitle") as string}</DialogTitle>
+          <DialogTitle>{asString(t("projectDetail.taskOutputTitle"))}</DialogTitle>
           <DialogDescription class="space-y-2">
             <Show when={props.commandLine}>
               <p class="break-all font-mono text-[11px] text-foreground/90">{props.commandLine}</p>
             </Show>
-            <p>{t("projectDetail.taskOutputHint") as string}</p>
+            <p>{asString(t("projectDetail.taskOutputHint"))}</p>
           </DialogDescription>
         </DialogHeader>
         <Show when={props.sessionId}>

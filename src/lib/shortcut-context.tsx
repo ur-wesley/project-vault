@@ -36,7 +36,10 @@ const ShortcutCtx = createContext<ShortcutContextValue>();
  * `defaultPrevented` check would swallow legitimate app shortcuts pressed
  * outside the editor.
  */
-const CONSUMING_SCOPE_SELECTOR = '[data-shortcut-scope="editor"], .xterm';
+const CONSUMING_SCOPE_SELECTOR =
+  // ghostty-web renders canvas + helper textarea with no .xterm classes, so
+  // the data-scope selectors below already cover the terminal surface.
+  '[data-shortcut-scope="editor"], [data-shortcut-scope="terminal"]';
 
 export function isConsumedByFocusedScope(e: KeyboardEvent): boolean {
   if (!e.defaultPrevented) return false;

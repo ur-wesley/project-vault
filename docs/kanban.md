@@ -91,7 +91,6 @@ links:
   tasks: ["bun run test"]
   files: ["src/features/kanban/Board.tsx"]
   issues: [github:12]
-  workspaces: []
 checklist:
   - { label: "column dnd", done: true }
   - { label: "card dialog", done: false }
@@ -100,7 +99,6 @@ checklist:
 ## Notes
 
 Acceptance: move card todo → doing → review → done via drag or MCP `move_card`.
-The description becomes the coding-agent prompt once Phase 2 workspaces land.
 ```
 
 Field reference:
@@ -118,7 +116,7 @@ Field reference:
 | `relations` | `{ to, kind: blocking\|related\|duplicate }[]`            | no       | `[]`     |
 | `due`       | `YYYY-MM-DD` or `null`                                    | no       | `null`   |
 | `archived`  | boolean (hidden from board, still readable)               | no       | `false`  |
-| `links`     | `{ tasks, files, issues, workspaces }` string arrays      | no       | `{}`     |
+| `links`     | `{ tasks, files, issues }` string arrays                  | no       | `{}`     |
 | `checklist` | `{ label, done }[]`                                       | no       | `[]`     |
 
 - Unknown frontmatter keys are **preserved** on write (forward compatible).
@@ -167,42 +165,3 @@ Projects are resolved by id **or** name **or** absolute path (same as
 3. `create_card` / `move_card` / `update_card` to progress work.
 4. Card bodies stay human-editable markdown — prefer checklist updates over
    rewriting the file by hand so `order` never drifts.
-
-## Agent workspaces (Phase 2)
-
-A workspace is an isolated `git worktree` + branch where a coding-agent CLI
-(`opencode`, `cursor-agent`, probed via `<bin> --version`) executes card work —
-vibe-kanban style. The plan stays markdown; runtime state (workspaces,
-sessions, live status) lives in SQLite (`agent_workspaces`, `agent_sessions`).
-
-- Worktrees live at `<repo>/.vault/worktrees/<workspace-id>`, auto-excluded
-  from `git status` via `.git/info/exclude`. Branches are `pv/<card>-<shortid>`.
-- `start_workspace { project, name, executor?, prompt?, board_id?, card_id? }`
-  creates the worktree, links the card (`links.workspaces`), and starts the
-  first session. Omitting `prompt` uses the card's title + body as the prompt.
-- Sessions run one-shot (`opencode run <prompt>`, `cursor-agent --print
---force <prompt>`) in the shared embedded PTY system, so the Terminal tab
-  can attach to any agent run. Exit code 0 → `done`, else `error`.
-- Follow-ups go to live sessions via `session_prompt`; finished sessions need
-  a new session (vibe-kanban `run_session_prompt` equivalent).
-- `get_workspace` returns sessions + uncommitted worktree changes;
-  `get_execution` returns live status + output tail.
-- `delete_workspace` stops sessions, removes the worktree (optionally the
-  branch with `delete_branch: true`), and unlinks the card.
-
-## Review loop → merge (Phase 3)
-
-- `get_workspace` embeds per-file `additions/deletions` (shared backend with
-  the project diff views: numstat, untracked-file synthesis, binary guard).
-- The Workspaces tab shows unified/side-by-side diffs with a file tree,
-  search, and inline comments. Pending comments batch into one message and go
-  back to the agent via `session_prompt` (or a fresh session when none is live).
-- `workspace_push`, `workspace_git_info` (branch/base/owner/repo/pushed),
-  `create_pr` (pushes first; title/body default to the card + change stats),
-  `pr_status`, `merge_pr` (`merge|squash|rebase`).
-- PRs use the `github_token` setting via GitHub REST — no CLI needed.
-- Automation: agent exit 0 moves a `doing` card to `review`; a successful
-  merge moves the card to `done` and archives the workspace (worktree kept
-  until explicit delete).
-- Fixed along the way: `run_git_async` used full `trim()`, which silently
-  dropped unstaged (` M`) files from every diff view — now `trim_end()`.

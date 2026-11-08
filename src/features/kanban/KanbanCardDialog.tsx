@@ -14,7 +14,6 @@ import {
   kanbanSetTagColor,
   kanbanUpdateCard,
 } from "~/services/tauri/kanban";
-import { CardWorkspaces } from "./CardWorkspaces";
 import { KanbanSelect } from "./KanbanSelect";
 import { KANBAN_PRIORITY_STYLE } from "./KanbanCardView";
 import {
@@ -630,15 +629,6 @@ export const KanbanCardDialog: Component<Props> = (props) => {
                     </For>
                   </ul>
                 </div>
-
-                {/* Workspaces */}
-                <CardWorkspaces
-                  projectId={props.projectId}
-                  boardId={props.boardId}
-                  cardId={c().id}
-                  cardTitle={c().title}
-                  onChanged={props.onChanged}
-                />
               </div>
 
               {/* Danger zone: pinned footer, tight padding */}

@@ -39,7 +39,7 @@ export interface CanvasNodeContainerProps {
   isFullscreen?: boolean;
   /**
    * When false the node body clips instead of scrolling, so an embedded
-   * scroller (e.g. the xterm viewport) is the only scrollable surface.
+   * scroller (e.g. the ghostty-web canvas viewport) is the only scrollable surface.
    * Defaults to true (legacy behavior for text-heavy nodes).
    */
   bodyScrollable?: boolean;
@@ -203,7 +203,7 @@ export const CanvasNodeContainer: Component<CanvasNodeContainerProps> = (props) 
     if (props.node.isPinned) return;
     if (
       (e.target as HTMLElement).closest(
-        "button, input, select, textarea, a, pre, code, canvas, [data-whiteboard-canvas], .shiki-container, .xterm, .xterm-screen, [data-xterm-container]",
+        "button, input, select, textarea, a, pre, code, canvas, [data-whiteboard-canvas], .shiki-container, [data-terminal-container], [data-shortcut-scope=\"terminal\"]",
       )
     )
       return;

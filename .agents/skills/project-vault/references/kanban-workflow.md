@@ -40,4 +40,4 @@ Use `move_card`:
   - `tasks`: Runnable scripts from `package.json` / `mise.toml` / `tauri.conf.json`.
   - `files`: Related codebase files.
   - `issues`: Local vault issues.
-  - `workspaces`: Associated agent worktree workspaces.
+  
